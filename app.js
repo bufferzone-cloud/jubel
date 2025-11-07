@@ -25,11 +25,12 @@ let userRating = 0;
 let userLocation = null;
 let driverMarker = null;
 let userMarker = null;
+let destinationMarker = null;
 let rideRoute = null;
-let nearbyPlacesMarkers = [];
 let rideRequestInterval = null;
 let ridePulsingAnimation = null;
 let userFullName = "Passenger";
+let driverAssignmentListener = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -330,10 +331,10 @@ function completeProfile() {
     }
 }
 
-// Map initialization
+// Map initialization - Only show user's current location
 function initializeMaps() {
-    // Home map
-    homeMap = L.map('homeMap').setView([-15.4167, 28.2833], 13); // Default to Lusaka
+    // Home map - only showing user location
+    homeMap = L.map('homeMap').setView([-15.4167, 28.2833], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(homeMap);
@@ -367,9 +368,15 @@ function getUserLocation() {
             rideMap.setView([lat, lng], 15);
             activeRideMap.setView([lat, lng], 15);
             
-            // Add marker for current location
-            userMarker = L.marker([lat, lng]).addTo(homeMap)
-                .bindPopup('Your location')
+            // Add marker for current location only
+            userMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'customer-marker',
+                    html: '📍<div class="marker-label">You</div>',
+                    iconSize: [30, 40]
+                })
+            }).addTo(homeMap)
+                .bindPopup('Your current location')
                 .openPopup();
                 
             // Update pickup location field
@@ -377,7 +384,7 @@ function getUserLocation() {
                 document.getElementById('pickupLocation').value = address;
             });
             
-            // Load nearby places based on location
+            // Load nearby places list (not on map)
             loadNearbyPlaces();
         }, error => {
             console.error('Geolocation error:', error);
@@ -405,6 +412,14 @@ function startLocationTracking() {
             if (userMarker) {
                 userMarker.setLatLng([lat, lng]);
             }
+            
+            // Update destination marker if it exists and we have a destination
+            if (destinationMarker) {
+                const destination = document.getElementById('destination').value;
+                if (destination) {
+                    updateFareEstimate();
+                }
+            }
         }, error => {
             console.error('Location tracking error:', error);
         }, {
@@ -415,15 +430,9 @@ function startLocationTracking() {
     }
 }
 
-// Load nearby places within 20km radius
+// Load nearby places within 20km radius (displayed in list, not on map)
 function loadNearbyPlaces() {
     if (!userLocation) return;
-    
-    // Clear existing markers
-    nearbyPlacesMarkers.forEach(marker => {
-        homeMap.removeLayer(marker);
-    });
-    nearbyPlacesMarkers = [];
     
     const nearbyPlacesList = document.getElementById('nearbyPlacesList');
     nearbyPlacesList.innerHTML = '<div class="loading-text">Loading nearby places...</div>';
@@ -474,16 +483,6 @@ function loadNearbyPlaces() {
             places.forEach(place => {
                 const placeElement = createNearbyPlaceElement(place);
                 nearbyPlacesList.appendChild(placeElement);
-                
-                // Add marker to map
-                const marker = L.marker([place.lat, place.lon])
-                    .addTo(homeMap)
-                    .bindPopup(`
-                        <strong>${place.tags.name}</strong><br>
-                        ${place.tags.amenity || place.tags.shop || place.tags.tourism || 'Place'}<br>
-                        Distance: ${(place.distance / 1000).toFixed(1)} km
-                    `);
-                nearbyPlacesMarkers.push(marker);
             });
         } else {
             nearbyPlacesList.innerHTML = '<div class="no-places">No nearby places found within 20km</div>';
@@ -496,7 +495,7 @@ function loadNearbyPlaces() {
     });
 }
 
-// Create nearby place element
+// Create nearby place element (for list display only)
 function createNearbyPlaceElement(place) {
     const placeElement = document.createElement('div');
     placeElement.className = 'nearby-place-item';
@@ -524,9 +523,38 @@ function createNearbyPlaceElement(place) {
             item.classList.remove('selected');
         });
         this.classList.add('selected');
+        
+        // Update destination marker on map
+        updateDestinationMarker(place.lat, place.lon, place.tags.name);
     });
     
     return placeElement;
+}
+
+// Update destination marker on map
+function updateDestinationMarker(lat, lng, name) {
+    // Remove existing destination marker
+    if (destinationMarker) {
+        homeMap.removeLayer(destinationMarker);
+    }
+    
+    // Add new destination marker
+    destinationMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '🏁<div class="marker-label">Destination</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(homeMap)
+        .bindPopup(`<strong>${name}</strong><br>Your destination`)
+        .openPopup();
+    
+    // Fit map to show both user location and destination
+    const bounds = L.latLngBounds(
+        [userLocation.lat, userLocation.lng],
+        [lat, lng]
+    );
+    homeMap.fitBounds(bounds, { padding: [20, 20] });
 }
 
 // Get icon for place type
@@ -628,15 +656,12 @@ function loadFallbackNearbyPlaces() {
                 item.classList.remove('selected');
             });
             this.classList.add('selected');
+            
+            // Update destination marker on map
+            updateDestinationMarker(place.lat, place.lng, place.name);
         });
         
         nearbyPlacesList.appendChild(placeElement);
-        
-        // Add marker to map
-        const marker = L.marker([place.lat, place.lng])
-            .addTo(homeMap)
-            .bindPopup(`<strong>${place.name}</strong><br>${formatPlaceType(place.type)}`);
-        nearbyPlacesMarkers.push(marker);
     });
 }
 
@@ -709,7 +734,7 @@ function switchTab(tabId) {
     if (tabId === 'historyScreen') {
         loadRideHistory();
     } else if (tabId === 'homeScreen') {
-        // Refresh map and nearby places when returning to home
+        // Refresh map when returning to home
         if (homeMap && userLocation) {
             homeMap.setView([userLocation.lat, userLocation.lng], 15);
         }
@@ -749,6 +774,13 @@ function showDestinationSuggestions(query) {
                     document.getElementById('destination').value = result.display_name;
                     suggestionsContainer.style.display = 'none';
                     updateFareEstimate();
+                    
+                    // Update destination marker on map
+                    updateDestinationMarker(
+                        parseFloat(result.lat), 
+                        parseFloat(result.lon), 
+                        result.display_name
+                    );
                 });
                 suggestionsContainer.appendChild(suggestionItem);
             });
@@ -771,6 +803,17 @@ function useSavedLocation(addressType) {
                     document.getElementById('destination').value = address;
                     updateFareEstimate();
                     showNotification(`${addressType.charAt(0).toUpperCase() + addressType.slice(1)} address set as destination.`);
+                    
+                    // Try to geocode the saved address to show on map
+                    forwardGeocode(address).then(results => {
+                        if (results.length > 0) {
+                            updateDestinationMarker(
+                                parseFloat(results[0].lat),
+                                parseFloat(results[0].lon),
+                                address
+                            );
+                        }
+                    });
                 } else {
                     showNotification(`No ${addressType} address saved. Please add it in settings.`);
                 }
@@ -839,7 +882,7 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c; // Distance in meters
 }
 
-// Ride request with pulsing animation
+// Enhanced Ride request with proper error handling and Firebase integration
 function requestRide() {
     const pickup = document.getElementById('pickupLocation').value;
     const destination = document.getElementById('destination').value;
@@ -854,10 +897,21 @@ function requestRide() {
         return;
     }
     
+    if (!currentUser) {
+        showNotification('Please log in to request a ride.');
+        return;
+    }
+    
+    // Show loading state
+    document.getElementById('requestRideBtn').disabled = true;
+    document.getElementById('requestRideBtn').textContent = 'Requesting...';
+    
     // Calculate fare based on distance
     forwardGeocode(destination).then(results => {
         if (results.length === 0) {
-            showNotification('Invalid destination address.');
+            showNotification('Invalid destination address. Please select a valid destination within 20km.');
+            document.getElementById('requestRideBtn').disabled = false;
+            document.getElementById('requestRideBtn').textContent = 'Request Ride';
             return;
         }
         
@@ -887,6 +941,7 @@ function requestRide() {
         // Create ride request in Firebase
         const rideId = database.ref().child('rides').push().key;
         const rideData = {
+            id: rideId,
             passengerId: currentUser.uid,
             passengerName: userFullName || 'Passenger',
             pickupLocation: pickup,
@@ -898,22 +953,20 @@ function requestRide() {
             rideType: rideType,
             fare: fare,
             status: 'requested',
-            timestamp: firebase.database.ServerValue.TIMESTAMP
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         };
         
         database.ref('rides/' + rideId).set(rideData)
             .then(() => {
-                currentRide = {
-                    id: rideId,
-                    ...rideData
-                };
+                currentRide = rideData;
                 
                 // Update UI
                 document.getElementById('pickupAddress').textContent = pickup;
                 document.getElementById('destinationAddress').textContent = destination;
                 document.getElementById('rideFare').textContent = `K${fare.toFixed(2)}`;
                 
-                // Update active ride screen
+                // Update active ride screen as well
                 document.getElementById('activePickupAddress').textContent = pickup;
                 document.getElementById('activeDestinationAddress').textContent = destination;
                 document.getElementById('currentFare').textContent = `K${fare.toFixed(2)}`;
@@ -930,12 +983,27 @@ function requestRide() {
                 // Listen for driver assignment
                 listenForDriverAssignment(rideId);
                 
-                showNotification('Ride requested. Looking for drivers...');
+                showNotification('Ride requested successfully! Looking for drivers...');
+                
+                // Reset button state
+                document.getElementById('requestRideBtn').disabled = false;
+                document.getElementById('requestRideBtn').textContent = 'Request Ride';
             })
             .catch(error => {
                 console.error('Error requesting ride:', error);
-                showNotification('Error requesting ride. Please try again.');
+                showNotification('Error requesting ride. Please check your connection and try again.');
+                
+                // Reset button state
+                document.getElementById('requestRideBtn').disabled = false;
+                document.getElementById('requestRideBtn').textContent = 'Request Ride';
             });
+    }).catch(error => {
+        console.error('Error geocoding destination:', error);
+        showNotification('Error calculating route. Please try again.');
+        
+        // Reset button state
+        document.getElementById('requestRideBtn').disabled = false;
+        document.getElementById('requestRideBtn').textContent = 'Request Ride';
     });
 }
 
@@ -944,6 +1012,10 @@ function startPulsingAnimation() {
     const loadingSpinner = document.querySelector('.loading-spinner');
     const spinner = document.querySelector('.spinner');
     const pulsingText = document.querySelector('.pulsing-text');
+    
+    // Show loading elements
+    loadingSpinner.classList.remove('hidden');
+    document.getElementById('assignedDriver').classList.add('hidden');
     
     // Add pulsing classes
     spinner.classList.add('pulsing');
@@ -975,6 +1047,106 @@ function stopPulsingAnimation() {
     }
 }
 
+// Enhanced driver assignment listener
+function listenForDriverAssignment(rideId) {
+    // Remove any existing listener
+    if (driverAssignmentListener) {
+        driverAssignmentListener();
+    }
+    
+    // Listen for changes to the ride
+    driverAssignmentListener = database.ref('rides/' + rideId).on('value', snapshot => {
+        const ride = snapshot.val();
+        if (!ride) {
+            showNotification('Ride not found. Please try again.');
+            return;
+        }
+        
+        console.log('Ride status update:', ride.status, ride.driverId);
+        
+        if (ride.driverId && ride.status === 'accepted') {
+            // Driver assigned and ride accepted
+            handleDriverAssignment(ride);
+        } else if (ride.status === 'completed') {
+            // Ride completed
+            showRideCompletion(ride);
+        } else if (ride.status === 'cancelled') {
+            // Ride cancelled
+            handleRideCancellation(ride);
+        }
+    }, error => {
+        console.error('Error listening for driver assignment:', error);
+        showNotification('Connection error. Please check your internet connection.');
+    });
+}
+
+// Handle driver assignment
+function handleDriverAssignment(ride) {
+    // Stop pulsing animation
+    stopPulsingAnimation();
+    
+    // Hide loading spinner and show driver info
+    document.querySelector('.loading-spinner').classList.add('hidden');
+    document.getElementById('assignedDriver').classList.remove('hidden');
+    
+    // Get driver details
+    database.ref('users/' + ride.driverId).once('value')
+        .then(driverSnapshot => {
+            const driver = driverSnapshot.val();
+            if (driver) {
+                // Update driver information
+                document.getElementById('driverName').textContent = driver.name || 'Driver';
+                document.getElementById('driverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
+                document.getElementById('driverVehicle').textContent = `Vehicle: ${driver.vehicle || 'N/A'}`;
+                document.getElementById('driverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
+                
+                // Update active ride screen as well
+                document.getElementById('activeDriverName').textContent = driver.name || 'Driver';
+                document.getElementById('activeDriverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
+                document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicle || 'N/A'}`;
+                document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
+                
+                showNotification(`Driver ${driver.name} has accepted your ride!`);
+                
+                // Start tracking driver location
+                trackDriverLocation(ride.driverId, ride.id);
+                
+                // Update map with driver and customer locations
+                updateRideMapWithDriver(ride);
+                
+                // Switch to during ride screen after a short delay
+                setTimeout(() => {
+                    switchTab('duringRideScreen');
+                    setupActiveRideMap(ride);
+                }, 2000);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching driver details:', error);
+            showNotification('Driver assigned but could not load details.');
+        });
+}
+
+// Handle ride cancellation
+function handleRideCancellation(ride) {
+    stopPulsingAnimation();
+    showNotification('Ride has been cancelled.');
+    switchTab('homeScreen');
+    currentRide = null;
+    
+    // Clean up
+    if (driverMarker) {
+        rideMap.removeLayer(driverMarker);
+        driverMarker = null;
+    }
+    
+    // Remove listener
+    if (driverAssignmentListener) {
+        driverAssignmentListener();
+        driverAssignmentListener = null;
+    }
+}
+
 // Schedule ride for later
 function scheduleRide() {
     showNotification('Scheduled rides feature coming soon!');
@@ -990,12 +1162,21 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
     });
     
     // Add markers
-    L.marker([pickupLat, pickupLng]).addTo(rideMap)
-        .bindPopup('Pickup Location');
+    L.marker([pickupLat, pickupLng], {
+        icon: L.divIcon({
+            className: 'customer-marker',
+            html: '📍<div class="marker-label">Pickup</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(rideMap).bindPopup('Pickup Location');
     
-    L.marker([destLat, destLng]).addTo(rideMap)
-        .bindPopup('Destination')
-        .openPopup();
+    L.marker([destLat, destLng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '🏁<div class="marker-label">Destination</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(rideMap).bindPopup('Destination');
     
     // Fit map to show both locations
     const bounds = L.latLngBounds(
@@ -1003,67 +1184,6 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
         [destLat, destLng]
     );
     rideMap.fitBounds(bounds, { padding: [20, 20] });
-}
-
-// Listen for driver assignment
-function listenForDriverAssignment(rideId) {
-    database.ref('rides/' + rideId).on('value', snapshot => {
-        const ride = snapshot.val();
-        if (!ride) return;
-        
-        if (ride.driverId) {
-            // Driver assigned - stop pulsing animation
-            stopPulsingAnimation();
-            
-            document.getElementById('assignedDriver').classList.remove('hidden');
-            document.querySelector('.loading-spinner').classList.add('hidden');
-            
-            // Get driver details
-            database.ref('users/' + ride.driverId).once('value')
-                .then(driverSnapshot => {
-                    const driver = driverSnapshot.val();
-                    if (driver) {
-                        document.getElementById('driverName').textContent = driver.name || 'Driver';
-                        document.getElementById('driverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
-                        document.getElementById('driverVehicle').textContent = `Vehicle: ${driver.vehicle || 'N/A'}`;
-                        document.getElementById('driverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
-                        
-                        // Update active ride screen as well
-                        document.getElementById('activeDriverName').textContent = driver.name || 'Driver';
-                        document.getElementById('activeDriverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
-                        document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicle || 'N/A'}`;
-                        document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
-                        
-                        showNotification(`Driver ${driver.name} assigned to your ride.`);
-                        
-                        // Start tracking driver location
-                        trackDriverLocation(ride.driverId, rideId);
-                        
-                        // Update map with driver and customer locations
-                        updateRideMapWithDriver(ride);
-                    }
-                });
-        }
-        
-        if (ride.status === 'accepted') {
-            // Switch to during ride screen
-            switchTab('duringRideScreen');
-            setupActiveRideMap(ride);
-            showNotification('Your ride has started.');
-        }
-        
-        if (ride.status === 'completed') {
-            // Show completion screen
-            showRideCompletion(ride);
-        }
-        
-        if (ride.status === 'cancelled') {
-            stopPulsingAnimation();
-            showNotification('Ride cancelled.');
-            switchTab('homeScreen');
-            currentRide = null;
-        }
-    });
 }
 
 // Update ride map with driver and customer locations
@@ -1229,12 +1349,19 @@ function cancelRide() {
         if (confirm('Are you sure you want to cancel this ride?')) {
             stopPulsingAnimation();
             
+            // Remove listener
+            if (driverAssignmentListener) {
+                driverAssignmentListener();
+                driverAssignmentListener = null;
+            }
+            
             database.ref('rides/' + currentRide.id).update({
                 status: 'cancelled',
-                cancelledAt: firebase.database.ServerValue.TIMESTAMP
+                cancelledAt: firebase.database.ServerValue.TIMESTAMP,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
             })
             .then(() => {
-                showNotification('Ride cancelled.');
+                showNotification('Ride cancelled successfully.');
                 switchTab('homeScreen');
                 currentRide = null;
                 
@@ -1261,6 +1388,8 @@ function contactDriver() {
                 if (driver && driver.phone) {
                     // In a real app, this would initiate a call
                     showNotification(`Calling driver: ${driver.phone}`);
+                    // Simulate calling - in a real app, you would use tel: protocol
+                    window.open(`tel:${driver.phone}`, '_self');
                 } else {
                     showNotification('Driver phone number not available.');
                 }
@@ -1325,6 +1454,12 @@ function showRideCompletion(ride) {
         activeRideMap.removeLayer(userMarker);
         userMarker = null;
     }
+    
+    // Remove listener
+    if (driverAssignmentListener) {
+        driverAssignmentListener();
+        driverAssignmentListener = null;
+    }
 }
 
 // Set rating stars
@@ -1356,7 +1491,8 @@ function completePayment() {
             rating: userRating,
             review: review,
             paymentMethod: paymentMethod,
-            paymentTimestamp: firebase.database.ServerValue.TIMESTAMP
+            paymentTimestamp: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
             showNotification(`Payment of K${totalAmount.toFixed(2)} completed. Thank you for using Jubel!`);
@@ -1416,7 +1552,8 @@ function saveProfile() {
             phone: phone,
             email: email,
             homeAddress: homeAddress,
-            workAddress: workAddress
+            workAddress: workAddress,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
             userFullName = name;
@@ -1573,6 +1710,12 @@ function toggleDarkMode() {
 // Logout
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
+        // Clean up any active listeners
+        if (driverAssignmentListener) {
+            driverAssignmentListener();
+            driverAssignmentListener = null;
+        }
+        
         auth.signOut()
             .then(() => {
                 currentUser = null;
