@@ -29,6 +29,7 @@ let rideRoute = null;
 let nearbyPlacesMarkers = [];
 let rideRequestInterval = null;
 let ridePulsingAnimation = null;
+let userFullName = "Passenger";
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -93,9 +94,21 @@ function showMainApp() {
     document.querySelector('.main-content').classList.remove('hidden');
     document.querySelector('.tab-container').classList.remove('hidden');
     
-    // Load AI suggestions and nearby places
-    loadAISuggestions();
+    // Update user greeting
+    updateUserGreeting();
+    
+    // Load nearby places
     loadNearbyPlaces();
+}
+
+// Update user greeting with full name
+function updateUserGreeting() {
+    const greetingElement = document.getElementById('userGreeting');
+    if (userFullName && userFullName !== "Passenger") {
+        greetingElement.textContent = `Hi ${userFullName}, Where to?`;
+    } else {
+        greetingElement.textContent = "Hi, Where to?";
+    }
 }
 
 // Authentication functions
@@ -301,6 +314,7 @@ function completeProfile() {
         database.ref('users/' + currentUser.uid).update(userData)
             .then(() => {
                 localStorage.setItem('profileCompleted', 'true');
+                userFullName = name;
                 showMainApp();
                 showNotification('Profile completed successfully.');
                 
@@ -363,8 +377,7 @@ function getUserLocation() {
                 document.getElementById('pickupLocation').value = address;
             });
             
-            // Load AI suggestions and nearby places based on location
-            loadAISuggestions();
+            // Load nearby places based on location
             loadNearbyPlaces();
         }, error => {
             console.error('Geolocation error:', error);
@@ -423,6 +436,7 @@ function loadNearbyPlaces() {
           node["amenity"](around:${radius},${userLocation.lat},${userLocation.lng});
           node["shop"](around:${radius},${userLocation.lat},${userLocation.lng});
           node["tourism"](around:${radius},${userLocation.lat},${userLocation.lng});
+          node["building"](around:${radius},${userLocation.lat},${userLocation.lng});
         );
         out body;
         >;
@@ -441,6 +455,15 @@ function loadNearbyPlaces() {
             // Process and display places
             const places = data.elements
                 .filter(element => element.tags && element.tags.name)
+                .map(place => {
+                    // Calculate distance from user
+                    const distance = calculateDistance(
+                        userLocation.lat, userLocation.lng,
+                        place.lat, place.lon
+                    );
+                    return { ...place, distance };
+                })
+                .sort((a, b) => a.distance - b.distance) // Sort by distance
                 .slice(0, 20); // Limit to 20 places
             
             if (places.length === 0) {
@@ -457,7 +480,8 @@ function loadNearbyPlaces() {
                     .addTo(homeMap)
                     .bindPopup(`
                         <strong>${place.tags.name}</strong><br>
-                        ${place.tags.amenity || place.tags.shop || place.tags.tourism || 'Place'}
+                        ${place.tags.amenity || place.tags.shop || place.tags.tourism || 'Place'}<br>
+                        Distance: ${(place.distance / 1000).toFixed(1)} km
                     `);
                 nearbyPlacesMarkers.push(marker);
             });
@@ -486,6 +510,7 @@ function createNearbyPlaceElement(place) {
             <div class="place-name">${place.tags.name}</div>
             <div class="place-type">${formatPlaceType(placeType)}</div>
             <div class="place-address">${getPlaceAddress(place)}</div>
+            <div class="place-distance">${(place.distance / 1000).toFixed(1)} km away</div>
         </div>
     `;
     
@@ -529,7 +554,10 @@ function getPlaceIcon(placeType) {
         'fuel': '⛽',
         'parking': '🅿️',
         'bus_station': '🚌',
-        'taxi': '🚕'
+        'taxi': '🚕',
+        'police': '👮',
+        'market': '🛍️',
+        'post_office': '📮'
     };
     
     return icons[placeType] || '📍';
@@ -563,10 +591,21 @@ function loadFallbackNearbyPlaces() {
         { name: 'University of Zambia', type: 'university', lat: -15.3875, lng: 28.3278 },
         { name: 'Lusaka Airport', type: 'airport', lat: -15.3308, lng: 28.4528 },
         { name: 'Kamwala Market', type: 'market', lat: -15.4181, lng: 28.2750 },
-        { name: 'Arcades Shopping Mall', type: 'mall', lat: -15.4053, lng: 28.3106 }
+        { name: 'Arcades Shopping Mall', type: 'mall', lat: -15.4053, lng: 28.3106 },
+        { name: 'Lusaka Central Police', type: 'police', lat: -15.4147, lng: 28.2886 },
+        { name: 'Lewanika General Hospital', type: 'hospital', lat: -15.4081, lng: 28.2808 }
     ];
     
-    fallbackPlaces.forEach(place => {
+    // Calculate distances and sort
+    const placesWithDistance = fallbackPlaces.map(place => {
+        const distance = calculateDistance(
+            userLocation.lat, userLocation.lng,
+            place.lat, place.lng
+        );
+        return { ...place, distance };
+    }).sort((a, b) => a.distance - b.distance);
+    
+    placesWithDistance.forEach(place => {
         const placeElement = document.createElement('div');
         placeElement.className = 'nearby-place-item';
         
@@ -576,6 +615,7 @@ function loadFallbackNearbyPlaces() {
                 <div class="place-name">${place.name}</div>
                 <div class="place-type">${formatPlaceType(place.type)}</div>
                 <div class="place-address">Lusaka, Zambia</div>
+                <div class="place-distance">${(place.distance / 1000).toFixed(1)} km away</div>
             </div>
         `;
         
@@ -593,7 +633,7 @@ function loadFallbackNearbyPlaces() {
         nearbyPlacesList.appendChild(placeElement);
         
         // Add marker to map
-        const marker = L.marker([place.lat, place.lon])
+        const marker = L.marker([place.lat, place.lng])
             .addTo(homeMap)
             .bindPopup(`<strong>${place.name}</strong><br>${formatPlaceType(place.type)}`);
         nearbyPlacesMarkers.push(marker);
@@ -620,13 +660,27 @@ function reverseGeocode(lat, lng) {
     });
 }
 
-// Forward geocoding function
+// Forward geocoding function with 20km radius filter
 function forwardGeocode(query) {
     return new Promise(resolve => {
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`)
+        if (!userLocation) {
+            resolve([]);
+            return;
+        }
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`)
             .then(response => response.json())
             .then(data => {
-                resolve(data);
+                // Filter results within 20km radius
+                const filteredResults = data.filter(result => {
+                    const distance = calculateDistance(
+                        userLocation.lat, userLocation.lng,
+                        parseFloat(result.lat), parseFloat(result.lon)
+                    );
+                    return distance <= 20000; // 20km in meters
+                });
+                
+                resolve(filteredResults);
             })
             .catch(error => {
                 console.error('Forward geocoding error:', error);
@@ -663,7 +717,7 @@ function switchTab(tabId) {
     }
 }
 
-// Show destination suggestions
+// Show destination suggestions with 20km radius filter
 function showDestinationSuggestions(query) {
     const suggestionsContainer = document.getElementById('destinationSuggestions');
     
@@ -679,7 +733,18 @@ function showDestinationSuggestions(query) {
             results.forEach(result => {
                 const suggestionItem = document.createElement('div');
                 suggestionItem.className = 'suggestion-item';
-                suggestionItem.textContent = result.display_name;
+                
+                // Calculate distance
+                const distance = calculateDistance(
+                    userLocation.lat, userLocation.lng,
+                    parseFloat(result.lat), parseFloat(result.lon)
+                );
+                
+                suggestionItem.innerHTML = `
+                    <div class="suggestion-name">${result.display_name}</div>
+                    <div class="suggestion-distance">${(distance / 1000).toFixed(1)} km away</div>
+                `;
+                
                 suggestionItem.addEventListener('click', function() {
                     document.getElementById('destination').value = result.display_name;
                     suggestionsContainer.style.display = 'none';
@@ -774,49 +839,6 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c; // Distance in meters
 }
 
-// Load AI-based suggestions
-function loadAISuggestions() {
-    if (!userLocation) return;
-    
-    const suggestions = [
-        { name: 'Lusaka City Center', type: 'city' },
-        { name: 'Manda Hill Mall', type: 'shopping' },
-        { name: 'University of Zambia', type: 'education' },
-        { name: 'Lusaka Airport', type: 'transport' },
-        { name: 'East Park Mall', type: 'shopping' },
-        { name: 'Levy Mall', type: 'shopping' }
-    ];
-    
-    const suggestionsContainer = document.getElementById('aiSuggestions');
-    suggestionsContainer.innerHTML = '';
-    
-    suggestions.forEach(suggestion => {
-        const suggestionCard = document.createElement('div');
-        suggestionCard.className = 'suggestion-card';
-        suggestionCard.innerHTML = `
-            <div style="font-size: 1.2rem; margin-bottom: 5px;">${getIconForType(suggestion.type)}</div>
-            <div style="font-size: 0.8rem; font-weight: 500;">${suggestion.name}</div>
-        `;
-        suggestionCard.addEventListener('click', function() {
-            document.getElementById('destination').value = suggestion.name;
-            updateFareEstimate();
-        });
-        suggestionsContainer.appendChild(suggestionCard);
-    });
-}
-
-function getIconForType(type) {
-    const icons = {
-        'city': '🏙️',
-        'shopping': '🛍️',
-        'education': '🎓',
-        'transport': '✈️',
-        'food': '🍽️',
-        'entertainment': '🎭'
-    };
-    return icons[type] || '📍';
-}
-
 // Ride request with pulsing animation
 function requestRide() {
     const pickup = document.getElementById('pickupLocation').value;
@@ -866,7 +888,7 @@ function requestRide() {
         const rideId = database.ref().child('rides').push().key;
         const rideData = {
             passengerId: currentUser.uid,
-            passengerName: document.getElementById('userName').value || 'Passenger',
+            passengerName: userFullName || 'Passenger',
             pickupLocation: pickup,
             destination: destination,
             pickupLat: userLocation.lat,
@@ -921,9 +943,11 @@ function requestRide() {
 function startPulsingAnimation() {
     const loadingSpinner = document.querySelector('.loading-spinner');
     const spinner = document.querySelector('.spinner');
+    const pulsingText = document.querySelector('.pulsing-text');
     
-    // Add pulsing class to spinner
+    // Add pulsing classes
     spinner.classList.add('pulsing');
+    pulsingText.classList.add('pulsing');
     
     // Create pulsing effect
     ridePulsingAnimation = setInterval(() => {
@@ -939,9 +963,15 @@ function stopPulsingAnimation() {
     }
     
     const spinner = document.querySelector('.spinner');
+    const pulsingText = document.querySelector('.pulsing-text');
+    
     if (spinner) {
         spinner.classList.remove('pulsing');
         spinner.style.transform = 'scale(1)';
+    }
+    
+    if (pulsingText) {
+        pulsingText.classList.remove('pulsing');
     }
 }
 
@@ -1354,15 +1384,19 @@ function loadUserData() {
             .then(snapshot => {
                 const userData = snapshot.val();
                 if (userData) {
-                    document.getElementById('userName').value = userData.name || '';
+                    userFullName = userData.name || "Passenger";
+                    document.getElementById('userName').value = userFullName;
                     document.getElementById('userPhone').value = userData.phone || '';
                     document.getElementById('userEmail').value = userData.email || '';
                     document.getElementById('savedHome').value = userData.homeAddress || '';
                     document.getElementById('savedWork').value = userData.workAddress || '';
                     
                     // Update user icon
-                    document.getElementById('userIcon').textContent = userData.name ? 
-                        userData.name.charAt(0).toUpperCase() : 'P';
+                    document.getElementById('userIcon').textContent = userFullName ? 
+                        userFullName.charAt(0).toUpperCase() : 'P';
+                    
+                    // Update greeting
+                    updateUserGreeting();
                 }
             });
     }
@@ -1385,6 +1419,7 @@ function saveProfile() {
             workAddress: workAddress
         })
         .then(() => {
+            userFullName = name;
             showNotification('Profile saved successfully.');
             
             // Update user display
@@ -1393,6 +1428,9 @@ function saveProfile() {
             });
             
             document.getElementById('userIcon').textContent = name ? name.charAt(0).toUpperCase() : 'P';
+            
+            // Update greeting
+            updateUserGreeting();
         })
         .catch(error => {
             console.error('Error saving profile:', error);
@@ -1401,7 +1439,7 @@ function saveProfile() {
     }
 }
 
-// Load ride history
+// Load ride history with all statuses
 function loadRideHistory() {
     if (currentUser) {
         const filter = document.getElementById('historyFilter').value;
@@ -1448,6 +1486,12 @@ function loadRideHistory() {
                         const formattedDate = date.toLocaleDateString();
                         const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                         
+                        // Determine status badge class
+                        let statusClass = 'status-requested';
+                        if (ride.status === 'accepted') statusClass = 'status-accepted';
+                        else if (ride.status === 'completed' || ride.status === 'paid') statusClass = 'status-completed';
+                        else if (ride.status === 'cancelled') statusClass = 'status-cancelled';
+                        
                         historyItem.innerHTML = `
                             <div class="history-locations">
                                 <div>
@@ -1460,8 +1504,8 @@ function loadRideHistory() {
                             <div class="history-info">
                                 <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
                                 <div>${formattedDate} ${formattedTime}</div>
-                                <div class="status-badge ${ride.status === 'completed' || ride.status === 'paid' ? 'status-completed' : 'status-cancelled'}">
-                                    ${ride.status}
+                                <div class="status-badge ${statusClass}">
+                                    ${getStatusText(ride.status)}
                                 </div>
                             </div>
                         `;
@@ -1477,6 +1521,19 @@ function loadRideHistory() {
                 historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--danger-red);">Error loading ride history.</p>';
             });
     }
+}
+
+// Get display text for ride status
+function getStatusText(status) {
+    const statusMap = {
+        'requested': 'Awaiting Driver',
+        'accepted': 'In Progress',
+        'completed': 'Completed',
+        'paid': 'Completed',
+        'cancelled': 'Cancelled'
+    };
+    
+    return statusMap[status] || status;
 }
 
 // Initialize app settings
@@ -1519,6 +1576,7 @@ function logout() {
         auth.signOut()
             .then(() => {
                 currentUser = null;
+                userFullName = "Passenger";
                 localStorage.removeItem('userAuthenticated');
                 localStorage.removeItem('profileCompleted');
                 showAuthScreen();
