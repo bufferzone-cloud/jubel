@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jubel - Passenger</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Onboarding Screens -->
+    <div id="onboardingScreen" class="onboarding-screen">
+        <div class="onboarding-content">
+            <div class="onboarding-image">🚗</div>
+            <h2 class="onboarding-title">Welcome to Jubel</h2>
+            <p class="onboarding-text">Book rides and deliveries with ease. Track your driver in real-time.</p>
+            <div class="onboarding-dots">
+                <div class="dot active"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+            <button class="btn btn-primary" id="getStartedBtn">Get Started</button>
+        </div>
+    </div>
+    
+    <!-- Authentication Screen -->
+    <div id="authScreen" class="onboarding-screen hidden">
+        <div class="onboarding-content">
+            <div class="onboarding-image">🔐</div>
+            <h2 class="onboarding-title">Sign Up / Login</h2>
+            <div class="input-group">
+                <input type="email" id="email" class="input-field" placeholder="Email">
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" class="input-field" placeholder="Password">
+            </div>
+            <button class="btn btn-primary" id="loginBtn">Login</button>
+            <p class="onboarding-text">Don't have an account?</p>
+            <button class="btn btn-secondary" id="signupBtn">Sign Up</button>
+        </div>
+    </div>
+    
+    <!-- Profile Setup Screen -->
+    <div id="profileSetupScreen" class="onboarding-screen hidden">
+        <div class="onboarding-content">
+            <div class="onboarding-image">👤</div>
+            <h2 class="onboarding-title">Complete Your Profile</h2>
+            <div class="input-group">
+                <input type="text" id="profileName" class="input-field" placeholder="Full Name">
+            </div>
+            <div class="input-group">
+                <input type="tel" id="profilePhone" class="input-field" placeholder="Phone Number">
+            </div>
+            <div class="input-group">
+                <label for="paymentPreference">Payment Method Preference</label>
+                <select id="paymentPreference" class="input-field">
+                    <option value="airtel">Airtel Money</option>
+                    <option value="mtn">MTN Money</option>
+                    <option value="zamtel">Zamtel Money</option>
+                    <option value="card">Card</option>
+                    <option value="cash">Cash</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="completeProfileBtn">Complete Setup</button>
+        </div>
+    </div>
+    
+    <!-- Main App Content -->
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <h1>Jubel</h1>
+                </div>
+                <div class="user-icon" id="userIcon">P</div>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="main-content">
+            <!-- Home Screen -->
+            <div id="homeScreen" class="tab-content active">
+                <div class="card">
+                    <h2 class="section-title">Book a Ride</h2>
+                    <div class="input-group">
+                        <label for="pickupLocation">Pickup Location</label>
+                        <input type="text" id="pickupLocation" class="input-field" placeholder="Current location">
+                    </div>
+                    <div class="input-group">
+                        <label for="destination">Destination</label>
+                        <input type="text" id="destination" class="input-field" placeholder="Where to?">
+                        <div class="suggestion-list" id="destinationSuggestions"></div>
+                    </div>
+                    
+                    <div class="ride-options">
+                        <div class="ride-option active" data-type="standard">
+                            <h3>Standard</h3>
+                            <p>K15</p>
+                        </div>
+                        <div class="ride-option" data-type="premium">
+                            <h3>Premium</h3>
+                            <p>K25</p>
+                        </div>
+                        <div class="ride-option" data-type="bike">
+                            <h3>Bike</h3>
+                            <p>K10</p>
+                        </div>
+                    </div>
+                    
+                    <div class="fare-display">
+                        <p>Estimated Fare</p>
+                        <div class="fare-amount" id="estimatedFare">K0.00</div>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="requestRideBtn">Request Ride</button>
+                </div>
+                
+                <div class="map-container" id="homeMap"></div>
+                
+                <!-- Saved Locations -->
+                <div class="card">
+                    <h2 class="section-title">Saved Locations</h2>
+                    <div class="saved-locations">
+                        <div class="saved-location" data-location="Home">
+                            <span class="location-icon">🏠</span>
+                            <span>Home</span>
+                        </div>
+                        <div class="saved-location" data-location="Work">
+                            <span class="location-icon">🏢</span>
+                            <span>Work</span>
+                        </div>
+                        <div class="saved-location" data-location="University">
+                            <span class="location-icon">🎓</span>
+                            <span>University</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Ride Request Screen -->
+            <div id="rideRequestScreen" class="tab-content hidden">
+                <div class="card">
+                    <h2 class="section-title">Ride Requested</h2>
+                    <p>Looking for drivers nearby...</p>
+                    <div class="driver-info hidden" id="assignedDriver">
+                        <div class="driver-avatar">D</div>
+                        <div class="driver-details">
+                            <h3 id="driverName">Driver Name</h3>
+                            <p id="driverPhone">Phone: 000-000-0000</p>
+                            <p id="driverVehicle">Vehicle: Car ABC123</p>
+                            <p id="driverId">ID: DRV001</p>
+                        </div>
+                    </div>
+                    
+                    <div class="trip-info">
+                        <div class="trip-location">
+                            <h4>Pickup</h4>
+                            <p id="pickupAddress">123 Main St</p>
+                        </div>
+                        <div class="trip-location">
+                            <h4>Destination</h4>
+                            <p id="destinationAddress">456 Oak Ave</p>
+                        </div>
+                    </div>
+                    
+                    <div class="fare-display">
+                        <p>Fare</p>
+                        <div class="fare-amount" id="rideFare">K0.00</div>
+                    </div>
+                    
+                    <button class="btn btn-secondary" id="cancelRideBtn">Cancel Ride</button>
+                </div>
+                
+                <div class="map-container" id="rideMap"></div>
+            </div>
+            
+            <!-- During Ride Screen -->
+            <div id="duringRideScreen" class="tab-content hidden">
+                <div class="card">
+                    <h2 class="section-title">On Trip</h2>
+                    <div class="driver-info">
+                        <div class="driver-avatar">D</div>
+                        <div class="driver-details">
+                            <h3 id="activeDriverName">Driver Name</h3>
+                            <p id="activeDriverPhone">Phone: 000-000-0000</p>
+                            <p id="activeDriverVehicle">Vehicle: Car ABC123</p>
+                        </div>
+                    </div>
+                    
+                    <div class="trip-info">
+                        <div class="trip-location">
+                            <h4>From</h4>
+                            <p id="activePickupAddress">123 Main St</p>
+                        </div>
+                        <div class="trip-location">
+                            <h4>To</h4>
+                            <p id="activeDestinationAddress">456 Oak Ave</p>
+                        </div>
+                    </div>
+                    
+                    <div class="fare-display">
+                        <p>Current Fare</p>
+                        <div class="fare-amount" id="currentFare">K0.00</div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="contactDriverBtn">Contact Driver</button>
+                        <button class="btn btn-secondary" id="shareRideBtn">Share Ride</button>
+                    </div>
+                </div>
+                
+                <div class="map-container" id="activeRideMap"></div>
+            </div>
+            
+            <!-- Ride Completion Screen -->
+            <div id="rideCompletionScreen" class="tab-content hidden">
+                <div class="card">
+                    <h2 class="section-title">Ride Completed</h2>
+                    
+                    <div class="fare-display">
+                        <p>Total Fare</p>
+                        <div class="fare-amount" id="finalFare">K0.00</div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="tipAmount">Tip Driver (Optional)</label>
+                        <input type="number" id="tipAmount" class="input-field" placeholder="Enter tip amount">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Payment Method</label>
+                        <div class="payment-options">
+                            <div class="payment-option active" data-method="airtel">
+                                <h3>Airtel Money</h3>
+                            </div>
+                            <div class="payment-option" data-method="mtn">
+                                <h3>MTN Money</h3>
+                            </div>
+                            <div class="payment-option" data-method="zamtel">
+                                <h3>Zamtel Money</h3>
+                            </div>
+                            <div class="payment-option" data-method="card">
+                                <h3>Visa/Mastercard</h3>
+                            </div>
+                            <div class="payment-option" data-method="plush">
+                                <h3>Plush</h3>
+                            </div>
+                            <div class="payment-option" data-method="cash">
+                                <h3>Cash</h3>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Rate Your Driver</label>
+                        <div class="rating-stars">
+                            <span class="star" data-rating="1">★</span>
+                            <span class="star" data-rating="2">★</span>
+                            <span class="star" data-rating="3">★</span>
+                            <span class="star" data-rating="4">★</span>
+                            <span class="star" data-rating="5">★</span>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="driverReview">Review (Optional)</label>
+                        <textarea id="driverReview" class="input-field" placeholder="Share your experience"></textarea>
+                    </div>
+                    
+                    <button class="btn btn-primary" id="completePaymentBtn">Complete Payment</button>
+                </div>
+            </div>
+            
+            <!-- Ride History Screen -->
+            <div id="historyScreen" class="tab-content hidden">
+                <div class="card">
+                    <h2 class="section-title">Ride History</h2>
+                    <div id="historyList">
+                        <!-- History items will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Settings Screen -->
+            <div id="settingsScreen" class="tab-content hidden">
+                <div class="card">
+                    <h2 class="section-title">Profile</h2>
+                    <div class="input-group">
+                        <label for="userName">Name</label>
+                        <input type="text" id="userName" class="input-field" placeholder="Your name">
+                    </div>
+                    <div class="input-group">
+                        <label for="userPhone">Phone</label>
+                        <input type="tel" id="userPhone" class="input-field" placeholder="Your phone number">
+                    </div>
+                    <div class="input-group">
+                        <label for="userEmail">Email</label>
+                        <input type="email" id="userEmail" class="input-field" placeholder="Your email">
+                    </div>
+                    <button class="btn btn-primary" id="saveProfileBtn">Save Profile</button>
+                </div>
+                
+                <div class="card">
+                    <h2 class="section-title">Payment Methods</h2>
+                    <div class="payment-options">
+                        <div class="payment-option active" data-method="airtel">
+                            <h3>Airtel Money</h3>
+                        </div>
+                        <div class="payment-option" data-method="mtn">
+                            <h3>MTN Money</h3>
+                        </div>
+                        <div class="payment-option" data-method="zamtel">
+                            <h3>Zamtel Money</h3>
+                        </div>
+                        <div class="payment-option" data-method="card">
+                            <h3>Visa/Mastercard</h3>
+                        </div>
+                        <div class="payment-option" data-method="plush">
+                            <h3>Plush</h3>
+                        </div>
+                        <div class="payment-option" data-method="cash">
+                            <h3>Cash</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2 class="section-title">Notifications</h2>
+                    <div class="input-group">
+                        <label>
+                            <input type="checkbox" id="rideNotifications" checked> Ride Updates
+                        </label>
+                    </div>
+                    <div class="input-group">
+                        <label>
+                            <input type="checkbox" id="promoNotifications"> Promotions
+                        </label>
+                    </div>
+                </div>
+                
+                <button class="btn btn-secondary" id="logoutBtn">Logout</button>
+            </div>
+        </div>
+        
+        <!-- Navigation Tabs -->
+        <div class="tab-container">
+            <div class="tab active" data-tab="homeScreen">Home</div>
+            <div class="tab" data-tab="historyScreen">History</div>
+            <div class="tab" data-tab="settingsScreen">Settings</div>
+        </div>
+    </div>
+    
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+    
+    <!-- Firebase and Leaflet JS -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
