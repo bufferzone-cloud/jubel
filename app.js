@@ -18,7 +18,7 @@ const auth = firebase.auth();
 // App state
 let currentUser = null;
 let currentRide = null;
-let homeMap, rideMap, activeRideMap, driverAssignmentMap;
+let homeMap, rideMap, activeRideMap;
 let rideType = 'standard';
 let paymentMethod = 'airtel';
 let userRating = 0;
@@ -35,9 +35,8 @@ let routePolyline = null;
 let nearbyPlacesMarkers = [];
 let destinationSearchResults = [];
 let selectedDestination = null;
-let driverAssignmentPopup = null;
-let driverLocationListener = null;
-let currentDriverAssignment = null;
+let rideHistoryListener = null;
+let activeRideListener = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -46,7 +45,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     checkOnboardingStatus();
     initializeAppSettings();
-    loadRideHistory(); // Load history on startup
 });
 
 // Check if user needs to complete onboarding
@@ -108,6 +106,12 @@ function showMainApp() {
     
     // Load nearby places
     loadNearbyPlaces();
+    
+    // Load ride history
+    loadRideHistory();
+    
+    // Check for any active rides
+    checkActiveRides();
 }
 
 // Update user greeting with full name
@@ -267,22 +271,20 @@ function setupEventListeners() {
     // Dark mode toggle
     document.getElementById('darkModeToggle').addEventListener('change', toggleDarkMode);
     
-    // History item click to show details
+    // Ride history item click for popup
     document.addEventListener('click', function(e) {
         if (e.target.closest('.history-item')) {
             const historyItem = e.target.closest('.history-item');
             const rideId = historyItem.getAttribute('data-ride-id');
             if (rideId) {
-                showRideDetails(rideId);
+                showRideDetailsPopup(rideId);
             }
         }
     });
     
-    // Close driver assignment popup
-    document.getElementById('closeDriverPopup').addEventListener('click', closeDriverAssignmentPopup);
-    
-    // Contact driver from popup
-    document.getElementById('popupContactDriver').addEventListener('click', contactDriverFromPopup);
+    // Close popup buttons
+    document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
+    document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
 }
 
 // Email authentication functions
@@ -354,7 +356,8 @@ function completeProfile() {
             paymentPreference: paymentPreference,
             homeAddress: homeAddress,
             workAddress: workAddress,
-            createdAt: firebase.database.ServerValue.TIMESTAMP
+            createdAt: firebase.database.ServerValue.TIMESTAMP,
+            userType: 'passenger'
         };
         
         database.ref('users/' + currentUser.uid).update(userData)
@@ -396,11 +399,11 @@ function initializeMaps() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(activeRideMap);
     
-    // Driver assignment map
-    driverAssignmentMap = L.map('driverAssignmentMap').setView([-15.4167, 28.2833], 13);
+    // Popup ride details map
+    popupRideMap = L.map('popupRideMap').setView([-15.4167, 28.2833], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
-    }).addTo(driverAssignmentMap);
+    }).addTo(popupRideMap);
     
     // Get user's current location
     getUserLocation();
@@ -418,7 +421,7 @@ function getUserLocation() {
             homeMap.setView([lat, lng], 15);
             rideMap.setView([lat, lng], 15);
             activeRideMap.setView([lat, lng], 15);
-            driverAssignmentMap.setView([lat, lng], 15);
+            popupRideMap.setView([lat, lng], 15);
             
             // Add marker for current location only
             userMarker = L.marker([lat, lng], {
@@ -789,12 +792,12 @@ function searchPlaces(query) {
                 suggestionsContainer.appendChild(suggestionItem);
             });
         } else {
-            suggestionsContainer.innerHTML = '<div class="no-places'>No places found matching your search</div>';
+            suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
         }
     })
     .catch(error => {
         console.error('Error searching places:', error);
-        suggestionsContainer.innerHTML = '<div class="no-places'>Error searching places. Please try again.</div>';
+        suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
     });
 }
 
@@ -994,6 +997,8 @@ function switchTab(tabId) {
             homeMap.setView([userLocation.lat, userLocation.lng], 15);
         }
         loadNearbyPlaces();
+    } else if (tabId === 'settingsScreen') {
+        loadSettings();
     }
 }
 
@@ -1158,13 +1163,13 @@ function requestRide() {
                 break;
         }
         
-        // Create ride request in Firebase
+        // Create ride request in Firebase with all details
         const rideId = database.ref().child('rides').push().key;
         const rideData = {
             id: rideId,
             passengerId: currentUser.uid,
             passengerName: userFullName || 'Passenger',
-            passengerPhone: getCurrentUserPhone(),
+            passengerPhone: getUserPhone(),
             pickupLocation: pickup,
             destination: destination,
             pickupLat: userLocation.lat,
@@ -1173,6 +1178,7 @@ function requestRide() {
             destLng: destLng,
             rideType: rideType,
             fare: fare,
+            distance: (distance / 1000).toFixed(2) + ' km',
             status: 'requested',
             timestamp: firebase.database.ServerValue.TIMESTAMP,
             updatedAt: firebase.database.ServerValue.TIMESTAMP
@@ -1210,9 +1216,6 @@ function requestRide() {
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
                 document.getElementById('requestRideBtn').textContent = 'Request Ride';
-                
-                // Reload history to show the new pending order
-                loadRideHistory();
             })
             .catch(error => {
                 console.error('Error requesting ride:', error);
@@ -1232,14 +1235,12 @@ function requestRide() {
     });
 }
 
-// Get current user phone number
-function getCurrentUserPhone() {
+// Get user phone number
+function getUserPhone() {
     if (currentUser) {
-        // In a real app, this would come from user profile
-        // For demo, we'll use a placeholder
-        return '+260XXXXXXXXX';
+        return document.getElementById('userPhone').value || 'Not provided';
     }
-    return 'N/A';
+    return 'Not provided';
 }
 
 // Start pulsing animation for ride request
@@ -1308,9 +1309,15 @@ function listenForDriverAssignment(rideId) {
         } else if (ride.status === 'cancelled') {
             // Ride cancelled
             handleRideCancellation(ride);
-        } else if (ride.status === 'arrived' || ride.status === 'started' || ride.status === 'picked_up') {
-            // Update driver progress in popup if open
-            updateDriverProgress(ride);
+        } else if (ride.status === 'arrived') {
+            // Driver arrived
+            showNotification('Your driver has arrived at the pickup location.');
+        } else if (ride.status === 'picked_up') {
+            // Passenger picked up
+            showNotification('You have been picked up. Enjoy your ride!');
+        } else if (ride.status === 'started') {
+            // Trip started
+            showNotification('Your trip has started.');
         }
     }, error => {
         console.error('Error listening for driver assignment:', error);
@@ -1346,9 +1353,6 @@ function handleDriverAssignment(ride) {
                 
                 showNotification(`Driver ${driver.name} has accepted your ride!`);
                 
-                // Show driver assignment popup
-                showDriverAssignmentPopup(ride, driver);
-                
                 // Start tracking driver location
                 trackDriverLocation(ride.driverId, ride.id);
                 
@@ -1366,168 +1370,6 @@ function handleDriverAssignment(ride) {
             console.error('Error fetching driver details:', error);
             showNotification('Driver assigned but could not load details.');
         });
-}
-
-// Show driver assignment popup with map and details
-function showDriverAssignmentPopup(ride, driver) {
-    currentDriverAssignment = { ride, driver };
-    
-    // Update popup details
-    document.getElementById('popupDriverName').textContent = driver.name || 'Driver';
-    document.getElementById('popupDriverPhone').textContent = driver.phone || 'N/A';
-    document.getElementById('popupDriverVehicle').textContent = `${driver.vehicleType || 'Car'} (${driver.licensePlate || 'N/A'})`;
-    document.getElementById('popupDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
-    
-    // Update driver progress based on ride status
-    updateDriverProgress(ride);
-    
-    // Setup driver assignment map
-    setupDriverAssignmentMap(ride, driver);
-    
-    // Show popup
-    document.getElementById('driverAssignmentPopup').classList.remove('hidden');
-}
-
-// Setup driver assignment map with user and driver locations
-function setupDriverAssignmentMap(ride, driver) {
-    // Clear existing map
-    driverAssignmentMap.eachLayer(layer => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-            driverAssignmentMap.removeLayer(layer);
-        }
-    });
-    
-    // Add user marker
-    L.marker([ride.pickupLat, ride.pickupLng], {
-        icon: L.divIcon({
-            className: 'customer-marker',
-            html: '📍<div class="marker-label">You</div>',
-            iconSize: [30, 40]
-        })
-    }).addTo(driverAssignmentMap).bindPopup('Your Location');
-    
-    // Add destination marker
-    L.marker([ride.destLat, ride.destLng], {
-        icon: L.divIcon({
-            className: 'destination-marker',
-            html: '🏁<div class="marker-label">Destination</div>',
-            iconSize: [30, 40]
-        })
-    }).addTo(driverAssignmentMap).bindPopup('Destination');
-    
-    // Get driver location and add marker
-    database.ref('users/' + ride.driverId + '/location').once('value')
-        .then(snapshot => {
-            const driverLocation = snapshot.val();
-            if (driverLocation) {
-                L.marker([driverLocation.latitude, driverLocation.longitude], {
-                    icon: L.divIcon({
-                        className: 'driver-marker',
-                        html: '🚗<div class="marker-label">Driver</div>',
-                        iconSize: [40, 40]
-                    })
-                }).addTo(driverAssignmentMap).bindPopup('Your Driver');
-                
-                // Fit map to show all points
-                const bounds = L.latLngBounds(
-                    [ride.pickupLat, ride.pickupLng],
-                    [ride.destLat, ride.destLng],
-                    [driverLocation.latitude, driverLocation.longitude]
-                );
-                driverAssignmentMap.fitBounds(bounds, { padding: [30, 30] });
-                
-                // Start tracking driver location on this map
-                startTrackingDriverOnAssignmentMap(ride.driverId);
-            }
-        });
-}
-
-// Start tracking driver location on assignment map
-function startTrackingDriverOnAssignmentMap(driverId) {
-    if (driverLocationListener) {
-        database.ref('users/' + driverId + '/location').off('value', driverLocationListener);
-    }
-    
-    driverLocationListener = database.ref('users/' + driverId + '/location').on('value', snapshot => {
-        const location = snapshot.val();
-        if (location && driverAssignmentMap) {
-            // Update driver marker on assignment map
-            const driverMarkers = [];
-            driverAssignmentMap.eachLayer(layer => {
-                if (layer instanceof L.Marker && layer._icon && layer._icon.className.includes('driver-marker')) {
-                    driverMarkers.push(layer);
-                }
-            });
-            
-            if (driverMarkers.length > 0) {
-                driverMarkers[0].setLatLng([location.latitude, location.longitude]);
-            } else {
-                // Add new driver marker if not exists
-                L.marker([location.latitude, location.longitude], {
-                    icon: L.divIcon({
-                        className: 'driver-marker',
-                        html: '🚗<div class="marker-label">Driver</div>',
-                        iconSize: [40, 40]
-                    })
-                }).addTo(driverAssignmentMap).bindPopup('Your Driver');
-            }
-        }
-    });
-}
-
-// Update driver progress in popup
-function updateDriverProgress(ride) {
-    if (!currentDriverAssignment || currentDriverAssignment.ride.id !== ride.id) return;
-    
-    const progressElement = document.getElementById('popupDriverProgress');
-    const progressText = document.getElementById('popupDriverProgressText');
-    
-    switch(ride.status) {
-        case 'accepted':
-            progressElement.textContent = 'Driver is on the way to your location';
-            progressText.textContent = 'Driver is on route to pickup';
-            break;
-        case 'arrived':
-            progressElement.textContent = 'Driver has arrived at your location';
-            progressText.textContent = 'Driver arrived at pickup';
-            break;
-        case 'started':
-            progressElement.textContent = 'Trip has started';
-            progressText.textContent = 'Trip in progress';
-            break;
-        case 'picked_up':
-            progressElement.textContent = 'You have been picked up';
-            progressText.textContent = 'Passenger picked up';
-            break;
-        default:
-            progressElement.textContent = 'Driver is on the way';
-            progressText.textContent = 'Driver on route';
-    }
-}
-
-// Close driver assignment popup
-function closeDriverAssignmentPopup() {
-    document.getElementById('driverAssignmentPopup').classList.add('hidden');
-    
-    // Stop tracking driver location on assignment map
-    if (driverLocationListener && currentDriverAssignment) {
-        database.ref('users/' + currentDriverAssignment.ride.driverId + '/location').off('value', driverLocationListener);
-        driverLocationListener = null;
-    }
-    
-    currentDriverAssignment = null;
-}
-
-// Contact driver from popup
-function contactDriverFromPopup() {
-    if (currentDriverAssignment && currentDriverAssignment.driver.phone) {
-        // In a real app, this would initiate a call
-        showNotification(`Calling driver: ${currentDriverAssignment.driver.phone}`);
-        // Simulate calling - in a real app, you would use tel: protocol
-        window.open(`tel:${currentDriverAssignment.driver.phone}`, '_self');
-    } else {
-        showNotification('Driver phone number not available.');
-    }
 }
 
 // Handle ride cancellation
@@ -1548,12 +1390,6 @@ function handleRideCancellation(ride) {
         driverAssignmentListener();
         driverAssignmentListener = null;
     }
-    
-    // Close driver assignment popup if open
-    closeDriverAssignmentPopup();
-    
-    // Reload history to reflect cancellation
-    loadRideHistory();
 }
 
 // Schedule ride for later
@@ -1661,7 +1497,7 @@ function updateRideMapWithDriver(ride) {
     drawRouteOnRideMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
     
     // Get driver location and add marker
-    database.ref('users/' + ride.driverId + '/location').once('value')
+    database.ref('driverLocations/' + ride.driverId).once('value')
         .then(snapshot => {
             const driverLocation = snapshot.val();
             if (driverLocation) {
@@ -1686,7 +1522,7 @@ function updateRideMapWithDriver(ride) {
 
 // Track driver location
 function trackDriverLocation(driverId, rideId) {
-    database.ref('users/' + driverId + '/location').on('value', snapshot => {
+    database.ref('driverLocations/' + driverId).on('value', snapshot => {
         const location = snapshot.val();
         if (location && rideMap) {
             // Update driver marker on map
@@ -1782,7 +1618,7 @@ function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
 function trackActiveRideLocations(ride) {
     // Track driver location
     if (ride.driverId) {
-        database.ref('users/' + ride.driverId + '/location').on('value', snapshot => {
+        database.ref('driverLocations/' + ride.driverId).on('value', snapshot => {
             const location = snapshot.val();
             if (location && activeRideMap) {
                 // Update driver marker
@@ -1852,12 +1688,6 @@ function cancelRide() {
                     rideMap.removeLayer(driverMarker);
                     driverMarker = null;
                 }
-                
-                // Close driver assignment popup if open
-                closeDriverAssignmentPopup();
-                
-                // Reload history to reflect cancellation
-                loadRideHistory();
             })
             .catch(error => {
                 console.error('Error cancelling ride:', error);
@@ -1948,12 +1778,6 @@ function showRideCompletion(ride) {
         driverAssignmentListener();
         driverAssignmentListener = null;
     }
-    
-    // Close driver assignment popup if open
-    closeDriverAssignmentPopup();
-    
-    // Reload history to reflect completion
-    loadRideHistory();
 }
 
 // Set rating stars
@@ -2011,9 +1835,6 @@ function completePayment() {
                 homeMap.removeLayer(destinationMarker);
                 destinationMarker = null;
             }
-            
-            // Reload history to reflect payment
-            loadRideHistory();
         })
         .catch(error => {
             console.error('Error completing payment:', error);
@@ -2091,133 +1912,96 @@ function loadRideHistory() {
         const filter = document.getElementById('historyFilter').value;
         const dateFilter = document.getElementById('historyDate').value;
         
-        database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).once('value')
-            .then(snapshot => {
-                const historyList = document.getElementById('historyList');
-                historyList.innerHTML = '';
+        // Remove existing listener
+        if (rideHistoryListener) {
+            rideHistoryListener();
+        }
+        
+        // Set up real-time listener for ride history
+        rideHistoryListener = database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).on('value', snapshot => {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = '';
+            
+            const rides = snapshot.val();
+            if (rides) {
+                let ridesArray = Object.keys(rides).map(rideId => ({
+                    id: rideId,
+                    ...rides[rideId]
+                }));
                 
-                const rides = snapshot.val();
-                if (rides) {
-                    let ridesArray = Object.keys(rides).map(rideId => ({
-                        id: rideId,
-                        ...rides[rideId]
-                    }));
-                    
-                    // Apply filters
-                    if (filter !== 'all') {
-                        ridesArray = ridesArray.filter(ride => ride.status === filter);
-                    }
-                    
-                    if (dateFilter) {
-                        const filterDate = new Date(dateFilter);
-                        ridesArray = ridesArray.filter(ride => {
-                            const rideDate = new Date(ride.timestamp);
-                            return rideDate.toDateString() === filterDate.toDateString();
-                        });
-                    }
-                    
-                    // Sort by timestamp (newest first)
-                    ridesArray.sort((a, b) => b.timestamp - a.timestamp);
-                    
-                    if (ridesArray.length === 0) {
-                        historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No rides found matching your criteria.</p>';
-                        return;
-                    }
-                    
-                    ridesArray.forEach(ride => {
-                        const historyItem = document.createElement('div');
-                        historyItem.className = 'history-item';
-                        historyItem.setAttribute('data-ride-id', ride.id);
-                        
-                        const date = new Date(ride.timestamp);
-                        const formattedDate = date.toLocaleDateString();
-                        const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                        
-                        // Determine status badge class
-                        let statusClass = 'status-requested';
-                        let statusText = getStatusText(ride.status);
-                        
-                        if (ride.status === 'accepted') {
-                            statusClass = 'status-accepted';
-                        } else if (ride.status === 'completed' || ride.status === 'paid') {
-                            statusClass = 'status-completed';
-                        } else if (ride.status === 'cancelled') {
-                            statusClass = 'status-cancelled';
-                        } else if (ride.status === 'requested') {
-                            statusClass = 'status-pending';
-                            statusText = 'Pending';
-                        }
-                        
-                        historyItem.innerHTML = `
-                            <div class="history-locations">
-                                <div>
-                                    <strong>From:</strong> ${ride.pickupLocation}
-                                </div>
-                                <div>
-                                    <strong>To:</strong> ${ride.destination}
-                                </div>
-                            </div>
-                            <div class="history-info">
-                                <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
-                                <div>${formattedDate} ${formattedTime}</div>
-                                <div class="status-badge ${statusClass}">
-                                    ${statusText}
-                                </div>
-                            </div>
-                        `;
-                        
-                        historyList.appendChild(historyItem);
+                // Apply filters
+                if (filter !== 'all') {
+                    ridesArray = ridesArray.filter(ride => ride.status === filter);
+                }
+                
+                if (dateFilter) {
+                    const filterDate = new Date(dateFilter);
+                    ridesArray = ridesArray.filter(ride => {
+                        const rideDate = new Date(ride.timestamp);
+                        return rideDate.toDateString() === filterDate.toDateString();
                     });
-                } else {
-                    historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No ride history found.</p>';
-                }
-            })
-            .catch(error => {
-                console.error('Error loading ride history:', error);
-                historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--danger-red);">Error loading ride history.</p>';
-            });
-    }
-}
-
-// Show ride details when clicking on history item
-function showRideDetails(rideId) {
-    database.ref('rides/' + rideId).once('value')
-        .then(snapshot => {
-            const ride = snapshot.val();
-            if (ride) {
-                // Update ride details in the popup
-                document.getElementById('rideDetailsPickup').textContent = ride.pickupLocation;
-                document.getElementById('rideDetailsDestination').textContent = ride.destination;
-                document.getElementById('rideDetailsFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
-                document.getElementById('rideDetailsStatus').textContent = getStatusText(ride.status);
-                
-                const date = new Date(ride.timestamp);
-                document.getElementById('rideDetailsDate').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                
-                // Show driver info if available
-                if (ride.driverId) {
-                    database.ref('users/' + ride.driverId).once('value')
-                        .then(driverSnapshot => {
-                            const driver = driverSnapshot.val();
-                            if (driver) {
-                                document.getElementById('rideDetailsDriver').textContent = driver.name || 'Driver';
-                                document.getElementById('rideDetailsDriverSection').classList.remove('hidden');
-                            } else {
-                                document.getElementById('rideDetailsDriverSection').classList.add('hidden');
-                            }
-                        });
-                } else {
-                    document.getElementById('rideDetailsDriverSection').classList.add('hidden');
                 }
                 
-                // Show the ride details popup
-                document.getElementById('rideDetailsPopup').classList.remove('hidden');
+                // Sort by timestamp (newest first)
+                ridesArray.sort((a, b) => b.timestamp - a.timestamp);
+                
+                if (ridesArray.length === 0) {
+                    historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No rides found matching your criteria.</p>';
+                    return;
+                }
+                
+                ridesArray.forEach(ride => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    historyItem.setAttribute('data-ride-id', ride.id);
+                    
+                    const date = new Date(ride.timestamp);
+                    const formattedDate = date.toLocaleDateString();
+                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    // Determine status badge class
+                    let statusClass = 'status-requested';
+                    let statusText = getStatusText(ride.status);
+                    
+                    if (ride.status === 'accepted') {
+                        statusClass = 'status-accepted';
+                    } else if (ride.status === 'completed' || ride.status === 'paid') {
+                        statusClass = 'status-completed';
+                    } else if (ride.status === 'cancelled') {
+                        statusClass = 'status-cancelled';
+                    } else if (ride.status === 'requested') {
+                        statusClass = 'status-pending';
+                        statusText = 'Pending';
+                    }
+                    
+                    historyItem.innerHTML = `
+                        <div class="history-locations">
+                            <div>
+                                <strong>From:</strong> ${ride.pickupLocation}
+                            </div>
+                            <div>
+                                <strong>To:</strong> ${ride.destination}
+                            </div>
+                        </div>
+                        <div class="history-info">
+                            <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                            <div>${formattedDate} ${formattedTime}</div>
+                            <div class="status-badge ${statusClass}">
+                                ${statusText}
+                            </div>
+                        </div>
+                    `;
+                    
+                    historyList.appendChild(historyItem);
+                });
+            } else {
+                historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No ride history found.</p>';
             }
-        })
-        .catch(error => {
-            console.error('Error loading ride details:', error);
-            showNotification('Error loading ride details.');
+        }, error => {
+            console.error('Error loading ride history:', error);
+            historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--danger-red);">Error loading ride history.</p>';
         });
+    }
 }
 
 // Get display text for ride status
@@ -2229,11 +2013,269 @@ function getStatusText(status) {
         'paid': 'Completed',
         'cancelled': 'Cancelled',
         'arrived': 'Driver Arrived',
-        'started': 'Trip Started',
-        'picked_up': 'Passenger Picked Up'
+        'picked_up': 'Picked Up',
+        'started': 'Trip Started'
     };
     
     return statusMap[status] || status;
+}
+
+// Show ride details popup
+function showRideDetailsPopup(rideId) {
+    database.ref('rides/' + rideId).once('value')
+        .then(snapshot => {
+            const ride = snapshot.val();
+            if (ride) {
+                // Update popup content
+                document.getElementById('popupRidePickup').textContent = ride.pickupLocation;
+                document.getElementById('popupRideDestination').textContent = ride.destination;
+                document.getElementById('popupRideFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+                document.getElementById('popupRideDistance').textContent = ride.distance || 'Calculating...';
+                document.getElementById('popupRideStatus').textContent = getStatusText(ride.status);
+                document.getElementById('popupRideType').textContent = ride.rideType ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1) : 'Standard';
+                
+                // Format date
+                const date = new Date(ride.timestamp);
+                document.getElementById('popupRideDate').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                // Update map in popup
+                updatePopupRideMap(ride);
+                
+                // Show driver details if available
+                if (ride.driverId) {
+                    database.ref('users/' + ride.driverId).once('value')
+                        .then(driverSnapshot => {
+                            const driver = driverSnapshot.val();
+                            if (driver) {
+                                document.getElementById('popupDriverName').textContent = driver.name || 'Driver';
+                                document.getElementById('popupDriverPhone').textContent = driver.phone || 'N/A';
+                                document.getElementById('popupDriverVehicle').textContent = `${driver.vehicleType || 'Car'} (${driver.licensePlate || 'N/A'})`;
+                                document.getElementById('popupDriverRating').textContent = driver.rating || '4.5';
+                                
+                                // Show driver progress based on ride status
+                                updateDriverProgress(ride.status);
+                                
+                                document.getElementById('popupDriverDetails').classList.remove('hidden');
+                            }
+                        });
+                } else {
+                    document.getElementById('popupDriverDetails').classList.add('hidden');
+                }
+                
+                // Show popup
+                document.getElementById('rideDetailsPopup').classList.remove('hidden');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading ride details:', error);
+            showNotification('Error loading ride details.');
+        });
+}
+
+// Update driver progress in popup
+function updateDriverProgress(status) {
+    const progressElement = document.getElementById('popupDriverProgress');
+    
+    switch(status) {
+        case 'requested':
+            progressElement.textContent = 'Waiting for driver to accept';
+            break;
+        case 'accepted':
+            progressElement.textContent = 'Driver on the way to pickup';
+            break;
+        case 'arrived':
+            progressElement.textContent = 'Driver arrived at pickup location';
+            break;
+        case 'picked_up':
+            progressElement.textContent = 'Passenger picked up';
+            break;
+        case 'started':
+            progressElement.textContent = 'Trip in progress';
+            break;
+        case 'completed':
+            progressElement.textContent = 'Trip completed';
+            break;
+        case 'paid':
+            progressElement.textContent = 'Payment completed';
+            break;
+        default:
+            progressElement.textContent = 'Status: ' + status;
+    }
+}
+
+// Update popup ride map
+function updatePopupRideMap(ride) {
+    // Clear existing map
+    popupRideMap.eachLayer(layer => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            popupRideMap.removeLayer(layer);
+        }
+    });
+    
+    // Add pickup marker
+    L.marker([ride.pickupLat, ride.pickupLng], {
+        icon: L.divIcon({
+            className: 'customer-marker',
+            html: '📍<div class="marker-label">Pickup</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(popupRideMap).bindPopup('Pickup Location');
+    
+    // Add destination marker
+    L.marker([ride.destLat, ride.destLng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '🏁<div class="marker-label">Destination</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(popupRideMap).bindPopup('Destination');
+    
+    // Draw route
+    drawRouteOnPopupMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+    
+    // Fit map to show both locations
+    const bounds = L.latLngBounds(
+        [ride.pickupLat, ride.pickupLng],
+        [ride.destLat, ride.destLng]
+    );
+    popupRideMap.fitBounds(bounds, { padding: [20, 20] });
+}
+
+// Draw route on popup map
+function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
+    // Use OSRM API to get route
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Draw the route on the map
+                L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 5,
+                    opacity: 0.7
+                }).addTo(popupRideMap);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            // Fallback: draw a straight line
+            L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 5,
+                opacity: 0.7
+            }).addTo(popupRideMap);
+        });
+}
+
+// Close ride details popup
+function closeRideDetailsPopup() {
+    document.getElementById('rideDetailsPopup').classList.add('hidden');
+}
+
+// Check for active rides
+function checkActiveRides() {
+    if (currentUser) {
+        database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).once('value')
+            .then(snapshot => {
+                const rides = snapshot.val();
+                if (rides) {
+                    // Find any active rides
+                    const activeRides = Object.keys(rides).filter(rideId => {
+                        const ride = rides[rideId];
+                        return ride.status === 'accepted' || ride.status === 'arrived' || 
+                               ride.status === 'picked_up' || ride.status === 'started';
+                    });
+                    
+                    if (activeRides.length > 0) {
+                        // Switch to active ride screen
+                        const activeRideId = activeRides[0];
+                        const activeRide = rides[activeRideId];
+                        currentRide = { id: activeRideId, ...activeRide };
+                        
+                        // Set up active ride
+                        setupActiveRide(activeRide);
+                    }
+                }
+            });
+    }
+}
+
+// Set up active ride
+function setupActiveRide(ride) {
+    // Update UI
+    document.getElementById('activePickupAddress').textContent = ride.pickupLocation;
+    document.getElementById('activeDestinationAddress').textContent = ride.destination;
+    document.getElementById('currentFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+    
+    // Get driver details if available
+    if (ride.driverId) {
+        database.ref('users/' + ride.driverId).once('value')
+            .then(driverSnapshot => {
+                const driver = driverSnapshot.val();
+                if (driver) {
+                    document.getElementById('activeDriverName').textContent = driver.name || 'Driver';
+                    document.getElementById('activeDriverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
+                    document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
+                    document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
+                }
+            });
+        
+        // Start tracking driver location
+        trackDriverLocation(ride.driverId, ride.id);
+    }
+    
+    // Set up active ride map
+    setupActiveRideMap(ride);
+    
+    // Switch to during ride screen
+    switchTab('duringRideScreen');
+    
+    // Set up listener for ride updates
+    if (activeRideListener) {
+        activeRideListener();
+    }
+    
+    activeRideListener = database.ref('rides/' + ride.id).on('value', snapshot => {
+        const updatedRide = snapshot.val();
+        if (updatedRide) {
+            // Update current ride
+            currentRide = { id: ride.id, ...updatedRide };
+            
+            // Handle status changes
+            if (updatedRide.status === 'completed') {
+                showRideCompletion(updatedRide);
+            } else if (updatedRide.status === 'cancelled') {
+                handleRideCancellation(updatedRide);
+            }
+        }
+    });
+}
+
+// Load settings
+function loadSettings() {
+    // Load user preferences
+    const rideNotifications = localStorage.getItem('rideNotifications') !== 'false';
+    const promoNotifications = localStorage.getItem('promoNotifications') === 'true';
+    const language = localStorage.getItem('language') || 'en';
+    const darkMode = localStorage.getItem('darkMode') === 'true';
+    
+    document.getElementById('rideNotifications').checked = rideNotifications;
+    document.getElementById('promoNotifications').checked = promoNotifications;
+    document.getElementById('languageSelect').value = language;
+    document.getElementById('darkModeToggle').checked = darkMode;
+    
+    // Apply dark mode if enabled
+    if (darkMode) {
+        document.body.classList.add('dark-mode');
+    } else {
+        document.body.classList.remove('dark-mode');
+    }
 }
 
 // Initialize app settings
@@ -2279,9 +2321,14 @@ function logout() {
             driverAssignmentListener = null;
         }
         
-        if (driverLocationListener) {
-            database.ref('users/' + currentDriverAssignment.ride.driverId + '/location').off('value', driverLocationListener);
-            driverLocationListener = null;
+        if (rideHistoryListener) {
+            rideHistoryListener();
+            rideHistoryListener = null;
+        }
+        
+        if (activeRideListener) {
+            activeRideListener();
+            activeRideListener = null;
         }
         
         auth.signOut()
