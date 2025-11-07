@@ -18,7 +18,7 @@ const auth = firebase.auth();
 // App state
 let currentUser = null;
 let currentRide = null;
-let homeMap, rideMap, activeRideMap;
+let homeMap, rideMap, activeRideMap, driverAssignmentMap;
 let rideType = 'standard';
 let paymentMethod = 'airtel';
 let userRating = 0;
@@ -35,6 +35,9 @@ let routePolyline = null;
 let nearbyPlacesMarkers = [];
 let destinationSearchResults = [];
 let selectedDestination = null;
+let driverAssignmentPopup = null;
+let driverLocationListener = null;
+let currentDriverAssignment = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -43,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setupEventListeners();
     checkOnboardingStatus();
     initializeAppSettings();
+    loadRideHistory(); // Load history on startup
 });
 
 // Check if user needs to complete onboarding
@@ -262,6 +266,23 @@ function setupEventListeners() {
     
     // Dark mode toggle
     document.getElementById('darkModeToggle').addEventListener('change', toggleDarkMode);
+    
+    // History item click to show details
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.history-item')) {
+            const historyItem = e.target.closest('.history-item');
+            const rideId = historyItem.getAttribute('data-ride-id');
+            if (rideId) {
+                showRideDetails(rideId);
+            }
+        }
+    });
+    
+    // Close driver assignment popup
+    document.getElementById('closeDriverPopup').addEventListener('click', closeDriverAssignmentPopup);
+    
+    // Contact driver from popup
+    document.getElementById('popupContactDriver').addEventListener('click', contactDriverFromPopup);
 }
 
 // Email authentication functions
@@ -375,6 +396,12 @@ function initializeMaps() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(activeRideMap);
     
+    // Driver assignment map
+    driverAssignmentMap = L.map('driverAssignmentMap').setView([-15.4167, 28.2833], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(driverAssignmentMap);
+    
     // Get user's current location
     getUserLocation();
 }
@@ -391,6 +418,7 @@ function getUserLocation() {
             homeMap.setView([lat, lng], 15);
             rideMap.setView([lat, lng], 15);
             activeRideMap.setView([lat, lng], 15);
+            driverAssignmentMap.setView([lat, lng], 15);
             
             // Add marker for current location only
             userMarker = L.marker([lat, lng], {
@@ -761,12 +789,12 @@ function searchPlaces(query) {
                 suggestionsContainer.appendChild(suggestionItem);
             });
         } else {
-            suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+            suggestionsContainer.innerHTML = '<div class="no-places'>No places found matching your search</div>';
         }
     })
     .catch(error => {
         console.error('Error searching places:', error);
-        suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
+        suggestionsContainer.innerHTML = '<div class="no-places'>Error searching places. Please try again.</div>';
     });
 }
 
@@ -1136,6 +1164,7 @@ function requestRide() {
             id: rideId,
             passengerId: currentUser.uid,
             passengerName: userFullName || 'Passenger',
+            passengerPhone: getCurrentUserPhone(),
             pickupLocation: pickup,
             destination: destination,
             pickupLat: userLocation.lat,
@@ -1181,6 +1210,9 @@ function requestRide() {
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
                 document.getElementById('requestRideBtn').textContent = 'Request Ride';
+                
+                // Reload history to show the new pending order
+                loadRideHistory();
             })
             .catch(error => {
                 console.error('Error requesting ride:', error);
@@ -1198,6 +1230,16 @@ function requestRide() {
         document.getElementById('requestRideBtn').disabled = false;
         document.getElementById('requestRideBtn').textContent = 'Request Ride';
     });
+}
+
+// Get current user phone number
+function getCurrentUserPhone() {
+    if (currentUser) {
+        // In a real app, this would come from user profile
+        // For demo, we'll use a placeholder
+        return '+260XXXXXXXXX';
+    }
+    return 'N/A';
 }
 
 // Start pulsing animation for ride request
@@ -1266,6 +1308,9 @@ function listenForDriverAssignment(rideId) {
         } else if (ride.status === 'cancelled') {
             // Ride cancelled
             handleRideCancellation(ride);
+        } else if (ride.status === 'arrived' || ride.status === 'started' || ride.status === 'picked_up') {
+            // Update driver progress in popup if open
+            updateDriverProgress(ride);
         }
     }, error => {
         console.error('Error listening for driver assignment:', error);
@@ -1290,16 +1335,19 @@ function handleDriverAssignment(ride) {
                 // Update driver information
                 document.getElementById('driverName').textContent = driver.name || 'Driver';
                 document.getElementById('driverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
-                document.getElementById('driverVehicle').textContent = `Vehicle: ${driver.vehicle || 'N/A'}`;
+                document.getElementById('driverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
                 document.getElementById('driverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
                 
                 // Update active ride screen as well
                 document.getElementById('activeDriverName').textContent = driver.name || 'Driver';
                 document.getElementById('activeDriverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
-                document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicle || 'N/A'}`;
+                document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
                 document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
                 
                 showNotification(`Driver ${driver.name} has accepted your ride!`);
+                
+                // Show driver assignment popup
+                showDriverAssignmentPopup(ride, driver);
                 
                 // Start tracking driver location
                 trackDriverLocation(ride.driverId, ride.id);
@@ -1320,6 +1368,168 @@ function handleDriverAssignment(ride) {
         });
 }
 
+// Show driver assignment popup with map and details
+function showDriverAssignmentPopup(ride, driver) {
+    currentDriverAssignment = { ride, driver };
+    
+    // Update popup details
+    document.getElementById('popupDriverName').textContent = driver.name || 'Driver';
+    document.getElementById('popupDriverPhone').textContent = driver.phone || 'N/A';
+    document.getElementById('popupDriverVehicle').textContent = `${driver.vehicleType || 'Car'} (${driver.licensePlate || 'N/A'})`;
+    document.getElementById('popupDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
+    
+    // Update driver progress based on ride status
+    updateDriverProgress(ride);
+    
+    // Setup driver assignment map
+    setupDriverAssignmentMap(ride, driver);
+    
+    // Show popup
+    document.getElementById('driverAssignmentPopup').classList.remove('hidden');
+}
+
+// Setup driver assignment map with user and driver locations
+function setupDriverAssignmentMap(ride, driver) {
+    // Clear existing map
+    driverAssignmentMap.eachLayer(layer => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            driverAssignmentMap.removeLayer(layer);
+        }
+    });
+    
+    // Add user marker
+    L.marker([ride.pickupLat, ride.pickupLng], {
+        icon: L.divIcon({
+            className: 'customer-marker',
+            html: '📍<div class="marker-label">You</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(driverAssignmentMap).bindPopup('Your Location');
+    
+    // Add destination marker
+    L.marker([ride.destLat, ride.destLng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '🏁<div class="marker-label">Destination</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(driverAssignmentMap).bindPopup('Destination');
+    
+    // Get driver location and add marker
+    database.ref('users/' + ride.driverId + '/location').once('value')
+        .then(snapshot => {
+            const driverLocation = snapshot.val();
+            if (driverLocation) {
+                L.marker([driverLocation.latitude, driverLocation.longitude], {
+                    icon: L.divIcon({
+                        className: 'driver-marker',
+                        html: '🚗<div class="marker-label">Driver</div>',
+                        iconSize: [40, 40]
+                    })
+                }).addTo(driverAssignmentMap).bindPopup('Your Driver');
+                
+                // Fit map to show all points
+                const bounds = L.latLngBounds(
+                    [ride.pickupLat, ride.pickupLng],
+                    [ride.destLat, ride.destLng],
+                    [driverLocation.latitude, driverLocation.longitude]
+                );
+                driverAssignmentMap.fitBounds(bounds, { padding: [30, 30] });
+                
+                // Start tracking driver location on this map
+                startTrackingDriverOnAssignmentMap(ride.driverId);
+            }
+        });
+}
+
+// Start tracking driver location on assignment map
+function startTrackingDriverOnAssignmentMap(driverId) {
+    if (driverLocationListener) {
+        database.ref('users/' + driverId + '/location').off('value', driverLocationListener);
+    }
+    
+    driverLocationListener = database.ref('users/' + driverId + '/location').on('value', snapshot => {
+        const location = snapshot.val();
+        if (location && driverAssignmentMap) {
+            // Update driver marker on assignment map
+            const driverMarkers = [];
+            driverAssignmentMap.eachLayer(layer => {
+                if (layer instanceof L.Marker && layer._icon && layer._icon.className.includes('driver-marker')) {
+                    driverMarkers.push(layer);
+                }
+            });
+            
+            if (driverMarkers.length > 0) {
+                driverMarkers[0].setLatLng([location.latitude, location.longitude]);
+            } else {
+                // Add new driver marker if not exists
+                L.marker([location.latitude, location.longitude], {
+                    icon: L.divIcon({
+                        className: 'driver-marker',
+                        html: '🚗<div class="marker-label">Driver</div>',
+                        iconSize: [40, 40]
+                    })
+                }).addTo(driverAssignmentMap).bindPopup('Your Driver');
+            }
+        }
+    });
+}
+
+// Update driver progress in popup
+function updateDriverProgress(ride) {
+    if (!currentDriverAssignment || currentDriverAssignment.ride.id !== ride.id) return;
+    
+    const progressElement = document.getElementById('popupDriverProgress');
+    const progressText = document.getElementById('popupDriverProgressText');
+    
+    switch(ride.status) {
+        case 'accepted':
+            progressElement.textContent = 'Driver is on the way to your location';
+            progressText.textContent = 'Driver is on route to pickup';
+            break;
+        case 'arrived':
+            progressElement.textContent = 'Driver has arrived at your location';
+            progressText.textContent = 'Driver arrived at pickup';
+            break;
+        case 'started':
+            progressElement.textContent = 'Trip has started';
+            progressText.textContent = 'Trip in progress';
+            break;
+        case 'picked_up':
+            progressElement.textContent = 'You have been picked up';
+            progressText.textContent = 'Passenger picked up';
+            break;
+        default:
+            progressElement.textContent = 'Driver is on the way';
+            progressText.textContent = 'Driver on route';
+    }
+}
+
+// Close driver assignment popup
+function closeDriverAssignmentPopup() {
+    document.getElementById('driverAssignmentPopup').classList.add('hidden');
+    
+    // Stop tracking driver location on assignment map
+    if (driverLocationListener && currentDriverAssignment) {
+        database.ref('users/' + currentDriverAssignment.ride.driverId + '/location').off('value', driverLocationListener);
+        driverLocationListener = null;
+    }
+    
+    currentDriverAssignment = null;
+}
+
+// Contact driver from popup
+function contactDriverFromPopup() {
+    if (currentDriverAssignment && currentDriverAssignment.driver.phone) {
+        // In a real app, this would initiate a call
+        showNotification(`Calling driver: ${currentDriverAssignment.driver.phone}`);
+        // Simulate calling - in a real app, you would use tel: protocol
+        window.open(`tel:${currentDriverAssignment.driver.phone}`, '_self');
+    } else {
+        showNotification('Driver phone number not available.');
+    }
+}
+
 // Handle ride cancellation
 function handleRideCancellation(ride) {
     stopPulsingAnimation();
@@ -1338,6 +1548,12 @@ function handleRideCancellation(ride) {
         driverAssignmentListener();
         driverAssignmentListener = null;
     }
+    
+    // Close driver assignment popup if open
+    closeDriverAssignmentPopup();
+    
+    // Reload history to reflect cancellation
+    loadRideHistory();
 }
 
 // Schedule ride for later
@@ -1445,7 +1661,7 @@ function updateRideMapWithDriver(ride) {
     drawRouteOnRideMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
     
     // Get driver location and add marker
-    database.ref('driverLocations/' + ride.driverId).once('value')
+    database.ref('users/' + ride.driverId + '/location').once('value')
         .then(snapshot => {
             const driverLocation = snapshot.val();
             if (driverLocation) {
@@ -1470,7 +1686,7 @@ function updateRideMapWithDriver(ride) {
 
 // Track driver location
 function trackDriverLocation(driverId, rideId) {
-    database.ref('driverLocations/' + driverId).on('value', snapshot => {
+    database.ref('users/' + driverId + '/location').on('value', snapshot => {
         const location = snapshot.val();
         if (location && rideMap) {
             // Update driver marker on map
@@ -1566,7 +1782,7 @@ function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
 function trackActiveRideLocations(ride) {
     // Track driver location
     if (ride.driverId) {
-        database.ref('driverLocations/' + ride.driverId).on('value', snapshot => {
+        database.ref('users/' + ride.driverId + '/location').on('value', snapshot => {
             const location = snapshot.val();
             if (location && activeRideMap) {
                 // Update driver marker
@@ -1636,6 +1852,12 @@ function cancelRide() {
                     rideMap.removeLayer(driverMarker);
                     driverMarker = null;
                 }
+                
+                // Close driver assignment popup if open
+                closeDriverAssignmentPopup();
+                
+                // Reload history to reflect cancellation
+                loadRideHistory();
             })
             .catch(error => {
                 console.error('Error cancelling ride:', error);
@@ -1726,6 +1948,12 @@ function showRideCompletion(ride) {
         driverAssignmentListener();
         driverAssignmentListener = null;
     }
+    
+    // Close driver assignment popup if open
+    closeDriverAssignmentPopup();
+    
+    // Reload history to reflect completion
+    loadRideHistory();
 }
 
 // Set rating stars
@@ -1783,6 +2011,9 @@ function completePayment() {
                 homeMap.removeLayer(destinationMarker);
                 destinationMarker = null;
             }
+            
+            // Reload history to reflect payment
+            loadRideHistory();
         })
         .catch(error => {
             console.error('Error completing payment:', error);
@@ -1896,6 +2127,7 @@ function loadRideHistory() {
                     ridesArray.forEach(ride => {
                         const historyItem = document.createElement('div');
                         historyItem.className = 'history-item';
+                        historyItem.setAttribute('data-ride-id', ride.id);
                         
                         const date = new Date(ride.timestamp);
                         const formattedDate = date.toLocaleDateString();
@@ -1947,6 +2179,47 @@ function loadRideHistory() {
     }
 }
 
+// Show ride details when clicking on history item
+function showRideDetails(rideId) {
+    database.ref('rides/' + rideId).once('value')
+        .then(snapshot => {
+            const ride = snapshot.val();
+            if (ride) {
+                // Update ride details in the popup
+                document.getElementById('rideDetailsPickup').textContent = ride.pickupLocation;
+                document.getElementById('rideDetailsDestination').textContent = ride.destination;
+                document.getElementById('rideDetailsFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+                document.getElementById('rideDetailsStatus').textContent = getStatusText(ride.status);
+                
+                const date = new Date(ride.timestamp);
+                document.getElementById('rideDetailsDate').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                // Show driver info if available
+                if (ride.driverId) {
+                    database.ref('users/' + ride.driverId).once('value')
+                        .then(driverSnapshot => {
+                            const driver = driverSnapshot.val();
+                            if (driver) {
+                                document.getElementById('rideDetailsDriver').textContent = driver.name || 'Driver';
+                                document.getElementById('rideDetailsDriverSection').classList.remove('hidden');
+                            } else {
+                                document.getElementById('rideDetailsDriverSection').classList.add('hidden');
+                            }
+                        });
+                } else {
+                    document.getElementById('rideDetailsDriverSection').classList.add('hidden');
+                }
+                
+                // Show the ride details popup
+                document.getElementById('rideDetailsPopup').classList.remove('hidden');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading ride details:', error);
+            showNotification('Error loading ride details.');
+        });
+}
+
 // Get display text for ride status
 function getStatusText(status) {
     const statusMap = {
@@ -1954,7 +2227,10 @@ function getStatusText(status) {
         'accepted': 'In Progress',
         'completed': 'Completed',
         'paid': 'Completed',
-        'cancelled': 'Cancelled'
+        'cancelled': 'Cancelled',
+        'arrived': 'Driver Arrived',
+        'started': 'Trip Started',
+        'picked_up': 'Passenger Picked Up'
     };
     
     return statusMap[status] || status;
@@ -2001,6 +2277,11 @@ function logout() {
         if (driverAssignmentListener) {
             driverAssignmentListener();
             driverAssignmentListener = null;
+        }
+        
+        if (driverLocationListener) {
+            database.ref('users/' + currentDriverAssignment.ride.driverId + '/location').off('value', driverLocationListener);
+            driverLocationListener = null;
         }
         
         auth.signOut()
