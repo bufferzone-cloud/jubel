@@ -35,8 +35,8 @@
                 <input type="password" id="password" class="input-field" placeholder="Password">
             </div>
             <button class="btn btn-primary" id="loginBtn">Login</button>
-            <p class="onboarding-text">Don't have an account?</p>
             <button class="btn btn-secondary" id="signupBtn">Sign Up</button>
+            <p class="auth-switch">Don't have an account? <span id="switchToSignup">Sign Up</span></p>
         </div>
     </div>
     
@@ -61,6 +61,14 @@
                     <option value="cash">Cash</option>
                 </select>
             </div>
+            <div class="input-group">
+                <label for="homeAddress">Home Address (Optional)</label>
+                <input type="text" id="homeAddress" class="input-field" placeholder="Home Address">
+            </div>
+            <div class="input-group">
+                <label for="workAddress">Work Address (Optional)</label>
+                <input type="text" id="workAddress" class="input-field" placeholder="Work Address">
+            </div>
             <button class="btn btn-primary" id="completeProfileBtn">Complete Setup</button>
         </div>
     </div>
@@ -70,6 +78,7 @@
         <div class="container">
             <div class="header-content">
                 <div class="logo">
+                    <div class="logo-icon">J</div>
                     <h1>Jubel</h1>
                 </div>
                 <div class="user-icon" id="userIcon">P</div>
@@ -93,6 +102,11 @@
                         <div class="suggestion-list" id="destinationSuggestions"></div>
                     </div>
                     
+                    <div class="saved-locations">
+                        <button class="saved-location-btn" data-address="home">🏠 Home</button>
+                        <button class="saved-location-btn" data-address="work">💼 Work</button>
+                    </div>
+                    
                     <div class="ride-options">
                         <div class="ride-option active" data-type="standard">
                             <h3>Standard</h3>
@@ -111,29 +125,21 @@
                     <div class="fare-display">
                         <p>Estimated Fare</p>
                         <div class="fare-amount" id="estimatedFare">K0.00</div>
+                        <p class="eta-display" id="etaDisplay">ETA: -- min</p>
                     </div>
                     
-                    <button class="btn btn-primary" id="requestRideBtn">Request Ride</button>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="scheduleRideBtn">Schedule Ride</button>
+                        <button class="btn btn-primary" id="requestRideBtn">Request Ride</button>
+                    </div>
                 </div>
                 
                 <div class="map-container" id="homeMap"></div>
                 
-                <!-- Saved Locations -->
                 <div class="card">
-                    <h2 class="section-title">Saved Locations</h2>
-                    <div class="saved-locations">
-                        <div class="saved-location" data-location="Home">
-                            <span class="location-icon">🏠</span>
-                            <span>Home</span>
-                        </div>
-                        <div class="saved-location" data-location="Work">
-                            <span class="location-icon">🏢</span>
-                            <span>Work</span>
-                        </div>
-                        <div class="saved-location" data-location="University">
-                            <span class="location-icon">🎓</span>
-                            <span>University</span>
-                        </div>
+                    <h2 class="section-title">Suggested Destinations</h2>
+                    <div class="suggestions-grid" id="aiSuggestions">
+                        <!-- AI suggestions will be populated here -->
                     </div>
                 </div>
             </div>
@@ -142,14 +148,17 @@
             <div id="rideRequestScreen" class="tab-content hidden">
                 <div class="card">
                     <h2 class="section-title">Ride Requested</h2>
-                    <p>Looking for drivers nearby...</p>
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Looking for drivers nearby...</p>
+                    </div>
                     <div class="driver-info hidden" id="assignedDriver">
                         <div class="driver-avatar">D</div>
                         <div class="driver-details">
                             <h3 id="driverName">Driver Name</h3>
                             <p id="driverPhone">Phone: 000-000-0000</p>
                             <p id="driverVehicle">Vehicle: Car ABC123</p>
-                            <p id="driverId">ID: DRV001</p>
+                            <p id="driverRating">Rating: 4.5 ★</p>
                         </div>
                     </div>
                     
@@ -169,7 +178,10 @@
                         <div class="fare-amount" id="rideFare">K0.00</div>
                     </div>
                     
-                    <button class="btn btn-secondary" id="cancelRideBtn">Cancel Ride</button>
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="shareRideLinkBtn">Share Ride</button>
+                        <button class="btn btn-danger" id="cancelRideBtn">Cancel Ride</button>
+                    </div>
                 </div>
                 
                 <div class="map-container" id="rideMap"></div>
@@ -185,6 +197,7 @@
                             <h3 id="activeDriverName">Driver Name</h3>
                             <p id="activeDriverPhone">Phone: 000-000-0000</p>
                             <p id="activeDriverVehicle">Vehicle: Car ABC123</p>
+                            <p id="activeDriverRating">Rating: 4.5 ★</p>
                         </div>
                     </div>
                     
@@ -206,6 +219,7 @@
                     
                     <div class="action-buttons">
                         <button class="btn btn-secondary" id="contactDriverBtn">Contact Driver</button>
+                        <button class="btn btn-secondary" id="addStopBtn">Add Stop</button>
                         <button class="btn btn-secondary" id="shareRideBtn">Share Ride</button>
                     </div>
                 </div>
@@ -241,7 +255,7 @@
                                 <h3>Zamtel Money</h3>
                             </div>
                             <div class="payment-option" data-method="card">
-                                <h3>Visa/Mastercard</h3>
+                                <h3>Card</h3>
                             </div>
                             <div class="payment-option" data-method="plush">
                                 <h3>Plush</h3>
@@ -276,6 +290,14 @@
             <div id="historyScreen" class="tab-content hidden">
                 <div class="card">
                     <h2 class="section-title">Ride History</h2>
+                    <div class="filter-options">
+                        <select id="historyFilter" class="input-field">
+                            <option value="all">All Rides</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                        <input type="date" id="historyDate" class="input-field">
+                    </div>
                     <div id="historyList">
                         <!-- History items will be populated by JavaScript -->
                     </div>
@@ -302,6 +324,18 @@
                 </div>
                 
                 <div class="card">
+                    <h2 class="section-title">Saved Locations</h2>
+                    <div class="input-group">
+                        <label for="savedHome">Home</label>
+                        <input type="text" id="savedHome" class="input-field" placeholder="Home address">
+                    </div>
+                    <div class="input-group">
+                        <label for="savedWork">Work</label>
+                        <input type="text" id="savedWork" class="input-field" placeholder="Work address">
+                    </div>
+                </div>
+                
+                <div class="card">
                     <h2 class="section-title">Payment Methods</h2>
                     <div class="payment-options">
                         <div class="payment-option active" data-method="airtel">
@@ -314,7 +348,7 @@
                             <h3>Zamtel Money</h3>
                         </div>
                         <div class="payment-option" data-method="card">
-                            <h3>Visa/Mastercard</h3>
+                            <h3>Card</h3>
                         </div>
                         <div class="payment-option" data-method="plush">
                             <h3>Plush</h3>
@@ -326,7 +360,7 @@
                 </div>
                 
                 <div class="card">
-                    <h2 class="section-title">Notifications</h2>
+                    <h2 class="section-title">Preferences</h2>
                     <div class="input-group">
                         <label>
                             <input type="checkbox" id="rideNotifications" checked> Ride Updates
@@ -337,17 +371,39 @@
                             <input type="checkbox" id="promoNotifications"> Promotions
                         </label>
                     </div>
+                    <div class="input-group">
+                        <label for="languageSelect">Language</label>
+                        <select id="languageSelect" class="input-field">
+                            <option value="en">English</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>
+                            <input type="checkbox" id="darkModeToggle"> Dark Mode
+                        </label>
+                    </div>
                 </div>
                 
-                <button class="btn btn-secondary" id="logoutBtn">Logout</button>
+                <button class="btn btn-danger" id="logoutBtn">Logout</button>
             </div>
         </div>
         
         <!-- Navigation Tabs -->
         <div class="tab-container">
-            <div class="tab active" data-tab="homeScreen">Home</div>
-            <div class="tab" data-tab="historyScreen">History</div>
-            <div class="tab" data-tab="settingsScreen">Settings</div>
+            <div class="tab active" data-tab="homeScreen">
+                <span class="tab-icon">🏠</span>
+                <span class="tab-text">Home</span>
+            </div>
+            <div class="tab" data-tab="historyScreen">
+                <span class="tab-icon">📊</span>
+                <span class="tab-text">History</span>
+            </div>
+            <div class="tab" data-tab="settingsScreen">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-text">Settings</span>
+            </div>
         </div>
     </div>
     
