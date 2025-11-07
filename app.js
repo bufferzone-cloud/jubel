@@ -26,6 +26,9 @@ let userLocation = null;
 let driverMarker = null;
 let userMarker = null;
 let rideRoute = null;
+let nearbyPlacesMarkers = [];
+let rideRequestInterval = null;
+let ridePulsingAnimation = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -90,8 +93,9 @@ function showMainApp() {
     document.querySelector('.main-content').classList.remove('hidden');
     document.querySelector('.tab-container').classList.remove('hidden');
     
-    // Load AI suggestions
+    // Load AI suggestions and nearby places
     loadAISuggestions();
+    loadNearbyPlaces();
 }
 
 // Authentication functions
@@ -359,8 +363,9 @@ function getUserLocation() {
                 document.getElementById('pickupLocation').value = address;
             });
             
-            // Load AI suggestions based on location
+            // Load AI suggestions and nearby places based on location
             loadAISuggestions();
+            loadNearbyPlaces();
         }, error => {
             console.error('Geolocation error:', error);
             showNotification('Unable to get your location. Please enable location services.');
@@ -395,6 +400,204 @@ function startLocationTracking() {
             maximumAge: 30000
         });
     }
+}
+
+// Load nearby places within 20km radius
+function loadNearbyPlaces() {
+    if (!userLocation) return;
+    
+    // Clear existing markers
+    nearbyPlacesMarkers.forEach(marker => {
+        homeMap.removeLayer(marker);
+    });
+    nearbyPlacesMarkers = [];
+    
+    const nearbyPlacesList = document.getElementById('nearbyPlacesList');
+    nearbyPlacesList.innerHTML = '<div class="loading-text">Loading nearby places...</div>';
+    
+    // Using Overpass API to get nearby places
+    const radius = 20000; // 20km in meters
+    const overpassQuery = `
+        [out:json][timeout:25];
+        (
+          node["amenity"](around:${radius},${userLocation.lat},${userLocation.lng});
+          node["shop"](around:${radius},${userLocation.lat},${userLocation.lng});
+          node["tourism"](around:${radius},${userLocation.lat},${userLocation.lng});
+        );
+        out body;
+        >;
+        out skel qt;
+    `;
+    
+    fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: overpassQuery
+    })
+    .then(response => response.json())
+    .then(data => {
+        nearbyPlacesList.innerHTML = '';
+        
+        if (data.elements && data.elements.length > 0) {
+            // Process and display places
+            const places = data.elements
+                .filter(element => element.tags && element.tags.name)
+                .slice(0, 20); // Limit to 20 places
+            
+            if (places.length === 0) {
+                nearbyPlacesList.innerHTML = '<div class="no-places">No nearby places found within 20km</div>';
+                return;
+            }
+            
+            places.forEach(place => {
+                const placeElement = createNearbyPlaceElement(place);
+                nearbyPlacesList.appendChild(placeElement);
+                
+                // Add marker to map
+                const marker = L.marker([place.lat, place.lon])
+                    .addTo(homeMap)
+                    .bindPopup(`
+                        <strong>${place.tags.name}</strong><br>
+                        ${place.tags.amenity || place.tags.shop || place.tags.tourism || 'Place'}
+                    `);
+                nearbyPlacesMarkers.push(marker);
+            });
+        } else {
+            nearbyPlacesList.innerHTML = '<div class="no-places">No nearby places found within 20km</div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error fetching nearby places:', error);
+        // Fallback to predefined places
+        loadFallbackNearbyPlaces();
+    });
+}
+
+// Create nearby place element
+function createNearbyPlaceElement(place) {
+    const placeElement = document.createElement('div');
+    placeElement.className = 'nearby-place-item';
+    
+    const placeType = place.tags.amenity || place.tags.shop || place.tags.tourism || 'place';
+    const icon = getPlaceIcon(placeType);
+    
+    placeElement.innerHTML = `
+        <div class="place-icon">${icon}</div>
+        <div class="place-details">
+            <div class="place-name">${place.tags.name}</div>
+            <div class="place-type">${formatPlaceType(placeType)}</div>
+            <div class="place-address">${getPlaceAddress(place)}</div>
+        </div>
+    `;
+    
+    placeElement.addEventListener('click', function() {
+        document.getElementById('destination').value = place.tags.name;
+        updateFareEstimate();
+        showNotification(`Selected: ${place.tags.name}`);
+        
+        // Highlight the selected place
+        document.querySelectorAll('.nearby-place-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        this.classList.add('selected');
+    });
+    
+    return placeElement;
+}
+
+// Get icon for place type
+function getPlaceIcon(placeType) {
+    const icons = {
+        'restaurant': '🍽️',
+        'cafe': '☕',
+        'bar': '🍺',
+        'pub': '🍻',
+        'fast_food': '🍔',
+        'bank': '🏦',
+        'atm': '💳',
+        'hospital': '🏥',
+        'pharmacy': '💊',
+        'school': '🏫',
+        'university': '🎓',
+        'library': '📚',
+        'cinema': '🎬',
+        'theatre': '🎭',
+        'museum': '🏛️',
+        'hotel': '🏨',
+        'supermarket': '🛒',
+        'mall': '🏪',
+        'clothes': '👕',
+        'fuel': '⛽',
+        'parking': '🅿️',
+        'bus_station': '🚌',
+        'taxi': '🚕'
+    };
+    
+    return icons[placeType] || '📍';
+}
+
+// Format place type for display
+function formatPlaceType(type) {
+    return type.split('_').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+}
+
+// Get place address from tags
+function getPlaceAddress(place) {
+    if (place.tags['addr:street']) {
+        return `${place.tags['addr:street']}${place.tags['addr:housenumber'] ? ' ' + place.tags['addr:housenumber'] : ''}`;
+    }
+    return 'Address not available';
+}
+
+// Fallback nearby places if API fails
+function loadFallbackNearbyPlaces() {
+    const nearbyPlacesList = document.getElementById('nearbyPlacesList');
+    nearbyPlacesList.innerHTML = '';
+    
+    const fallbackPlaces = [
+        { name: 'Lusaka City Center', type: 'city_center', lat: -15.4167, lng: 28.2833 },
+        { name: 'Manda Hill Mall', type: 'mall', lat: -15.4096, lng: 28.2997 },
+        { name: 'East Park Mall', type: 'mall', lat: -15.3928, lng: 28.3214 },
+        { name: 'Levy Mall', type: 'mall', lat: -15.4250, lng: 28.2917 },
+        { name: 'University of Zambia', type: 'university', lat: -15.3875, lng: 28.3278 },
+        { name: 'Lusaka Airport', type: 'airport', lat: -15.3308, lng: 28.4528 },
+        { name: 'Kamwala Market', type: 'market', lat: -15.4181, lng: 28.2750 },
+        { name: 'Arcades Shopping Mall', type: 'mall', lat: -15.4053, lng: 28.3106 }
+    ];
+    
+    fallbackPlaces.forEach(place => {
+        const placeElement = document.createElement('div');
+        placeElement.className = 'nearby-place-item';
+        
+        placeElement.innerHTML = `
+            <div class="place-icon">${getPlaceIcon(place.type)}</div>
+            <div class="place-details">
+                <div class="place-name">${place.name}</div>
+                <div class="place-type">${formatPlaceType(place.type)}</div>
+                <div class="place-address">Lusaka, Zambia</div>
+            </div>
+        `;
+        
+        placeElement.addEventListener('click', function() {
+            document.getElementById('destination').value = place.name;
+            updateFareEstimate();
+            showNotification(`Selected: ${place.name}`);
+            
+            document.querySelectorAll('.nearby-place-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            this.classList.add('selected');
+        });
+        
+        nearbyPlacesList.appendChild(placeElement);
+        
+        // Add marker to map
+        const marker = L.marker([place.lat, place.lon])
+            .addTo(homeMap)
+            .bindPopup(`<strong>${place.name}</strong><br>${formatPlaceType(place.type)}`);
+        nearbyPlacesMarkers.push(marker);
+    });
 }
 
 // Reverse geocoding function
@@ -452,10 +655,11 @@ function switchTab(tabId) {
     if (tabId === 'historyScreen') {
         loadRideHistory();
     } else if (tabId === 'homeScreen') {
-        // Refresh map when returning to home
+        // Refresh map and nearby places when returning to home
         if (homeMap && userLocation) {
             homeMap.setView([userLocation.lat, userLocation.lng], 15);
         }
+        loadNearbyPlaces();
     }
 }
 
@@ -613,7 +817,7 @@ function getIconForType(type) {
     return icons[type] || '📍';
 }
 
-// Ride request
+// Ride request with pulsing animation
 function requestRide() {
     const pickup = document.getElementById('pickupLocation').value;
     const destination = document.getElementById('destination').value;
@@ -698,6 +902,9 @@ function requestRide() {
                 // Setup ride map
                 setupRideMap(userLocation.lat, userLocation.lng, destLat, destLng);
                 
+                // Start pulsing animation
+                startPulsingAnimation();
+                
                 // Listen for driver assignment
                 listenForDriverAssignment(rideId);
                 
@@ -708,6 +915,34 @@ function requestRide() {
                 showNotification('Error requesting ride. Please try again.');
             });
     });
+}
+
+// Start pulsing animation for ride request
+function startPulsingAnimation() {
+    const loadingSpinner = document.querySelector('.loading-spinner');
+    const spinner = document.querySelector('.spinner');
+    
+    // Add pulsing class to spinner
+    spinner.classList.add('pulsing');
+    
+    // Create pulsing effect
+    ridePulsingAnimation = setInterval(() => {
+        spinner.style.transform = spinner.style.transform === 'scale(1.2)' ? 'scale(1)' : 'scale(1.2)';
+    }, 500);
+}
+
+// Stop pulsing animation
+function stopPulsingAnimation() {
+    if (ridePulsingAnimation) {
+        clearInterval(ridePulsingAnimation);
+        ridePulsingAnimation = null;
+    }
+    
+    const spinner = document.querySelector('.spinner');
+    if (spinner) {
+        spinner.classList.remove('pulsing');
+        spinner.style.transform = 'scale(1)';
+    }
 }
 
 // Schedule ride for later
@@ -747,7 +982,9 @@ function listenForDriverAssignment(rideId) {
         if (!ride) return;
         
         if (ride.driverId) {
-            // Driver assigned
+            // Driver assigned - stop pulsing animation
+            stopPulsingAnimation();
+            
             document.getElementById('assignedDriver').classList.remove('hidden');
             document.querySelector('.loading-spinner').classList.add('hidden');
             
@@ -771,6 +1008,9 @@ function listenForDriverAssignment(rideId) {
                         
                         // Start tracking driver location
                         trackDriverLocation(ride.driverId, rideId);
+                        
+                        // Update map with driver and customer locations
+                        updateRideMapWithDriver(ride);
                     }
                 });
         }
@@ -788,11 +1028,63 @@ function listenForDriverAssignment(rideId) {
         }
         
         if (ride.status === 'cancelled') {
+            stopPulsingAnimation();
             showNotification('Ride cancelled.');
             switchTab('homeScreen');
             currentRide = null;
         }
     });
+}
+
+// Update ride map with driver and customer locations
+function updateRideMapWithDriver(ride) {
+    // Clear existing map
+    rideMap.eachLayer(layer => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            rideMap.removeLayer(layer);
+        }
+    });
+    
+    // Add customer marker
+    L.marker([ride.pickupLat, ride.pickupLng], {
+        icon: L.divIcon({
+            className: 'customer-marker',
+            html: '📍<div class="marker-label">You</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(rideMap).bindPopup('Your Location');
+    
+    // Add destination marker
+    L.marker([ride.destLat, ride.destLng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '🏁<div class="marker-label">Destination</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(rideMap).bindPopup('Destination');
+    
+    // Get driver location and add marker
+    database.ref('driverLocations/' + ride.driverId).once('value')
+        .then(snapshot => {
+            const driverLocation = snapshot.val();
+            if (driverLocation) {
+                driverMarker = L.marker([driverLocation.latitude, driverLocation.longitude], {
+                    icon: L.divIcon({
+                        className: 'driver-marker',
+                        html: '🚗<div class="marker-label">Driver</div>',
+                        iconSize: [40, 40]
+                    })
+                }).addTo(rideMap).bindPopup('Your Driver');
+                
+                // Fit map to show all points
+                const bounds = L.latLngBounds(
+                    [ride.pickupLat, ride.pickupLng],
+                    [ride.destLat, ride.destLng],
+                    [driverLocation.latitude, driverLocation.longitude]
+                );
+                rideMap.fitBounds(bounds, { padding: [30, 30] });
+            }
+        });
 }
 
 // Track driver location
@@ -802,10 +1094,13 @@ function trackDriverLocation(driverId, rideId) {
         if (location && rideMap) {
             // Update driver marker on map
             if (!driverMarker) {
-                driverMarker = L.marker([location.latitude, location.longitude])
-                    .addTo(rideMap)
-                    .bindPopup('Your Driver')
-                    .openPopup();
+                driverMarker = L.marker([location.latitude, location.longitude], {
+                    icon: L.divIcon({
+                        className: 'driver-marker',
+                        html: '🚗<div class="marker-label">Driver</div>',
+                        iconSize: [40, 40]
+                    })
+                }).addTo(rideMap).bindPopup('Your Driver');
             } else {
                 driverMarker.setLatLng([location.latitude, location.longitude]);
             }
@@ -822,12 +1117,23 @@ function setupActiveRideMap(ride) {
         }
     });
     
-    // Add markers
-    L.marker([ride.pickupLat, ride.pickupLng]).addTo(activeRideMap)
-        .bindPopup('Pickup Location');
+    // Add customer marker
+    L.marker([ride.pickupLat, ride.pickupLng], {
+        icon: L.divIcon({
+            className: 'customer-marker',
+            html: '📍<div class="marker-label">You</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(activeRideMap).bindPopup('Pickup Location');
     
-    L.marker([ride.destLat, ride.destLng]).addTo(activeRideMap)
-        .bindPopup('Destination');
+    // Add destination marker
+    L.marker([ride.destLat, ride.destLng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '🏁<div class="marker-label">Destination</div>',
+            iconSize: [30, 40]
+        })
+    }).addTo(activeRideMap).bindPopup('Destination');
     
     // Fit map to show both locations
     const bounds = L.latLngBounds(
@@ -852,28 +1158,38 @@ function trackActiveRideLocations(ride) {
                     driverMarker = L.marker([location.latitude, location.longitude], {
                         icon: L.divIcon({
                             className: 'driver-marker',
-                            html: '🚗',
-                            iconSize: [30, 30]
+                            html: '🚗<div class="marker-label">Driver</div>',
+                            iconSize: [40, 40]
                         })
-                    }).addTo(activeRideMap);
+                    }).addTo(activeRideMap).bindPopup('Your Driver');
                 } else {
                     driverMarker.setLatLng([location.latitude, location.longitude]);
                 }
+                
+                // Update user marker
+                if (userLocation && !userMarker) {
+                    userMarker = L.marker([userLocation.lat, userLocation.lng], {
+                        icon: L.divIcon({
+                            className: 'customer-marker',
+                            html: '📍<div class="marker-label">You</div>',
+                            iconSize: [30, 40]
+                        })
+                    }).addTo(activeRideMap).bindPopup('Your Location');
+                } else if (userLocation && userMarker) {
+                    userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+                }
+                
+                // Fit map to show all points if available
+                if (userLocation) {
+                    const bounds = L.latLngBounds(
+                        [userLocation.lat, userLocation.lng],
+                        [location.latitude, location.longitude],
+                        [ride.destLat, ride.destLng]
+                    );
+                    activeRideMap.fitBounds(bounds, { padding: [30, 30] });
+                }
             }
         });
-    }
-    
-    // Track user location
-    if (userLocation) {
-        if (!userMarker) {
-            userMarker = L.marker([userLocation.lat, userLocation.lng], {
-                icon: L.divIcon({
-                    className: 'user-marker',
-                    html: '📍',
-                    iconSize: [25, 25]
-                })
-            }).addTo(activeRideMap);
-        }
     }
 }
 
@@ -881,6 +1197,8 @@ function trackActiveRideLocations(ride) {
 function cancelRide() {
     if (currentRide) {
         if (confirm('Are you sure you want to cancel this ride?')) {
+            stopPulsingAnimation();
+            
             database.ref('rides/' + currentRide.id).update({
                 status: 'cancelled',
                 cancelledAt: firebase.database.ServerValue.TIMESTAMP
@@ -972,6 +1290,10 @@ function showRideCompletion(ride) {
     if (driverMarker) {
         activeRideMap.removeLayer(driverMarker);
         driverMarker = null;
+    }
+    if (userMarker) {
+        activeRideMap.removeLayer(userMarker);
+        userMarker = null;
     }
 }
 
