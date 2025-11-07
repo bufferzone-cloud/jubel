@@ -443,6 +443,172 @@
             font-size: 1rem;
         }
         
+        /* New styles for popup form */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+        
+        .popup-form {
+            background-color: var(--white);
+            border-radius: 10px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .popup-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .popup-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--dark-gray);
+        }
+        
+        .close-popup {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+        
+        .popup-content {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        @media (min-width: 768px) {
+            .popup-content {
+                flex-direction: row;
+            }
+        }
+        
+        .popup-map-container {
+            height: 300px;
+            width: 100%;
+        }
+        
+        @media (min-width: 768px) {
+            .popup-map-container {
+                height: 400px;
+                width: 50%;
+            }
+        }
+        
+        .popup-details {
+            padding: 20px;
+            width: 100%;
+        }
+        
+        @media (min-width: 768px) {
+            .popup-details {
+                width: 50%;
+            }
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .detail-value {
+            font-weight: 500;
+        }
+        
+        .popup-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .popup-actions .btn {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        /* New styles for hold buttons */
+        .hold-btn-container {
+            margin: 20px 0;
+        }
+        
+        .hold-btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--light-gray);
+            color: var(--dark-gray);
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hold-btn.active {
+            background-color: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .hold-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .hold-progress {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 4px;
+            background-color: var(--secondary-red);
+            width: 0%;
+            transition: width 3s linear;
+        }
+        
+        .hold-btn.holding .hold-progress {
+            width: 100%;
+        }
+        
+        .driver-info-card {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: var(--light-gray);
+            border-radius: 8px;
+        }
+        
+        .driver-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
         @media (max-width: 480px) {
             .container {
                 padding: 0 10px;
@@ -523,9 +689,35 @@
                         <div class="fare-amount" id="activeRideFare">K0.00</div>
                     </div>
                     
-                    <button class="btn btn-success" id="arrivedBtn">Arrived at Pickup</button>
-                    <button class="btn btn-primary" id="startTripBtn">Start Trip</button>
-                    <button class="btn btn-success" id="completeTripBtn">Complete Trip</button>
+                    <!-- New hold buttons -->
+                    <div class="hold-btn-container">
+                        <button class="hold-btn" id="holdToStartBtn">
+                            <span class="btn-text">Hold to Start</span>
+                            <div class="hold-progress"></div>
+                        </button>
+                    </div>
+                    
+                    <div class="hold-btn-container">
+                        <button class="hold-btn" id="holdToArriveBtn" disabled>
+                            <span class="btn-text">Hold to Arrive</span>
+                            <div class="hold-progress"></div>
+                        </button>
+                    </div>
+                    
+                    <div class="hold-btn-container">
+                        <button class="hold-btn" id="holdToPickBtn" disabled>
+                            <span class="btn-text">Hold to Pick</span>
+                            <div class="hold-progress"></div>
+                        </button>
+                    </div>
+                    
+                    <div class="hold-btn-container">
+                        <button class="hold-btn" id="holdToCompleteBtn" disabled>
+                            <span class="btn-text">Hold to Complete</span>
+                            <div class="hold-progress"></div>
+                        </button>
+                    </div>
+                    
                     <button class="btn btn-danger" id="cancelActiveRideBtn">Cancel Ride</button>
                 </div>
                 
@@ -642,6 +834,66 @@
         </div>
     </div>
     
+    <!-- New Popup Form for Ride Requests -->
+    <div id="rideRequestPopup" class="popup-overlay hidden">
+        <div class="popup-form">
+            <div class="popup-header">
+                <h2 class="popup-title">New Ride Request</h2>
+                <button class="close-popup" id="closePopup">&times;</button>
+            </div>
+            <div class="popup-content">
+                <div class="popup-map-container" id="popupMap"></div>
+                <div class="popup-details">
+                    <div class="detail-row">
+                        <span class="detail-label">Pickup:</span>
+                        <span class="detail-value" id="popupPickup">Loading...</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Drop Off:</span>
+                        <span class="detail-value" id="popupDropoff">Loading...</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Distance:</span>
+                        <span class="detail-value" id="popupDistance">Loading...</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Fare:</span>
+                        <span class="detail-value" id="popupFare">Loading...</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Customer Name:</span>
+                        <span class="detail-value" id="popupCustomerName">Loading...</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-label">Customer Phone:</span>
+                        <span class="detail-value" id="popupCustomerPhone">Loading...</span>
+                    </div>
+                    <div class="popup-actions">
+                        <button class="btn btn-danger" id="rejectRideBtn">Reject</button>
+                        <button class="btn btn-success" id="acceptRideBtn">Accept</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Driver Info Card (shown after accepting ride) -->
+    <div id="driverInfoCard" class="driver-info-card hidden">
+        <h3>Driver Information</h3>
+        <div class="driver-info-row">
+            <span class="detail-label">Driver Name:</span>
+            <span class="detail-value" id="driverInfoName">John Doe</span>
+        </div>
+        <div class="driver-info-row">
+            <span class="detail-label">Vehicle:</span>
+            <span class="detail-value" id="driverInfoVehicle">Toyota Corolla (ABC 123)</span>
+        </div>
+        <div class="driver-info-row">
+            <span class="detail-label">Location:</span>
+            <span class="detail-value" id="driverInfoLocation">2.5 km away</span>
+        </div>
+    </div>
+    
     <!-- Notification -->
     <div class="notification" id="notification"></div>
     
@@ -673,9 +925,11 @@
         let currentUser = null;
         let currentRide = null;
         let isOnline = false;
-        let homeMap, activeRideMap;
+        let homeMap, activeRideMap, popupMap;
         let locationWatchId = null;
         let earningsPeriod = 'today';
+        let currentPopupRide = null;
+        let holdTimers = {};
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -725,6 +979,12 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(activeRideMap);
             
+            // Popup map
+            popupMap = L.map('popupMap').setView([-15.4167, 28.2833], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(popupMap);
+            
             // Get driver's current location
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(position => {
@@ -734,6 +994,7 @@
                     // Update maps with current location
                     homeMap.setView([lat, lng], 15);
                     activeRideMap.setView([lat, lng], 15);
+                    popupMap.setView([lat, lng], 15);
                     
                     // Add marker for current location
                     L.marker([lat, lng]).addTo(homeMap)
@@ -818,9 +1079,6 @@
             });
             
             // Ride action buttons
-            document.getElementById('arrivedBtn').addEventListener('click', markArrived);
-            document.getElementById('startTripBtn').addEventListener('click', startTrip);
-            document.getElementById('completeTripBtn').addEventListener('click', completeTrip);
             document.getElementById('cancelActiveRideBtn').addEventListener('click', cancelActiveRide);
             
             // Withdraw earnings button
@@ -834,6 +1092,93 @@
             
             // Logout button
             document.getElementById('logoutBtn').addEventListener('click', logout);
+            
+            // Popup buttons
+            document.getElementById('closePopup').addEventListener('click', closePopup);
+            document.getElementById('rejectRideBtn').addEventListener('click', rejectRide);
+            document.getElementById('acceptRideBtn').addEventListener('click', acceptRideFromPopup);
+            
+            // Hold buttons setup
+            setupHoldButtons();
+        }
+        
+        // Setup hold buttons functionality
+        function setupHoldButtons() {
+            const holdButtons = [
+                { id: 'holdToStartBtn', action: startTrip, nextButton: 'holdToArriveBtn' },
+                { id: 'holdToArriveBtn', action: markArrived, nextButton: 'holdToPickBtn' },
+                { id: 'holdToPickBtn', action: markPickedUp, nextButton: 'holdToCompleteBtn' },
+                { id: 'holdToCompleteBtn', action: completeTrip, nextButton: null }
+            ];
+            
+            holdButtons.forEach(buttonConfig => {
+                const button = document.getElementById(buttonConfig.id);
+                
+                button.addEventListener('mousedown', function() {
+                    if (button.disabled) return;
+                    
+                    // Start holding
+                    button.classList.add('holding');
+                    holdTimers[buttonConfig.id] = setTimeout(() => {
+                        // Execute the action after 3 seconds
+                        buttonConfig.action();
+                        
+                        // Enable the next button if exists
+                        if (buttonConfig.nextButton) {
+                            const nextButton = document.getElementById(buttonConfig.nextButton);
+                            nextButton.disabled = false;
+                        }
+                        
+                        // Reset button state
+                        button.classList.remove('holding');
+                        button.disabled = true;
+                        button.classList.add('active');
+                    }, 3000);
+                });
+                
+                button.addEventListener('mouseup', function() {
+                    clearHoldTimer(buttonConfig.id);
+                });
+                
+                button.addEventListener('mouseleave', function() {
+                    clearHoldTimer(buttonConfig.id);
+                });
+                
+                // For touch devices
+                button.addEventListener('touchstart', function(e) {
+                    if (button.disabled) return;
+                    
+                    e.preventDefault();
+                    button.classList.add('holding');
+                    holdTimers[buttonConfig.id] = setTimeout(() => {
+                        buttonConfig.action();
+                        
+                        if (buttonConfig.nextButton) {
+                            const nextButton = document.getElementById(buttonConfig.nextButton);
+                            nextButton.disabled = false;
+                        }
+                        
+                        button.classList.remove('holding');
+                        button.disabled = true;
+                        button.classList.add('active');
+                    }, 3000);
+                });
+                
+                button.addEventListener('touchend', function() {
+                    clearHoldTimer(buttonConfig.id);
+                });
+            });
+        }
+        
+        // Clear hold timer
+        function clearHoldTimer(buttonId) {
+            if (holdTimers[buttonId]) {
+                clearTimeout(holdTimers[buttonId]);
+                delete holdTimers[buttonId];
+                
+                const button = document.getElementById(buttonId);
+                button.classList.remove('holding');
+            }
         }
         
         // Tab switching
@@ -923,15 +1268,15 @@
                             <div class="ride-fare">
                                 <div class="fare-amount">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
                             </div>
-                            <button class="btn btn-primary accept-ride-btn">Accept Ride</button>
+                            <button class="btn btn-primary view-ride-btn">View Details</button>
                         `;
                         
                         rideRequestsList.appendChild(rideItem);
                         
-                        // Add event listener to accept button
-                        rideItem.querySelector('.accept-ride-btn').addEventListener('click', function(e) {
+                        // Add event listener to view button
+                        rideItem.querySelector('.view-ride-btn').addEventListener('click', function(e) {
                             e.stopPropagation();
-                            acceptRide(rideId, ride);
+                            showRidePopup(rideId, ride);
                         });
                     });
                 } else {
@@ -940,40 +1285,161 @@
             });
         }
         
-        // Accept a ride
-        function acceptRide(rideId, ride) {
-            if (currentUser) {
+        // Show ride popup with map and details
+        function showRidePopup(rideId, ride) {
+            currentPopupRide = { id: rideId, ...ride };
+            
+            // Update popup details
+            document.getElementById('popupPickup').textContent = ride.pickupLocation;
+            document.getElementById('popupDropoff').textContent = ride.destination;
+            document.getElementById('popupDistance').textContent = ride.distance ? `${ride.distance} km` : 'Calculating...';
+            document.getElementById('popupFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+            document.getElementById('popupCustomerName').textContent = ride.passengerName || 'Passenger';
+            document.getElementById('popupCustomerPhone').textContent = ride.passengerPhone || 'N/A';
+            
+            // Update popup map
+            updatePopupMap(ride);
+            
+            // Show popup
+            document.getElementById('rideRequestPopup').classList.remove('hidden');
+        }
+        
+        // Update popup map with pickup and dropoff locations
+        function updatePopupMap(ride) {
+            // Clear existing markers
+            popupMap.eachLayer(layer => {
+                if (layer instanceof L.Marker) {
+                    popupMap.removeLayer(layer);
+                }
+            });
+            
+            // In a real app, you would geocode the addresses to get coordinates
+            // For demo, we'll use random coordinates near the driver's location
+            const driverLat = homeMap.getCenter().lat;
+            const driverLng = homeMap.getCenter().lng;
+            
+            // Generate random coordinates for pickup and dropoff
+            const pickupLat = driverLat + (Math.random() - 0.5) * 0.02;
+            const pickupLng = driverLng + (Math.random() - 0.5) * 0.02;
+            
+            const dropoffLat = driverLat + (Math.random() - 0.5) * 0.03;
+            const dropoffLng = driverLng + (Math.random() - 0.5) * 0.03;
+            
+            // Add markers
+            const pickupMarker = L.marker([pickupLat, pickupLng]).addTo(popupMap)
+                .bindPopup('Pickup Location')
+                .openPopup();
+                
+            const dropoffMarker = L.marker([dropoffLat, dropoffLng]).addTo(popupMap)
+                .bindPopup('Dropoff Location');
+            
+            // Fit map to show both markers
+            const group = new L.featureGroup([pickupMarker, dropoffMarker]);
+            popupMap.fitBounds(group.getBounds().pad(0.1));
+            
+            // Draw a line between pickup and dropoff
+            L.polyline([
+                [pickupLat, pickupLng],
+                [dropoffLat, dropoffLng]
+            ], {color: 'red'}).addTo(popupMap);
+        }
+        
+        // Close popup
+        function closePopup() {
+            document.getElementById('rideRequestPopup').classList.add('hidden');
+            currentPopupRide = null;
+        }
+        
+        // Reject ride from popup
+        function rejectRide() {
+            if (currentPopupRide) {
+                database.ref('rides/' + currentPopupRide.id).update({
+                    status: 'rejected',
+                    rejectedBy: currentUser.uid
+                })
+                .then(() => {
+                    showNotification('Ride rejected.');
+                    closePopup();
+                })
+                .catch(error => {
+                    console.error('Error rejecting ride:', error);
+                    showNotification('Error rejecting ride. Please try again.');
+                });
+            }
+        }
+        
+        // Accept ride from popup
+        function acceptRideFromPopup() {
+            if (currentPopupRide && currentUser) {
                 // Update ride with driver info
-                database.ref('rides/' + rideId).update({
+                database.ref('rides/' + currentPopupRide.id).update({
                     driverId: currentUser.uid,
                     status: 'accepted',
                     acceptedAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
                     currentRide = {
-                        id: rideId,
-                        ...ride,
+                        id: currentPopupRide.id,
+                        ...currentPopupRide,
                         driverId: currentUser.uid,
                         status: 'accepted'
                     };
                     
                     // Update UI
-                    document.getElementById('passengerName').textContent = ride.passengerName || 'Passenger';
-                    document.getElementById('passengerPhone').textContent = 'Phone: ' + (ride.passengerPhone || 'N/A');
-                    document.getElementById('activePickupAddress').textContent = ride.pickupLocation;
-                    document.getElementById('activeDestinationAddress').textContent = ride.destination;
-                    document.getElementById('activeRideFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+                    document.getElementById('passengerName').textContent = currentPopupRide.passengerName || 'Passenger';
+                    document.getElementById('passengerPhone').textContent = 'Phone: ' + (currentPopupRide.passengerPhone || 'N/A');
+                    document.getElementById('activePickupAddress').textContent = currentPopupRide.pickupLocation;
+                    document.getElementById('activeDestinationAddress').textContent = currentPopupRide.destination;
+                    document.getElementById('activeRideFare').textContent = `K${currentPopupRide.fare ? currentPopupRide.fare.toFixed(2) : '0.00'}`;
+                    
+                    // Reset hold buttons
+                    resetHoldButtons();
+                    
+                    // Enable first hold button
+                    document.getElementById('holdToStartBtn').disabled = false;
+                    
+                    // Show driver info to customer (in a real app, this would be sent via notification)
+                    showDriverInfoToCustomer();
                     
                     // Switch to active ride screen
                     switchTab('activeRideScreen');
                     
                     showNotification('Ride accepted successfully.');
+                    closePopup();
                 })
                 .catch(error => {
                     console.error('Error accepting ride:', error);
                     showNotification('Error accepting ride. Please try again.');
                 });
             }
+        }
+        
+        // Reset all hold buttons to initial state
+        function resetHoldButtons() {
+            const holdButtons = [
+                'holdToStartBtn',
+                'holdToArriveBtn',
+                'holdToPickBtn',
+                'holdToCompleteBtn'
+            ];
+            
+            holdButtons.forEach(buttonId => {
+                const button = document.getElementById(buttonId);
+                button.disabled = true;
+                button.classList.remove('active', 'holding');
+            });
+        }
+        
+        // Show driver info to customer (simulated)
+        function showDriverInfoToCustomer() {
+            // In a real app, this would send a notification to the customer
+            // For demo, we'll just show it on the driver's screen
+            document.getElementById('driverInfoName').textContent = document.getElementById('driverName').value || 'John Doe';
+            document.getElementById('driverInfoVehicle').textContent = 
+                `${document.getElementById('vehicleType').value || 'Car'} (${document.getElementById('licensePlate').value || 'ABC 123'})`;
+            document.getElementById('driverInfoLocation').textContent = '2.5 km away'; // This would be calculated
+            
+            document.getElementById('driverInfoCard').classList.remove('hidden');
         }
         
         // Mark arrived at pickup
@@ -987,6 +1453,23 @@
                 })
                 .catch(error => {
                     console.error('Error marking arrival:', error);
+                    showNotification('Error updating status. Please try again.');
+                });
+            }
+        }
+        
+        // Mark passenger picked up
+        function markPickedUp() {
+            if (currentRide) {
+                database.ref('rides/' + currentRide.id).update({
+                    status: 'picked_up',
+                    pickedUpAt: firebase.database.ServerValue.TIMESTAMP
+                })
+                .then(() => {
+                    showNotification('Passenger picked up. Proceed to destination.');
+                })
+                .catch(error => {
+                    console.error('Error marking pickup:', error);
                     showNotification('Error updating status. Please try again.');
                 });
             }
@@ -1029,6 +1512,7 @@
                             showNotification('Trip completed successfully. Earnings recorded.');
                             switchTab('homeScreen');
                             currentRide = null;
+                            document.getElementById('driverInfoCard').classList.add('hidden');
                         });
                 })
                 .catch(error => {
@@ -1049,6 +1533,7 @@
                     showNotification('Ride cancelled.');
                     switchTab('homeScreen');
                     currentRide = null;
+                    document.getElementById('driverInfoCard').classList.add('hidden');
                 })
                 .catch(error => {
                     console.error('Error cancelling ride:', error);
