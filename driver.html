@@ -962,6 +962,7 @@
                 })
                 .catch(error => {
                     console.error('Authentication error:', error);
+                    showNotification('Authentication error. Please refresh the page.');
                 });
         }
         
@@ -1013,10 +1014,12 @@
         // Update driver location in Firebase
         function updateDriverLocation(lat, lng) {
             if (currentUser && isOnline) {
-                database.ref('users/' + currentUser.uid + '/location').set({
+                database.ref('drivers/' + currentUser.uid + '/location').set({
                     latitude: lat,
                     longitude: lng,
                     timestamp: firebase.database.ServerValue.TIMESTAMP
+                }).catch(error => {
+                    console.error('Error updating driver location:', error);
                 });
             }
         }
@@ -1230,9 +1233,11 @@
             
             // Update driver status in Firebase
             if (currentUser) {
-                database.ref('users/' + currentUser.uid).update({
+                database.ref('drivers/' + currentUser.uid).update({
                     isOnline: online,
                     lastOnline: firebase.database.ServerValue.TIMESTAMP
+                }).catch(error => {
+                    console.error('Error updating driver status:', error);
                 });
             }
         }
@@ -1282,6 +1287,8 @@
                 } else {
                     rideRequestsList.innerHTML = '<p>No ride requests available at the moment.</p>';
                 }
+            }, error => {
+                console.error('Error listening for ride requests:', error);
             });
         }
         
@@ -1513,6 +1520,10 @@
                             switchTab('homeScreen');
                             currentRide = null;
                             document.getElementById('driverInfoCard').classList.add('hidden');
+                        })
+                        .catch(error => {
+                            console.error('Error adding earnings:', error);
+                            showNotification('Trip completed but error recording earnings.');
                         });
                 })
                 .catch(error => {
@@ -1545,7 +1556,7 @@
         // Load driver data
         function loadDriverData() {
             if (currentUser) {
-                database.ref('users/' + currentUser.uid).once('value')
+                database.ref('drivers/' + currentUser.uid).once('value')
                     .then(snapshot => {
                         const userData = snapshot.val();
                         if (userData) {
@@ -1570,6 +1581,9 @@
                                 toggleOnlineStatus(true);
                             }
                         }
+                    })
+                    .catch(error => {
+                        console.error('Error loading driver data:', error);
                     });
             }
         }
@@ -1584,7 +1598,7 @@
             const driverId = document.getElementById('driverId').value;
             
             if (currentUser) {
-                database.ref('users/' + currentUser.uid).update({
+                database.ref('drivers/' + currentUser.uid).update({
                     name: name,
                     phone: phone,
                     email: email,
@@ -1609,7 +1623,7 @@
             const payoutAccount = document.getElementById('payoutAccount').value;
             
             if (currentUser) {
-                database.ref('users/' + currentUser.uid).update({
+                database.ref('drivers/' + currentUser.uid).update({
                     payoutMethod: payoutMethod,
                     payoutAccount: payoutAccount
                 })
