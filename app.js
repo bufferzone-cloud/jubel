@@ -31,6 +31,10 @@ let rideRequestInterval = null;
 let ridePulsingAnimation = null;
 let userFullName = "Passenger";
 let driverAssignmentListener = null;
+let routePolyline = null;
+let nearbyPlacesMarkers = [];
+let destinationSearchResults = [];
+let selectedDestination = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -212,8 +216,28 @@ function setupEventListeners() {
     
     // Destination input for fare estimation and suggestions
     document.getElementById('destination').addEventListener('input', function() {
+        const query = this.value;
         updateFareEstimate();
-        showDestinationSuggestions(this.value);
+        if (query.length >= 2) {
+            searchPlaces(query);
+        } else {
+            hideDestinationSuggestions();
+        }
+    });
+    
+    // Focus event for destination input
+    document.getElementById('destination').addEventListener('focus', function() {
+        const query = this.value;
+        if (query.length >= 2) {
+            searchPlaces(query);
+        }
+    });
+    
+    // Click outside to hide suggestions
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.input-group') && !e.target.closest('.suggestion-list')) {
+            hideDestinationSuggestions();
+        }
     });
     
     // Saved location buttons
@@ -437,6 +461,9 @@ function loadNearbyPlaces() {
     const nearbyPlacesList = document.getElementById('nearbyPlacesList');
     nearbyPlacesList.innerHTML = '<div class="loading-text">Loading nearby places...</div>';
     
+    // Clear existing markers
+    clearNearbyPlacesMarkers();
+    
     // Using Overpass API to get nearby places
     const radius = 20000; // 20km in meters
     const overpassQuery = `
@@ -446,6 +473,8 @@ function loadNearbyPlaces() {
           node["shop"](around:${radius},${userLocation.lat},${userLocation.lng});
           node["tourism"](around:${radius},${userLocation.lat},${userLocation.lng});
           node["building"](around:${radius},${userLocation.lat},${userLocation.lng});
+          node["historic"](around:${radius},${userLocation.lat},${userLocation.lng});
+          node["leisure"](around:${radius},${userLocation.lat},${userLocation.lng});
         );
         out body;
         >;
@@ -473,7 +502,13 @@ function loadNearbyPlaces() {
                     return { ...place, distance };
                 })
                 .sort((a, b) => a.distance - b.distance) // Sort by distance
-                .slice(0, 20); // Limit to 20 places
+                .filter((place, index, array) => {
+                    // Filter to get one place approximately every 2km
+                    if (index === 0) return true;
+                    const prevPlace = array[index - 1];
+                    return place.distance - prevPlace.distance >= 2000; // 2km in meters
+                })
+                .slice(0, 10); // Limit to 10 places (one every 2km for 20km radius)
             
             if (places.length === 0) {
                 nearbyPlacesList.innerHTML = '<div class="no-places">No nearby places found within 20km</div>';
@@ -483,6 +518,18 @@ function loadNearbyPlaces() {
             places.forEach(place => {
                 const placeElement = createNearbyPlaceElement(place);
                 nearbyPlacesList.appendChild(placeElement);
+                
+                // Add marker to map for each nearby place
+                const marker = L.marker([place.lat, place.lon], {
+                    icon: L.divIcon({
+                        className: 'nearby-place-marker',
+                        html: `${getPlaceIcon(place.tags.amenity || place.tags.shop || place.tags.tourism || 'place')}<div class="marker-label">${place.tags.name}</div>`,
+                        iconSize: [30, 40]
+                    })
+                }).addTo(homeMap)
+                    .bindPopup(`<strong>${place.tags.name}</strong><br>${formatPlaceType(place.tags.amenity || place.tags.shop || place.tags.tourism || 'place')}<br>${(place.distance / 1000).toFixed(1)} km away`);
+                
+                nearbyPlacesMarkers.push(marker);
             });
         } else {
             nearbyPlacesList.innerHTML = '<div class="no-places">No nearby places found within 20km</div>';
@@ -493,6 +540,14 @@ function loadNearbyPlaces() {
         // Fallback to predefined places
         loadFallbackNearbyPlaces();
     });
+}
+
+// Clear nearby places markers from map
+function clearNearbyPlacesMarkers() {
+    nearbyPlacesMarkers.forEach(marker => {
+        homeMap.removeLayer(marker);
+    });
+    nearbyPlacesMarkers = [];
 }
 
 // Create nearby place element (for list display only)
@@ -526,6 +581,9 @@ function createNearbyPlaceElement(place) {
         
         // Update destination marker on map
         updateDestinationMarker(place.lat, place.lon, place.tags.name);
+        
+        // Draw route from user location to destination
+        drawRoute(userLocation.lat, userLocation.lng, place.lat, place.lon);
     });
     
     return placeElement;
@@ -557,6 +615,167 @@ function updateDestinationMarker(lat, lng, name) {
     homeMap.fitBounds(bounds, { padding: [20, 20] });
 }
 
+// Draw route from user location to destination
+function drawRoute(startLat, startLng, endLat, endLng) {
+    // Remove existing route if any
+    if (routePolyline) {
+        homeMap.removeLayer(routePolyline);
+    }
+    
+    // Use OSRM API to get route
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Draw the route on the map
+                routePolyline = L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 5,
+                    opacity: 0.7,
+                    dashArray: '10, 10'
+                }).addTo(homeMap);
+                
+                // Fit map to show the entire route
+                homeMap.fitBounds(routePolyline.getBounds(), { padding: [20, 20] });
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            // Fallback: draw a straight line
+            routePolyline = L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 5,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(homeMap);
+        });
+}
+
+// Search places based on user input with 20km radius filter
+function searchPlaces(query) {
+    if (!userLocation) return;
+    
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    suggestionsContainer.innerHTML = '<div class="loading-text">Searching...</div>';
+    suggestionsContainer.style.display = 'block';
+    
+    // Using Overpass API for place search
+    const radius = 20000; // 20km in meters
+    const overpassQuery = `
+        [out:json][timeout:25];
+        (
+          node["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
+          way["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
+          relation["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
+        );
+        out center;
+    `;
+    
+    fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: overpassQuery
+    })
+    .then(response => response.json())
+    .then(data => {
+        suggestionsContainer.innerHTML = '';
+        destinationSearchResults = [];
+        
+        if (data.elements && data.elements.length > 0) {
+            // Process search results
+            const results = data.elements
+                .filter(element => element.tags && element.tags.name)
+                .map(element => {
+                    // Calculate center coordinates for ways and relations
+                    let lat, lon;
+                    if (element.type === 'node') {
+                        lat = element.lat;
+                        lon = element.lon;
+                    } else {
+                        lat = element.center.lat;
+                        lon = element.center.lon;
+                    }
+                    
+                    // Calculate distance from user
+                    const distance = calculateDistance(
+                        userLocation.lat, userLocation.lng,
+                        lat, lon
+                    );
+                    
+                    return {
+                        ...element,
+                        displayLat: lat,
+                        displayLon: lon,
+                        distance
+                    };
+                })
+                .sort((a, b) => a.distance - b.distance) // Sort by distance
+                .slice(0, 10); // Limit to 10 results
+            
+            if (results.length === 0) {
+                suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+                return;
+            }
+            
+            destinationSearchResults = results;
+            
+            results.forEach(result => {
+                const suggestionItem = document.createElement('div');
+                suggestionItem.className = 'suggestion-item';
+                
+                const placeType = result.tags.amenity || result.tags.shop || result.tags.tourism || result.tags.building || 'place';
+                
+                suggestionItem.innerHTML = `
+                    <div class="suggestion-icon">${getPlaceIcon(placeType)}</div>
+                    <div class="suggestion-details">
+                        <div class="suggestion-name">${result.tags.name}</div>
+                        <div class="suggestion-type">${formatPlaceType(placeType)}</div>
+                        <div class="suggestion-address">${getPlaceAddress(result)}</div>
+                        <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
+                    </div>
+                `;
+                
+                suggestionItem.addEventListener('click', function() {
+                    document.getElementById('destination').value = result.tags.name;
+                    suggestionsContainer.style.display = 'none';
+                    updateFareEstimate();
+                    
+                    // Update destination marker on map
+                    updateDestinationMarker(
+                        result.displayLat, 
+                        result.displayLon, 
+                        result.tags.name
+                    );
+                    
+                    // Draw route from user location to destination
+                    drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
+                    
+                    selectedDestination = result;
+                });
+                
+                suggestionsContainer.appendChild(suggestionItem);
+            });
+        } else {
+            suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error searching places:', error);
+        suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
+    });
+}
+
+// Hide destination suggestions
+function hideDestinationSuggestions() {
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    suggestionsContainer.style.display = 'none';
+}
+
 // Get icon for place type
 function getPlaceIcon(placeType) {
     const icons = {
@@ -585,7 +804,12 @@ function getPlaceIcon(placeType) {
         'taxi': '🚕',
         'police': '👮',
         'market': '🛍️',
-        'post_office': '📮'
+        'post_office': '📮',
+        'place_of_worship': '🛐',
+        'stadium': '🏟️',
+        'park': '🏞️',
+        'monument': '🗽',
+        'castle': '🏰'
     };
     
     return icons[placeType] || '📍';
@@ -659,6 +883,9 @@ function loadFallbackNearbyPlaces() {
             
             // Update destination marker on map
             updateDestinationMarker(place.lat, place.lng, place.name);
+            
+            // Draw route from user location to destination
+            drawRoute(userLocation.lat, userLocation.lng, place.lat, place.lng);
         });
         
         nearbyPlacesList.appendChild(placeElement);
@@ -742,55 +969,6 @@ function switchTab(tabId) {
     }
 }
 
-// Show destination suggestions with 20km radius filter
-function showDestinationSuggestions(query) {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    
-    if (query.length < 2) {
-        suggestionsContainer.style.display = 'none';
-        return;
-    }
-    
-    forwardGeocode(query).then(results => {
-        suggestionsContainer.innerHTML = '';
-        
-        if (results.length > 0) {
-            results.forEach(result => {
-                const suggestionItem = document.createElement('div');
-                suggestionItem.className = 'suggestion-item';
-                
-                // Calculate distance
-                const distance = calculateDistance(
-                    userLocation.lat, userLocation.lng,
-                    parseFloat(result.lat), parseFloat(result.lon)
-                );
-                
-                suggestionItem.innerHTML = `
-                    <div class="suggestion-name">${result.display_name}</div>
-                    <div class="suggestion-distance">${(distance / 1000).toFixed(1)} km away</div>
-                `;
-                
-                suggestionItem.addEventListener('click', function() {
-                    document.getElementById('destination').value = result.display_name;
-                    suggestionsContainer.style.display = 'none';
-                    updateFareEstimate();
-                    
-                    // Update destination marker on map
-                    updateDestinationMarker(
-                        parseFloat(result.lat), 
-                        parseFloat(result.lon), 
-                        result.display_name
-                    );
-                });
-                suggestionsContainer.appendChild(suggestionItem);
-            });
-            suggestionsContainer.style.display = 'block';
-        } else {
-            suggestionsContainer.style.display = 'none';
-        }
-    });
-}
-
 // Use saved location
 function useSavedLocation(addressType) {
     if (currentUser) {
@@ -812,6 +990,9 @@ function useSavedLocation(addressType) {
                                 parseFloat(results[0].lon),
                                 address
                             );
+                            
+                            // Draw route from user location to destination
+                            drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
                         }
                     });
                 } else {
@@ -821,7 +1002,7 @@ function useSavedLocation(addressType) {
     }
 }
 
-// Fare estimation based on distance (K1 per 90 meters)
+// Fare estimation based on distance (K11 minimum, then K1 per 90 meters)
 function updateFareEstimate() {
     const destination = document.getElementById('destination').value;
     
@@ -837,8 +1018,13 @@ function updateFareEstimate() {
                     destLat, destLng
                 );
                 
-                // K1 per 90 meters
-                let baseFare = Math.max(5, Math.ceil(distance / 90));
+                // K11 minimum fare for distances below 90 meters, then K1 per 90 meters
+                let baseFare;
+                if (distance < 90) {
+                    baseFare = 11;
+                } else {
+                    baseFare = Math.max(11, Math.ceil(distance / 90));
+                }
                 
                 // Apply ride type multiplier
                 switch(rideType) {
@@ -909,7 +1095,7 @@ function requestRide() {
     // Calculate fare based on distance
     forwardGeocode(destination).then(results => {
         if (results.length === 0) {
-            showNotification('Invalid destination address. Please select a valid destination within 20km.');
+            showNotification('Invalid destination address. Please select a valid destination.');
             document.getElementById('requestRideBtn').disabled = false;
             document.getElementById('requestRideBtn').textContent = 'Request Ride';
             return;
@@ -923,7 +1109,13 @@ function requestRide() {
             destLat, destLng
         );
         
-        let fare = Math.max(5, Math.ceil(distance / 90));
+        // K11 minimum fare for distances below 90 meters, then K1 per 90 meters
+        let fare;
+        if (distance < 90) {
+            fare = 11;
+        } else {
+            fare = Math.max(11, Math.ceil(distance / 90));
+        }
         
         // Apply ride type multiplier
         switch(rideType) {
@@ -983,7 +1175,8 @@ function requestRide() {
                 // Listen for driver assignment
                 listenForDriverAssignment(rideId);
                 
-                showNotification('Ride requested successfully! Looking for drivers...');
+                // Show notification with ride request submitted
+                showNotification('Ride request submitted! You will be notified once a driver is assigned.');
                 
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
@@ -1178,12 +1371,47 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
         })
     }).addTo(rideMap).bindPopup('Destination');
     
+    // Draw route on ride map
+    drawRouteOnRideMap(pickupLat, pickupLng, destLat, destLng);
+    
     // Fit map to show both locations
     const bounds = L.latLngBounds(
         [pickupLat, pickupLng],
         [destLat, destLng]
     );
     rideMap.fitBounds(bounds, { padding: [20, 20] });
+}
+
+// Draw route on ride map
+function drawRouteOnRideMap(startLat, startLng, endLat, endLng) {
+    // Use OSRM API to get route
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Draw the route on the map
+                L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 5,
+                    opacity: 0.7
+                }).addTo(rideMap);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            // Fallback: draw a straight line
+            L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 5,
+                opacity: 0.7
+            }).addTo(rideMap);
+        });
 }
 
 // Update ride map with driver and customer locations
@@ -1212,6 +1440,9 @@ function updateRideMapWithDriver(ride) {
             iconSize: [30, 40]
         })
     }).addTo(rideMap).bindPopup('Destination');
+    
+    // Draw route
+    drawRouteOnRideMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
     
     // Get driver location and add marker
     database.ref('driverLocations/' + ride.driverId).once('value')
@@ -1285,6 +1516,9 @@ function setupActiveRideMap(ride) {
         })
     }).addTo(activeRideMap).bindPopup('Destination');
     
+    // Draw route on active ride map
+    drawRouteOnActiveRideMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+    
     // Fit map to show both locations
     const bounds = L.latLngBounds(
         [ride.pickupLat, ride.pickupLng],
@@ -1294,6 +1528,38 @@ function setupActiveRideMap(ride) {
     
     // Start tracking both user and driver locations
     trackActiveRideLocations(ride);
+}
+
+// Draw route on active ride map
+function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
+    // Use OSRM API to get route
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Draw the route on the map
+                L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 5,
+                    opacity: 0.7
+                }).addTo(activeRideMap);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            // Fallback: draw a straight line
+            L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 5,
+                opacity: 0.7
+            }).addTo(activeRideMap);
+        });
 }
 
 // Track both user and driver locations during active ride
@@ -1505,6 +1771,18 @@ function completePayment() {
             document.getElementById('tipAmount').value = '';
             document.getElementById('driverReview').value = '';
             setRating(0);
+            
+            // Clear route from map
+            if (routePolyline) {
+                homeMap.removeLayer(routePolyline);
+                routePolyline = null;
+            }
+            
+            // Clear destination marker
+            if (destinationMarker) {
+                homeMap.removeLayer(destinationMarker);
+                destinationMarker = null;
+            }
         })
         .catch(error => {
             console.error('Error completing payment:', error);
@@ -1576,7 +1854,7 @@ function saveProfile() {
     }
 }
 
-// Load ride history with all statuses
+// Load ride history with all statuses including pending orders
 function loadRideHistory() {
     if (currentUser) {
         const filter = document.getElementById('historyFilter').value;
@@ -1625,9 +1903,18 @@ function loadRideHistory() {
                         
                         // Determine status badge class
                         let statusClass = 'status-requested';
-                        if (ride.status === 'accepted') statusClass = 'status-accepted';
-                        else if (ride.status === 'completed' || ride.status === 'paid') statusClass = 'status-completed';
-                        else if (ride.status === 'cancelled') statusClass = 'status-cancelled';
+                        let statusText = getStatusText(ride.status);
+                        
+                        if (ride.status === 'accepted') {
+                            statusClass = 'status-accepted';
+                        } else if (ride.status === 'completed' || ride.status === 'paid') {
+                            statusClass = 'status-completed';
+                        } else if (ride.status === 'cancelled') {
+                            statusClass = 'status-cancelled';
+                        } else if (ride.status === 'requested') {
+                            statusClass = 'status-pending';
+                            statusText = 'Pending';
+                        }
                         
                         historyItem.innerHTML = `
                             <div class="history-locations">
@@ -1642,7 +1929,7 @@ function loadRideHistory() {
                                 <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
                                 <div>${formattedDate} ${formattedTime}</div>
                                 <div class="status-badge ${statusClass}">
-                                    ${getStatusText(ride.status)}
+                                    ${statusText}
                                 </div>
                             </div>
                         `;
