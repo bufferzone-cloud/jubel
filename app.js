@@ -2656,6 +2656,21 @@ function contactPhone() {
 
 // Load settings
 function loadSettings() {
+    if (!currentUser) return;
+    
+    // Load user data for settings
+    database.ref('users/' + currentUser.uid).once('value')
+        .then(snapshot => {
+            const userData = snapshot.val();
+            if (userData) {
+                document.getElementById('userName').value = userData.name || '';
+                document.getElementById('userPhone').value = userData.phone || '';
+                document.getElementById('userEmail').value = userData.email || '';
+                document.getElementById('savedHome').value = userData.homeAddress || '';
+                document.getElementById('savedWork').value = userData.workAddress || '';
+            }
+        });
+    
     // Load user preferences
     const rideNotifications = localStorage.getItem('rideNotifications') !== 'false';
     const promoNotifications = localStorage.getItem('promoNotifications') === 'true';
