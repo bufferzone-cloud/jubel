@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jubel - Driver</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --primary-orange: #FF6B35;
@@ -14,6 +15,16 @@
             --white: #FFFFFF;
             --light-gray: #F5F5F5;
             --dark-gray: #333333;
+            --medium-gray: #777777;
+            --success-green: #2ecc71;
+            --warning-yellow: #f39c12;
+            --info-blue: #3498db;
+            --dark-orange: #E55A2B;
+            --pale-orange: #FFF5F0;
+            --border-color: #E8E8E8;
+            --shadow-light: 0 2px 12px rgba(255, 107, 53, 0.1);
+            --shadow-medium: 0 4px 20px rgba(255, 107, 53, 0.15);
+            --shadow-heavy: 0 8px 30px rgba(255, 107, 53, 0.2);
         }
         
         * {
@@ -28,325 +39,513 @@
             color: var(--dark-gray);
             max-width: 100%;
             overflow-x: hidden;
+            height: 100vh;
         }
         
-        .container {
-            width: 100%;
-            max-width: 480px;
-            margin: 0 auto;
-            padding: 0 15px;
-        }
-        
-        header {
-            background: linear-gradient(135deg, var(--primary-orange), var(--secondary-red));
-            color: var(--white);
-            padding: 15px 0;
-            position: sticky;
+        #map {
+            position: absolute;
             top: 0;
-            z-index: 100;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .logo {
-            display: flex;
-            align-items: center;
-        }
-        
-        .logo img {
-            height: 40px;
-            margin-right: 10px;
-        }
-        
-        .logo h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-        
-        .user-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background-color: var(--light-orange);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        
-        .main-content {
-            padding: 20px 0;
-        }
-        
-        .card {
-            background-color: var(--white);
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .section-title {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            color: var(--dark-gray);
-            font-weight: 600;
-        }
-        
-        .btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            left: 0;
             width: 100%;
-            margin-bottom: 10px;
+            height: 100%;
+            z-index: 1;
         }
         
-        .btn-primary {
-            background-color: var(--primary-orange);
-            color: var(--white);
-        }
-        
-        .btn-primary:hover {
-            background-color: var(--secondary-red);
-        }
-        
-        .btn-secondary {
-            background-color: var(--light-gray);
+        .floating-balance {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: var(--white);
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-heavy);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
             color: var(--dark-gray);
+            border: 2px solid var(--primary-orange);
         }
         
-        .btn-secondary:hover {
-            background-color: #e0e0e0;
-        }
-        
-        .btn-success {
-            background-color: #4CAF50;
-            color: var(--white);
-        }
-        
-        .btn-success:hover {
-            background-color: #45a049;
-        }
-        
-        .btn-danger {
-            background-color: #f44336;
-            color: var(--white);
-        }
-        
-        .btn-danger:hover {
-            background-color: #d32f2f;
-        }
-        
-        .map-container {
-            height: 250px;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 20px;
+        .balance-amount {
+            color: var(--primary-orange);
+            font-size: 1.1rem;
         }
         
         .online-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--white);
+            padding: 12px 16px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-heavy);
+            z-index: 100;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid var(--border-color);
+        }
+        
+        .online-toggle.active {
+            border-color: var(--success-green);
+            background: var(--success-green);
+            color: var(--white);
+        }
+        
+        .online-toggle.offline {
+            border-color: var(--medium-gray);
+            background: var(--medium-gray);
+            color: var(--white);
+        }
+        
+        .driver-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--white);
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 100;
+            padding: 20px;
+            transform: translateY(0);
+            transition: transform 0.3s ease;
+        }
+        
+        .driver-panel.collapsed {
+            transform: translateY(calc(100% - 60px));
+        }
+        
+        .driver-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
             margin-bottom: 20px;
         }
         
-        .toggle-label {
+        .driver-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--light-orange), var(--primary-orange));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--white);
+            font-weight: 700;
+        }
+        
+        .driver-details h2 {
+            font-size: 1.3rem;
+            margin-bottom: 5px;
+        }
+        
+        .driver-details p {
+            color: var(--medium-gray);
+            margin-bottom: 3px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .nav-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 12px 8px;
+            border-radius: 10px;
+            background: var(--light-gray);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-size: 0.8rem;
             font-weight: 600;
         }
         
-        .toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
+        .nav-btn.active {
+            background: var(--primary-orange);
+            color: var(--white);
         }
         
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
+        .nav-btn i {
+            font-size: 1.2rem;
         }
         
-        .slider {
-            position: absolute;
+        .ride-action-btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 12px;
+            background: var(--white);
+            color: var(--dark-gray);
+            font-size: 1.1rem;
+            font-weight: 700;
             cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-medium);
+            border: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .ride-action-btn.hold-to-start {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn.hold-to-arrive {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn.hold-to-pickup {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn.hold-to-complete {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn:active {
+            background: var(--primary-orange);
+            color: var(--white);
+            transform: scale(0.98);
+        }
+        
+        .ride-request-popup {
+            position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
-        }
-        
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        
-        input:checked + .slider {
-            background-color: var(--primary-orange);
-        }
-        
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        
-        .ride-request {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .ride-request:hover {
-            border-color: var(--primary-orange);
-            background-color: var(--light-orange);
-        }
-        
-        .ride-request h3 {
-            font-size: 1.1rem;
-            margin-bottom: 10px;
-        }
-        
-        .ride-details {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-        }
-        
-        .ride-location {
-            flex: 1;
-        }
-        
-        .ride-location h4 {
-            font-size: 1rem;
-            margin-bottom: 5px;
-        }
-        
-        .ride-location p {
-            font-size: 0.9rem;
-            color: #666;
-        }
-        
-        .ride-fare {
-            text-align: right;
-        }
-        
-        .fare-amount {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary-orange);
-        }
-        
-        .passenger-info {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        
-        .passenger-avatar {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background-color: var(--light-orange);
-            display: flex;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+            display: none;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            margin-right: 15px;
+            padding: 20px;
         }
         
-        .passenger-details h3 {
-            font-size: 1.1rem;
-            margin-bottom: 5px;
-        }
-        
-        .passenger-details p {
-            font-size: 0.9rem;
-            color: #666;
-        }
-        
-        .trip-info {
+        .ride-request-content {
+            background: var(--white);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: var(--shadow-heavy);
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
+            flex-direction: column;
         }
         
-        .trip-location {
-            flex: 1;
+        .ride-request-map {
+            height: 200px;
+            width: 100%;
         }
         
-        .trip-location h4 {
-            font-size: 1rem;
-            margin-bottom: 5px;
+        .ride-request-details {
+            padding: 20px;
+            overflow-y: auto;
         }
         
-        .trip-location p {
-            font-size: 0.9rem;
-            color: #666;
-        }
-        
-        .earnings-display {
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        .earnings-amount {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--primary-orange);
-        }
-        
-        .earnings-period {
+        .customer-info {
             display: flex;
-            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
             margin-bottom: 20px;
         }
         
-        .period-option {
+        .customer-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: var(--medium-gray);
+        }
+        
+        .customer-details h3 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+        }
+        
+        .customer-details p {
+            color: var(--medium-gray);
+        }
+        
+        .trip-details {
+            margin-bottom: 20px;
+        }
+        
+        .location-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .location-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+        
+        .pickup-icon {
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .destination-icon {
+            background: var(--success-green);
+            color: var(--white);
+        }
+        
+        .location-text {
             flex: 1;
-            text-align: center;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            margin: 0 5px;
+        }
+        
+        .location-text h4 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+        
+        .location-text p {
+            color: var(--medium-gray);
+            font-size: 0.9rem;
+        }
+        
+        .fare-details {
+            background: var(--pale-orange);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .fare-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .fare-row.total {
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        
+        .ride-request-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .btn {
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 700;
             cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-accept {
+            background: var(--success-green);
+            color: var(--white);
+        }
+        
+        .btn-reject {
+            background: var(--secondary-red);
+            color: var(--white);
+        }
+        
+        .screen-content {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 80px;
+            background: var(--white);
+            z-index: 90;
+            padding: 20px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .screen-content.active {
+            display: block;
+        }
+        
+        .screen-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .back-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            font-size: 1.2rem;
+        }
+        
+        .screen-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+        
+        .account-section, .history-section, .earnings-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            font-size: 1rem;
             transition: all 0.3s ease;
         }
         
-        .period-option.active {
+        .input-field:focus {
+            outline: none;
             border-color: var(--primary-orange);
-            background-color: var(--light-orange);
+        }
+        
+        .wallet-balance {
+            background: linear-gradient(135deg, var(--primary-orange), var(--secondary-red));
+            color: var(--white);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .balance-label {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        
+        .balance-amount-large {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+        
+        .wallet-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .btn-wallet {
+            background: var(--white);
+            color: var(--primary-orange);
+            border: 2px solid var(--primary-orange);
+        }
+        
+        .vehicle-details {
+            background: var(--pale-orange);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: var(--medium-gray);
+        }
+        
+        .detail-value {
+            font-weight: 600;
         }
         
         .history-item {
             padding: 15px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
         
         .history-item:last-child {
             border-bottom: none;
+        }
+        
+        .history-item:hover {
+            background: var(--pale-orange);
         }
         
         .history-locations {
@@ -359,286 +558,452 @@
             display: flex;
             justify-content: space-between;
             font-size: 0.9rem;
-            color: #666;
+            color: var(--medium-gray);
         }
         
         .status-badge {
-            padding: 3px 8px;
+            padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.8rem;
-            font-weight: 600;
+            font-weight: 700;
         }
         
         .status-completed {
-            background-color: #e6f7e9;
+            background: #e6f7e9;
             color: #2e7d32;
         }
         
         .status-cancelled {
-            background-color: #ffebee;
+            background: #ffebee;
             color: #c62828;
         }
         
-        .tab-container {
+        .earnings-card {
+            background: var(--white);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: var(--shadow-light);
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .earnings-period {
             display: flex;
-            border-bottom: 1px solid #ddd;
+            gap: 10px;
             margin-bottom: 20px;
         }
         
-        .tab {
+        .period-btn {
             flex: 1;
-            text-align: center;
-            padding: 12px 0;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--white);
             cursor: pointer;
             font-weight: 600;
+            text-align: center;
             transition: all 0.3s ease;
         }
         
-        .tab.active {
+        .period-btn.active {
+            background: var(--primary-orange);
+            color: var(--white);
+            border-color: var(--primary-orange);
+        }
+        
+        .earnings-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            background: var(--pale-orange);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 800;
             color: var(--primary-orange);
-            border-bottom: 3px solid var(--primary-orange);
+            margin-bottom: 5px;
         }
         
-        .tab-content {
-            display: none;
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--medium-gray);
         }
         
-        .tab-content.active {
-            display: block;
-        }
-        
-        .hidden {
-            display: none;
+        .earnings-chart {
+            height: 200px;
+            background: var(--light-gray);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--medium-gray);
         }
         
         .notification {
             position: fixed;
-            bottom: 20px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: var(--primary-orange);
+            background: var(--primary-orange);
             color: var(--white);
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: var(--shadow-heavy);
+            z-index: 300;
             display: none;
+            font-weight: 600;
+            text-align: center;
         }
         
-        .input-group {
-            margin-bottom: 15px;
+        .hold-progress {
+            height: 5px;
+            background: var(--border-color);
+            border-radius: 3px;
+            margin-top: 10px;
+            overflow: hidden;
         }
         
-        .input-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-        
-        .input-field {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
+        .hold-progress-bar {
+            height: 100%;
+            background: var(--primary-orange);
+            width: 0%;
+            transition: width 0.1s linear;
         }
         
         @media (max-width: 480px) {
-            .container {
-                padding: 0 10px;
+            .floating-balance, .online-toggle {
+                padding: 10px 12px;
+                font-size: 0.9rem;
             }
             
-            .logo h1 {
-                font-size: 1.3rem;
+            .driver-panel {
+                padding: 15px;
+            }
+            
+            .nav-buttons {
+                gap: 8px;
+            }
+            
+            .nav-btn {
+                padding: 10px 5px;
+                font-size: 0.7rem;
+            }
+            
+            .ride-request-content {
+                max-height: 95vh;
             }
         }
     </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <div class="header-content">
-                <div class="logo">
-                    <img src="jubel.png" alt="Jubel Logo">
-                    <h1>Jubel Driver</h1>
-                </div>
-                <div class="user-icon" id="userIcon">D</div>
-            </div>
-        </div>
-    </header>
+    <!-- Main Map -->
+    <div id="map"></div>
     
-    <div class="container">
-        <div class="main-content">
-            <!-- Home Screen -->
-            <div id="homeScreen" class="tab-content active">
-                <div class="card">
-                    <div class="online-toggle">
-                        <span class="toggle-label">Go Online</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="onlineToggle">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    
-                    <div id="onlineContent" class="hidden">
-                        <h2 class="section-title">Available Rides</h2>
-                        <div id="rideRequestsList">
-                            <!-- Ride requests will be populated by JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <div id="offlineContent">
-                        <p>Go online to receive ride requests</p>
-                    </div>
-                </div>
-                
-                <div class="map-container" id="homeMap"></div>
+    <!-- Floating Balance -->
+    <div class="floating-balance">
+        <i class="fas fa-wallet"></i>
+        <span>Balance: <span class="balance-amount" id="walletBalance">K0.00</span></span>
+    </div>
+    
+    <!-- Online Toggle -->
+    <div class="online-toggle offline" id="onlineToggle">
+        <i class="fas fa-circle"></i>
+        <span>Offline</span>
+    </div>
+    
+    <!-- Driver Panel -->
+    <div class="driver-panel" id="driverPanel">
+        <div class="driver-info">
+            <div class="driver-avatar" id="driverAvatar">
+                <i class="fas fa-user"></i>
             </div>
-            
-            <!-- Active Ride Screen -->
-            <div id="activeRideScreen" class="tab-content hidden">
-                <div class="card">
-                    <h2 class="section-title">Active Ride</h2>
-                    <div class="passenger-info">
-                        <div class="passenger-avatar">P</div>
-                        <div class="passenger-details">
-                            <h3 id="passengerName">Passenger Name</h3>
-                            <p id="passengerPhone">Phone: 000-000-0000</p>
-                        </div>
-                    </div>
-                    
-                    <div class="trip-info">
-                        <div class="trip-location">
-                            <h4>Pickup</h4>
-                            <p id="activePickupAddress">123 Main St</p>
-                        </div>
-                        <div class="trip-location">
-                            <h4>Destination</h4>
-                            <p id="activeDestinationAddress">456 Oak Ave</p>
-                        </div>
-                    </div>
-                    
-                    <div class="fare-display">
-                        <p>Fare</p>
-                        <div class="fare-amount" id="activeRideFare">K0.00</div>
-                    </div>
-                    
-                    <button class="btn btn-success" id="arrivedBtn">Arrived at Pickup</button>
-                    <button class="btn btn-primary" id="startTripBtn">Start Trip</button>
-                    <button class="btn btn-success" id="completeTripBtn">Complete Trip</button>
-                    <button class="btn btn-danger" id="cancelActiveRideBtn">Cancel Ride</button>
-                </div>
-                
-                <div class="map-container" id="activeRideMap"></div>
-            </div>
-            
-            <!-- Earnings Screen -->
-            <div id="earningsScreen" class="tab-content hidden">
-                <div class="card">
-                    <h2 class="section-title">Earnings</h2>
-                    
-                    <div class="earnings-period">
-                        <div class="period-option active" data-period="today">Today</div>
-                        <div class="period-option" data-period="week">This Week</div>
-                        <div class="period-option" data-period="month">This Month</div>
-                    </div>
-                    
-                    <div class="earnings-display">
-                        <div class="earnings-amount" id="earningsAmount">K0.00</div>
-                        <p id="earningsPeriod">Today's Earnings</p>
-                    </div>
-                    
-                    <button class="btn btn-primary" id="withdrawEarningsBtn">Withdraw Earnings</button>
-                </div>
-                
-                <div class="card">
-                    <h2 class="section-title">Payment Methods</h2>
-                    <div class="input-group">
-                        <label for="payoutMethod">Payout Method</label>
-                        <select id="payoutMethod" class="input-field">
-                            <option value="airtel">Airtel Money</option>
-                            <option value="mtn">MTN Money</option>
-                            <option value="zamtel">Zamtel Money</option>
-                            <option value="bank">Bank Transfer</option>
-                            <option value="card">Visa/Mastercard</option>
-                            <option value="plush">Plush</option>
-                        </select>
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="payoutAccount">Account Number</label>
-                        <input type="text" id="payoutAccount" class="input-field" placeholder="Your account number">
-                    </div>
-                    
-                    <button class="btn btn-primary" id="savePayoutInfoBtn">Save Payout Info</button>
-                </div>
-            </div>
-            
-            <!-- Ride History Screen -->
-            <div id="historyScreen" class="tab-content hidden">
-                <div class="card">
-                    <h2 class="section-title">Ride History</h2>
-                    <div id="historyList">
-                        <!-- History items will be populated by JavaScript -->
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Settings Screen -->
-            <div id="settingsScreen" class="tab-content hidden">
-                <div class="card">
-                    <h2 class="section-title">Profile</h2>
-                    <div class="input-group">
-                        <label for="driverName">Name</label>
-                        <input type="text" id="driverName" class="input-field" placeholder="Your name">
-                    </div>
-                    <div class="input-group">
-                        <label for="driverPhone">Phone</label>
-                        <input type="tel" id="driverPhone" class="input-field" placeholder="Your phone number">
-                    </div>
-                    <div class="input-group">
-                        <label for="driverEmail">Email</label>
-                        <input type="email" id="driverEmail" class="input-field" placeholder="Your email">
-                    </div>
-                    <div class="input-group">
-                        <label for="vehicleType">Vehicle Type</label>
-                        <input type="text" id="vehicleType" class="input-field" placeholder="Car, Bike, etc.">
-                    </div>
-                    <div class="input-group">
-                        <label for="licensePlate">License Plate</label>
-                        <input type="text" id="licensePlate" class="input-field" placeholder="Vehicle license plate">
-                    </div>
-                    <div class="input-group">
-                        <label for="driverId">Driver ID</label>
-                        <input type="text" id="driverId" class="input-field" placeholder="Your driver ID">
-                    </div>
-                    <button class="btn btn-primary" id="saveDriverProfileBtn">Save Profile</button>
-                </div>
-                
-                <div class="card">
-                    <h2 class="section-title">Notifications</h2>
-                    <div class="input-group">
-                        <label>
-                            <input type="checkbox" id="rideRequestNotifications" checked> Ride Requests
-                        </label>
-                    </div>
-                    <div class="input-group">
-                        <label>
-                            <input type="checkbox" id="earningNotifications"> Earnings Updates
-                        </label>
-                    </div>
-                </div>
-                
-                <button class="btn btn-secondary" id="logoutBtn">Logout</button>
+            <div class="driver-details">
+                <h2 id="driverName">Driver Name</h2>
+                <p><i class="fas fa-phone"></i> <span id="driverPhone">000-000-0000</span></p>
+                <p><i class="fas fa-car"></i> <span id="vehicleDetails">Toyota Corolla - ABC123</span></p>
             </div>
         </div>
         
-        <!-- Navigation Tabs -->
-        <div class="tab-container">
-            <div class="tab active" data-tab="homeScreen">Home</div>
-            <div class="tab" data-tab="earningsScreen">Earnings</div>
-            <div class="tab" data-tab="historyScreen">History</div>
-            <div class="tab" data-tab="settingsScreen">Settings</div>
+        <div class="nav-buttons">
+            <button class="nav-btn active" data-screen="home">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </button>
+            <button class="nav-btn" data-screen="account">
+                <i class="fas fa-user"></i>
+                <span>Account</span>
+            </button>
+            <button class="nav-btn" data-screen="history">
+                <i class="fas fa-history"></i>
+                <span>History</span>
+            </button>
+            <button class="nav-btn" data-screen="earnings">
+                <i class="fas fa-money-bill-wave"></i>
+                <span>Earnings</span>
+            </button>
+        </div>
+        
+        <!-- Ride Action Button (Changes based on ride status) -->
+        <button class="ride-action-btn hold-to-start" id="rideActionBtn">
+            <i class="fas fa-play-circle"></i>
+            Hold to Start Ride
+            <div class="hold-progress">
+                <div class="hold-progress-bar" id="holdProgressBar"></div>
+            </div>
+        </button>
+    </div>
+    
+    <!-- Ride Request Popup -->
+    <div class="ride-request-popup" id="rideRequestPopup">
+        <div class="ride-request-content">
+            <div class="ride-request-map" id="rideRequestMap"></div>
+            <div class="ride-request-details">
+                <div class="customer-info">
+                    <div class="customer-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="customer-details">
+                        <h3 id="customerName">Customer Name</h3>
+                        <p><i class="fas fa-phone"></i> <span id="customerPhone">000-000-0000</span></p>
+                    </div>
+                </div>
+                
+                <div class="trip-details">
+                    <div class="location-row">
+                        <div class="location-icon pickup-icon">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <div class="location-text">
+                            <h4>Pickup Location</h4>
+                            <p id="pickupLocation">123 Main Street, City</p>
+                        </div>
+                    </div>
+                    <div class="location-row">
+                        <div class="location-icon destination-icon">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <div class="location-text">
+                            <h4>Destination</h4>
+                            <p id="destinationLocation">456 Oak Avenue, City</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="fare-details">
+                    <div class="fare-row">
+                        <span>Base Fare</span>
+                        <span id="baseFare">K15.00</span>
+                    </div>
+                    <div class="fare-row">
+                        <span>Distance</span>
+                        <span id="distanceFare">K5.00</span>
+                    </div>
+                    <div class="fare-row">
+                        <span>Discount</span>
+                        <span id="discountFare">-K2.00</span>
+                    </div>
+                    <div class="fare-row total">
+                        <span>Total Fare</span>
+                        <span id="totalFare">K18.00</span>
+                    </div>
+                </div>
+                
+                <div class="ride-request-actions">
+                    <button class="btn btn-accept" id="acceptRideBtn">
+                        <i class="fas fa-check-circle"></i>
+                        Accept
+                    </button>
+                    <button class="btn btn-reject" id="rejectRideBtn">
+                        <i class="fas fa-times-circle"></i>
+                        Reject
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Screen Contents -->
+    <div class="screen-content" id="homeScreen">
+        <!-- Home screen is the map, so this is empty -->
+    </div>
+    
+    <div class="screen-content" id="accountScreen">
+        <div class="screen-header">
+            <button class="back-button" data-screen="home">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="screen-title">Account</h2>
+        </div>
+        
+        <div class="account-section">
+            <h3 class="section-title">
+                <i class="fas fa-user"></i>
+                Driver Details
+            </h3>
+            <div class="input-group">
+                <label for="driverNameInput">Full Name</label>
+                <input type="text" id="driverNameInput" class="input-field" placeholder="Your full name">
+            </div>
+            <div class="input-group">
+                <label for="driverPhoneInput">Phone Number</label>
+                <input type="tel" id="driverPhoneInput" class="input-field" placeholder="Your phone number">
+            </div>
+            <div class="input-group">
+                <label for="driverEmailInput">Email Address</label>
+                <input type="email" id="driverEmailInput" class="input-field" placeholder="Your email address">
+            </div>
+            <button class="btn btn-primary" id="saveDriverDetailsBtn">
+                <i class="fas fa-save"></i>
+                Save Details
+            </button>
+        </div>
+        
+        <div class="account-section">
+            <h3 class="section-title">
+                <i class="fas fa-car"></i>
+                Vehicle Details
+            </h3>
+            <div class="input-group">
+                <label for="vehicleTypeInput">Vehicle Type</label>
+                <input type="text" id="vehicleTypeInput" class="input-field" placeholder="Car, Bike, etc.">
+            </div>
+            <div class="input-group">
+                <label for="vehicleModelInput">Vehicle Model</label>
+                <input type="text" id="vehicleModelInput" class="input-field" placeholder="Toyota Corolla, etc.">
+            </div>
+            <div class="input-group">
+                <label for="licensePlateInput">License Plate</label>
+                <input type="text" id="licensePlateInput" class="input-field" placeholder="ABC 123">
+            </div>
+            <div class="input-group">
+                <label for="vehicleColorInput">Vehicle Color</label>
+                <input type="text" id="vehicleColorInput" class="input-field" placeholder="Red, Blue, etc.">
+            </div>
+            <button class="btn btn-primary" id="saveVehicleDetailsBtn">
+                <i class="fas fa-save"></i>
+                Save Vehicle Details
+            </button>
+        </div>
+        
+        <div class="account-section">
+            <h3 class="section-title">
+                <i class="fas fa-wallet"></i>
+                Wallet & Balance
+            </h3>
+            <div class="wallet-balance">
+                <div class="balance-label">Available Balance</div>
+                <div class="balance-amount-large" id="accountBalance">K0.00</div>
+                <div>Add funds to receive ride requests</div>
+            </div>
+            
+            <div class="wallet-actions">
+                <button class="btn btn-wallet" id="addFundsBtn">
+                    <i class="fas fa-plus-circle"></i>
+                    Add Funds
+                </button>
+                <button class="btn btn-wallet" id="withdrawFundsBtn">
+                    <i class="fas fa-minus-circle"></i>
+                    Withdraw
+                </button>
+            </div>
+            
+            <div class="vehicle-details">
+                <div class="detail-row">
+                    <span class="detail-label">Total Earnings</span>
+                    <span class="detail-value" id="totalEarnings">K0.00</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Completed Rides</span>
+                    <span class="detail-value" id="completedRides">0</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Cancelled Rides</span>
+                    <span class="detail-value" id="cancelledRides">0</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Rating</span>
+                    <span class="detail-value" id="driverRating">4.5 ★</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="screen-content" id="historyScreen">
+        <div class="screen-header">
+            <button class="back-button" data-screen="home">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="screen-title">Ride History</h2>
+        </div>
+        
+        <div class="history-section">
+            <div id="historyList">
+                <!-- History items will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="screen-content" id="earningsScreen">
+        <div class="screen-header">
+            <button class="back-button" data-screen="home">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="screen-title">Earnings</h2>
+        </div>
+        
+        <div class="earnings-section">
+            <div class="earnings-period">
+                <button class="period-btn active" data-period="today">Today</button>
+                <button class="period-btn" data-period="week">This Week</button>
+                <button class="period-btn" data-period="month">This Month</button>
+            </div>
+            
+            <div class="earnings-card">
+                <div class="earnings-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="earningsTotal">K0.00</div>
+                        <div class="stat-label">Total Earnings</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="ridesCompleted">0</div>
+                        <div class="stat-label">Rides Completed</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="avgEarning">K0.00</div>
+                        <div class="stat-label">Avg per Ride</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="onlineHours">0h</div>
+                        <div class="stat-label">Online Time</div>
+                    </div>
+                </div>
+                
+                <div class="earnings-chart">
+                    Earnings chart would appear here
+                </div>
+                
+                <button class="btn btn-primary" id="withdrawEarningsBtn">
+                    <i class="fas fa-download"></i>
+                    Withdraw Earnings
+                </button>
+            </div>
+            
+            <h3 class="section-title">
+                <i class="fas fa-receipt"></i>
+                Recent Earnings
+            </h3>
+            <div id="earningsList">
+                <!-- Earnings items will be populated by JavaScript -->
+            </div>
         </div>
     </div>
     
@@ -673,14 +1038,21 @@
         let currentUser = null;
         let currentRide = null;
         let isOnline = false;
-        let homeMap, activeRideMap;
+        let driverMap, rideRequestMap;
         let locationWatchId = null;
+        let driverMarker = null;
+        let customerMarker = null;
+        let destinationMarker = null;
+        let routePolyline = null;
+        let holdTimer = null;
+        let holdProgress = 0;
+        let currentRideRequest = null;
         let earningsPeriod = 'today';
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             initializeAuth();
-            initializeMaps();
+            initializeMap();
             setupEventListeners();
             loadDriverData();
         });
@@ -690,40 +1062,34 @@
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
-                    document.getElementById('userIcon').textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'D';
+                    updateDriverAvatar();
                     loadDriverData();
                 } else {
-                    // Redirect to login if not authenticated
-                    showLoginScreen();
+                    // Auto-login for demo
+                    auth.signInAnonymously()
+                        .then(() => {
+                            console.log('Driver signed in anonymously');
+                        })
+                        .catch(error => {
+                            console.error('Authentication error:', error);
+                        });
                 }
             });
         }
         
-        function showLoginScreen() {
-            // In a real app, this would show a login form
-            // For demo purposes, we'll auto-login with a dummy user
-            auth.signInAnonymously()
-                .then(() => {
-                    console.log('Driver signed in anonymously');
-                })
-                .catch(error => {
-                    console.error('Authentication error:', error);
-                });
-        }
-        
         // Map initialization
-        function initializeMaps() {
-            // Home map
-            homeMap = L.map('homeMap').setView([-15.4167, 28.2833], 13); // Default to Lusaka
+        function initializeMap() {
+            // Main driver map
+            driverMap = L.map('map').setView([-15.4167, 28.2833], 13); // Default to Lusaka
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
-            }).addTo(homeMap);
+            }).addTo(driverMap);
             
-            // Active ride map
-            activeRideMap = L.map('activeRideMap').setView([-15.4167, 28.2833], 13);
+            // Ride request map
+            rideRequestMap = L.map('rideRequestMap').setView([-15.4167, 28.2833], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
-            }).addTo(activeRideMap);
+            }).addTo(rideRequestMap);
             
             // Get driver's current location
             if (navigator.geolocation) {
@@ -731,12 +1097,17 @@
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     
-                    // Update maps with current location
-                    homeMap.setView([lat, lng], 15);
-                    activeRideMap.setView([lat, lng], 15);
+                    // Update map with current location
+                    driverMap.setView([lat, lng], 15);
                     
-                    // Add marker for current location
-                    L.marker([lat, lng]).addTo(homeMap)
+                    // Add marker for driver location
+                    driverMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'driver-marker',
+                            html: '🚗<div class="marker-label">You</div>',
+                            iconSize: [40, 40]
+                        })
+                    }).addTo(driverMap)
                         .bindPopup('Your location')
                         .openPopup();
                         
@@ -752,11 +1123,16 @@
         // Update driver location in Firebase
         function updateDriverLocation(lat, lng) {
             if (currentUser && isOnline) {
-                database.ref('users/' + currentUser.uid + '/location').set({
+                database.ref('driverLocations/' + currentUser.uid).set({
                     latitude: lat,
                     longitude: lng,
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
+                
+                // Update marker position
+                if (driverMarker) {
+                    driverMarker.setLatLng([lat, lng]);
+                }
             }
         }
         
@@ -791,25 +1167,51 @@
         
         // Event listeners setup
         function setupEventListeners() {
-            // Tab navigation
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const tabId = this.getAttribute('data-tab');
-                    switchTab(tabId);
+            // Online toggle
+            document.getElementById('onlineToggle').addEventListener('click', toggleOnlineStatus);
+            
+            // Navigation buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const screen = this.getAttribute('data-screen');
+                    switchScreen(screen);
                 });
             });
             
-            // Online toggle
-            document.getElementById('onlineToggle').addEventListener('change', function() {
-                isOnline = this.checked;
-                toggleOnlineStatus(isOnline);
+            // Back buttons
+            document.querySelectorAll('.back-button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const screen = this.getAttribute('data-screen');
+                    switchScreen(screen);
+                });
             });
             
+            // Ride request actions
+            document.getElementById('acceptRideBtn').addEventListener('click', acceptRide);
+            document.getElementById('rejectRideBtn').addEventListener('click', rejectRide);
+            
+            // Ride action button (hold functionality)
+            const rideActionBtn = document.getElementById('rideActionBtn');
+            const holdProgressBar = document.getElementById('holdProgressBar');
+            
+            rideActionBtn.addEventListener('mousedown', startHoldTimer);
+            rideActionBtn.addEventListener('touchstart', startHoldTimer);
+            
+            rideActionBtn.addEventListener('mouseup', cancelHoldTimer);
+            rideActionBtn.addEventListener('touchend', cancelHoldTimer);
+            rideActionBtn.addEventListener('mouseleave', cancelHoldTimer);
+            
+            // Account actions
+            document.getElementById('saveDriverDetailsBtn').addEventListener('click', saveDriverDetails);
+            document.getElementById('saveVehicleDetailsBtn').addEventListener('click', saveVehicleDetails);
+            document.getElementById('addFundsBtn').addEventListener('click', addFunds);
+            document.getElementById('withdrawFundsBtn').addEventListener('click', withdrawFunds);
+            
             // Earnings period selection
-            document.querySelectorAll('.period-option').forEach(option => {
-                option.addEventListener('click', function() {
-                    document.querySelectorAll('.period-option').forEach(opt => {
-                        opt.classList.remove('active');
+            document.querySelectorAll('.period-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.period-btn').forEach(b => {
+                        b.classList.remove('active');
                     });
                     this.classList.add('active');
                     earningsPeriod = this.getAttribute('data-period');
@@ -817,54 +1219,43 @@
                 });
             });
             
-            // Ride action buttons
-            document.getElementById('arrivedBtn').addEventListener('click', markArrived);
-            document.getElementById('startTripBtn').addEventListener('click', startTrip);
-            document.getElementById('completeTripBtn').addEventListener('click', completeTrip);
-            document.getElementById('cancelActiveRideBtn').addEventListener('click', cancelActiveRide);
-            
-            // Withdraw earnings button
+            // Withdraw earnings
             document.getElementById('withdrawEarningsBtn').addEventListener('click', withdrawEarnings);
-            
-            // Save payout info button
-            document.getElementById('savePayoutInfoBtn').addEventListener('click', savePayoutInfo);
-            
-            // Save profile button
-            document.getElementById('saveDriverProfileBtn').addEventListener('click', saveDriverProfile);
-            
-            // Logout button
-            document.getElementById('logoutBtn').addEventListener('click', logout);
         }
         
-        // Tab switching
-        function switchTab(tabId) {
-            // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
+        // Switch between screens
+        function switchScreen(screenId) {
+            // Hide all screens
+            document.querySelectorAll('.screen-content').forEach(screen => {
+                screen.classList.remove('active');
             });
             
-            // Show selected tab content
-            document.getElementById(tabId).classList.add('active');
+            // Show selected screen
+            document.getElementById(screenId + 'Screen').classList.add('active');
             
-            // Update active tab
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
+            // Update active nav button
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
             });
-            document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
+            document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
             
-            // Load data for specific tabs
-            if (tabId === 'earningsScreen') {
-                loadEarnings();
-            } else if (tabId === 'historyScreen') {
+            // Load data for specific screens
+            if (screenId === 'history') {
                 loadRideHistory();
+            } else if (screenId === 'earnings') {
+                loadEarnings();
             }
         }
         
         // Toggle online status
-        function toggleOnlineStatus(online) {
-            if (online) {
-                document.getElementById('onlineContent').classList.remove('hidden');
-                document.getElementById('offlineContent').classList.add('hidden');
+        function toggleOnlineStatus() {
+            isOnline = !isOnline;
+            const onlineToggle = document.getElementById('onlineToggle');
+            
+            if (isOnline) {
+                onlineToggle.classList.remove('offline');
+                onlineToggle.classList.add('active');
+                onlineToggle.innerHTML = '<i class="fas fa-circle"></i><span>Online</span>';
                 
                 // Start location tracking
                 startLocationTracking();
@@ -874,8 +1265,9 @@
                 
                 showNotification('You are now online and receiving ride requests.');
             } else {
-                document.getElementById('onlineContent').classList.add('hidden');
-                document.getElementById('offlineContent').classList.remove('hidden');
+                onlineToggle.classList.remove('active');
+                onlineToggle.classList.add('offline');
+                onlineToggle.innerHTML = '<i class="fas fa-circle"></i><span>Offline</span>';
                 
                 // Stop location tracking
                 stopLocationTracking();
@@ -886,7 +1278,7 @@
             // Update driver status in Firebase
             if (currentUser) {
                 database.ref('users/' + currentUser.uid).update({
-                    isOnline: online,
+                    isOnline: isOnline,
                     lastOnline: firebase.database.ServerValue.TIMESTAMP
                 });
             }
@@ -895,77 +1287,144 @@
         // Listen for ride requests
         function listenForRideRequests() {
             database.ref('rides').orderByChild('status').equalTo('requested').on('value', snapshot => {
-                const rideRequestsList = document.getElementById('rideRequestsList');
-                rideRequestsList.innerHTML = '';
-                
                 const rides = snapshot.val();
                 if (rides) {
-                    Object.keys(rides).forEach(rideId => {
-                        const ride = rides[rideId];
-                        
-                        // Only show rides within reasonable distance (in a real app, calculate distance)
-                        const rideItem = document.createElement('div');
-                        rideItem.className = 'ride-request';
-                        rideItem.setAttribute('data-ride-id', rideId);
-                        
-                        rideItem.innerHTML = `
-                            <h3>${ride.rideType ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1) : 'Standard'} Ride</h3>
-                            <div class="ride-details">
-                                <div class="ride-location">
-                                    <h4>Pickup</h4>
-                                    <p>${ride.pickupLocation}</p>
-                                </div>
-                                <div class="ride-location">
-                                    <h4>Destination</h4>
-                                    <p>${ride.destination}</p>
-                                </div>
-                            </div>
-                            <div class="ride-fare">
-                                <div class="fare-amount">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
-                            </div>
-                            <button class="btn btn-primary accept-ride-btn">Accept Ride</button>
-                        `;
-                        
-                        rideRequestsList.appendChild(rideItem);
-                        
-                        // Add event listener to accept button
-                        rideItem.querySelector('.accept-ride-btn').addEventListener('click', function(e) {
-                            e.stopPropagation();
-                            acceptRide(rideId, ride);
-                        });
-                    });
-                } else {
-                    rideRequestsList.innerHTML = '<p>No ride requests available at the moment.</p>';
+                    // Get the first available ride request
+                    const rideId = Object.keys(rides)[0];
+                    const ride = rides[rideId];
+                    
+                    // Show ride request popup
+                    showRideRequest(rideId, ride);
                 }
             });
         }
         
+        // Show ride request popup
+        function showRideRequest(rideId, ride) {
+            currentRideRequest = {
+                id: rideId,
+                ...ride
+            };
+            
+            // Update popup content
+            document.getElementById('customerName').textContent = ride.passengerName || 'Passenger';
+            document.getElementById('customerPhone').textContent = ride.passengerPhone || 'N/A';
+            document.getElementById('pickupLocation').textContent = ride.pickupLocation;
+            document.getElementById('destinationLocation').textContent = ride.destination;
+            
+            // Calculate and display fare details
+            const baseFare = 15;
+            const distanceFare = Math.max(0, (ride.distance ? parseFloat(ride.distance) * 5 : 5));
+            const discount = ride.promoCode ? 2 : 0;
+            const totalFare = baseFare + distanceFare - discount;
+            
+            document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
+            document.getElementById('distanceFare').textContent = `K${distanceFare.toFixed(2)}`;
+            document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
+            document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
+            
+            // Update ride request map
+            updateRideRequestMap(ride);
+            
+            // Show popup
+            document.getElementById('rideRequestPopup').style.display = 'flex';
+        }
+        
+        // Update ride request map
+        function updateRideRequestMap(ride) {
+            // Clear existing map
+            rideRequestMap.eachLayer(layer => {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                    rideRequestMap.removeLayer(layer);
+                }
+            });
+            
+            // Add pickup marker
+            L.marker([ride.pickupLat, ride.pickupLng], {
+                icon: L.divIcon({
+                    className: 'pickup-marker',
+                    html: '📍<div class="marker-label">Pickup</div>',
+                    iconSize: [30, 40]
+                })
+            }).addTo(rideRequestMap).bindPopup('Pickup Location');
+            
+            // Add destination marker
+            L.marker([ride.destLat, ride.destLng], {
+                icon: L.divIcon({
+                    className: 'destination-marker',
+                    html: '🏁<div class="marker-label">Destination</div>',
+                    iconSize: [30, 40]
+                })
+            }).addTo(rideRequestMap).bindPopup('Destination');
+            
+            // Draw route
+            drawRouteOnRequestMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+            
+            // Fit map to show both locations
+            const bounds = L.latLngBounds(
+                [ride.pickupLat, ride.pickupLng],
+                [ride.destLat, ride.destLng]
+            );
+            rideRequestMap.fitBounds(bounds, { padding: [20, 20] });
+        }
+        
+        // Draw route on ride request map
+        function drawRouteOnRequestMap(startLat, startLng, endLat, endLng) {
+            // Use OSRM API to get route
+            fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                        
+                        // Draw the route on the map
+                        L.polyline(routeCoordinates, {
+                            color: '#FF6B35',
+                            weight: 5,
+                            opacity: 0.7
+                        }).addTo(rideRequestMap);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching route:', error);
+                    // Fallback: draw a straight line
+                    L.polyline([
+                        [startLat, startLng],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF6B35',
+                        weight: 5,
+                        opacity: 0.7
+                    }).addTo(rideRequestMap);
+                });
+        }
+        
         // Accept a ride
-        function acceptRide(rideId, ride) {
-            if (currentUser) {
+        function acceptRide() {
+            if (currentRideRequest && currentUser) {
                 // Update ride with driver info
-                database.ref('rides/' + rideId).update({
+                database.ref('rides/' + currentRideRequest.id).update({
                     driverId: currentUser.uid,
                     status: 'accepted',
                     acceptedAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
                     currentRide = {
-                        id: rideId,
-                        ...ride,
+                        id: currentRideRequest.id,
+                        ...currentRideRequest,
                         driverId: currentUser.uid,
                         status: 'accepted'
                     };
                     
-                    // Update UI
-                    document.getElementById('passengerName').textContent = ride.passengerName || 'Passenger';
-                    document.getElementById('passengerPhone').textContent = 'Phone: ' + (ride.passengerPhone || 'N/A');
-                    document.getElementById('activePickupAddress').textContent = ride.pickupLocation;
-                    document.getElementById('activeDestinationAddress').textContent = ride.destination;
-                    document.getElementById('activeRideFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+                    // Hide ride request popup
+                    document.getElementById('rideRequestPopup').style.display = 'none';
                     
-                    // Switch to active ride screen
-                    switchTab('activeRideScreen');
+                    // Update driver panel for active ride
+                    updateDriverPanelForActiveRide();
+                    
+                    // Update map for active ride
+                    updateMapForActiveRide();
                     
                     showNotification('Ride accepted successfully.');
                 })
@@ -976,42 +1435,268 @@
             }
         }
         
-        // Mark arrived at pickup
-        function markArrived() {
-            if (currentRide) {
-                database.ref('rides/' + currentRide.id).update({
-                    status: 'arrived'
-                })
-                .then(() => {
-                    showNotification('Arrival marked. Waiting for passenger.');
-                })
-                .catch(error => {
-                    console.error('Error marking arrival:', error);
-                    showNotification('Error updating status. Please try again.');
-                });
+        // Reject a ride
+        function rejectRide() {
+            if (currentRideRequest) {
+                // Hide ride request popup
+                document.getElementById('rideRequestPopup').style.display = 'none';
+                currentRideRequest = null;
+                
+                showNotification('Ride rejected.');
             }
         }
         
-        // Start trip
-        function startTrip() {
+        // Update driver panel for active ride
+        function updateDriverPanelForActiveRide() {
             if (currentRide) {
+                // Update driver details with customer info
+                document.getElementById('driverName').textContent = currentRide.passengerName || 'Passenger';
+                document.getElementById('driverPhone').textContent = currentRide.passengerPhone || 'N/A';
+                
+                // Update vehicle details with trip info
+                document.getElementById('vehicleDetails').textContent = `To: ${currentRide.destination}`;
+                
+                // Update ride action button
+                updateRideActionButton('hold-to-start');
+            }
+        }
+        
+        // Update map for active ride
+        function updateMapForActiveRide() {
+            if (currentRide) {
+                // Clear existing markers and routes
+                if (customerMarker) {
+                    driverMap.removeLayer(customerMarker);
+                    customerMarker = null;
+                }
+                if (destinationMarker) {
+                    driverMap.removeLayer(destinationMarker);
+                    destinationMarker = null;
+                }
+                if (routePolyline) {
+                    driverMap.removeLayer(routePolyline);
+                    routePolyline = null;
+                }
+                
+                // Add customer pickup marker
+                customerMarker = L.marker([currentRide.pickupLat, currentRide.pickupLng], {
+                    icon: L.divIcon({
+                        className: 'customer-marker',
+                        html: '📍<div class="marker-label">Customer</div>',
+                        iconSize: [30, 40]
+                    })
+                }).addTo(driverMap).bindPopup('Customer Pickup Location');
+                
+                // Add destination marker
+                destinationMarker = L.marker([currentRide.destLat, currentRide.destLng], {
+                    icon: L.divIcon({
+                        className: 'destination-marker',
+                        html: '🏁<div class="marker-label">Destination</div>',
+                        iconSize: [30, 40]
+                    })
+                }).addTo(driverMap).bindPopup('Destination');
+                
+                // Draw route from driver to customer
+                if (driverMarker) {
+                    const driverLatLng = driverMarker.getLatLng();
+                    drawRoute(driverLatLng.lat, driverLatLng.lng, currentRide.pickupLat, currentRide.pickupLng);
+                }
+                
+                // Fit map to show driver and customer
+                if (driverMarker) {
+                    const driverLatLng = driverMarker.getLatLng();
+                    const bounds = L.latLngBounds(
+                        [driverLatLng.lat, driverLatLng.lng],
+                        [currentRide.pickupLat, currentRide.pickupLng]
+                    );
+                    driverMap.fitBounds(bounds, { padding: [50, 50] });
+                }
+            }
+        }
+        
+        // Draw route on main map
+        function drawRoute(startLat, startLng, endLat, endLng) {
+            // Remove existing route if any
+            if (routePolyline) {
+                driverMap.removeLayer(routePolyline);
+            }
+            
+            // Use OSRM API to get route
+            fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                        
+                        // Draw the route on the map
+                        routePolyline = L.polyline(routeCoordinates, {
+                            color: '#FF6B35',
+                            weight: 5,
+                            opacity: 0.7
+                        }).addTo(driverMap);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching route:', error);
+                    // Fallback: draw a straight line
+                    routePolyline = L.polyline([
+                        [startLat, startLng],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF6B35',
+                        weight: 5,
+                        opacity: 0.7
+                    }).addTo(driverMap);
+                });
+        }
+        
+        // Update ride action button based on ride status
+        function updateRideActionButton(action) {
+            const rideActionBtn = document.getElementById('rideActionBtn');
+            const holdProgressBar = document.getElementById('holdProgressBar');
+            
+            // Reset hold progress
+            holdProgress = 0;
+            holdProgressBar.style.width = '0%';
+            
+            switch(action) {
+                case 'hold-to-start':
+                    rideActionBtn.className = 'ride-action-btn hold-to-start';
+                    rideActionBtn.innerHTML = `
+                        <i class="fas fa-play-circle"></i>
+                        Hold to Start Ride
+                        <div class="hold-progress">
+                            <div class="hold-progress-bar" id="holdProgressBar"></div>
+                        </div>
+                    `;
+                    break;
+                case 'hold-to-arrive':
+                    rideActionBtn.className = 'ride-action-btn hold-to-arrive';
+                    rideActionBtn.innerHTML = `
+                        <i class="fas fa-map-marker-alt"></i>
+                        Hold to Arrive
+                        <div class="hold-progress">
+                            <div class="hold-progress-bar" id="holdProgressBar"></div>
+                        </div>
+                    `;
+                    break;
+                case 'hold-to-pickup':
+                    rideActionBtn.className = 'ride-action-btn hold-to-pickup';
+                    rideActionBtn.innerHTML = `
+                        <i class="fas fa-user-check"></i>
+                        Hold to Pickup
+                        <div class="hold-progress">
+                            <div class="hold-progress-bar" id="holdProgressBar"></div>
+                        </div>
+                    `;
+                    break;
+                case 'hold-to-complete':
+                    rideActionBtn.className = 'ride-action-btn hold-to-complete';
+                    rideActionBtn.innerHTML = `
+                        <i class="fas fa-flag-checkered"></i>
+                        Hold to Complete
+                        <div class="hold-progress">
+                            <div class="hold-progress-bar" id="holdProgressBar"></div>
+                        </div>
+                    `;
+                    break;
+            }
+            
+            // Reattach event listeners
+            const newHoldProgressBar = document.getElementById('holdProgressBar');
+            rideActionBtn.addEventListener('mousedown', startHoldTimer);
+            rideActionBtn.addEventListener('touchstart', startHoldTimer);
+            rideActionBtn.addEventListener('mouseup', cancelHoldTimer);
+            rideActionBtn.addEventListener('touchend', cancelHoldTimer);
+            rideActionBtn.addEventListener('mouseleave', cancelHoldTimer);
+        }
+        
+        // Start hold timer for ride actions
+        function startHoldTimer() {
+            if (holdTimer) return;
+            
+            holdTimer = setInterval(() => {
+                holdProgress += 3.33; // 3 seconds total = 100%
+                const holdProgressBar = document.getElementById('holdProgressBar');
+                
+                if (holdProgressBar) {
+                    holdProgressBar.style.width = `${holdProgress}%`;
+                }
+                
+                if (holdProgress >= 100) {
+                    clearInterval(holdTimer);
+                    holdTimer = null;
+                    completeHoldAction();
+                }
+            }, 100);
+        }
+        
+        // Cancel hold timer
+        function cancelHoldTimer() {
+            if (holdTimer) {
+                clearInterval(holdTimer);
+                holdTimer = null;
+                holdProgress = 0;
+                
+                const holdProgressBar = document.getElementById('holdProgressBar');
+                if (holdProgressBar) {
+                    holdProgressBar.style.width = '0%';
+                }
+            }
+        }
+        
+        // Complete hold action based on current ride state
+        function completeHoldAction() {
+            if (!currentRide) return;
+            
+            const rideActionBtn = document.getElementById('rideActionBtn');
+            
+            if (rideActionBtn.classList.contains('hold-to-start')) {
+                // Start the ride
                 database.ref('rides/' + currentRide.id).update({
                     status: 'started',
                     startedAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
-                    showNotification('Trip started. Safe driving!');
-                })
-                .catch(error => {
-                    console.error('Error starting trip:', error);
-                    showNotification('Error starting trip. Please try again.');
+                    currentRide.status = 'started';
+                    updateRideActionButton('hold-to-arrive');
+                    showNotification('Ride started. Heading to pickup location.');
+                    
+                    // Update map to show route from driver to destination
+                    if (driverMarker) {
+                        const driverLatLng = driverMarker.getLatLng();
+                        drawRoute(driverLatLng.lat, driverLatLng.lng, currentRide.destLat, currentRide.destLng);
+                    }
                 });
-            }
-        }
-        
-        // Complete trip
-        function completeTrip() {
-            if (currentRide) {
+            } else if (rideActionBtn.classList.contains('hold-to-arrive')) {
+                // Mark arrived
+                database.ref('rides/' + currentRide.id).update({
+                    status: 'arrived'
+                })
+                .then(() => {
+                    currentRide.status = 'arrived';
+                    updateRideActionButton('hold-to-pickup');
+                    showNotification('Arrival marked. Waiting for passenger.');
+                });
+            } else if (rideActionBtn.classList.contains('hold-to-pickup')) {
+                // Mark pickup
+                database.ref('rides/' + currentRide.id).update({
+                    status: 'picked_up'
+                })
+                .then(() => {
+                    currentRide.status = 'picked_up';
+                    updateRideActionButton('hold-to-complete');
+                    showNotification('Passenger picked up. Starting trip.');
+                    
+                    // Update driver details back to driver info
+                    document.getElementById('driverName').textContent = document.getElementById('driverNameInput').value || 'Driver Name';
+                    document.getElementById('driverPhone').textContent = document.getElementById('driverPhoneInput').value || '000-000-0000';
+                    document.getElementById('vehicleDetails').textContent = 
+                        `${document.getElementById('vehicleTypeInput').value || 'Vehicle'} - ${document.getElementById('licensePlateInput').value || 'ABC123'}`;
+                });
+            } else if (rideActionBtn.classList.contains('hold-to-complete')) {
+                // Complete ride
                 database.ref('rides/' + currentRide.id).update({
                     status: 'completed',
                     completedAt: firebase.database.ServerValue.TIMESTAMP
@@ -1026,33 +1711,26 @@
                     
                     database.ref('earnings/' + currentUser.uid).push(earningsData)
                         .then(() => {
-                            showNotification('Trip completed successfully. Earnings recorded.');
-                            switchTab('homeScreen');
+                            showNotification('Ride completed successfully. Earnings recorded.');
+                            
+                            // Reset driver panel
                             currentRide = null;
+                            updateRideActionButton('hold-to-start');
+                            
+                            // Clear map markers and routes
+                            if (customerMarker) {
+                                driverMap.removeLayer(customerMarker);
+                                customerMarker = null;
+                            }
+                            if (destinationMarker) {
+                                driverMap.removeLayer(destinationMarker);
+                                destinationMarker = null;
+                            }
+                            if (routePolyline) {
+                                driverMap.removeLayer(routePolyline);
+                                routePolyline = null;
+                            }
                         });
-                })
-                .catch(error => {
-                    console.error('Error completing trip:', error);
-                    showNotification('Error completing trip. Please try again.');
-                });
-            }
-        }
-        
-        // Cancel active ride
-        function cancelActiveRide() {
-            if (currentRide) {
-                database.ref('rides/' + currentRide.id).update({
-                    status: 'cancelled',
-                    cancelledBy: 'driver'
-                })
-                .then(() => {
-                    showNotification('Ride cancelled.');
-                    switchTab('homeScreen');
-                    currentRide = null;
-                })
-                .catch(error => {
-                    console.error('Error cancelling ride:', error);
-                    showNotification('Error cancelling ride. Please try again.');
                 });
             }
         }
@@ -1064,145 +1742,201 @@
                     .then(snapshot => {
                         const userData = snapshot.val();
                         if (userData) {
-                            document.getElementById('driverName').value = userData.name || '';
-                            document.getElementById('driverPhone').value = userData.phone || '';
-                            document.getElementById('driverEmail').value = userData.email || '';
-                            document.getElementById('vehicleType').value = userData.vehicleType || '';
-                            document.getElementById('licensePlate').value = userData.licensePlate || '';
-                            document.getElementById('driverId').value = userData.driverId || '';
+                            // Update form fields
+                            document.getElementById('driverNameInput').value = userData.name || '';
+                            document.getElementById('driverPhoneInput').value = userData.phone || '';
+                            document.getElementById('driverEmailInput').value = userData.email || '';
+                            document.getElementById('vehicleTypeInput').value = userData.vehicleType || '';
+                            document.getElementById('vehicleModelInput').value = userData.vehicleModel || '';
+                            document.getElementById('licensePlateInput').value = userData.licensePlate || '';
+                            document.getElementById('vehicleColorInput').value = userData.vehicleColor || '';
                             
-                            if (userData.payoutMethod) {
-                                document.getElementById('payoutMethod').value = userData.payoutMethod;
-                            }
+                            // Update display
+                            document.getElementById('driverName').textContent = userData.name || 'Driver Name';
+                            document.getElementById('driverPhone').textContent = userData.phone || '000-000-0000';
+                            document.getElementById('vehicleDetails').textContent = 
+                                `${userData.vehicleType || 'Vehicle'} - ${userData.licensePlate || 'ABC123'}`;
                             
-                            if (userData.payoutAccount) {
-                                document.getElementById('payoutAccount').value = userData.payoutAccount;
-                            }
+                            // Update wallet balance
+                            const walletBalance = userData.walletBalance || 0;
+                            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                            
+                            // Update driver avatar
+                            updateDriverAvatar();
                             
                             // Set online status if previously online
                             if (userData.isOnline) {
-                                document.getElementById('onlineToggle').checked = true;
-                                toggleOnlineStatus(true);
+                                toggleOnlineStatus();
                             }
                         }
                     });
+                
+                // Load driver stats
+                loadDriverStats();
             }
         }
         
-        // Save driver profile
-        function saveDriverProfile() {
-            const name = document.getElementById('driverName').value;
-            const phone = document.getElementById('driverPhone').value;
-            const email = document.getElementById('driverEmail').value;
-            const vehicleType = document.getElementById('vehicleType').value;
-            const licensePlate = document.getElementById('licensePlate').value;
-            const driverId = document.getElementById('driverId').value;
+        // Update driver avatar
+        function updateDriverAvatar() {
+            const driverAvatar = document.getElementById('driverAvatar');
+            const driverName = document.getElementById('driverNameInput').value;
+            
+            if (driverName) {
+                driverAvatar.innerHTML = driverName.charAt(0).toUpperCase();
+            } else {
+                driverAvatar.innerHTML = '<i class="fas fa-user"></i>';
+            }
+        }
+        
+        // Save driver details
+        function saveDriverDetails() {
+            const name = document.getElementById('driverNameInput').value;
+            const phone = document.getElementById('driverPhoneInput').value;
+            const email = document.getElementById('driverEmailInput').value;
             
             if (currentUser) {
                 database.ref('users/' + currentUser.uid).update({
                     name: name,
                     phone: phone,
-                    email: email,
-                    vehicleType: vehicleType,
-                    licensePlate: licensePlate,
-                    driverId: driverId,
-                    userType: 'driver'
+                    email: email
                 })
                 .then(() => {
-                    showNotification('Profile saved successfully.');
+                    showNotification('Driver details saved successfully.');
+                    
+                    // Update display
+                    document.getElementById('driverName').textContent = name || 'Driver Name';
+                    document.getElementById('driverPhone').textContent = phone || '000-000-0000';
+                    
+                    // Update avatar
+                    updateDriverAvatar();
                 })
                 .catch(error => {
-                    console.error('Error saving profile:', error);
-                    showNotification('Error saving profile. Please try again.');
+                    console.error('Error saving driver details:', error);
+                    showNotification('Error saving driver details. Please try again.');
                 });
             }
         }
         
-        // Save payout info
-        function savePayoutInfo() {
-            const payoutMethod = document.getElementById('payoutMethod').value;
-            const payoutAccount = document.getElementById('payoutAccount').value;
+        // Save vehicle details
+        function saveVehicleDetails() {
+            const vehicleType = document.getElementById('vehicleTypeInput').value;
+            const vehicleModel = document.getElementById('vehicleModelInput').value;
+            const licensePlate = document.getElementById('licensePlateInput').value;
+            const vehicleColor = document.getElementById('vehicleColorInput').value;
             
             if (currentUser) {
                 database.ref('users/' + currentUser.uid).update({
-                    payoutMethod: payoutMethod,
-                    payoutAccount: payoutAccount
+                    vehicleType: vehicleType,
+                    vehicleModel: vehicleModel,
+                    licensePlate: licensePlate,
+                    vehicleColor: vehicleColor
                 })
                 .then(() => {
-                    showNotification('Payout information saved successfully.');
+                    showNotification('Vehicle details saved successfully.');
+                    
+                    // Update display
+                    document.getElementById('vehicleDetails').textContent = 
+                        `${vehicleType || 'Vehicle'} - ${licensePlate || 'ABC123'}`;
                 })
                 .catch(error => {
-                    console.error('Error saving payout info:', error);
-                    showNotification('Error saving payout info. Please try again.');
+                    console.error('Error saving vehicle details:', error);
+                    showNotification('Error saving vehicle details. Please try again.');
                 });
             }
         }
         
-        // Load earnings
-        function loadEarnings() {
-            if (currentUser) {
-                database.ref('earnings/' + currentUser.uid).once('value')
+        // Add funds to wallet
+        function addFunds() {
+            const amount = prompt('Enter amount to add to your wallet (K):');
+            if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+                const addAmount = parseFloat(amount);
+                
+                // Get current balance
+                database.ref('users/' + currentUser.uid + '/walletBalance').once('value')
                     .then(snapshot => {
-                        const earnings = snapshot.val();
-                        let total = 0;
-                        let periodText = '';
+                        const currentBalance = snapshot.val() || 0;
+                        const newBalance = currentBalance + addAmount;
                         
-                        if (earnings) {
-                            const now = new Date();
-                            
-                            Object.keys(earnings).forEach(earningId => {
-                                const earning = earnings[earningId];
-                                const earningDate = new Date(earning.timestamp);
-                                
-                                let include = false;
-                                
-                                switch(earningsPeriod) {
-                                    case 'today':
-                                        if (earningDate.toDateString() === now.toDateString()) {
-                                            include = true;
-                                            periodText = "Today's Earnings";
-                                        }
-                                        break;
-                                    case 'week':
-                                        const startOfWeek = new Date(now);
-                                        startOfWeek.setDate(now.getDate() - now.getDay());
-                                        startOfWeek.setHours(0, 0, 0, 0);
-                                        
-                                        if (earningDate >= startOfWeek) {
-                                            include = true;
-                                            periodText = "This Week's Earnings";
-                                        }
-                                        break;
-                                    case 'month':
-                                        if (earningDate.getMonth() === now.getMonth() && 
-                                            earningDate.getFullYear() === now.getFullYear()) {
-                                            include = true;
-                                            periodText = "This Month's Earnings";
-                                        }
-                                        break;
-                                }
-                                
-                                if (include) {
-                                    total += earning.amount || 0;
-                                }
-                            });
-                        }
-                        
-                        document.getElementById('earningsAmount').textContent = `K${total.toFixed(2)}`;
-                        document.getElementById('earningsPeriod').textContent = periodText || "No earnings for this period";
-                    })
-                    .catch(error => {
-                        console.error('Error loading earnings:', error);
-                        document.getElementById('earningsAmount').textContent = 'K0.00';
-                        document.getElementById('earningsPeriod').textContent = 'Error loading earnings';
+                        // Update balance
+                        database.ref('users/' + currentUser.uid).update({
+                            walletBalance: newBalance
+                        })
+                        .then(() => {
+                            document.getElementById('walletBalance').textContent = `K${newBalance.toFixed(2)}`;
+                            document.getElementById('accountBalance').textContent = `K${newBalance.toFixed(2)}`;
+                            showNotification(`Successfully added K${addAmount.toFixed(2)} to your wallet.`);
+                        });
                     });
+            } else if (amount) {
+                showNotification('Please enter a valid amount.');
             }
         }
         
-        // Withdraw earnings
-        function withdrawEarnings() {
-            // In a real app, this would initiate a withdrawal process
-            showNotification('Withdrawal request submitted. Funds will be processed within 24 hours.');
+        // Withdraw funds from wallet
+        function withdrawFunds() {
+            // Get current balance
+            database.ref('users/' + currentUser.uid + '/walletBalance').once('value')
+                .then(snapshot => {
+                    const currentBalance = snapshot.val() || 0;
+                    
+                    if (currentBalance <= 0) {
+                        showNotification('Your wallet balance is zero.');
+                        return;
+                    }
+                    
+                    const amount = prompt(`Enter amount to withdraw (K). Available: K${currentBalance.toFixed(2)}:`);
+                    if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+                        const withdrawAmount = parseFloat(amount);
+                        
+                        if (withdrawAmount > currentBalance) {
+                            showNotification('Insufficient balance for this withdrawal.');
+                            return;
+                        }
+                        
+                        const newBalance = currentBalance - withdrawAmount;
+                        
+                        database.ref('users/' + currentUser.uid).update({
+                            walletBalance: newBalance
+                        })
+                        .then(() => {
+                            document.getElementById('walletBalance').textContent = `K${newBalance.toFixed(2)}`;
+                            document.getElementById('accountBalance').textContent = `K${newBalance.toFixed(2)}`;
+                            showNotification(`Withdrawal request submitted. K${withdrawAmount.toFixed(2)} will be processed within 24 hours.`);
+                        });
+                    } else if (amount) {
+                        showNotification('Please enter a valid amount.');
+                    }
+                });
+        }
+        
+        // Load driver statistics
+        function loadDriverStats() {
+            if (!currentUser) return;
+            
+            // Load completed rides count
+            database.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value')
+                .then(snapshot => {
+                    const rides = snapshot.val();
+                    let completed = 0;
+                    let cancelled = 0;
+                    let totalEarnings = 0;
+                    
+                    if (rides) {
+                        Object.values(rides).forEach(ride => {
+                            if (ride.status === 'completed') {
+                                completed++;
+                                totalEarnings += ride.fare || 0;
+                            } else if (ride.status === 'cancelled') {
+                                cancelled++;
+                            }
+                        });
+                    }
+                    
+                    document.getElementById('completedRides').textContent = completed;
+                    document.getElementById('cancelledRides').textContent = cancelled;
+                    document.getElementById('totalEarnings').textContent = `K${totalEarnings.toFixed(2)}`;
+                });
         }
         
         // Load ride history
@@ -1215,8 +1949,13 @@
                         
                         const rides = snapshot.val();
                         if (rides) {
-                            Object.keys(rides).forEach(rideId => {
-                                const ride = rides[rideId];
+                            // Convert to array and sort by timestamp (newest first)
+                            const ridesArray = Object.keys(rides).map(rideId => ({
+                                id: rideId,
+                                ...rides[rideId]
+                            })).sort((a, b) => b.timestamp - a.timestamp);
+                            
+                            ridesArray.forEach(ride => {
                                 const historyItem = document.createElement('div');
                                 historyItem.className = 'history-item';
                                 
@@ -1236,38 +1975,141 @@
                                     <div class="history-info">
                                         <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
                                         <div>${formattedDate} ${formattedTime}</div>
-                                        <div class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">${ride.status}</div>
+                                        <div class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">
+                                            ${ride.status === 'completed' ? 'Completed' : 'Cancelled'}
+                                        </div>
                                     </div>
                                 `;
                                 
                                 historyList.appendChild(historyItem);
                             });
                         } else {
-                            historyList.innerHTML = '<p>No ride history found.</p>';
+                            historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No ride history found.</p>';
                         }
                     })
                     .catch(error => {
                         console.error('Error loading ride history:', error);
-                        document.getElementById('historyList').innerHTML = '<p>Error loading ride history.</p>';
+                        historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--secondary-red);">Error loading ride history.</p>';
                     });
             }
         }
         
-        // Logout
-        function logout() {
-            // Go offline before logging out
-            if (isOnline) {
-                toggleOnlineStatus(false);
+        // Load earnings
+        function loadEarnings() {
+            if (currentUser) {
+                database.ref('earnings/' + currentUser.uid).once('value')
+                    .then(snapshot => {
+                        const earnings = snapshot.val();
+                        let total = 0;
+                        let ridesCompleted = 0;
+                        let onlineHours = 0;
+                        
+                        if (earnings) {
+                            const now = new Date();
+                            
+                            Object.keys(earnings).forEach(earningId => {
+                                const earning = earnings[earningId];
+                                const earningDate = new Date(earning.timestamp);
+                                
+                                let include = false;
+                                
+                                switch(earningsPeriod) {
+                                    case 'today':
+                                        if (earningDate.toDateString() === now.toDateString()) {
+                                            include = true;
+                                        }
+                                        break;
+                                    case 'week':
+                                        const startOfWeek = new Date(now);
+                                        startOfWeek.setDate(now.getDate() - now.getDay());
+                                        startOfWeek.setHours(0, 0, 0, 0);
+                                        
+                                        if (earningDate >= startOfWeek) {
+                                            include = true;
+                                        }
+                                        break;
+                                    case 'month':
+                                        if (earningDate.getMonth() === now.getMonth() && 
+                                            earningDate.getFullYear() === now.getFullYear()) {
+                                            include = true;
+                                        }
+                                        break;
+                                }
+                                
+                                if (include) {
+                                    total += earning.amount || 0;
+                                    ridesCompleted++;
+                                }
+                            });
+                            
+                            // Calculate online hours (simplified)
+                            onlineHours = Math.round(ridesCompleted * 0.75); // Assuming 45 minutes per ride on average
+                        }
+                        
+                        document.getElementById('earningsTotal').textContent = `K${total.toFixed(2)}`;
+                        document.getElementById('ridesCompleted').textContent = ridesCompleted;
+                        document.getElementById('avgEarning').textContent = ridesCompleted > 0 ? `K${(total / ridesCompleted).toFixed(2)}` : 'K0.00';
+                        document.getElementById('onlineHours').textContent = `${onlineHours}h`;
+                        
+                        // Update earnings list
+                        updateEarningsList(earnings);
+                    })
+                    .catch(error => {
+                        console.error('Error loading earnings:', error);
+                        document.getElementById('earningsTotal').textContent = 'K0.00';
+                        document.getElementById('ridesCompleted').textContent = '0';
+                        document.getElementById('avgEarning').textContent = 'K0.00';
+                        document.getElementById('onlineHours').textContent = '0h';
+                    });
             }
+        }
+        
+        // Update earnings list
+        function updateEarningsList(earnings) {
+            const earningsList = document.getElementById('earningsList');
+            earningsList.innerHTML = '';
             
-            auth.signOut()
-                .then(() => {
-                    currentUser = null;
-                    showLoginScreen();
-                })
-                .catch(error => {
-                    console.error('Error signing out:', error);
+            if (earnings) {
+                // Convert to array and sort by timestamp (newest first)
+                const earningsArray = Object.keys(earnings).map(earningId => ({
+                    id: earningId,
+                    ...earnings[earningId]
+                })).sort((a, b) => b.timestamp - a.timestamp)
+                  .slice(0, 10); // Show only last 10 earnings
+                
+                earningsArray.forEach(earning => {
+                    const earningItem = document.createElement('div');
+                    earningItem.className = 'history-item';
+                    
+                    const date = new Date(earning.timestamp);
+                    const formattedDate = date.toLocaleDateString();
+                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    earningItem.innerHTML = `
+                        <div class="history-locations">
+                            <div>
+                                <strong>Ride Earnings</strong>
+                            </div>
+                            <div>
+                                <strong>K${earning.amount ? earning.amount.toFixed(2) : '0.00'}</strong>
+                            </div>
+                        </div>
+                        <div class="history-info">
+                            <div>${formattedDate} ${formattedTime}</div>
+                            <div class="status-badge status-completed">Completed</div>
+                        </div>
+                    `;
+                    
+                    earningsList.appendChild(earningItem);
                 });
+            } else {
+                earningsList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No earnings found for this period.</p>';
+            }
+        }
+        
+        // Withdraw earnings
+        function withdrawEarnings() {
+            showNotification('Withdrawal request submitted. Funds will be processed within 24 hours.');
         }
         
         // Show notification
