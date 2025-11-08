@@ -230,6 +230,12 @@
             color: var(--dark-gray);
         }
         
+        .ride-action-btn.hold-active {
+            background: var(--primary-orange);
+            color: var(--white);
+            border-color: var(--primary-orange);
+        }
+        
         .ride-action-btn:active {
             transform: scale(0.98);
         }
@@ -796,6 +802,59 @@
             color: var(--warning-yellow);
         }
         
+        .commission-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--border-color);
+            font-size: 0.85rem;
+        }
+        
+        .commission-label {
+            color: var(--medium-gray);
+        }
+        
+        .commission-value {
+            font-weight: 600;
+            color: var(--primary-orange);
+        }
+        
+        .commission-deduction {
+            color: var(--secondary-red);
+        }
+        
+        .balance-update {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 0.85rem;
+        }
+        
+        .balance-label-update {
+            color: var(--medium-gray);
+        }
+        
+        .balance-value-update {
+            font-weight: 600;
+            color: var(--success-green);
+        }
+        
+        .no-float-warning {
+            background-color: var(--pale-orange);
+            border: 1px solid var(--light-orange);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+            text-align: center;
+            color: var(--dark-orange);
+            font-weight: 600;
+        }
+        
+        .no-float-warning i {
+            margin-right: 8px;
+        }
+        
         @media (max-width: 480px) {
             .floating-balance, .online-toggle {
                 padding: 8px 10px;
@@ -1190,6 +1249,8 @@
         let currentRideRequest = null;
         let earningsPeriod = 'today';
         let waypoints = [];
+        let floatBalance = 0;
+        let commissionRate = 0.08; // 8% commission
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -1394,6 +1455,13 @@
             const onlineToggle = document.getElementById('onlineToggle');
             
             if (isOnline) {
+                // Check if float balance is sufficient
+                if (floatBalance <= 0) {
+                    showNotification('Cannot go online. Your float balance is zero. Please add funds.');
+                    isOnline = false;
+                    return;
+                }
+                
                 onlineToggle.classList.remove('offline');
                 onlineToggle.classList.add('active');
                 onlineToggle.innerHTML = '<i class="fas fa-circle"></i><span>Online</span>';
@@ -1442,6 +1510,11 @@
         
         // Show ride request popup
         function showRideRequest(rideId, ride) {
+            // Check if driver has accepted a ride already
+            if (currentRide) {
+                return; // Don't show new requests if driver is already on a ride
+            }
+            
             currentRideRequest = {
                 id: rideId,
                 ...ride
@@ -1801,6 +1874,10 @@
         function startHoldTimer() {
             if (holdTimer) return;
             
+            // Add active class to change button color to orange
+            const rideActionBtn = document.getElementById('rideActionBtn');
+            rideActionBtn.classList.add('hold-active');
+            
             holdTimer = setInterval(() => {
                 holdProgress += 3.33; // 3 seconds total = 100%
                 const holdProgressBar = document.getElementById('holdProgressBar');
@@ -1823,6 +1900,10 @@
                 clearInterval(holdTimer);
                 holdTimer = null;
                 holdProgress = 0;
+                
+                // Remove active class to revert button color
+                const rideActionBtn = document.getElementById('rideActionBtn');
+                rideActionBtn.classList.remove('hold-active');
                 
                 const holdProgressBar = document.getElementById('holdProgressBar');
                 if (holdProgressBar) {
@@ -1887,16 +1968,28 @@
                     completedAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
+                    // Calculate commission and update float balance
+                    const totalFare = calculateTotalFare(currentRide);
+                    const commission = totalFare * commissionRate;
+                    const driverEarnings = totalFare - commission;
+                    
+                    // Update float balance
+                    const newFloatBalance = floatBalance - commission;
+                    updateFloatBalance(newFloatBalance);
+                    
                     // Add to earnings
                     const earningsData = {
                         rideId: currentRide.id,
-                        amount: currentRide.fare,
+                        amount: driverEarnings,
+                        commission: commission,
+                        totalFare: totalFare,
                         timestamp: firebase.database.ServerValue.TIMESTAMP
                     };
                     
                     database.ref('earnings/' + currentUser.uid).push(earningsData)
                         .then(() => {
-                            showNotification('Ride completed successfully. Earnings recorded.');
+                            // Show commission deduction notification
+                            showNotification(`Ride completed! K${commission.toFixed(2)} commission deducted. New balance: K${newFloatBalance.toFixed(2)}`);
                             
                             // Reset driver panel
                             currentRide = null;
@@ -1918,6 +2011,55 @@
                         });
                 });
             }
+        }
+        
+        // Calculate total fare for a ride
+        function calculateTotalFare(ride) {
+            const baseFare = 15;
+            const distanceFare = Math.max(0, (ride.distance ? parseFloat(ride.distance) * 5 : 5));
+            const discount = ride.promoCode ? 2 : 0;
+            return baseFare + distanceFare - discount;
+        }
+        
+        // Update float balance
+        function updateFloatBalance(newBalance) {
+            floatBalance = newBalance;
+            
+            // Update UI
+            document.getElementById('walletBalance').textContent = `K${floatBalance.toFixed(2)}`;
+            document.getElementById('accountBalance').textContent = `K${floatBalance.toFixed(2)}`;
+            
+            // Save to Firebase
+            if (currentUser) {
+                database.ref('users/' + currentUser.uid).update({
+                    walletBalance: floatBalance
+                });
+            }
+            
+            // Check if balance is zero and show warning if needed
+            if (floatBalance <= 0) {
+                showNoFloatWarning();
+            }
+        }
+        
+        // Show no float warning
+        function showNoFloatWarning() {
+            // Check if warning already exists
+            if (document.querySelector('.no-float-warning')) {
+                return;
+            }
+            
+            const warning = document.createElement('div');
+            warning.className = 'no-float-warning';
+            warning.innerHTML = `
+                <i class="fas fa-exclamation-triangle"></i>
+                Your float balance is zero. You cannot receive ride requests until you add funds.
+            `;
+            
+            // Insert warning at the top of the account screen
+            const accountScreen = document.getElementById('accountScreen');
+            const firstChild = accountScreen.firstChild;
+            accountScreen.insertBefore(warning, firstChild);
         }
         
         // Load driver data
@@ -1943,9 +2085,14 @@
                                 `${userData.vehicleType || 'Vehicle'} - ${userData.licensePlate || 'ABC123'}`;
                             
                             // Update wallet balance
-                            const walletBalance = userData.walletBalance || 0;
-                            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
-                            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                            floatBalance = userData.walletBalance || 0;
+                            document.getElementById('walletBalance').textContent = `K${floatBalance.toFixed(2)}`;
+                            document.getElementById('accountBalance').textContent = `K${floatBalance.toFixed(2)}`;
+                            
+                            // Show warning if balance is zero
+                            if (floatBalance <= 0) {
+                                showNoFloatWarning();
+                            }
                             
                             // Update driver avatar
                             updateDriverAvatar();
@@ -2036,23 +2183,19 @@
             const amount = prompt('Enter amount to add to your wallet (K):');
             if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
                 const addAmount = parseFloat(amount);
+                const newBalance = floatBalance + addAmount;
                 
-                // Get current balance
-                database.ref('users/' + currentUser.uid + '/walletBalance').once('value')
-                    .then(snapshot => {
-                        const currentBalance = snapshot.val() || 0;
-                        const newBalance = currentBalance + addAmount;
-                        
-                        // Update balance
-                        database.ref('users/' + currentUser.uid).update({
-                            walletBalance: newBalance
-                        })
-                        .then(() => {
-                            document.getElementById('walletBalance').textContent = `K${newBalance.toFixed(2)}`;
-                            document.getElementById('accountBalance').textContent = `K${newBalance.toFixed(2)}`;
-                            showNotification(`Successfully added K${addAmount.toFixed(2)} to your wallet.`);
-                        });
-                    });
+                // Update balance
+                updateFloatBalance(newBalance);
+                showNotification(`Successfully added K${addAmount.toFixed(2)} to your wallet.`);
+                
+                // Remove warning if balance is now positive
+                if (newBalance > 0) {
+                    const warning = document.querySelector('.no-float-warning');
+                    if (warning) {
+                        warning.remove();
+                    }
+                }
             } else if (amount) {
                 showNotification('Please enter a valid amount.');
             }
@@ -2060,39 +2203,26 @@
         
         // Withdraw funds from wallet
         function withdrawFunds() {
-            // Get current balance
-            database.ref('users/' + currentUser.uid + '/walletBalance').once('value')
-                .then(snapshot => {
-                    const currentBalance = snapshot.val() || 0;
-                    
-                    if (currentBalance <= 0) {
-                        showNotification('Your wallet balance is zero.');
-                        return;
-                    }
-                    
-                    const amount = prompt(`Enter amount to withdraw (K). Available: K${currentBalance.toFixed(2)}:`);
-                    if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
-                        const withdrawAmount = parseFloat(amount);
-                        
-                        if (withdrawAmount > currentBalance) {
-                            showNotification('Insufficient balance for this withdrawal.');
-                            return;
-                        }
-                        
-                        const newBalance = currentBalance - withdrawAmount;
-                        
-                        database.ref('users/' + currentUser.uid).update({
-                            walletBalance: newBalance
-                        })
-                        .then(() => {
-                            document.getElementById('walletBalance').textContent = `K${newBalance.toFixed(2)}`;
-                            document.getElementById('accountBalance').textContent = `K${newBalance.toFixed(2)}`;
-                            showNotification(`Withdrawal request submitted. K${withdrawAmount.toFixed(2)} will be processed within 24 hours.`);
-                        });
-                    } else if (amount) {
-                        showNotification('Please enter a valid amount.');
-                    }
-                });
+            if (floatBalance <= 0) {
+                showNotification('Your wallet balance is zero.');
+                return;
+            }
+            
+            const amount = prompt(`Enter amount to withdraw (K). Available: K${floatBalance.toFixed(2)}:`);
+            if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+                const withdrawAmount = parseFloat(amount);
+                
+                if (withdrawAmount > floatBalance) {
+                    showNotification('Insufficient balance for this withdrawal.');
+                    return;
+                }
+                
+                const newBalance = floatBalance - withdrawAmount;
+                updateFloatBalance(newBalance);
+                showNotification(`Withdrawal request submitted. K${withdrawAmount.toFixed(2)} will be processed within 24 hours.`);
+            } else if (amount) {
+                showNotification('Please enter a valid amount.');
+            }
         }
         
         // Load driver statistics
@@ -2188,6 +2318,7 @@
                         let total = 0;
                         let ridesCompleted = 0;
                         let onlineHours = 0;
+                        let totalCommission = 0;
                         
                         if (earnings) {
                             const now = new Date();
@@ -2223,6 +2354,7 @@
                                 
                                 if (include) {
                                     total += earning.amount || 0;
+                                    totalCommission += earning.commission || 0;
                                     ridesCompleted++;
                                 }
                             });
@@ -2236,7 +2368,7 @@
                         document.getElementById('avgEarning').textContent = ridesCompleted > 0 ? `K${(total / ridesCompleted).toFixed(2)}` : 'K0.00';
                         document.getElementById('onlineHours').textContent = `${onlineHours}h`;
                         
-                        // Update earnings list
+                        // Update earnings list with commission information
                         updateEarningsList(earnings);
                     })
                     .catch(error => {
@@ -2278,6 +2410,14 @@
                             <div>
                                 <strong>K${earning.amount ? earning.amount.toFixed(2) : '0.00'}</strong>
                             </div>
+                        </div>
+                        <div class="commission-display">
+                            <span class="commission-label">Commission (8%):</span>
+                            <span class="commission-value commission-deduction">-K${earning.commission ? earning.commission.toFixed(2) : '0.00'}</span>
+                        </div>
+                        <div class="balance-update">
+                            <span class="balance-label-update">Total Fare:</span>
+                            <span class="balance-value-update">K${earning.totalFare ? earning.totalFare.toFixed(2) : '0.00'}</span>
                         </div>
                         <div class="history-info">
                             <div>${formattedDate} ${formattedTime}</div>
