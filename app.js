@@ -18,7 +18,7 @@ const auth = firebase.auth();
 // App state
 let currentUser = null;
 let currentRide = null;
-let homeMap, rideMap, activeRideMap;
+let homeMap, rideMap, activeRideMap, popupRideMap;
 let rideType = 'standard';
 let paymentMethod = 'airtel';
 let userRating = 0;
@@ -37,6 +37,13 @@ let destinationSearchResults = [];
 let selectedDestination = null;
 let rideHistoryListener = null;
 let activeRideListener = null;
+let appliedPromoCode = null;
+let walletBalance = 0;
+let userStats = {
+    completed: 0,
+    cancelled: 0,
+    pending: 0
+};
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -91,6 +98,10 @@ function showProfileSetupScreen() {
     document.querySelector('header').classList.add('hidden');
     document.querySelector('.main-content').classList.add('hidden');
     document.querySelector('.tab-container').classList.add('hidden');
+    
+    // Initialize address autocomplete for profile setup
+    initializeAddressAutocomplete('homeAddress', 'homeAddressSuggestions');
+    initializeAddressAutocomplete('workAddress', 'workAddressSuggestions');
 }
 
 function showMainApp() {
@@ -112,13 +123,16 @@ function showMainApp() {
     
     // Check for any active rides
     checkActiveRides();
+    
+    // Load account data
+    loadAccountData();
 }
 
 // Update user greeting with full name
 function updateUserGreeting() {
     const greetingElement = document.getElementById('userGreeting');
     if (userFullName && userFullName !== "Passenger") {
-        greetingElement.textContent = `Hi ${userFullName}, Where to?`;
+        greetingElement.textContent = `Hi ${userFullName.split(' ')[0]}, Where to?`;
     } else {
         greetingElement.textContent = "Hi, Where to?";
     }
@@ -129,7 +143,7 @@ function initializeAuth() {
     auth.onAuthStateChanged(user => {
         if (user) {
             currentUser = user;
-            document.getElementById('userIcon').textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'P';
+            document.getElementById('userIcon').innerHTML = '<i class="fas fa-user"></i>';
             loadUserData();
             
             // Start location tracking for authenticated users
@@ -144,7 +158,7 @@ function initializeAuth() {
     });
 }
 
-// Email authentication
+// Enhanced Event Listeners
 function setupEventListeners() {
     // Onboarding
     document.getElementById('getStartedBtn').addEventListener('click', function() {
@@ -245,6 +259,7 @@ function setupEventListeners() {
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.input-group') && !e.target.closest('.suggestion-list')) {
             hideDestinationSuggestions();
+            hideAllAddressSuggestions();
         }
     });
     
@@ -285,6 +300,154 @@ function setupEventListeners() {
     // Close popup buttons
     document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
     document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
+    
+    // Promo code application
+    document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
+    document.getElementById('promoCode').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            applyPromoCode();
+        }
+    });
+    
+    // Account section buttons
+    document.getElementById('shareReferralBtn').addEventListener('click', shareReferralCode);
+    document.getElementById('depositBtn').addEventListener('click', depositToWallet);
+    document.getElementById('withdrawBtn').addEventListener('click', withdrawFromWallet);
+    document.getElementById('whatsappBtn').addEventListener('click', contactWhatsApp);
+    document.getElementById('callBtn').addEventListener('click', contactPhone);
+    
+    // Address autocomplete for settings
+    initializeAddressAutocomplete('savedHome', 'savedHomeSuggestions');
+    initializeAddressAutocomplete('savedWork', 'savedWorkSuggestions');
+}
+
+// Initialize address autocomplete for specific input fields
+function initializeAddressAutocomplete(inputId, suggestionsId) {
+    const input = document.getElementById(inputId);
+    const suggestions = document.getElementById(suggestionsId);
+    
+    if (!input || !suggestions) return;
+    
+    let debounceTimer;
+    
+    input.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const query = this.value;
+        
+        if (query.length >= 2) {
+            debounceTimer = setTimeout(() => {
+                searchAddresses(query, suggestions);
+            }, 300);
+        } else {
+            suggestions.style.display = 'none';
+        }
+    });
+    
+    input.addEventListener('focus', function() {
+        const query = this.value;
+        if (query.length >= 2) {
+            searchAddresses(query, suggestions);
+        }
+    });
+}
+
+// Search addresses for autocomplete
+function searchAddresses(query, suggestionsContainer) {
+    if (!userLocation) return;
+    
+    suggestionsContainer.innerHTML = '<div class="loading-text">Searching addresses...</div>';
+    suggestionsContainer.style.display = 'block';
+    
+    const radius = 20000; // 20km in meters
+    const overpassQuery = `
+        [out:json][timeout:25];
+        (
+          node["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
+          way["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
+          relation["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
+        );
+        out center;
+    `;
+    
+    fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: overpassQuery
+    })
+    .then(response => response.json())
+    .then(data => {
+        suggestionsContainer.innerHTML = '';
+        
+        if (data.elements && data.elements.length > 0) {
+            const results = data.elements
+                .filter(element => element.tags && element.tags.name)
+                .map(element => {
+                    let lat, lon;
+                    if (element.type === 'node') {
+                        lat = element.lat;
+                        lon = element.lon;
+                    } else {
+                        lat = element.center.lat;
+                        lon = element.center.lon;
+                    }
+                    
+                    const distance = calculateDistance(
+                        userLocation.lat, userLocation.lng,
+                        lat, lon
+                    );
+                    
+                    return {
+                        ...element,
+                        displayLat: lat,
+                        displayLon: lon,
+                        distance
+                    };
+                })
+                .sort((a, b) => a.distance - b.distance)
+                .slice(0, 5);
+            
+            if (results.length === 0) {
+                suggestionsContainer.innerHTML = '<div class="no-places">No addresses found</div>';
+                return;
+            }
+            
+            results.forEach(result => {
+                const suggestionItem = document.createElement('div');
+                suggestionItem.className = 'suggestion-item';
+                
+                suggestionItem.innerHTML = `
+                    <div class="suggestion-icon">📍</div>
+                    <div class="suggestion-details">
+                        <div class="suggestion-name">${result.tags.name}</div>
+                        <div class="suggestion-address">${getPlaceAddress(result)}</div>
+                        <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
+                    </div>
+                `;
+                
+                suggestionItem.addEventListener('click', function() {
+                    const input = suggestionsContainer.previousElementSibling;
+                    input.value = result.tags.name;
+                    suggestionsContainer.style.display = 'none';
+                });
+                
+                suggestionsContainer.appendChild(suggestionItem);
+            });
+        } else {
+            suggestionsContainer.innerHTML = '<div class="no-places">No addresses found</div>';
+        }
+    })
+    .catch(error => {
+        console.error('Error searching addresses:', error);
+        suggestionsContainer.innerHTML = '<div class="no-places">Error searching addresses</div>';
+    });
+}
+
+// Hide all address suggestions
+function hideAllAddressSuggestions() {
+    document.querySelectorAll('.suggestion-list').forEach(suggestions => {
+        if (suggestions.id !== 'destinationSuggestions') {
+            suggestions.style.display = 'none';
+        }
+    });
 }
 
 // Email authentication functions
@@ -335,7 +498,7 @@ function signupUser() {
         });
 }
 
-// Complete profile setup
+// Complete profile setup with address validation
 function completeProfile() {
     const name = document.getElementById('profileName').value;
     const phone = document.getElementById('profilePhone').value;
@@ -348,6 +511,25 @@ function completeProfile() {
         return;
     }
     
+    // Validate addresses exist
+    if (homeAddress) {
+        validateAddressExists(homeAddress).then(isValid => {
+            if (!isValid) {
+                showNotification('Please enter a valid home address that exists on the map.');
+                return;
+            }
+        });
+    }
+    
+    if (workAddress) {
+        validateAddressExists(workAddress).then(isValid => {
+            if (!isValid) {
+                showNotification('Please enter a valid work address that exists on the map.');
+                return;
+            }
+        });
+    }
+    
     if (currentUser) {
         const userData = {
             name: name,
@@ -357,10 +539,12 @@ function completeProfile() {
             homeAddress: homeAddress,
             workAddress: workAddress,
             createdAt: firebase.database.ServerValue.TIMESTAMP,
-            userType: 'passenger'
+            userType: 'passenger',
+            referralCode: generateReferralCode(name),
+            walletBalance: 0
         };
         
-        database.ref('users/' + currentUser.uid).update(userData)
+        database.ref('users/' + currentUser.uid).set(userData)
             .then(() => {
                 localStorage.setItem('profileCompleted', 'true');
                 userFullName = name;
@@ -379,9 +563,36 @@ function completeProfile() {
     }
 }
 
-// Map initialization - Only show user's current location
+// Validate address exists on map
+function validateAddressExists(address) {
+    return new Promise((resolve) => {
+        if (!address || address.length < 3) {
+            resolve(false);
+            return;
+        }
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`)
+            .then(response => response.json())
+            .then(data => {
+                resolve(data && data.length > 0);
+            })
+            .catch(error => {
+                console.error('Error validating address:', error);
+                resolve(false);
+            });
+    });
+}
+
+// Generate referral code
+function generateReferralCode(name) {
+    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    return `JUBEL-${initials}${randomNum}`;
+}
+
+// Map initialization
 function initializeMaps() {
-    // Home map - only showing user location
+    // Home map
     homeMap = L.map('homeMap').setView([-15.4167, 28.2833], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
@@ -439,7 +650,7 @@ function getUserLocation() {
                 document.getElementById('pickupLocation').value = address;
             });
             
-            // Load nearby places list (not on map)
+            // Load nearby places list
             loadNearbyPlaces();
         }, error => {
             console.error('Geolocation error:', error);
@@ -485,12 +696,12 @@ function startLocationTracking() {
     }
 }
 
-// Load nearby places within 20km radius (displayed in list, not on map)
+// Load nearby places within 20km radius
 function loadNearbyPlaces() {
     if (!userLocation) return;
     
     const nearbyPlacesList = document.getElementById('nearbyPlacesList');
-    nearbyPlacesList.innerHTML = '<div class="loading-text">Loading nearby places...</div>';
+    nearbyPlacesList.innerHTML = '<div class="loading-text"><i class="fas fa-spinner fa-spin"></i> Loading nearby places...</div>';
     
     // Clear existing markers
     clearNearbyPlacesMarkers();
@@ -532,14 +743,14 @@ function loadNearbyPlaces() {
                     );
                     return { ...place, distance };
                 })
-                .sort((a, b) => a.distance - b.distance) // Sort by distance
+                .sort((a, b) => a.distance - b.distance)
                 .filter((place, index, array) => {
                     // Filter to get one place approximately every 2km
                     if (index === 0) return true;
                     const prevPlace = array[index - 1];
-                    return place.distance - prevPlace.distance >= 2000; // 2km in meters
+                    return place.distance - prevPlace.distance >= 2000;
                 })
-                .slice(0, 10); // Limit to 10 places (one every 2km for 20km radius)
+                .slice(0, 10);
             
             if (places.length === 0) {
                 nearbyPlacesList.innerHTML = '<div class="no-places">No nearby places found within 20km</div>';
@@ -568,7 +779,6 @@ function loadNearbyPlaces() {
     })
     .catch(error => {
         console.error('Error fetching nearby places:', error);
-        // Fallback to predefined places
         loadFallbackNearbyPlaces();
     });
 }
@@ -581,7 +791,7 @@ function clearNearbyPlacesMarkers() {
     nearbyPlacesMarkers = [];
 }
 
-// Create nearby place element (for list display only)
+// Create nearby place element
 function createNearbyPlaceElement(place) {
     const placeElement = document.createElement('div');
     placeElement.className = 'nearby-place-item';
@@ -745,8 +955,8 @@ function searchPlaces(query) {
                         distance
                     };
                 })
-                .sort((a, b) => a.distance - b.distance) // Sort by distance
-                .slice(0, 10); // Limit to 10 results
+                .sort((a, b) => a.distance - b.distance)
+                .slice(0, 10);
             
             if (results.length === 0) {
                 suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
@@ -999,6 +1209,8 @@ function switchTab(tabId) {
         loadNearbyPlaces();
     } else if (tabId === 'settingsScreen') {
         loadSettings();
+    } else if (tabId === 'accountScreen') {
+        loadAccountData();
     }
 }
 
@@ -1072,6 +1284,11 @@ function updateFareEstimate() {
                         break;
                 }
                 
+                // Apply promo code discount if applicable
+                if (appliedPromoCode) {
+                    baseFare = baseFare * 0.8; // 20% discount
+                }
+                
                 document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
                 
                 // Calculate ETA (assuming average speed of 30 km/h)
@@ -1123,14 +1340,14 @@ function requestRide() {
     
     // Show loading state
     document.getElementById('requestRideBtn').disabled = true;
-    document.getElementById('requestRideBtn').textContent = 'Requesting...';
+    document.getElementById('requestRideBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Requesting...';
     
     // Calculate fare based on distance
     forwardGeocode(destination).then(results => {
         if (results.length === 0) {
             showNotification('Invalid destination address. Please select a valid destination.');
             document.getElementById('requestRideBtn').disabled = false;
-            document.getElementById('requestRideBtn').textContent = 'Request Ride';
+            document.getElementById('requestRideBtn').innerHTML = '<i class="fas fa-car"></i> Request Ride';
             return;
         }
         
@@ -1163,6 +1380,11 @@ function requestRide() {
                 break;
         }
         
+        // Apply promo code discount if applicable
+        if (appliedPromoCode) {
+            fare = fare * 0.8; // 20% discount
+        }
+        
         // Create ride request in Firebase with all details
         const rideId = database.ref().child('rides').push().key;
         const rideData = {
@@ -1181,7 +1403,8 @@ function requestRide() {
             distance: (distance / 1000).toFixed(2) + ' km',
             status: 'requested',
             timestamp: firebase.database.ServerValue.TIMESTAMP,
-            updatedAt: firebase.database.ServerValue.TIMESTAMP
+            updatedAt: firebase.database.ServerValue.TIMESTAMP,
+            promoCode: appliedPromoCode
         };
         
         database.ref('rides/' + rideId).set(rideData)
@@ -1215,7 +1438,7 @@ function requestRide() {
                 
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
-                document.getElementById('requestRideBtn').textContent = 'Request Ride';
+                document.getElementById('requestRideBtn').innerHTML = '<i class="fas fa-car"></i> Request Ride';
             })
             .catch(error => {
                 console.error('Error requesting ride:', error);
@@ -1223,7 +1446,7 @@ function requestRide() {
                 
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
-                document.getElementById('requestRideBtn').textContent = 'Request Ride';
+                document.getElementById('requestRideBtn').innerHTML = '<i class="fas fa-car"></i> Request Ride';
             });
     }).catch(error => {
         console.error('Error geocoding destination:', error);
@@ -1231,7 +1454,7 @@ function requestRide() {
         
         // Reset button state
         document.getElementById('requestRideBtn').disabled = false;
-        document.getElementById('requestRideBtn').textContent = 'Request Ride';
+        document.getElementById('requestRideBtn').innerHTML = '<i class="fas fa-car"></i> Request Ride';
     });
 }
 
@@ -1341,15 +1564,15 @@ function handleDriverAssignment(ride) {
             if (driver) {
                 // Update driver information
                 document.getElementById('driverName').textContent = driver.name || 'Driver';
-                document.getElementById('driverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
-                document.getElementById('driverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
-                document.getElementById('driverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
+                document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
+                document.getElementById('driverVehicle').textContent = `${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
+                document.getElementById('driverRating').textContent = driver.rating || '4.5';
                 
                 // Update active ride screen as well
                 document.getElementById('activeDriverName').textContent = driver.name || 'Driver';
-                document.getElementById('activeDriverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
-                document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
-                document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
+                document.getElementById('activeDriverPhone').textContent = driver.phone || 'N/A';
+                document.getElementById('activeDriverVehicle').textContent = `${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
+                document.getElementById('activeDriverRating').textContent = driver.rating || '4.5';
                 
                 showNotification(`Driver ${driver.name} has accepted your ride!`);
                 
@@ -1835,6 +2058,9 @@ function completePayment() {
                 homeMap.removeLayer(destinationMarker);
                 destinationMarker = null;
             }
+            
+            // Update user stats
+            updateUserStats();
         })
         .catch(error => {
             console.error('Error completing payment:', error);
@@ -1858,8 +2084,7 @@ function loadUserData() {
                     document.getElementById('savedWork').value = userData.workAddress || '';
                     
                     // Update user icon
-                    document.getElementById('userIcon').textContent = userFullName ? 
-                        userFullName.charAt(0).toUpperCase() : 'P';
+                    document.getElementById('userIcon').innerHTML = '<i class="fas fa-user"></i>';
                     
                     // Update greeting
                     updateUserGreeting();
@@ -1894,7 +2119,7 @@ function saveProfile() {
                 displayName: name
             });
             
-            document.getElementById('userIcon').textContent = name ? name.charAt(0).toUpperCase() : 'P';
+            document.getElementById('userIcon').innerHTML = '<i class="fas fa-user"></i>';
             
             // Update greeting
             updateUserGreeting();
@@ -2220,9 +2445,9 @@ function setupActiveRide(ride) {
                 const driver = driverSnapshot.val();
                 if (driver) {
                     document.getElementById('activeDriverName').textContent = driver.name || 'Driver';
-                    document.getElementById('activeDriverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
-                    document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
-                    document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
+                    document.getElementById('activeDriverPhone').textContent = driver.phone || 'N/A';
+                    document.getElementById('activeDriverVehicle').textContent = `${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
+                    document.getElementById('activeDriverRating').textContent = driver.rating || '4.5';
                 }
             });
         
@@ -2255,6 +2480,181 @@ function setupActiveRide(ride) {
             }
         }
     });
+}
+
+// Load account data
+function loadAccountData() {
+    if (currentUser) {
+        database.ref('users/' + currentUser.uid).once('value')
+            .then(snapshot => {
+                const userData = snapshot.val();
+                if (userData) {
+                    // Update account information
+                    document.getElementById('accountName').textContent = userData.name || 'Passenger';
+                    document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
+                    document.getElementById('accountEmail').textContent = userData.email || 'Not set';
+                    document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
+                    
+                    // Update wallet balance
+                    walletBalance = userData.walletBalance || 0;
+                    document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                    
+                    // Update account avatar
+                    const accountAvatar = document.getElementById('accountAvatar');
+                    if (userData.name) {
+                        accountAvatar.textContent = userData.name.charAt(0).toUpperCase();
+                    } else {
+                        accountAvatar.innerHTML = '<i class="fas fa-user"></i>';
+                    }
+                }
+            });
+        
+        // Load user stats
+        updateUserStats();
+    }
+}
+
+// Update user statistics
+function updateUserStats() {
+    if (!currentUser) return;
+    
+    database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).once('value')
+        .then(snapshot => {
+            const rides = snapshot.val();
+            if (rides) {
+                const ridesArray = Object.values(rides);
+                
+                userStats = {
+                    completed: ridesArray.filter(ride => ride.status === 'completed' || ride.status === 'paid').length,
+                    cancelled: ridesArray.filter(ride => ride.status === 'cancelled').length,
+                    pending: ridesArray.filter(ride => ride.status === 'requested' || ride.status === 'accepted').length
+                };
+                
+                // Update UI
+                document.getElementById('ridesCompleted').textContent = userStats.completed;
+                document.getElementById('ridesCancelled').textContent = userStats.cancelled;
+                document.getElementById('ridesPending').textContent = userStats.pending;
+            }
+        });
+}
+
+// Apply promo code
+function applyPromoCode() {
+    const promoCode = document.getElementById('promoCode').value.trim();
+    
+    if (!promoCode) {
+        showNotification('Please enter a promo code.');
+        return;
+    }
+    
+    // Simulate promo code validation
+    // In a real app, this would check against a database of valid promo codes
+    if (promoCode.startsWith('JUBEL-')) {
+        appliedPromoCode = promoCode;
+        showNotification('Promo code applied! 20% discount will be applied to your ride.');
+        updateFareEstimate();
+        
+        // Update UI to show applied promo
+        document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
+        document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
+        document.getElementById('applyPromoBtn').classList.remove('btn-primary');
+        document.getElementById('applyPromoBtn').classList.add('btn-success');
+    } else {
+        showNotification('Invalid promo code. Please check and try again.');
+        document.getElementById('promoCode').style.borderColor = 'var(--danger-red)';
+    }
+}
+
+// Share referral code
+function shareReferralCode() {
+    const referralCode = document.getElementById('referralCode').textContent;
+    const shareText = `Join me on Jubel! Use my referral code ${referralCode} for 20% off your first ride. Download the app now!`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Jubel Referral',
+            text: shareText,
+            url: window.location.href
+        })
+        .then(() => showNotification('Referral code shared successfully!'))
+        .catch(error => console.error('Error sharing:', error));
+    } else {
+        navigator.clipboard.writeText(shareText)
+            .then(() => showNotification('Referral code copied to clipboard!'));
+    }
+}
+
+// Deposit to wallet
+function depositToWallet() {
+    const amount = prompt('Enter deposit amount (K):');
+    if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+        const depositAmount = parseFloat(amount);
+        const newBalance = walletBalance + depositAmount;
+        
+        database.ref('users/' + currentUser.uid).update({
+            walletBalance: newBalance
+        })
+        .then(() => {
+            walletBalance = newBalance;
+            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+            showNotification(`Successfully deposited K${depositAmount.toFixed(2)} to your wallet.`);
+        })
+        .catch(error => {
+            console.error('Error depositing to wallet:', error);
+            showNotification('Error processing deposit. Please try again.');
+        });
+    } else if (amount) {
+        showNotification('Please enter a valid amount.');
+    }
+}
+
+// Withdraw from wallet
+function withdrawFromWallet() {
+    if (walletBalance <= 0) {
+        showNotification('Your wallet balance is zero.');
+        return;
+    }
+    
+    const amount = prompt(`Enter withdrawal amount (K). Available: K${walletBalance.toFixed(2)}:`);
+    if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+        const withdrawalAmount = parseFloat(amount);
+        
+        if (withdrawalAmount > walletBalance) {
+            showNotification('Insufficient balance for this withdrawal.');
+            return;
+        }
+        
+        const newBalance = walletBalance - withdrawalAmount;
+        
+        database.ref('users/' + currentUser.uid).update({
+            walletBalance: newBalance
+        })
+        .then(() => {
+            walletBalance = newBalance;
+            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+            showNotification(`Successfully withdrew K${withdrawalAmount.toFixed(2)} from your wallet.`);
+        })
+        .catch(error => {
+            console.error('Error withdrawing from wallet:', error);
+            showNotification('Error processing withdrawal. Please try again.');
+        });
+    } else if (amount) {
+        showNotification('Please enter a valid amount.');
+    }
+}
+
+// Contact via WhatsApp
+function contactWhatsApp() {
+    const phoneNumber = '0768658484';
+    const message = 'Hello, I need assistance with Jubel rides.';
+    const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+}
+
+// Contact via phone call
+function contactPhone() {
+    const phoneNumber = '0768658484';
+    window.open(`tel:${phoneNumber}`, '_self');
 }
 
 // Load settings
