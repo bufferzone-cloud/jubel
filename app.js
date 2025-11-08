@@ -9,12 +9,10 @@ const firebaseConfig = {
     appId: "1:882241095445:web:ee9ca40fddd008ca910b1c",
     measurementId: "G-J5JPKL6B5F"
 };
-
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const auth = firebase.auth();
-
 // App state
 let currentUser = null;
 let currentRide = null;
@@ -37,7 +35,6 @@ let destinationSearchResults = [];
 let selectedDestination = null;
 let rideHistoryListener = null;
 let activeRideListener = null;
-
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     initializeAuth();
@@ -46,13 +43,12 @@ document.addEventListener('DOMContentLoaded', function() {
     checkOnboardingStatus();
     initializeAppSettings();
 });
-
 // Check if user needs to complete onboarding
 function checkOnboardingStatus() {
     const onboardingCompleted = localStorage.getItem('onboardingCompleted');
     const userAuthenticated = localStorage.getItem('userAuthenticated');
     const profileCompleted = localStorage.getItem('profileCompleted');
-    
+   
     if (!onboardingCompleted) {
         showOnboardingScreen();
     } else if (!userAuthenticated) {
@@ -64,56 +60,47 @@ function checkOnboardingStatus() {
         showMainApp();
     }
 }
-
 // Show onboarding screens
 function showOnboardingScreen() {
     document.getElementById('onboardingScreen').classList.remove('hidden');
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.querySelector('header').classList.add('hidden');
     document.querySelector('.main-content').classList.add('hidden');
     document.querySelector('.tab-container').classList.add('hidden');
 }
-
 function showAuthScreen() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.querySelector('header').classList.add('hidden');
     document.querySelector('.main-content').classList.add('hidden');
     document.querySelector('.tab-container').classList.add('hidden');
 }
-
 function showProfileSetupScreen() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('profileSetupScreen').classList.remove('hidden');
-    document.querySelector('header').classList.add('hidden');
     document.querySelector('.main-content').classList.add('hidden');
     document.querySelector('.tab-container').classList.add('hidden');
 }
-
 function showMainApp() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.querySelector('header').classList.remove('hidden');
     document.querySelector('.main-content').classList.remove('hidden');
     document.querySelector('.tab-container').classList.remove('hidden');
-    
+   
     // Update user greeting
     updateUserGreeting();
-    
+   
     // Load nearby places
     loadNearbyPlaces();
-    
+   
     // Load ride history
     loadRideHistory();
-    
+   
     // Check for any active rides
     checkActiveRides();
 }
-
 // Update user greeting with full name
 function updateUserGreeting() {
     const greetingElement = document.getElementById('userGreeting');
@@ -123,15 +110,13 @@ function updateUserGreeting() {
         greetingElement.textContent = "Hi, Where to?";
     }
 }
-
 // Authentication functions
 function initializeAuth() {
     auth.onAuthStateChanged(user => {
         if (user) {
             currentUser = user;
-            document.getElementById('userIcon').textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'P';
             loadUserData();
-            
+           
             // Start location tracking for authenticated users
             startLocationTracking();
         } else {
@@ -143,7 +128,6 @@ function initializeAuth() {
         }
     });
 }
-
 // Email authentication
 function setupEventListeners() {
     // Onboarding
@@ -151,7 +135,7 @@ function setupEventListeners() {
         localStorage.setItem('onboardingCompleted', 'true');
         showAuthScreen();
     });
-    
+   
     // Authentication
     document.getElementById('loginBtn').addEventListener('click', loginUser);
     document.getElementById('signupBtn').addEventListener('click', signupUser);
@@ -159,10 +143,10 @@ function setupEventListeners() {
         document.getElementById('loginBtn').classList.add('hidden');
         document.getElementById('signupBtn').classList.remove('hidden');
     });
-    
+   
     // Profile setup
     document.getElementById('completeProfileBtn').addEventListener('click', completeProfile);
-    
+   
     // Tab navigation
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', function() {
@@ -170,7 +154,7 @@ function setupEventListeners() {
             switchTab(tabId);
         });
     });
-    
+   
     // Ride type selection
     document.querySelectorAll('.ride-option').forEach(option => {
         option.addEventListener('click', function() {
@@ -182,7 +166,7 @@ function setupEventListeners() {
             updateFareEstimate();
         });
     });
-    
+   
     // Payment method selection
     document.querySelectorAll('.payment-option').forEach(option => {
         option.addEventListener('click', function() {
@@ -193,35 +177,35 @@ function setupEventListeners() {
             paymentMethod = this.getAttribute('data-method');
         });
     });
-    
+   
     // Request ride button
     document.getElementById('requestRideBtn').addEventListener('click', requestRide);
-    
+   
     // Schedule ride button
     document.getElementById('scheduleRideBtn').addEventListener('click', scheduleRide);
-    
+   
     // Cancel ride button
     document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
-    
+   
     // Contact driver button
     document.getElementById('contactDriverBtn').addEventListener('click', contactDriver);
-    
+   
     // Share ride buttons
     document.getElementById('shareRideBtn').addEventListener('click', shareRide);
     document.getElementById('shareRideLinkBtn').addEventListener('click', shareRideLink);
-    
+   
     // Add stop button
     document.getElementById('addStopBtn').addEventListener('click', addStop);
-    
+   
     // Complete payment button
     document.getElementById('completePaymentBtn').addEventListener('click', completePayment);
-    
+   
     // Save profile button
     document.getElementById('saveProfileBtn').addEventListener('click', saveProfile);
-    
+   
     // Logout button
     document.getElementById('logoutBtn').addEventListener('click', logout);
-    
+   
     // Destination input for fare estimation and suggestions
     document.getElementById('destination').addEventListener('input', function() {
         const query = this.value;
@@ -232,7 +216,7 @@ function setupEventListeners() {
             hideDestinationSuggestions();
         }
     });
-    
+   
     // Focus event for destination input
     document.getElementById('destination').addEventListener('focus', function() {
         const query = this.value;
@@ -240,14 +224,14 @@ function setupEventListeners() {
             searchPlaces(query);
         }
     });
-    
+   
     // Click outside to hide suggestions
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.input-group') && !e.target.closest('.suggestion-list')) {
             hideDestinationSuggestions();
         }
     });
-    
+   
     // Saved location buttons
     document.querySelectorAll('.saved-location-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -255,7 +239,7 @@ function setupEventListeners() {
             useSavedLocation(addressType);
         });
     });
-    
+   
     // Star rating
     document.querySelectorAll('.star').forEach(star => {
         star.addEventListener('click', function() {
@@ -263,14 +247,14 @@ function setupEventListeners() {
             setRating(rating);
         });
     });
-    
+   
     // History filter
     document.getElementById('historyFilter').addEventListener('change', loadRideHistory);
     document.getElementById('historyDate').addEventListener('change', loadRideHistory);
-    
+   
     // Dark mode toggle
     document.getElementById('darkModeToggle').addEventListener('change', toggleDarkMode);
-    
+   
     // Ride history item click for popup
     document.addEventListener('click', function(e) {
         if (e.target.closest('.history-item')) {
@@ -281,22 +265,21 @@ function setupEventListeners() {
             }
         }
     });
-    
+   
     // Close popup buttons
     document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
     document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
 }
-
 // Email authentication functions
 function loginUser() {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    
+   
     if (!email || !password) {
         showNotification('Please enter both email and password.');
         return;
     }
-    
+   
     auth.signInWithEmailAndPassword(email, password)
         .then((userCredential) => {
             localStorage.setItem('userAuthenticated', 'true');
@@ -308,21 +291,20 @@ function loginUser() {
             showNotification('Login failed: ' + error.message);
         });
 }
-
 function signupUser() {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
-    
+   
     if (!email || !password) {
         showNotification('Please enter both email and password.');
         return;
     }
-    
+   
     if (password.length < 6) {
         showNotification('Password must be at least 6 characters long.');
         return;
     }
-    
+   
     auth.createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
             localStorage.setItem('userAuthenticated', 'true');
@@ -334,7 +316,6 @@ function signupUser() {
             showNotification('Signup failed: ' + error.message);
         });
 }
-
 // Complete profile setup
 function completeProfile() {
     const name = document.getElementById('profileName').value;
@@ -342,12 +323,12 @@ function completeProfile() {
     const paymentPreference = document.getElementById('paymentPreference').value;
     const homeAddress = document.getElementById('homeAddress').value;
     const workAddress = document.getElementById('workAddress').value;
-    
+   
     if (!name || !phone) {
         showNotification('Please complete all required fields.');
         return;
     }
-    
+   
     if (currentUser) {
         const userData = {
             name: name,
@@ -359,14 +340,14 @@ function completeProfile() {
             createdAt: firebase.database.ServerValue.TIMESTAMP,
             userType: 'passenger'
         };
-        
+       
         database.ref('users/' + currentUser.uid).update(userData)
             .then(() => {
                 localStorage.setItem('profileCompleted', 'true');
                 userFullName = name;
                 showMainApp();
                 showNotification('Profile completed successfully.');
-                
+               
                 // Update user display
                 currentUser.updateProfile({
                     displayName: name
@@ -378,7 +359,6 @@ function completeProfile() {
             });
     }
 }
-
 // Map initialization - Only show user's current location
 function initializeMaps() {
     // Home map - only showing user location
@@ -386,29 +366,28 @@ function initializeMaps() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(homeMap);
-    
+   
     // Ride request map
     rideMap = L.map('rideMap').setView([-15.4167, 28.2833], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(rideMap);
-    
+   
     // Active ride map
     activeRideMap = L.map('activeRideMap').setView([-15.4167, 28.2833], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(activeRideMap);
-    
+   
     // Popup ride details map
     popupRideMap = L.map('popupRideMap').setView([-15.4167, 28.2833], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
     }).addTo(popupRideMap);
-    
+   
     // Get user's current location
     getUserLocation();
 }
-
 // Get user location
 function getUserLocation() {
     if (navigator.geolocation) {
@@ -416,13 +395,13 @@ function getUserLocation() {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             userLocation = { lat, lng };
-            
+           
             // Update all maps with current location
             homeMap.setView([lat, lng], 15);
             rideMap.setView([lat, lng], 15);
             activeRideMap.setView([lat, lng], 15);
             popupRideMap.setView([lat, lng], 15);
-            
+           
             // Add marker for current location only
             userMarker = L.marker([lat, lng], {
                 icon: L.divIcon({
@@ -433,12 +412,12 @@ function getUserLocation() {
             }).addTo(homeMap)
                 .bindPopup('Your current location')
                 .openPopup();
-                
+               
             // Update pickup location field
             reverseGeocode(lat, lng).then(address => {
                 document.getElementById('pickupLocation').value = address;
             });
-            
+           
             // Load nearby places list (not on map)
             loadNearbyPlaces();
         }, error => {
@@ -447,7 +426,6 @@ function getUserLocation() {
         });
     }
 }
-
 // Start continuous location tracking
 function startLocationTracking() {
     if (navigator.geolocation && currentUser) {
@@ -455,19 +433,19 @@ function startLocationTracking() {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             userLocation = { lat, lng };
-            
+           
             // Update user location in Firebase
             database.ref('userLocations/' + currentUser.uid).set({
                 latitude: lat,
                 longitude: lng,
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             });
-            
+           
             // Update marker if it exists
             if (userMarker) {
                 userMarker.setLatLng([lat, lng]);
             }
-            
+           
             // Update destination marker if it exists and we have a destination
             if (destinationMarker) {
                 const destination = document.getElementById('destination').value;
@@ -484,17 +462,16 @@ function startLocationTracking() {
         });
     }
 }
-
 // Load nearby places within 20km radius (displayed in list, not on map)
 function loadNearbyPlaces() {
     if (!userLocation) return;
-    
+   
     const nearbyPlacesList = document.getElementById('nearbyPlacesList');
     nearbyPlacesList.innerHTML = '<div class="loading-text">Loading nearby places...</div>';
-    
+   
     // Clear existing markers
     clearNearbyPlacesMarkers();
-    
+   
     // Using Overpass API to get nearby places
     const radius = 20000; // 20km in meters
     const overpassQuery = `
@@ -511,7 +488,7 @@ function loadNearbyPlaces() {
         >;
         out skel qt;
     `;
-    
+   
     fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
         body: overpassQuery
@@ -519,7 +496,7 @@ function loadNearbyPlaces() {
     .then(response => response.json())
     .then(data => {
         nearbyPlacesList.innerHTML = '';
-        
+       
         if (data.elements && data.elements.length > 0) {
             // Process and display places
             const places = data.elements
@@ -540,16 +517,16 @@ function loadNearbyPlaces() {
                     return place.distance - prevPlace.distance >= 2000; // 2km in meters
                 })
                 .slice(0, 10); // Limit to 10 places (one every 2km for 20km radius)
-            
+           
             if (places.length === 0) {
                 nearbyPlacesList.innerHTML = '<div class="no-places">No nearby places found within 20km</div>';
                 return;
             }
-            
+           
             places.forEach(place => {
                 const placeElement = createNearbyPlaceElement(place);
                 nearbyPlacesList.appendChild(placeElement);
-                
+               
                 // Add marker to map for each nearby place
                 const marker = L.marker([place.lat, place.lon], {
                     icon: L.divIcon({
@@ -559,7 +536,7 @@ function loadNearbyPlaces() {
                     })
                 }).addTo(homeMap)
                     .bindPopup(`<strong>${place.tags.name}</strong><br>${formatPlaceType(place.tags.amenity || place.tags.shop || place.tags.tourism || 'place')}<br>${(place.distance / 1000).toFixed(1)} km away`);
-                
+               
                 nearbyPlacesMarkers.push(marker);
             });
         } else {
@@ -572,7 +549,6 @@ function loadNearbyPlaces() {
         loadFallbackNearbyPlaces();
     });
 }
-
 // Clear nearby places markers from map
 function clearNearbyPlacesMarkers() {
     nearbyPlacesMarkers.forEach(marker => {
@@ -580,15 +556,14 @@ function clearNearbyPlacesMarkers() {
     });
     nearbyPlacesMarkers = [];
 }
-
 // Create nearby place element (for list display only)
 function createNearbyPlaceElement(place) {
     const placeElement = document.createElement('div');
     placeElement.className = 'nearby-place-item';
-    
+   
     const placeType = place.tags.amenity || place.tags.shop || place.tags.tourism || 'place';
     const icon = getPlaceIcon(placeType);
-    
+   
     placeElement.innerHTML = `
         <div class="place-icon">${icon}</div>
         <div class="place-details">
@@ -598,35 +573,36 @@ function createNearbyPlaceElement(place) {
             <div class="place-distance">${(place.distance / 1000).toFixed(1)} km away</div>
         </div>
     `;
-    
+   
     placeElement.addEventListener('click', function() {
         document.getElementById('destination').value = place.tags.name;
         updateFareEstimate();
         showNotification(`Selected: ${place.tags.name}`);
-        
+       
         // Highlight the selected place
         document.querySelectorAll('.nearby-place-item').forEach(item => {
             item.classList.remove('selected');
         });
         this.classList.add('selected');
-        
+       
         // Update destination marker on map
         updateDestinationMarker(place.lat, place.lon, place.tags.name);
-        
+       
         // Draw route from user location to destination
         drawRoute(userLocation.lat, userLocation.lng, place.lat, place.lon);
+
+        // Automatically trigger search if typing starts, but since it's set, it's fine
     });
-    
+   
     return placeElement;
 }
-
 // Update destination marker on map
 function updateDestinationMarker(lat, lng, name) {
     // Remove existing destination marker
     if (destinationMarker) {
         homeMap.removeLayer(destinationMarker);
     }
-    
+   
     // Add new destination marker
     destinationMarker = L.marker([lat, lng], {
         icon: L.divIcon({
@@ -637,7 +613,7 @@ function updateDestinationMarker(lat, lng, name) {
     }).addTo(homeMap)
         .bindPopup(`<strong>${name}</strong><br>Your destination`)
         .openPopup();
-    
+   
     // Fit map to show both user location and destination
     const bounds = L.latLngBounds(
         [userLocation.lat, userLocation.lng],
@@ -645,14 +621,13 @@ function updateDestinationMarker(lat, lng, name) {
     );
     homeMap.fitBounds(bounds, { padding: [20, 20] });
 }
-
 // Draw route from user location to destination
 function drawRoute(startLat, startLng, endLat, endLng) {
     // Remove existing route if any
     if (routePolyline) {
         homeMap.removeLayer(routePolyline);
     }
-    
+   
     // Use OSRM API to get route
     fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
         .then(response => response.json())
@@ -660,7 +635,7 @@ function drawRoute(startLat, startLng, endLat, endLng) {
             if (data.routes && data.routes.length > 0) {
                 const route = data.routes[0];
                 const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
+               
                 // Draw the route on the map
                 routePolyline = L.polyline(routeCoordinates, {
                     color: '#FF6B35',
@@ -668,7 +643,7 @@ function drawRoute(startLat, startLng, endLat, endLng) {
                     opacity: 0.7,
                     dashArray: '10, 10'
                 }).addTo(homeMap);
-                
+               
                 // Fit map to show the entire route
                 homeMap.fitBounds(routePolyline.getBounds(), { padding: [20, 20] });
             }
@@ -687,15 +662,14 @@ function drawRoute(startLat, startLng, endLat, endLng) {
             }).addTo(homeMap);
         });
 }
-
 // Search places based on user input with 20km radius filter
 function searchPlaces(query) {
     if (!userLocation) return;
-    
+   
     const suggestionsContainer = document.getElementById('destinationSuggestions');
     suggestionsContainer.innerHTML = '<div class="loading-text">Searching...</div>';
     suggestionsContainer.style.display = 'block';
-    
+   
     // Using Overpass API for place search
     const radius = 20000; // 20km in meters
     const overpassQuery = `
@@ -707,7 +681,7 @@ function searchPlaces(query) {
         );
         out center;
     `;
-    
+   
     fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
         body: overpassQuery
@@ -716,7 +690,7 @@ function searchPlaces(query) {
     .then(data => {
         suggestionsContainer.innerHTML = '';
         destinationSearchResults = [];
-        
+       
         if (data.elements && data.elements.length > 0) {
             // Process search results
             const results = data.elements
@@ -731,13 +705,13 @@ function searchPlaces(query) {
                         lat = element.center.lat;
                         lon = element.center.lon;
                     }
-                    
+                   
                     // Calculate distance from user
                     const distance = calculateDistance(
                         userLocation.lat, userLocation.lng,
                         lat, lon
                     );
-                    
+                   
                     return {
                         ...element,
                         displayLat: lat,
@@ -747,20 +721,20 @@ function searchPlaces(query) {
                 })
                 .sort((a, b) => a.distance - b.distance) // Sort by distance
                 .slice(0, 10); // Limit to 10 results
-            
+           
             if (results.length === 0) {
                 suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
                 return;
             }
-            
+           
             destinationSearchResults = results;
-            
+           
             results.forEach(result => {
                 const suggestionItem = document.createElement('div');
                 suggestionItem.className = 'suggestion-item';
-                
+               
                 const placeType = result.tags.amenity || result.tags.shop || result.tags.tourism || result.tags.building || 'place';
-                
+               
                 suggestionItem.innerHTML = `
                     <div class="suggestion-icon">${getPlaceIcon(placeType)}</div>
                     <div class="suggestion-details">
@@ -770,25 +744,25 @@ function searchPlaces(query) {
                         <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
                     </div>
                 `;
-                
+               
                 suggestionItem.addEventListener('click', function() {
                     document.getElementById('destination').value = result.tags.name;
                     suggestionsContainer.style.display = 'none';
                     updateFareEstimate();
-                    
+                   
                     // Update destination marker on map
                     updateDestinationMarker(
-                        result.displayLat, 
-                        result.displayLon, 
+                        result.displayLat,
+                        result.displayLon,
                         result.tags.name
                     );
-                    
+                   
                     // Draw route from user location to destination
                     drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
-                    
+                   
                     selectedDestination = result;
                 });
-                
+               
                 suggestionsContainer.appendChild(suggestionItem);
             });
         } else {
@@ -800,13 +774,11 @@ function searchPlaces(query) {
         suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
     });
 }
-
 // Hide destination suggestions
 function hideDestinationSuggestions() {
     const suggestionsContainer = document.getElementById('destinationSuggestions');
     suggestionsContainer.style.display = 'none';
 }
-
 // Get icon for place type
 function getPlaceIcon(placeType) {
     const icons = {
@@ -842,17 +814,15 @@ function getPlaceIcon(placeType) {
         'monument': '🗽',
         'castle': '🏰'
     };
-    
+   
     return icons[placeType] || '📍';
 }
-
 // Format place type for display
 function formatPlaceType(type) {
-    return type.split('_').map(word => 
+    return type.split('_').map(word =>
         word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
 }
-
 // Get place address from tags
 function getPlaceAddress(place) {
     if (place.tags['addr:street']) {
@@ -860,12 +830,11 @@ function getPlaceAddress(place) {
     }
     return 'Address not available';
 }
-
 // Fallback nearby places if API fails
 function loadFallbackNearbyPlaces() {
     const nearbyPlacesList = document.getElementById('nearbyPlacesList');
     nearbyPlacesList.innerHTML = '';
-    
+   
     const fallbackPlaces = [
         { name: 'Lusaka City Center', type: 'city_center', lat: -15.4167, lng: 28.2833 },
         { name: 'Manda Hill Mall', type: 'mall', lat: -15.4096, lng: 28.2997 },
@@ -878,7 +847,7 @@ function loadFallbackNearbyPlaces() {
         { name: 'Lusaka Central Police', type: 'police', lat: -15.4147, lng: 28.2886 },
         { name: 'Lewanika General Hospital', type: 'hospital', lat: -15.4081, lng: 28.2808 }
     ];
-    
+   
     // Calculate distances and sort
     const placesWithDistance = fallbackPlaces.map(place => {
         const distance = calculateDistance(
@@ -887,11 +856,11 @@ function loadFallbackNearbyPlaces() {
         );
         return { ...place, distance };
     }).sort((a, b) => a.distance - b.distance);
-    
+   
     placesWithDistance.forEach(place => {
         const placeElement = document.createElement('div');
         placeElement.className = 'nearby-place-item';
-        
+       
         placeElement.innerHTML = `
             <div class="place-icon">${getPlaceIcon(place.type)}</div>
             <div class="place-details">
@@ -901,28 +870,27 @@ function loadFallbackNearbyPlaces() {
                 <div class="place-distance">${(place.distance / 1000).toFixed(1)} km away</div>
             </div>
         `;
-        
+       
         placeElement.addEventListener('click', function() {
             document.getElementById('destination').value = place.name;
             updateFareEstimate();
             showNotification(`Selected: ${place.name}`);
-            
+           
             document.querySelectorAll('.nearby-place-item').forEach(item => {
                 item.classList.remove('selected');
             });
             this.classList.add('selected');
-            
+           
             // Update destination marker on map
             updateDestinationMarker(place.lat, place.lng, place.name);
-            
+           
             // Draw route from user location to destination
             drawRoute(userLocation.lat, userLocation.lng, place.lat, place.lng);
         });
-        
+       
         nearbyPlacesList.appendChild(placeElement);
     });
 }
-
 // Reverse geocoding function
 function reverseGeocode(lat, lng) {
     return new Promise(resolve => {
@@ -942,7 +910,6 @@ function reverseGeocode(lat, lng) {
             });
     });
 }
-
 // Forward geocoding function with 20km radius filter
 function forwardGeocode(query) {
     return new Promise(resolve => {
@@ -950,7 +917,7 @@ function forwardGeocode(query) {
             resolve([]);
             return;
         }
-        
+       
         fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`)
             .then(response => response.json())
             .then(data => {
@@ -962,7 +929,7 @@ function forwardGeocode(query) {
                     );
                     return distance <= 20000; // 20km in meters
                 });
-                
+               
                 resolve(filteredResults);
             })
             .catch(error => {
@@ -971,23 +938,22 @@ function forwardGeocode(query) {
             });
     });
 }
-
 // Tab switching
 function switchTab(tabId) {
     // Hide all tab contents
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.remove('active');
     });
-    
+   
     // Show selected tab content
     document.getElementById(tabId).classList.add('active');
-    
+   
     // Update active tab
     document.querySelectorAll('.tab').forEach(tab => {
         tab.classList.remove('active');
     });
     document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
-    
+   
     // Load data for specific tabs
     if (tabId === 'historyScreen') {
         loadRideHistory();
@@ -1001,7 +967,6 @@ function switchTab(tabId) {
         loadSettings();
     }
 }
-
 // Use saved location
 function useSavedLocation(addressType) {
     if (currentUser) {
@@ -1009,12 +974,12 @@ function useSavedLocation(addressType) {
             .then(snapshot => {
                 const userData = snapshot.val();
                 const address = userData ? userData[addressType + 'Address'] : null;
-                
+               
                 if (address) {
                     document.getElementById('destination').value = address;
                     updateFareEstimate();
                     showNotification(`${addressType.charAt(0).toUpperCase() + addressType.slice(1)} address set as destination.`);
-                    
+                   
                     // Try to geocode the saved address to show on map
                     forwardGeocode(address).then(results => {
                         if (results.length > 0) {
@@ -1023,7 +988,7 @@ function useSavedLocation(addressType) {
                                 parseFloat(results[0].lon),
                                 address
                             );
-                            
+                           
                             // Draw route from user location to destination
                             drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
                         }
@@ -1034,23 +999,22 @@ function useSavedLocation(addressType) {
             });
     }
 }
-
 // Fare estimation based on distance (K11 minimum, then K1 per 90 meters)
 function updateFareEstimate() {
     const destination = document.getElementById('destination').value;
-    
+   
     if (destination.length > 3 && userLocation) {
         // Calculate distance using Haversine formula (simplified)
         forwardGeocode(destination).then(results => {
             if (results.length > 0) {
                 const destLat = parseFloat(results[0].lat);
                 const destLng = parseFloat(results[0].lon);
-                
+               
                 const distance = calculateDistance(
                     userLocation.lat, userLocation.lng,
                     destLat, destLng
                 );
-                
+               
                 // K11 minimum fare for distances below 90 meters, then K1 per 90 meters
                 let baseFare;
                 if (distance < 90) {
@@ -1058,7 +1022,7 @@ function updateFareEstimate() {
                 } else {
                     baseFare = Math.max(11, Math.ceil(distance / 90));
                 }
-                
+               
                 // Apply ride type multiplier
                 switch(rideType) {
                     case 'standard':
@@ -1071,9 +1035,9 @@ function updateFareEstimate() {
                         baseFare = baseFare * 0.7;
                         break;
                 }
-                
+               
                 document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
-                
+               
                 // Calculate ETA (assuming average speed of 30 km/h)
                 const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
                 document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
@@ -1084,7 +1048,6 @@ function updateFareEstimate() {
         document.getElementById('etaDisplay').textContent = 'ETA: -- min';
     }
 }
-
 // Calculate distance between two coordinates using Haversine formula
 function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371e3; // Earth's radius in meters
@@ -1092,39 +1055,36 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     const φ2 = lat2 * Math.PI / 180;
     const Δφ = (lat2 - lat1) * Math.PI / 180;
     const Δλ = (lon2 - lon1) * Math.PI / 180;
-
     const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
               Math.cos(φ1) * Math.cos(φ2) *
               Math.sin(Δλ/2) * Math.sin(Δλ/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
     return R * c; // Distance in meters
 }
-
 // Enhanced Ride request with proper error handling and Firebase integration
 function requestRide() {
     const pickup = document.getElementById('pickupLocation').value;
     const destination = document.getElementById('destination').value;
-    
+   
     if (!pickup || !destination) {
         showNotification('Please enter both pickup and destination locations.');
         return;
     }
-    
+   
     if (!userLocation) {
         showNotification('Unable to get your location. Please enable location services.');
         return;
     }
-    
+   
     if (!currentUser) {
         showNotification('Please log in to request a ride.');
         return;
     }
-    
+   
     // Show loading state
     document.getElementById('requestRideBtn').disabled = true;
     document.getElementById('requestRideBtn').textContent = 'Requesting...';
-    
+   
     // Calculate fare based on distance
     forwardGeocode(destination).then(results => {
         if (results.length === 0) {
@@ -1133,15 +1093,15 @@ function requestRide() {
             document.getElementById('requestRideBtn').textContent = 'Request Ride';
             return;
         }
-        
+       
         const destLat = parseFloat(results[0].lat);
         const destLng = parseFloat(results[0].lon);
-        
+       
         const distance = calculateDistance(
             userLocation.lat, userLocation.lng,
             destLat, destLng
         );
-        
+       
         // K11 minimum fare for distances below 90 meters, then K1 per 90 meters
         let fare;
         if (distance < 90) {
@@ -1149,7 +1109,7 @@ function requestRide() {
         } else {
             fare = Math.max(11, Math.ceil(distance / 90));
         }
-        
+       
         // Apply ride type multiplier
         switch(rideType) {
             case 'standard':
@@ -1162,7 +1122,7 @@ function requestRide() {
                 fare = fare * 0.7;
                 break;
         }
-        
+       
         // Create ride request in Firebase with all details
         const rideId = database.ref().child('rides').push().key;
         const rideData = {
@@ -1179,40 +1139,46 @@ function requestRide() {
             rideType: rideType,
             fare: fare,
             distance: (distance / 1000).toFixed(2) + ' km',
-            status: 'requested',
+            status: 'pending',  // Changed to 'pending'
             timestamp: firebase.database.ServerValue.TIMESTAMP,
             updatedAt: firebase.database.ServerValue.TIMESTAMP
         };
-        
+       
         database.ref('rides/' + rideId).set(rideData)
             .then(() => {
-                currentRide = rideData;
+                // Also record under user history with pending tag
+                database.ref(`users/${currentUser.uid}/history/${rideId}`).set({
+                    ...rideData,
+                    tag: 'waiting for driver'
+                });
                 
+                currentRide = rideData;
+               
                 // Update UI
                 document.getElementById('pickupAddress').textContent = pickup;
                 document.getElementById('destinationAddress').textContent = destination;
                 document.getElementById('rideFare').textContent = `K${fare.toFixed(2)}`;
-                
+               
                 // Update active ride screen as well
                 document.getElementById('activePickupAddress').textContent = pickup;
                 document.getElementById('activeDestinationAddress').textContent = destination;
                 document.getElementById('currentFare').textContent = `K${fare.toFixed(2)}`;
-                
+               
                 // Switch to ride request screen
                 switchTab('rideRequestScreen');
-                
+               
                 // Setup ride map
                 setupRideMap(userLocation.lat, userLocation.lng, destLat, destLng);
-                
+               
                 // Start pulsing animation
                 startPulsingAnimation();
-                
+               
                 // Listen for driver assignment
                 listenForDriverAssignment(rideId);
-                
+               
                 // Show notification with ride request submitted
                 showNotification('Ride request submitted! You will be notified once a driver is assigned.');
-                
+               
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
                 document.getElementById('requestRideBtn').textContent = 'Request Ride';
@@ -1220,7 +1186,7 @@ function requestRide() {
             .catch(error => {
                 console.error('Error requesting ride:', error);
                 showNotification('Error requesting ride. Please check your connection and try again.');
-                
+               
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
                 document.getElementById('requestRideBtn').textContent = 'Request Ride';
@@ -1228,13 +1194,12 @@ function requestRide() {
     }).catch(error => {
         console.error('Error geocoding destination:', error);
         showNotification('Error calculating route. Please try again.');
-        
+       
         // Reset button state
         document.getElementById('requestRideBtn').disabled = false;
         document.getElementById('requestRideBtn').textContent = 'Request Ride';
     });
 }
-
 // Get user phone number
 function getUserPhone() {
     if (currentUser) {
@@ -1242,54 +1207,51 @@ function getUserPhone() {
     }
     return 'Not provided';
 }
-
 // Start pulsing animation for ride request
 function startPulsingAnimation() {
     const loadingSpinner = document.querySelector('.loading-spinner');
     const spinner = document.querySelector('.spinner');
     const pulsingText = document.querySelector('.pulsing-text');
-    
+   
     // Show loading elements
     loadingSpinner.classList.remove('hidden');
     document.getElementById('assignedDriver').classList.add('hidden');
-    
+   
     // Add pulsing classes
     spinner.classList.add('pulsing');
     pulsingText.classList.add('pulsing');
-    
+   
     // Create pulsing effect
     ridePulsingAnimation = setInterval(() => {
         spinner.style.transform = spinner.style.transform === 'scale(1.2)' ? 'scale(1)' : 'scale(1.2)';
     }, 500);
 }
-
 // Stop pulsing animation
 function stopPulsingAnimation() {
     if (ridePulsingAnimation) {
         clearInterval(ridePulsingAnimation);
         ridePulsingAnimation = null;
     }
-    
+   
     const spinner = document.querySelector('.spinner');
     const pulsingText = document.querySelector('.pulsing-text');
-    
+   
     if (spinner) {
         spinner.classList.remove('pulsing');
         spinner.style.transform = 'scale(1)';
     }
-    
+   
     if (pulsingText) {
         pulsingText.classList.remove('pulsing');
     }
 }
-
 // Enhanced driver assignment listener
 function listenForDriverAssignment(rideId) {
     // Remove any existing listener
     if (driverAssignmentListener) {
         driverAssignmentListener();
     }
-    
+   
     // Listen for changes to the ride
     driverAssignmentListener = database.ref('rides/' + rideId).on('value', snapshot => {
         const ride = snapshot.val();
@@ -1297,9 +1259,9 @@ function listenForDriverAssignment(rideId) {
             showNotification('Ride not found. Please try again.');
             return;
         }
-        
+       
         console.log('Ride status update:', ride.status, ride.driverId);
-        
+       
         if (ride.driverId && ride.status === 'accepted') {
             // Driver assigned and ride accepted
             handleDriverAssignment(ride);
@@ -1324,16 +1286,15 @@ function listenForDriverAssignment(rideId) {
         showNotification('Connection error. Please check your internet connection.');
     });
 }
-
 // Handle driver assignment
 function handleDriverAssignment(ride) {
     // Stop pulsing animation
     stopPulsingAnimation();
-    
+   
     // Hide loading spinner and show driver info
     document.querySelector('.loading-spinner').classList.add('hidden');
     document.getElementById('assignedDriver').classList.remove('hidden');
-    
+   
     // Get driver details
     database.ref('users/' + ride.driverId).once('value')
         .then(driverSnapshot => {
@@ -1344,21 +1305,21 @@ function handleDriverAssignment(ride) {
                 document.getElementById('driverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
                 document.getElementById('driverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
                 document.getElementById('driverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
-                
+               
                 // Update active ride screen as well
                 document.getElementById('activeDriverName').textContent = driver.name || 'Driver';
                 document.getElementById('activeDriverPhone').textContent = `Phone: ${driver.phone || 'N/A'}`;
                 document.getElementById('activeDriverVehicle').textContent = `Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})`;
                 document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
-                
+               
                 showNotification(`Driver ${driver.name} has accepted your ride!`);
-                
+               
                 // Start tracking driver location
                 trackDriverLocation(ride.driverId, ride.id);
-                
+               
                 // Update map with driver and customer locations
                 updateRideMapWithDriver(ride);
-                
+               
                 // Switch to during ride screen after a short delay
                 setTimeout(() => {
                     switchTab('duringRideScreen');
@@ -1371,32 +1332,29 @@ function handleDriverAssignment(ride) {
             showNotification('Driver assigned but could not load details.');
         });
 }
-
 // Handle ride cancellation
 function handleRideCancellation(ride) {
     stopPulsingAnimation();
     showNotification('Ride has been cancelled.');
     switchTab('homeScreen');
     currentRide = null;
-    
+   
     // Clean up
     if (driverMarker) {
         rideMap.removeLayer(driverMarker);
         driverMarker = null;
     }
-    
+   
     // Remove listener
     if (driverAssignmentListener) {
         driverAssignmentListener();
         driverAssignmentListener = null;
     }
 }
-
 // Schedule ride for later
 function scheduleRide() {
     showNotification('Scheduled rides feature coming soon!');
 }
-
 // Setup ride map with route
 function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
     // Clear existing map
@@ -1405,7 +1363,7 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
             rideMap.removeLayer(layer);
         }
     });
-    
+   
     // Add markers
     L.marker([pickupLat, pickupLng], {
         icon: L.divIcon({
@@ -1414,7 +1372,7 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
             iconSize: [30, 40]
         })
     }).addTo(rideMap).bindPopup('Pickup Location');
-    
+   
     L.marker([destLat, destLng], {
         icon: L.divIcon({
             className: 'destination-marker',
@@ -1422,10 +1380,10 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
             iconSize: [30, 40]
         })
     }).addTo(rideMap).bindPopup('Destination');
-    
+   
     // Draw route on ride map
     drawRouteOnRideMap(pickupLat, pickupLng, destLat, destLng);
-    
+   
     // Fit map to show both locations
     const bounds = L.latLngBounds(
         [pickupLat, pickupLng],
@@ -1433,7 +1391,6 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
     );
     rideMap.fitBounds(bounds, { padding: [20, 20] });
 }
-
 // Draw route on ride map
 function drawRouteOnRideMap(startLat, startLng, endLat, endLng) {
     // Use OSRM API to get route
@@ -1443,7 +1400,7 @@ function drawRouteOnRideMap(startLat, startLng, endLat, endLng) {
             if (data.routes && data.routes.length > 0) {
                 const route = data.routes[0];
                 const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
+               
                 // Draw the route on the map
                 L.polyline(routeCoordinates, {
                     color: '#FF6B35',
@@ -1465,7 +1422,6 @@ function drawRouteOnRideMap(startLat, startLng, endLat, endLng) {
             }).addTo(rideMap);
         });
 }
-
 // Update ride map with driver and customer locations
 function updateRideMapWithDriver(ride) {
     // Clear existing map
@@ -1474,7 +1430,7 @@ function updateRideMapWithDriver(ride) {
             rideMap.removeLayer(layer);
         }
     });
-    
+   
     // Add customer marker
     L.marker([ride.pickupLat, ride.pickupLng], {
         icon: L.divIcon({
@@ -1483,7 +1439,7 @@ function updateRideMapWithDriver(ride) {
             iconSize: [30, 40]
         })
     }).addTo(rideMap).bindPopup('Your Location');
-    
+   
     // Add destination marker
     L.marker([ride.destLat, ride.destLng], {
         icon: L.divIcon({
@@ -1492,10 +1448,10 @@ function updateRideMapWithDriver(ride) {
             iconSize: [30, 40]
         })
     }).addTo(rideMap).bindPopup('Destination');
-    
+   
     // Draw route
     drawRouteOnRideMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-    
+   
     // Get driver location and add marker
     database.ref('driverLocations/' + ride.driverId).once('value')
         .then(snapshot => {
@@ -1508,7 +1464,7 @@ function updateRideMapWithDriver(ride) {
                         iconSize: [40, 40]
                     })
                 }).addTo(rideMap).bindPopup('Your Driver');
-                
+               
                 // Fit map to show all points
                 const bounds = L.latLngBounds(
                     [ride.pickupLat, ride.pickupLng],
@@ -1519,7 +1475,6 @@ function updateRideMapWithDriver(ride) {
             }
         });
 }
-
 // Track driver location
 function trackDriverLocation(driverId, rideId) {
     database.ref('driverLocations/' + driverId).on('value', snapshot => {
@@ -1540,7 +1495,6 @@ function trackDriverLocation(driverId, rideId) {
         }
     });
 }
-
 // Setup active ride map
 function setupActiveRideMap(ride) {
     // Clear existing map
@@ -1549,7 +1503,7 @@ function setupActiveRideMap(ride) {
             activeRideMap.removeLayer(layer);
         }
     });
-    
+   
     // Add customer marker
     L.marker([ride.pickupLat, ride.pickupLng], {
         icon: L.divIcon({
@@ -1558,7 +1512,7 @@ function setupActiveRideMap(ride) {
             iconSize: [30, 40]
         })
     }).addTo(activeRideMap).bindPopup('Pickup Location');
-    
+   
     // Add destination marker
     L.marker([ride.destLat, ride.destLng], {
         icon: L.divIcon({
@@ -1567,21 +1521,20 @@ function setupActiveRideMap(ride) {
             iconSize: [30, 40]
         })
     }).addTo(activeRideMap).bindPopup('Destination');
-    
+   
     // Draw route on active ride map
     drawRouteOnActiveRideMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-    
+   
     // Fit map to show both locations
     const bounds = L.latLngBounds(
         [ride.pickupLat, ride.pickupLng],
         [ride.destLat, ride.destLng]
     );
     activeRideMap.fitBounds(bounds, { padding: [20, 20] });
-    
+   
     // Start tracking both user and driver locations
     trackActiveRideLocations(ride);
 }
-
 // Draw route on active ride map
 function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
     // Use OSRM API to get route
@@ -1591,7 +1544,7 @@ function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
             if (data.routes && data.routes.length > 0) {
                 const route = data.routes[0];
                 const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
+               
                 // Draw the route on the map
                 L.polyline(routeCoordinates, {
                     color: '#FF6B35',
@@ -1613,7 +1566,6 @@ function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
             }).addTo(activeRideMap);
         });
 }
-
 // Track both user and driver locations during active ride
 function trackActiveRideLocations(ride) {
     // Track driver location
@@ -1633,7 +1585,7 @@ function trackActiveRideLocations(ride) {
                 } else {
                     driverMarker.setLatLng([location.latitude, location.longitude]);
                 }
-                
+               
                 // Update user marker
                 if (userLocation && !userMarker) {
                     userMarker = L.marker([userLocation.lat, userLocation.lng], {
@@ -1646,7 +1598,7 @@ function trackActiveRideLocations(ride) {
                 } else if (userLocation && userMarker) {
                     userMarker.setLatLng([userLocation.lat, userLocation.lng]);
                 }
-                
+               
                 // Fit map to show all points if available
                 if (userLocation) {
                     const bounds = L.latLngBounds(
@@ -1660,29 +1612,32 @@ function trackActiveRideLocations(ride) {
         });
     }
 }
-
 // Cancel ride
 function cancelRide() {
     if (currentRide) {
         if (confirm('Are you sure you want to cancel this ride?')) {
             stopPulsingAnimation();
-            
+           
             // Remove listener
             if (driverAssignmentListener) {
                 driverAssignmentListener();
                 driverAssignmentListener = null;
             }
-            
+           
             database.ref('rides/' + currentRide.id).update({
                 status: 'cancelled',
                 cancelledAt: firebase.database.ServerValue.TIMESTAMP,
                 updatedAt: firebase.database.ServerValue.TIMESTAMP
             })
             .then(() => {
+                // Update user history
+                database.ref(`users/${currentUser.uid}/history/${currentRide.id}`).update({
+                    status: 'cancelled'
+                });
                 showNotification('Ride cancelled successfully.');
                 switchTab('homeScreen');
                 currentRide = null;
-                
+               
                 // Clean up
                 if (driverMarker) {
                     rideMap.removeLayer(driverMarker);
@@ -1696,7 +1651,6 @@ function cancelRide() {
         }
     }
 }
-
 // Contact driver
 function contactDriver() {
     if (currentRide && currentRide.driverId) {
@@ -1714,7 +1668,6 @@ function contactDriver() {
             });
     }
 }
-
 // Share ride
 function shareRide() {
     if (currentRide) {
@@ -1723,7 +1676,7 @@ function shareRide() {
             text: `I'm taking a Jubel ride from ${currentRide.pickupLocation} to ${currentRide.destination}`,
             url: window.location.href
         };
-        
+       
         if (navigator.share) {
             navigator.share(shareData)
                 .then(() => showNotification('Ride shared successfully!'))
@@ -1735,7 +1688,6 @@ function shareRide() {
         }
     }
 }
-
 // Share ride link
 function shareRideLink() {
     if (currentRide) {
@@ -1744,7 +1696,6 @@ function shareRideLink() {
             .then(() => showNotification('Ride link copied to clipboard!'));
     }
 }
-
 // Add stop during ride
 function addStop() {
     const stopAddress = prompt('Enter stop address:');
@@ -1753,16 +1704,15 @@ function addStop() {
         // In a real app, this would update the ride route
     }
 }
-
 // Ride completion
 function showRideCompletion(ride) {
     // Update final fare
     document.getElementById('finalFare').textContent = `K${ride.fare.toFixed(2)}`;
-    
+   
     // Switch to completion screen
     switchTab('rideCompletionScreen');
     showNotification('Ride completed. Please complete payment and rating.');
-    
+   
     // Clean up
     if (driverMarker) {
         activeRideMap.removeLayer(driverMarker);
@@ -1772,14 +1722,13 @@ function showRideCompletion(ride) {
         activeRideMap.removeLayer(userMarker);
         userMarker = null;
     }
-    
+   
     // Remove listener
     if (driverAssignmentListener) {
         driverAssignmentListener();
         driverAssignmentListener = null;
     }
 }
-
 // Set rating stars
 function setRating(rating) {
     userRating = rating;
@@ -1792,15 +1741,14 @@ function setRating(rating) {
         }
     });
 }
-
 // Complete payment
 function completePayment() {
     const tipAmount = parseFloat(document.getElementById('tipAmount').value) || 0;
     const review = document.getElementById('driverReview').value;
-    
+   
     if (currentRide) {
         const totalAmount = currentRide.fare + tipAmount;
-        
+       
         // Update ride with payment and rating info
         database.ref('rides/' + currentRide.id).update({
             status: 'paid',
@@ -1813,23 +1761,27 @@ function completePayment() {
             updatedAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
+            // Update user history
+            database.ref(`users/${currentUser.uid}/history/${currentRide.id}`).update({
+                status: 'paid'
+            });
             showNotification(`Payment of K${totalAmount.toFixed(2)} completed. Thank you for using Jubel!`);
             switchTab('homeScreen');
             currentRide = null;
-            
+           
             // Reset form
             document.getElementById('destination').value = '';
             document.getElementById('estimatedFare').textContent = 'K0.00';
             document.getElementById('tipAmount').value = '';
             document.getElementById('driverReview').value = '';
             setRating(0);
-            
+           
             // Clear route from map
             if (routePolyline) {
                 homeMap.removeLayer(routePolyline);
                 routePolyline = null;
             }
-            
+           
             // Clear destination marker
             if (destinationMarker) {
                 homeMap.removeLayer(destinationMarker);
@@ -1842,7 +1794,6 @@ function completePayment() {
         });
     }
 }
-
 // Load user data
 function loadUserData() {
     if (currentUser) {
@@ -1856,18 +1807,13 @@ function loadUserData() {
                     document.getElementById('userEmail').value = userData.email || '';
                     document.getElementById('savedHome').value = userData.homeAddress || '';
                     document.getElementById('savedWork').value = userData.workAddress || '';
-                    
-                    // Update user icon
-                    document.getElementById('userIcon').textContent = userFullName ? 
-                        userFullName.charAt(0).toUpperCase() : 'P';
-                    
+                   
                     // Update greeting
                     updateUserGreeting();
                 }
             });
     }
 }
-
 // Save profile
 function saveProfile() {
     const name = document.getElementById('userName').value;
@@ -1875,7 +1821,7 @@ function saveProfile() {
     const email = document.getElementById('userEmail').value;
     const homeAddress = document.getElementById('savedHome').value;
     const workAddress = document.getElementById('savedWork').value;
-    
+   
     if (currentUser) {
         database.ref('users/' + currentUser.uid).update({
             name: name,
@@ -1888,14 +1834,12 @@ function saveProfile() {
         .then(() => {
             userFullName = name;
             showNotification('Profile saved successfully.');
-            
+           
             // Update user display
             currentUser.updateProfile({
                 displayName: name
             });
-            
-            document.getElementById('userIcon').textContent = name ? name.charAt(0).toUpperCase() : 'P';
-            
+           
             // Update greeting
             updateUserGreeting();
         })
@@ -1905,35 +1849,34 @@ function saveProfile() {
         });
     }
 }
-
 // Load ride history with all statuses including pending orders
 function loadRideHistory() {
     if (currentUser) {
         const filter = document.getElementById('historyFilter').value;
         const dateFilter = document.getElementById('historyDate').value;
-        
+       
         // Remove existing listener
         if (rideHistoryListener) {
             rideHistoryListener();
         }
-        
+       
         // Set up real-time listener for ride history
         rideHistoryListener = database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).on('value', snapshot => {
             const historyList = document.getElementById('historyList');
             historyList.innerHTML = '';
-            
+           
             const rides = snapshot.val();
             if (rides) {
                 let ridesArray = Object.keys(rides).map(rideId => ({
                     id: rideId,
                     ...rides[rideId]
                 }));
-                
+               
                 // Apply filters
                 if (filter !== 'all') {
                     ridesArray = ridesArray.filter(ride => ride.status === filter);
                 }
-                
+               
                 if (dateFilter) {
                     const filterDate = new Date(dateFilter);
                     ridesArray = ridesArray.filter(ride => {
@@ -1941,39 +1884,39 @@ function loadRideHistory() {
                         return rideDate.toDateString() === filterDate.toDateString();
                     });
                 }
-                
+               
                 // Sort by timestamp (newest first)
                 ridesArray.sort((a, b) => b.timestamp - a.timestamp);
-                
+               
                 if (ridesArray.length === 0) {
                     historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No rides found matching your criteria.</p>';
                     return;
                 }
-                
+               
                 ridesArray.forEach(ride => {
                     const historyItem = document.createElement('div');
                     historyItem.className = 'history-item';
                     historyItem.setAttribute('data-ride-id', ride.id);
-                    
+                   
                     const date = new Date(ride.timestamp);
                     const formattedDate = date.toLocaleDateString();
                     const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    
+                   
                     // Determine status badge class
                     let statusClass = 'status-requested';
                     let statusText = getStatusText(ride.status);
-                    
+                   
                     if (ride.status === 'accepted') {
                         statusClass = 'status-accepted';
                     } else if (ride.status === 'completed' || ride.status === 'paid') {
                         statusClass = 'status-completed';
                     } else if (ride.status === 'cancelled') {
                         statusClass = 'status-cancelled';
-                    } else if (ride.status === 'requested') {
+                    } else if (ride.status === 'pending') {  // Updated for pending
                         statusClass = 'status-pending';
-                        statusText = 'Pending';
+                        statusText = 'Waiting for Driver';
                     }
-                    
+                   
                     historyItem.innerHTML = `
                         <div class="history-locations">
                             <div>
@@ -1991,7 +1934,7 @@ function loadRideHistory() {
                             </div>
                         </div>
                     `;
-                    
+                   
                     historyList.appendChild(historyItem);
                 });
             } else {
@@ -2003,11 +1946,10 @@ function loadRideHistory() {
         });
     }
 }
-
 // Get display text for ride status
 function getStatusText(status) {
     const statusMap = {
-        'requested': 'Awaiting Driver',
+        'pending': 'Waiting for Driver',  // Updated
         'accepted': 'In Progress',
         'completed': 'Completed',
         'paid': 'Completed',
@@ -2016,10 +1958,9 @@ function getStatusText(status) {
         'picked_up': 'Picked Up',
         'started': 'Trip Started'
     };
-    
+   
     return statusMap[status] || status;
 }
-
 // Show ride details popup
 function showRideDetailsPopup(rideId) {
     database.ref('rides/' + rideId).once('value')
@@ -2033,14 +1974,14 @@ function showRideDetailsPopup(rideId) {
                 document.getElementById('popupRideDistance').textContent = ride.distance || 'Calculating...';
                 document.getElementById('popupRideStatus').textContent = getStatusText(ride.status);
                 document.getElementById('popupRideType').textContent = ride.rideType ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1) : 'Standard';
-                
+               
                 // Format date
                 const date = new Date(ride.timestamp);
                 document.getElementById('popupRideDate').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                
+               
                 // Update map in popup
                 updatePopupRideMap(ride);
-                
+               
                 // Show driver details if available
                 if (ride.driverId) {
                     database.ref('users/' + ride.driverId).once('value')
@@ -2051,17 +1992,17 @@ function showRideDetailsPopup(rideId) {
                                 document.getElementById('popupDriverPhone').textContent = driver.phone || 'N/A';
                                 document.getElementById('popupDriverVehicle').textContent = `${driver.vehicleType || 'Car'} (${driver.licensePlate || 'N/A'})`;
                                 document.getElementById('popupDriverRating').textContent = driver.rating || '4.5';
-                                
+                               
                                 // Show driver progress based on ride status
                                 updateDriverProgress(ride.status);
-                                
+                               
                                 document.getElementById('popupDriverDetails').classList.remove('hidden');
                             }
                         });
                 } else {
                     document.getElementById('popupDriverDetails').classList.add('hidden');
                 }
-                
+               
                 // Show popup
                 document.getElementById('rideDetailsPopup').classList.remove('hidden');
             }
@@ -2071,13 +2012,12 @@ function showRideDetailsPopup(rideId) {
             showNotification('Error loading ride details.');
         });
 }
-
 // Update driver progress in popup
 function updateDriverProgress(status) {
     const progressElement = document.getElementById('popupDriverProgress');
-    
+   
     switch(status) {
-        case 'requested':
+        case 'pending':
             progressElement.textContent = 'Waiting for driver to accept';
             break;
         case 'accepted':
@@ -2102,7 +2042,6 @@ function updateDriverProgress(status) {
             progressElement.textContent = 'Status: ' + status;
     }
 }
-
 // Update popup ride map
 function updatePopupRideMap(ride) {
     // Clear existing map
@@ -2111,7 +2050,7 @@ function updatePopupRideMap(ride) {
             popupRideMap.removeLayer(layer);
         }
     });
-    
+   
     // Add pickup marker
     L.marker([ride.pickupLat, ride.pickupLng], {
         icon: L.divIcon({
@@ -2120,7 +2059,7 @@ function updatePopupRideMap(ride) {
             iconSize: [30, 40]
         })
     }).addTo(popupRideMap).bindPopup('Pickup Location');
-    
+   
     // Add destination marker
     L.marker([ride.destLat, ride.destLng], {
         icon: L.divIcon({
@@ -2129,10 +2068,10 @@ function updatePopupRideMap(ride) {
             iconSize: [30, 40]
         })
     }).addTo(popupRideMap).bindPopup('Destination');
-    
+   
     // Draw route
     drawRouteOnPopupMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-    
+   
     // Fit map to show both locations
     const bounds = L.latLngBounds(
         [ride.pickupLat, ride.pickupLng],
@@ -2140,7 +2079,6 @@ function updatePopupRideMap(ride) {
     );
     popupRideMap.fitBounds(bounds, { padding: [20, 20] });
 }
-
 // Draw route on popup map
 function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
     // Use OSRM API to get route
@@ -2150,7 +2088,7 @@ function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
             if (data.routes && data.routes.length > 0) {
                 const route = data.routes[0];
                 const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
+               
                 // Draw the route on the map
                 L.polyline(routeCoordinates, {
                     color: '#FF6B35',
@@ -2172,12 +2110,10 @@ function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
             }).addTo(popupRideMap);
         });
 }
-
 // Close ride details popup
 function closeRideDetailsPopup() {
     document.getElementById('rideDetailsPopup').classList.add('hidden');
 }
-
 // Check for active rides
 function checkActiveRides() {
     if (currentUser) {
@@ -2188,16 +2124,16 @@ function checkActiveRides() {
                     // Find any active rides
                     const activeRides = Object.keys(rides).filter(rideId => {
                         const ride = rides[rideId];
-                        return ride.status === 'accepted' || ride.status === 'arrived' || 
+                        return ride.status === 'accepted' || ride.status === 'arrived' ||
                                ride.status === 'picked_up' || ride.status === 'started';
                     });
-                    
+                   
                     if (activeRides.length > 0) {
                         // Switch to active ride screen
                         const activeRideId = activeRides[0];
                         const activeRide = rides[activeRideId];
                         currentRide = { id: activeRideId, ...activeRide };
-                        
+                       
                         // Set up active ride
                         setupActiveRide(activeRide);
                     }
@@ -2205,14 +2141,13 @@ function checkActiveRides() {
             });
     }
 }
-
 // Set up active ride
 function setupActiveRide(ride) {
     // Update UI
     document.getElementById('activePickupAddress').textContent = ride.pickupLocation;
     document.getElementById('activeDestinationAddress').textContent = ride.destination;
     document.getElementById('currentFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
-    
+   
     // Get driver details if available
     if (ride.driverId) {
         database.ref('users/' + ride.driverId).once('value')
@@ -2225,28 +2160,28 @@ function setupActiveRide(ride) {
                     document.getElementById('activeDriverRating').textContent = `Rating: ${driver.rating || '4.5'} ★`;
                 }
             });
-        
+       
         // Start tracking driver location
         trackDriverLocation(ride.driverId, ride.id);
     }
-    
+   
     // Set up active ride map
     setupActiveRideMap(ride);
-    
+   
     // Switch to during ride screen
     switchTab('duringRideScreen');
-    
+   
     // Set up listener for ride updates
     if (activeRideListener) {
         activeRideListener();
     }
-    
+   
     activeRideListener = database.ref('rides/' + ride.id).on('value', snapshot => {
         const updatedRide = snapshot.val();
         if (updatedRide) {
             // Update current ride
             currentRide = { id: ride.id, ...updatedRide };
-            
+           
             // Handle status changes
             if (updatedRide.status === 'completed') {
                 showRideCompletion(updatedRide);
@@ -2256,7 +2191,6 @@ function setupActiveRide(ride) {
         }
     });
 }
-
 // Load settings
 function loadSettings() {
     // Load user preferences
@@ -2264,12 +2198,12 @@ function loadSettings() {
     const promoNotifications = localStorage.getItem('promoNotifications') === 'true';
     const language = localStorage.getItem('language') || 'en';
     const darkMode = localStorage.getItem('darkMode') === 'true';
-    
+   
     document.getElementById('rideNotifications').checked = rideNotifications;
     document.getElementById('promoNotifications').checked = promoNotifications;
     document.getElementById('languageSelect').value = language;
     document.getElementById('darkModeToggle').checked = darkMode;
-    
+   
     // Apply dark mode if enabled
     if (darkMode) {
         document.body.classList.add('dark-mode');
@@ -2277,7 +2211,6 @@ function loadSettings() {
         document.body.classList.remove('dark-mode');
     }
 }
-
 // Initialize app settings
 function initializeAppSettings() {
     // Check for saved dark mode preference
@@ -2286,23 +2219,22 @@ function initializeAppSettings() {
         document.body.classList.add('dark-mode');
         document.getElementById('darkModeToggle').checked = true;
     }
-    
+   
     // Check for saved language preference
     const language = localStorage.getItem('language') || 'en';
     document.getElementById('languageSelect').value = language;
-    
+   
     // Check notification preferences
     const rideNotifications = localStorage.getItem('rideNotifications') !== 'false';
     const promoNotifications = localStorage.getItem('promoNotifications') === 'true';
-    
+   
     document.getElementById('rideNotifications').checked = rideNotifications;
     document.getElementById('promoNotifications').checked = promoNotifications;
 }
-
 // Toggle dark mode
 function toggleDarkMode() {
     const darkMode = document.getElementById('darkModeToggle').checked;
-    
+   
     if (darkMode) {
         document.body.classList.add('dark-mode');
         localStorage.setItem('darkMode', 'true');
@@ -2311,7 +2243,6 @@ function toggleDarkMode() {
         localStorage.setItem('darkMode', 'false');
     }
 }
-
 // Logout
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
@@ -2320,17 +2251,17 @@ function logout() {
             driverAssignmentListener();
             driverAssignmentListener = null;
         }
-        
+       
         if (rideHistoryListener) {
             rideHistoryListener();
             rideHistoryListener = null;
         }
-        
+       
         if (activeRideListener) {
             activeRideListener();
             activeRideListener = null;
         }
-        
+       
         auth.signOut()
             .then(() => {
                 currentUser = null;
@@ -2346,23 +2277,20 @@ function logout() {
             });
     }
 }
-
 // Show notification
 function showNotification(message) {
     const notification = document.getElementById('notification');
     notification.textContent = message;
     notification.style.display = 'block';
-    
+   
     setTimeout(() => {
         notification.style.display = 'none';
     }, 4000);
 }
-
 // Handle offline/online status
 window.addEventListener('online', function() {
     showNotification('Connection restored.');
 });
-
 window.addEventListener('offline', function() {
     showNotification('You are currently offline. Some features may not work.');
 });
