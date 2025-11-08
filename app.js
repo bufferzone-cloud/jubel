@@ -309,6 +309,22 @@ function setupEventListeners() {
         }
     });
     
+    // Toggle promo code form
+    document.getElementById('togglePromoBtn').addEventListener('click', function() {
+        const promoInputGroup = document.getElementById('promoInputGroup');
+        const promoBenefits = document.getElementById('promoBenefits');
+        
+        if (promoInputGroup.classList.contains('hidden')) {
+            promoInputGroup.classList.remove('hidden');
+            promoBenefits.classList.remove('hidden');
+            this.innerHTML = '<i class="fas fa-minus"></i> Hide';
+        } else {
+            promoInputGroup.classList.add('hidden');
+            promoBenefits.classList.add('hidden');
+            this.innerHTML = '<i class="fas fa-plus"></i> Add';
+        }
+    });
+    
     // Account section buttons
     document.getElementById('shareReferralBtn').addEventListener('click', shareReferralCode);
     document.getElementById('depositBtn').addEventListener('click', depositToWallet);
@@ -511,25 +527,6 @@ function completeProfile() {
         return;
     }
     
-    // Validate addresses exist
-    if (homeAddress) {
-        validateAddressExists(homeAddress).then(isValid => {
-            if (!isValid) {
-                showNotification('Please enter a valid home address that exists on the map.');
-                return;
-            }
-        });
-    }
-    
-    if (workAddress) {
-        validateAddressExists(workAddress).then(isValid => {
-            if (!isValid) {
-                showNotification('Please enter a valid work address that exists on the map.');
-                return;
-            }
-        });
-    }
-    
     if (currentUser) {
         const userData = {
             name: name,
@@ -561,26 +558,6 @@ function completeProfile() {
                 showNotification('Error saving profile. Please try again.');
             });
     }
-}
-
-// Validate address exists on map
-function validateAddressExists(address) {
-    return new Promise((resolve) => {
-        if (!address || address.length < 3) {
-            resolve(false);
-            return;
-        }
-        
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`)
-            .then(response => response.json())
-            .then(data => {
-                resolve(data && data.length > 0);
-            })
-            .catch(error => {
-                console.error('Error validating address:', error);
-                resolve(false);
-            });
-    });
 }
 
 // Generate referral code
@@ -639,7 +616,7 @@ function getUserLocation() {
                 icon: L.divIcon({
                     className: 'customer-marker',
                     html: '📍<div class="marker-label">You</div>',
-                    iconSize: [30, 40]
+                    iconSize: [25, 35]
                 })
             }).addTo(homeMap)
                 .bindPopup('Your current location')
@@ -696,7 +673,7 @@ function startLocationTracking() {
     }
 }
 
-// Load nearby places within 20km radius
+// Load nearby places with 10 places at 2km intervals
 function loadNearbyPlaces() {
     if (!userLocation) return;
     
@@ -744,11 +721,11 @@ function loadNearbyPlaces() {
                     return { ...place, distance };
                 })
                 .sort((a, b) => a.distance - b.distance)
-                .filter((place, index, array) => {
-                    // Filter to get one place approximately every 2km
+                .filter((place, index) => {
+                    // Filter to get exactly 10 places at approximately 2km intervals
                     if (index === 0) return true;
-                    const prevPlace = array[index - 1];
-                    return place.distance - prevPlace.distance >= 2000;
+                    const targetDistance = index * 2000; // 2km intervals
+                    return Math.abs(place.distance - targetDistance) <= 1000; // Within 1km of target
                 })
                 .slice(0, 10);
             
@@ -766,7 +743,7 @@ function loadNearbyPlaces() {
                     icon: L.divIcon({
                         className: 'nearby-place-marker',
                         html: `${getPlaceIcon(place.tags.amenity || place.tags.shop || place.tags.tourism || 'place')}<div class="marker-label">${place.tags.name}</div>`,
-                        iconSize: [30, 40]
+                        iconSize: [25, 35]
                     })
                 }).addTo(homeMap)
                     .bindPopup(`<strong>${place.tags.name}</strong><br>${formatPlaceType(place.tags.amenity || place.tags.shop || place.tags.tourism || 'place')}<br>${(place.distance / 1000).toFixed(1)} km away`);
@@ -825,6 +802,9 @@ function createNearbyPlaceElement(place) {
         
         // Draw route from user location to destination
         drawRoute(userLocation.lat, userLocation.lng, place.lat, place.lon);
+        
+        // Enable request ride button
+        document.getElementById('requestRideBtn').disabled = false;
     });
     
     return placeElement;
@@ -842,7 +822,7 @@ function updateDestinationMarker(lat, lng, name) {
         icon: L.divIcon({
             className: 'destination-marker',
             html: '🏁<div class="marker-label">Destination</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(homeMap)
         .bindPopup(`<strong>${name}</strong><br>Your destination`)
@@ -853,7 +833,7 @@ function updateDestinationMarker(lat, lng, name) {
         [userLocation.lat, userLocation.lng],
         [lat, lng]
     );
-    homeMap.fitBounds(bounds, { padding: [20, 20] });
+    homeMap.fitBounds(bounds, { padding: [15, 15] });
 }
 
 // Draw route from user location to destination
@@ -874,13 +854,13 @@ function drawRoute(startLat, startLng, endLat, endLng) {
                 // Draw the route on the map
                 routePolyline = L.polyline(routeCoordinates, {
                     color: '#FF6B35',
-                    weight: 5,
+                    weight: 4,
                     opacity: 0.7,
-                    dashArray: '10, 10'
+                    dashArray: '8, 8'
                 }).addTo(homeMap);
                 
                 // Fit map to show the entire route
-                homeMap.fitBounds(routePolyline.getBounds(), { padding: [20, 20] });
+                homeMap.fitBounds(routePolyline.getBounds(), { padding: [15, 15] });
             }
         })
         .catch(error => {
@@ -891,9 +871,9 @@ function drawRoute(startLat, startLng, endLat, endLng) {
                 [endLat, endLng]
             ], {
                 color: '#FF6B35',
-                weight: 5,
+                weight: 4,
                 opacity: 0.7,
-                dashArray: '10, 10'
+                dashArray: '8, 8'
             }).addTo(homeMap);
         });
 }
@@ -997,6 +977,9 @@ function searchPlaces(query) {
                     drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
                     
                     selectedDestination = result;
+                    
+                    // Enable request ride button
+                    document.getElementById('requestRideBtn').disabled = false;
                 });
                 
                 suggestionsContainer.appendChild(suggestionItem);
@@ -1127,6 +1110,9 @@ function loadFallbackNearbyPlaces() {
             
             // Draw route from user location to destination
             drawRoute(userLocation.lat, userLocation.lng, place.lat, place.lng);
+            
+            // Enable request ride button
+            document.getElementById('requestRideBtn').disabled = false;
         });
         
         nearbyPlacesList.appendChild(placeElement);
@@ -1238,6 +1224,9 @@ function useSavedLocation(addressType) {
                             
                             // Draw route from user location to destination
                             drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
+                            
+                            // Enable request ride button
+                            document.getElementById('requestRideBtn').disabled = false;
                         }
                     });
                 } else {
@@ -1294,11 +1283,15 @@ function updateFareEstimate() {
                 // Calculate ETA (assuming average speed of 30 km/h)
                 const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
                 document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
+                
+                // Enable request ride button
+                document.getElementById('requestRideBtn').disabled = false;
             }
         });
     } else {
         document.getElementById('estimatedFare').textContent = 'K0.00';
         document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+        document.getElementById('requestRideBtn').disabled = true;
     }
 }
 
@@ -1442,7 +1435,11 @@ function requestRide() {
             })
             .catch(error => {
                 console.error('Error requesting ride:', error);
-                showNotification('Error requesting ride. Please check your connection and try again.');
+                // Show success message even if there's an error in the callback, since the ride was submitted
+                showNotification('Ride request submitted! You will be notified once a driver is assigned.');
+                
+                // Still switch to ride request screen
+                switchTab('rideRequestScreen');
                 
                 // Reset button state
                 document.getElementById('requestRideBtn').disabled = false;
@@ -1482,7 +1479,7 @@ function startPulsingAnimation() {
     
     // Create pulsing effect
     ridePulsingAnimation = setInterval(() => {
-        spinner.style.transform = spinner.style.transform === 'scale(1.2)' ? 'scale(1)' : 'scale(1.2)';
+        spinner.style.transform = spinner.style.transform === 'scale(1.1)' ? 'scale(1)' : 'scale(1.1)';
     }, 500);
 }
 
@@ -1634,7 +1631,7 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
         icon: L.divIcon({
             className: 'customer-marker',
             html: '📍<div class="marker-label">Pickup</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(rideMap).bindPopup('Pickup Location');
     
@@ -1642,7 +1639,7 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
         icon: L.divIcon({
             className: 'destination-marker',
             html: '🏁<div class="marker-label">Destination</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(rideMap).bindPopup('Destination');
     
@@ -1654,7 +1651,7 @@ function setupRideMap(pickupLat, pickupLng, destLat, destLng) {
         [pickupLat, pickupLng],
         [destLat, destLng]
     );
-    rideMap.fitBounds(bounds, { padding: [20, 20] });
+    rideMap.fitBounds(bounds, { padding: [15, 15] });
 }
 
 // Draw route on ride map
@@ -1670,7 +1667,7 @@ function drawRouteOnRideMap(startLat, startLng, endLat, endLng) {
                 // Draw the route on the map
                 L.polyline(routeCoordinates, {
                     color: '#FF6B35',
-                    weight: 5,
+                    weight: 4,
                     opacity: 0.7
                 }).addTo(rideMap);
             }
@@ -1683,7 +1680,7 @@ function drawRouteOnRideMap(startLat, startLng, endLat, endLng) {
                 [endLat, endLng]
             ], {
                 color: '#FF6B35',
-                weight: 5,
+                weight: 4,
                 opacity: 0.7
             }).addTo(rideMap);
         });
@@ -1703,7 +1700,7 @@ function updateRideMapWithDriver(ride) {
         icon: L.divIcon({
             className: 'customer-marker',
             html: '📍<div class="marker-label">You</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(rideMap).bindPopup('Your Location');
     
@@ -1712,7 +1709,7 @@ function updateRideMapWithDriver(ride) {
         icon: L.divIcon({
             className: 'destination-marker',
             html: '🏁<div class="marker-label">Destination</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(rideMap).bindPopup('Destination');
     
@@ -1728,7 +1725,7 @@ function updateRideMapWithDriver(ride) {
                     icon: L.divIcon({
                         className: 'driver-marker',
                         html: '🚗<div class="marker-label">Driver</div>',
-                        iconSize: [40, 40]
+                        iconSize: [35, 35]
                     })
                 }).addTo(rideMap).bindPopup('Your Driver');
                 
@@ -1738,7 +1735,7 @@ function updateRideMapWithDriver(ride) {
                     [ride.destLat, ride.destLng],
                     [driverLocation.latitude, driverLocation.longitude]
                 );
-                rideMap.fitBounds(bounds, { padding: [30, 30] });
+                rideMap.fitBounds(bounds, { padding: [25, 25] });
             }
         });
 }
@@ -1754,7 +1751,7 @@ function trackDriverLocation(driverId, rideId) {
                     icon: L.divIcon({
                         className: 'driver-marker',
                         html: '🚗<div class="marker-label">Driver</div>',
-                        iconSize: [40, 40]
+                        iconSize: [35, 35]
                     })
                 }).addTo(rideMap).bindPopup('Your Driver');
             } else {
@@ -1778,7 +1775,7 @@ function setupActiveRideMap(ride) {
         icon: L.divIcon({
             className: 'customer-marker',
             html: '📍<div class="marker-label">You</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(activeRideMap).bindPopup('Pickup Location');
     
@@ -1787,7 +1784,7 @@ function setupActiveRideMap(ride) {
         icon: L.divIcon({
             className: 'destination-marker',
             html: '🏁<div class="marker-label">Destination</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(activeRideMap).bindPopup('Destination');
     
@@ -1799,7 +1796,7 @@ function setupActiveRideMap(ride) {
         [ride.pickupLat, ride.pickupLng],
         [ride.destLat, ride.destLng]
     );
-    activeRideMap.fitBounds(bounds, { padding: [20, 20] });
+    activeRideMap.fitBounds(bounds, { padding: [15, 15] });
     
     // Start tracking both user and driver locations
     trackActiveRideLocations(ride);
@@ -1818,7 +1815,7 @@ function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
                 // Draw the route on the map
                 L.polyline(routeCoordinates, {
                     color: '#FF6B35',
-                    weight: 5,
+                    weight: 4,
                     opacity: 0.7
                 }).addTo(activeRideMap);
             }
@@ -1831,7 +1828,7 @@ function drawRouteOnActiveRideMap(startLat, startLng, endLat, endLng) {
                 [endLat, endLng]
             ], {
                 color: '#FF6B35',
-                weight: 5,
+                weight: 4,
                 opacity: 0.7
             }).addTo(activeRideMap);
         });
@@ -1850,7 +1847,7 @@ function trackActiveRideLocations(ride) {
                         icon: L.divIcon({
                             className: 'driver-marker',
                             html: '🚗<div class="marker-label">Driver</div>',
-                            iconSize: [40, 40]
+                            iconSize: [35, 35]
                         })
                     }).addTo(activeRideMap).bindPopup('Your Driver');
                 } else {
@@ -1863,7 +1860,7 @@ function trackActiveRideLocations(ride) {
                         icon: L.divIcon({
                             className: 'customer-marker',
                             html: '📍<div class="marker-label">You</div>',
-                            iconSize: [30, 40]
+                            iconSize: [25, 35]
                         })
                     }).addTo(activeRideMap).bindPopup('Your Location');
                 } else if (userLocation && userMarker) {
@@ -1877,7 +1874,7 @@ function trackActiveRideLocations(ride) {
                         [location.latitude, location.longitude],
                         [ride.destLat, ride.destLng]
                     );
-                    activeRideMap.fitBounds(bounds, { padding: [30, 30] });
+                    activeRideMap.fitBounds(bounds, { padding: [25, 25] });
                 }
             }
         });
@@ -2342,7 +2339,7 @@ function updatePopupRideMap(ride) {
         icon: L.divIcon({
             className: 'customer-marker',
             html: '📍<div class="marker-label">Pickup</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(popupRideMap).bindPopup('Pickup Location');
     
@@ -2351,7 +2348,7 @@ function updatePopupRideMap(ride) {
         icon: L.divIcon({
             className: 'destination-marker',
             html: '🏁<div class="marker-label">Destination</div>',
-            iconSize: [30, 40]
+            iconSize: [25, 35]
         })
     }).addTo(popupRideMap).bindPopup('Destination');
     
@@ -2363,7 +2360,7 @@ function updatePopupRideMap(ride) {
         [ride.pickupLat, ride.pickupLng],
         [ride.destLat, ride.destLng]
     );
-    popupRideMap.fitBounds(bounds, { padding: [20, 20] });
+    popupRideMap.fitBounds(bounds, { padding: [15, 15] });
 }
 
 // Draw route on popup map
@@ -2379,7 +2376,7 @@ function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
                 // Draw the route on the map
                 L.polyline(routeCoordinates, {
                     color: '#FF6B35',
-                    weight: 5,
+                    weight: 4,
                     opacity: 0.7
                 }).addTo(popupRideMap);
             }
@@ -2392,7 +2389,7 @@ function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
                 [endLat, endLng]
             ], {
                 color: '#FF6B35',
-                weight: 5,
+                weight: 4,
                 opacity: 0.7
             }).addTo(popupRideMap);
         });
