@@ -77,27 +77,21 @@ function showOnboardingScreen() {
     document.getElementById('onboardingScreen').classList.remove('hidden');
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.querySelector('header').classList.add('hidden');
-    document.querySelector('.main-content').classList.add('hidden');
-    document.querySelector('.tab-container').classList.add('hidden');
+    document.getElementById('mainApp').style.display = 'none';
 }
 
 function showAuthScreen() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('authScreen').classList.remove('hidden');
     document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.querySelector('header').classList.add('hidden');
-    document.querySelector('.main-content').classList.add('hidden');
-    document.querySelector('.tab-container').classList.add('hidden');
+    document.getElementById('mainApp').style.display = 'none';
 }
 
 function showProfileSetupScreen() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('profileSetupScreen').classList.remove('hidden');
-    document.querySelector('header').classList.add('hidden');
-    document.querySelector('.main-content').classList.add('hidden');
-    document.querySelector('.tab-container').classList.add('hidden');
+    document.getElementById('mainApp').style.display = 'none';
     
     // Initialize address autocomplete for profile setup
     initializeAddressAutocomplete('homeAddress', 'homeAddressSuggestions');
@@ -108,9 +102,7 @@ function showMainApp() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('authScreen').classList.add('hidden');
     document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.querySelector('header').classList.remove('hidden');
-    document.querySelector('.main-content').classList.remove('hidden');
-    document.querySelector('.tab-container').classList.remove('hidden');
+    document.getElementById('mainApp').style.display = 'block';
     
     // Update user greeting
     updateUserGreeting();
@@ -163,6 +155,15 @@ function setupEventListeners() {
     // Onboarding
     document.getElementById('getStartedBtn').addEventListener('click', function() {
         localStorage.setItem('onboardingCompleted', 'true');
+        showAuthScreen();
+    });
+    
+    // Back buttons
+    document.getElementById('backToOnboarding').addEventListener('click', function() {
+        showOnboardingScreen();
+    });
+    
+    document.getElementById('backToAuth').addEventListener('click', function() {
         showAuthScreen();
     });
     
@@ -478,9 +479,21 @@ function loginUser() {
     
     auth.signInWithEmailAndPassword(email, password)
         .then((userCredential) => {
-            localStorage.setItem('userAuthenticated', 'true');
-            checkOnboardingStatus();
-            showNotification('Login successful!');
+            // Check if this is a passenger account
+            return database.ref('users/' + userCredential.user.uid).once('value')
+                .then(snapshot => {
+                    const userData = snapshot.val();
+                    if (userData && userData.userType === 'driver') {
+                        // This is a driver account, don't allow login
+                        auth.signOut();
+                        throw new Error('Driver accounts cannot log in to the passenger app. Please use the driver app.');
+                    }
+                    
+                    // This is a passenger account, proceed
+                    localStorage.setItem('userAuthenticated', 'true');
+                    checkOnboardingStatus();
+                    showNotification('Login successful!');
+                });
         })
         .catch((error) => {
             console.error('Login error:', error);
