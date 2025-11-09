@@ -272,6 +272,7 @@
             display: none;
             flex-direction: column;
             gap: 15px;
+            padding-bottom: 20px;
         }
         
         .form-step.active {
@@ -296,6 +297,11 @@
             display: flex;
             justify-content: center;
             margin-bottom: 20px;
+            position: sticky;
+            top: 0;
+            background: var(--white);
+            padding: 10px 0;
+            z-index: 10;
         }
         
         .step {
@@ -423,7 +429,7 @@
             line-height: 1.5;
         }
         
-        /* Email Verification Screen */
+        /* Email Verification Styles */
         .verification-container {
             position: fixed;
             top: 0;
@@ -437,7 +443,15 @@
             align-items: center;
             justify-content: center;
             padding: var(--app-padding);
+        }
+        
+        .verification-content {
             text-align: center;
+            max-width: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
         }
         
         .verification-icon {
@@ -450,21 +464,25 @@
             justify-content: center;
             color: var(--white);
             font-size: 2rem;
-            margin-bottom: 20px;
         }
         
         .verification-title {
             font-size: 1.5rem;
             font-weight: 700;
             color: var(--dark-gray);
-            margin-bottom: 10px;
         }
         
         .verification-message {
             color: var(--medium-gray);
-            max-width: 400px;
             line-height: 1.5;
-            margin-bottom: 20px;
+        }
+        
+        .verification-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+            max-width: 300px;
         }
         
         /* Dashboard Styles */
@@ -1745,19 +1763,26 @@
     
     <!-- Email Verification Screen -->
     <div class="verification-container" id="verificationContainer">
-        <div class="verification-icon">
-            <i class="fas fa-envelope"></i>
+        <div class="verification-content">
+            <div class="verification-icon">
+                <i class="fas fa-envelope"></i>
+            </div>
+            <h2 class="verification-title">Verify Your Email</h2>
+            <p class="verification-message">
+                We've sent a verification link to your email address. 
+                Please check your inbox and click the link to verify your account.
+            </p>
+            <div class="verification-actions">
+                <button class="btn btn-primary btn-full" id="resendVerificationBtn">
+                    <i class="fas fa-redo"></i>
+                    Resend Verification Email
+                </button>
+                <button class="btn btn-secondary btn-full" id="continueToDashboardBtn">
+                    <i class="fas fa-tachometer-alt"></i>
+                    Continue to Dashboard
+                </button>
+            </div>
         </div>
-        <h2 class="verification-title">Verify Your Email</h2>
-        <p class="verification-message">We've sent a verification link to your email address. Please check your inbox and click the link to verify your account before proceeding to the dashboard.</p>
-        <button class="btn btn-primary" id="resendVerificationBtn">
-            <i class="fas fa-redo"></i>
-            Resend Verification Email
-        </button>
-        <button class="btn btn-secondary" id="proceedToDashboardBtn" style="margin-top: 10px;">
-            <i class="fas fa-tachometer-alt"></i>
-            Proceed to Dashboard
-        </button>
     </div>
     
     <!-- Dashboard -->
@@ -2356,11 +2381,17 @@
                         .then(snapshot => {
                             const driverData = snapshot.val();
                             if (driverData && driverData.registrationComplete) {
-                                // Driver is registered, show dashboard
-                                showDashboard();
-                                initializeMap();
-                                setupDashboardEventListeners();
-                                loadDriverData();
+                                // Check if email is verified
+                                if (user.emailVerified) {
+                                    // Driver is registered and verified, show dashboard
+                                    showDashboard();
+                                    initializeMap();
+                                    setupDashboardEventListeners();
+                                    loadDriverData();
+                                } else {
+                                    // Email not verified, show verification screen
+                                    showVerificationScreen();
+                                }
                             } else {
                                 // Driver needs to complete registration
                                 showRegistration();
@@ -2382,8 +2413,8 @@
             document.getElementById('welcomeContainer').style.display = 'flex';
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'none';
+            document.getElementById('verificationContainer').style.display = 'none';
         }
         
         // Show login screen
@@ -2391,8 +2422,8 @@
             document.getElementById('welcomeContainer').style.display = 'none';
             document.getElementById('loginContainer').style.display = 'flex';
             document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'none';
+            document.getElementById('verificationContainer').style.display = 'none';
         }
         
         // Show registration screen
@@ -2400,17 +2431,20 @@
             document.getElementById('welcomeContainer').style.display = 'none';
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('registrationContainer').style.display = 'flex';
-            document.getElementById('verificationContainer').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'none';
+            document.getElementById('verificationContainer').style.display = 'none';
+            
+            // Auto-scroll to top when showing registration
+            document.getElementById('registrationContainer').scrollTo(0, 0);
         }
         
-        // Show email verification screen
+        // Show verification screen
         function showVerificationScreen() {
             document.getElementById('welcomeContainer').style.display = 'none';
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'flex';
             document.getElementById('dashboardContainer').style.display = 'none';
+            document.getElementById('verificationContainer').style.display = 'flex';
         }
         
         // Show dashboard
@@ -2418,8 +2452,8 @@
             document.getElementById('welcomeContainer').style.display = 'none';
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'none';
             document.getElementById('dashboardContainer').style.display = 'block';
+            document.getElementById('verificationContainer').style.display = 'none';
         }
         
         // Setup welcome screen event listeners
@@ -2457,27 +2491,25 @@
                 .then((userCredential) => {
                     currentUser = userCredential.user;
                     
-                    // Check if email is verified
-                    if (!currentUser.emailVerified) {
-                        showVerificationScreen();
-                        showNotification('Please verify your email before logging in.');
-                        document.getElementById('loginSubmitBtn').disabled = false;
-                        document.getElementById('loginSubmitBtn').innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-                        return;
-                    }
-                    
                     // Check if driver has completed registration
                     return database.ref('drivers/' + currentUser.uid).once('value');
                 })
                 .then(snapshot => {
                     const driverData = snapshot.val();
                     if (driverData && driverData.registrationComplete) {
-                        // Driver is registered, show dashboard
-                        showDashboard();
-                        initializeMap();
-                        setupDashboardEventListeners();
-                        loadDriverData();
-                        showNotification('Login successful!');
+                        // Check if email is verified
+                        if (currentUser.emailVerified) {
+                            // Driver is registered and verified, show dashboard
+                            showDashboard();
+                            initializeMap();
+                            setupDashboardEventListeners();
+                            loadDriverData();
+                            showNotification('Login successful!');
+                        } else {
+                            // Email not verified, show verification screen
+                            showVerificationScreen();
+                            showNotification('Please verify your email address to continue.');
+                        }
                     } else {
                         // Driver needs to complete registration
                         showRegistration();
@@ -2519,6 +2551,15 @@
                     
                     // Show appropriate vehicle details
                     toggleVehicleDetails();
+                    
+                    // Auto-scroll to vehicle details
+                    const registrationContainer = document.getElementById('registrationContainer');
+                    const vehicleDetails = document.querySelector('.vehicle-details-section.active');
+                    if (vehicleDetails) {
+                        setTimeout(() => {
+                            vehicleDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 300);
+                    }
                 });
             });
             
@@ -2527,39 +2568,30 @@
             
             // Go to dashboard
             document.getElementById('goToDashboard').addEventListener('click', function() {
-                showDashboard();
-                initializeMap();
-                setupDashboardEventListeners();
-                loadDriverData();
+                // Check if email is verified
+                if (currentUser && currentUser.emailVerified) {
+                    showDashboard();
+                    initializeMap();
+                    setupDashboardEventListeners();
+                    loadDriverData();
+                } else {
+                    showVerificationScreen();
+                }
             });
             
-            // Auto-scroll to next step
-            setupAutoScroll();
-            
-            // Email verification
+            // Verification screen buttons
             document.getElementById('resendVerificationBtn').addEventListener('click', resendVerificationEmail);
-            document.getElementById('proceedToDashboardBtn').addEventListener('click', proceedToDashboard);
-        }
-        
-        // Setup auto-scroll during registration
-        function setupAutoScroll() {
-            // Auto-scroll to top when changing steps
-            const stepButtons = [
-                document.getElementById('step1Next'),
-                document.getElementById('step2Back'),
-                document.getElementById('step2Next'),
-                document.getElementById('step3Back'),
-                document.getElementById('step3Next')
-            ];
-            
-            stepButtons.forEach(button => {
-                if (button) {
-                    button.addEventListener('click', function() {
-                        // Scroll to top of registration container
-                        document.getElementById('registrationContainer').scrollTo({
-                            top: 0,
-                            behavior: 'smooth'
-                        });
+            document.getElementById('continueToDashboardBtn').addEventListener('click', function() {
+                if (currentUser) {
+                    currentUser.reload().then(() => {
+                        if (currentUser.emailVerified) {
+                            showDashboard();
+                            initializeMap();
+                            setupDashboardEventListeners();
+                            loadDriverData();
+                        } else {
+                            showNotification('Email not verified yet. Please check your inbox.');
+                        }
                     });
                 }
             });
@@ -2598,10 +2630,10 @@
                 return;
             }
             
-            // Save step 1 data - ensure email is stored as string
+            // Save step 1 data
             registrationData.personal = {
                 fullName: fullName,
-                email: String(email), // Ensure it's a string
+                email: email,
                 password: password,
                 nrcNumber: nrcNumber
             };
@@ -2616,6 +2648,11 @@
             document.getElementById('step2Form').classList.add('active');
             
             currentStep = 2;
+            
+            // Auto-scroll to top of step 2
+            setTimeout(() => {
+                document.getElementById('step2Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
         }
         
         // Go to step 1
@@ -2629,6 +2666,11 @@
             document.getElementById('step1Form').classList.add('active');
             
             currentStep = 1;
+            
+            // Auto-scroll to top of step 1
+            setTimeout(() => {
+                document.getElementById('step1Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
         }
         
         // Go to step 3
@@ -2707,6 +2749,11 @@
             document.getElementById('step3Form').classList.add('active');
             
             currentStep = 3;
+            
+            // Auto-scroll to top of step 3
+            setTimeout(() => {
+                document.getElementById('step3Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
         }
         
         // Go to step 2
@@ -2720,6 +2767,11 @@
             document.getElementById('step2Form').classList.add('active');
             
             currentStep = 2;
+            
+            // Auto-scroll to top of step 2
+            setTimeout(() => {
+                document.getElementById('step2Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
         }
         
         // Toggle vehicle details based on selected type
@@ -2748,9 +2800,19 @@
             if (paymentMethod === 'bank') {
                 bankDetails.style.display = 'block';
                 mobileMoneyDetails.style.display = 'none';
+                
+                // Auto-scroll to bank details
+                setTimeout(() => {
+                    bankDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
             } else if (paymentMethod === 'mobile') {
                 bankDetails.style.display = 'none';
                 mobileMoneyDetails.style.display = 'block';
+                
+                // Auto-scroll to mobile money details
+                setTimeout(() => {
+                    mobileMoneyDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 300);
             } else {
                 bankDetails.style.display = 'none';
                 mobileMoneyDetails.style.display = 'none';
@@ -2799,26 +2861,12 @@
                 };
             }
             
-            // Validate email is present and is a string
-            const email = registrationData.personal.email;
-            const password = registrationData.personal.password;
-            
-            if (!email || typeof email !== 'string') {
-                showNotification('Invalid email address');
-                return;
-            }
-            
-            if (!password || typeof password !== 'string') {
-                showNotification('Invalid password');
-                return;
-            }
-            
             // Show loading state
             document.getElementById('step3Next').disabled = true;
             document.getElementById('step3Next').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
             
             // Create user with email authentication
-            auth.createUserWithEmailAndPassword(email, password)
+            auth.createUserWithEmailAndPassword(registrationData.personal.email, registrationData.personal.password)
                 .then((userCredential) => {
                     currentUser = userCredential.user;
                     
@@ -2868,7 +2916,7 @@
             if (currentUser) {
                 currentUser.sendEmailVerification()
                     .then(() => {
-                        showNotification('Verification email sent! Please check your inbox.');
+                        showNotification('Verification email sent. Please check your inbox.');
                     })
                     .catch(error => {
                         console.error('Error sending verification email:', error);
@@ -2877,36 +2925,8 @@
             }
         }
         
-        // Proceed to dashboard (even if email not verified)
-        function proceedToDashboard() {
-            if (currentUser) {
-                // Check if email is verified
-                currentUser.reload().then(() => {
-                    if (currentUser.emailVerified) {
-                        showDashboard();
-                        initializeMap();
-                        setupDashboardEventListeners();
-                        loadDriverData();
-                        showNotification('Email verified successfully!');
-                    } else {
-                        showNotification('Email not verified yet. You can still proceed to dashboard.');
-                        showDashboard();
-                        initializeMap();
-                        setupDashboardEventListeners();
-                        loadDriverData();
-                    }
-                });
-            }
-        }
-        
         // Email validation helper
         function isValidEmail(email) {
-            // First check if it's a string
-            if (typeof email !== 'string') {
-                return false;
-            }
-            
-            // Then check the format
             const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
             return re.test(String(email).toLowerCase());
         }
