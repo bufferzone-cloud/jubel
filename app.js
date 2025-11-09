@@ -13,13 +13,12 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
-const auth = firebase.auth();
 
 // App state
 let currentUser = null;
 let currentRide = null;
 let homeMap, rideMap, activeRideMap, popupRideMap;
-let rideType = 'standard';
+let rideType = 'car';
 let paymentMethod = 'airtel';
 let userRating = 0;
 let userLocation = null;
@@ -47,7 +46,6 @@ let userStats = {
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
-    initializeAuth();
     initializeMaps();
     setupEventListeners();
     checkOnboardingStatus();
@@ -56,16 +54,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Check if user needs to complete onboarding
 function checkOnboardingStatus() {
-    const onboardingCompleted = localStorage.getItem('onboardingCompleted');
-    const userAuthenticated = localStorage.getItem('userAuthenticated');
-    const profileCompleted = localStorage.getItem('profileCompleted');
+    const userRegistered = localStorage.getItem('userRegistered');
     
-    if (!onboardingCompleted) {
+    if (!userRegistered) {
         showOnboardingScreen();
-    } else if (!userAuthenticated) {
-        showAuthScreen();
-    } else if (!profileCompleted) {
-        showProfileSetupScreen();
     } else {
         loadUserData();
         showMainApp();
@@ -75,34 +67,26 @@ function checkOnboardingStatus() {
 // Show onboarding screens
 function showOnboardingScreen() {
     document.getElementById('onboardingScreen').classList.remove('hidden');
-    document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('registrationScreen').classList.add('hidden');
+    document.querySelector('header').classList.add('hidden');
+    document.querySelector('.main-content').classList.add('hidden');
+    document.querySelector('.tab-container').classList.add('hidden');
 }
 
-function showAuthScreen() {
+function showRegistrationScreen() {
     document.getElementById('onboardingScreen').classList.add('hidden');
-    document.getElementById('authScreen').classList.remove('hidden');
-    document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.getElementById('mainApp').style.display = 'none';
-}
-
-function showProfileSetupScreen() {
-    document.getElementById('onboardingScreen').classList.add('hidden');
-    document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('profileSetupScreen').classList.remove('hidden');
-    document.getElementById('mainApp').style.display = 'none';
-    
-    // Initialize address autocomplete for profile setup
-    initializeAddressAutocomplete('homeAddress', 'homeAddressSuggestions');
-    initializeAddressAutocomplete('workAddress', 'workAddressSuggestions');
+    document.getElementById('registrationScreen').classList.remove('hidden');
+    document.querySelector('header').classList.add('hidden');
+    document.querySelector('.main-content').classList.add('hidden');
+    document.querySelector('.tab-container').classList.add('hidden');
 }
 
 function showMainApp() {
     document.getElementById('onboardingScreen').classList.add('hidden');
-    document.getElementById('authScreen').classList.add('hidden');
-    document.getElementById('profileSetupScreen').classList.add('hidden');
-    document.getElementById('mainApp').style.display = 'block';
+    document.getElementById('registrationScreen').classList.add('hidden');
+    document.querySelector('header').classList.remove('hidden');
+    document.querySelector('.main-content').classList.remove('hidden');
+    document.querySelector('.tab-container').classList.remove('hidden');
     
     // Update user greeting
     updateUserGreeting();
@@ -130,53 +114,15 @@ function updateUserGreeting() {
     }
 }
 
-// Authentication functions
-function initializeAuth() {
-    auth.onAuthStateChanged(user => {
-        if (user) {
-            currentUser = user;
-            document.getElementById('userIcon').innerHTML = '<i class="fas fa-user"></i>';
-            loadUserData();
-            
-            // Start location tracking for authenticated users
-            startLocationTracking();
-        } else {
-            // Check if we need to show auth screen
-            const userAuthenticated = localStorage.getItem('userAuthenticated');
-            if (!userAuthenticated) {
-                showAuthScreen();
-            }
-        }
-    });
-}
-
 // Enhanced Event Listeners
 function setupEventListeners() {
     // Onboarding
     document.getElementById('getStartedBtn').addEventListener('click', function() {
-        localStorage.setItem('onboardingCompleted', 'true');
-        showAuthScreen();
+        showRegistrationScreen();
     });
     
-    // Back buttons
-    document.getElementById('backToOnboarding').addEventListener('click', function() {
-        showOnboardingScreen();
-    });
-    
-    document.getElementById('backToAuth').addEventListener('click', function() {
-        showAuthScreen();
-    });
-    
-    // Authentication
-    document.getElementById('loginBtn').addEventListener('click', loginUser);
-    document.getElementById('signupBtn').addEventListener('click', signupUser);
-    document.getElementById('switchToSignup').addEventListener('click', function() {
-        document.getElementById('loginBtn').classList.add('hidden');
-        document.getElementById('signupBtn').classList.remove('hidden');
-    });
-    
-    // Profile setup
-    document.getElementById('completeProfileBtn').addEventListener('click', completeProfile);
+    // Registration
+    document.getElementById('registrationForm').addEventListener('submit', registerUser);
     
     // Tab navigation
     document.querySelectorAll('.tab').forEach(tab => {
@@ -467,110 +413,64 @@ function hideAllAddressSuggestions() {
     });
 }
 
-// Email authentication functions
-function loginUser() {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
+// User registration function
+function registerUser(e) {
+    e.preventDefault();
     
-    if (!email || !password) {
-        showNotification('Please enter both email and password.');
-        return;
-    }
+    const name = document.getElementById('userName').value;
+    const email = document.getElementById('userEmail').value;
+    const phone = document.getElementById('userPhone').value;
     
-    auth.signInWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            // Check if this is a passenger account
-            return database.ref('users/' + userCredential.user.uid).once('value')
-                .then(snapshot => {
-                    const userData = snapshot.val();
-                    if (userData && userData.userType === 'driver') {
-                        // This is a driver account, don't allow login
-                        auth.signOut();
-                        throw new Error('Driver accounts cannot log in to the passenger app. Please use the driver app.');
-                    }
-                    
-                    // This is a passenger account, proceed
-                    localStorage.setItem('userAuthenticated', 'true');
-                    checkOnboardingStatus();
-                    showNotification('Login successful!');
-                });
-        })
-        .catch((error) => {
-            console.error('Login error:', error);
-            showNotification('Login failed: ' + error.message);
-        });
-}
-
-function signupUser() {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-    
-    if (!email || !password) {
-        showNotification('Please enter both email and password.');
-        return;
-    }
-    
-    if (password.length < 6) {
-        showNotification('Password must be at least 6 characters long.');
-        return;
-    }
-    
-    auth.createUserWithEmailAndPassword(email, password)
-        .then((userCredential) => {
-            localStorage.setItem('userAuthenticated', 'true');
-            showProfileSetupScreen();
-            showNotification('Account created successfully!');
-        })
-        .catch((error) => {
-            console.error('Signup error:', error);
-            showNotification('Signup failed: ' + error.message);
-        });
-}
-
-// Complete profile setup with address validation
-function completeProfile() {
-    const name = document.getElementById('profileName').value;
-    const phone = document.getElementById('profilePhone').value;
-    const paymentPreference = document.getElementById('paymentPreference').value;
-    const homeAddress = document.getElementById('homeAddress').value;
-    const workAddress = document.getElementById('workAddress').value;
-    
-    if (!name || !phone) {
+    if (!name || !email || !phone) {
         showNotification('Please complete all required fields.');
         return;
     }
     
-    if (currentUser) {
-        const userData = {
-            name: name,
-            phone: phone,
-            email: currentUser.email,
-            paymentPreference: paymentPreference,
-            homeAddress: homeAddress,
-            workAddress: workAddress,
-            createdAt: firebase.database.ServerValue.TIMESTAMP,
-            userType: 'passenger',
-            referralCode: generateReferralCode(name),
-            walletBalance: 0
-        };
-        
-        database.ref('users/' + currentUser.uid).set(userData)
-            .then(() => {
-                localStorage.setItem('profileCompleted', 'true');
-                userFullName = name;
-                showMainApp();
-                showNotification('Profile completed successfully.');
-                
-                // Update user display
-                currentUser.updateProfile({
-                    displayName: name
-                });
-            })
-            .catch(error => {
-                console.error('Error saving profile:', error);
-                showNotification('Error saving profile. Please try again.');
-            });
-    }
+    // Generate unique user ID
+    const userId = generateUserId();
+    
+    // Generate unique referral code
+    const referralCode = generateReferralCode(name);
+    
+    // Create user data
+    const userData = {
+        name: name,
+        email: email,
+        phone: phone,
+        userId: userId,
+        referralCode: referralCode,
+        createdAt: firebase.database.ServerValue.TIMESTAMP,
+        userType: 'passenger',
+        walletBalance: 0
+    };
+    
+    // Save user to Firebase
+    database.ref('users/' + userId).set(userData)
+        .then(() => {
+            // Store user ID in localStorage
+            localStorage.setItem('userRegistered', 'true');
+            localStorage.setItem('userId', userId);
+            
+            // Set current user
+            currentUser = {
+                uid: userId,
+                ...userData
+            };
+            
+            userFullName = name;
+            
+            showMainApp();
+            showNotification('Account created successfully!');
+        })
+        .catch(error => {
+            console.error('Error creating user:', error);
+            showNotification('Error creating account. Please try again.');
+        });
+}
+
+// Generate unique user ID
+function generateUserId() {
+    return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 }
 
 // Generate referral code
@@ -642,6 +542,9 @@ function getUserLocation() {
             
             // Load nearby places list
             loadNearbyPlaces();
+            
+            // Start location tracking
+            startLocationTracking();
         }, error => {
             console.error('Geolocation error:', error);
             showNotification('Unable to get your location. Please enable location services.');
@@ -1275,14 +1178,14 @@ function updateFareEstimate() {
                 
                 // Apply ride type multiplier
                 switch(rideType) {
-                    case 'standard':
+                    case 'car':
                         baseFare = baseFare;
-                        break;
-                    case 'premium':
-                        baseFare = baseFare * 1.5;
                         break;
                     case 'bike':
                         baseFare = baseFare * 0.7;
+                        break;
+                    case 'bicycle':
+                        baseFare = baseFare * 0.5;
                         break;
                 }
                 
@@ -1340,7 +1243,7 @@ function requestRide() {
     }
     
     if (!currentUser) {
-        showNotification('Please log in to request a ride.');
+        showNotification('Please complete registration to request a ride.');
         return;
     }
     
@@ -1375,14 +1278,14 @@ function requestRide() {
         
         // Apply ride type multiplier
         switch(rideType) {
-            case 'standard':
+            case 'car':
                 fare = fare;
-                break;
-            case 'premium':
-                fare = fare * 1.5;
                 break;
             case 'bike':
                 fare = fare * 0.7;
+                break;
+            case 'bicycle':
+                fare = fare * 0.5;
                 break;
         }
         
@@ -2081,11 +1984,18 @@ function completePayment() {
 
 // Load user data
 function loadUserData() {
-    if (currentUser) {
-        database.ref('users/' + currentUser.uid).once('value')
+    const userId = localStorage.getItem('userId');
+    
+    if (userId) {
+        database.ref('users/' + userId).once('value')
             .then(snapshot => {
                 const userData = snapshot.val();
                 if (userData) {
+                    currentUser = {
+                        uid: userId,
+                        ...userData
+                    };
+                    
                     userFullName = userData.name || "Passenger";
                     document.getElementById('userName').value = userFullName;
                     document.getElementById('userPhone').value = userData.phone || '';
@@ -2123,11 +2033,6 @@ function saveProfile() {
         .then(() => {
             userFullName = name;
             showNotification('Profile saved successfully.');
-            
-            // Update user display
-            currentUser.updateProfile({
-                displayName: name
-            });
             
             document.getElementById('userIcon').innerHTML = '<i class="fas fa-user"></i>';
             
@@ -2756,19 +2661,12 @@ function logout() {
             activeRideListener = null;
         }
         
-        auth.signOut()
-            .then(() => {
-                currentUser = null;
-                userFullName = "Passenger";
-                localStorage.removeItem('userAuthenticated');
-                localStorage.removeItem('profileCompleted');
-                showAuthScreen();
-                showNotification('Logged out successfully.');
-            })
-            .catch(error => {
-                console.error('Error signing out:', error);
-                showNotification('Error logging out. Please try again.');
-            });
+        localStorage.removeItem('userRegistered');
+        localStorage.removeItem('userId');
+        currentUser = null;
+        userFullName = "Passenger";
+        showOnboardingScreen();
+        showNotification('Logged out successfully.');
     }
 }
 
