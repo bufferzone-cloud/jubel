@@ -2452,57 +2452,58 @@
         }
         
         // Go to step 2
-        function goToStep2() {
-            // Validate step 1
-            const fullName = document.getElementById('fullName').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            const nrcNumber = document.getElementById('nrcNumber').value.trim();
-            
-            if (!fullName) {
-                showNotification('Please enter your full name');
-                return;
-            }
-            
-            if (!email) {
-                showNotification('Please enter your email address');
-                return;
-            }
-            
-            if (!isValidEmail(email)) {
-                showNotification('Please enter a valid email address');
-                return;
-            }
-            
-            if (!password || password.length < 8) {
-                showNotification('Please enter a password with at least 8 characters');
-                return;
-            }
-            
-            if (!nrcNumber) {
-                showNotification('Please enter your NRC number');
-                return;
-            }
-            
-            // Save step 1 data
-            registrationData.personal = {
-                fullName: fullName,
-                email: email,
-                password: password,
-                nrcNumber: nrcNumber
-            };
-            
-            // Update step indicator
-            document.getElementById('step1').classList.remove('active');
-            document.getElementById('step1').classList.add('completed');
-            document.getElementById('step2').classList.add('active');
-            
-            // Show step 2 form
-            document.getElementById('step1Form').classList.remove('active');
-            document.getElementById('step2Form').classList.add('active');
-            
-            currentStep = 2;
-        }
+       // Go to step 2
+function goToStep2() {
+    // Validate step 1
+    const fullName = document.getElementById('fullName').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const nrcNumber = document.getElementById('nrcNumber').value.trim();
+    
+    if (!fullName) {
+        showNotification('Please enter your full name');
+        return;
+    }
+    
+    if (!email) {
+        showNotification('Please enter your email address');
+        return;
+    }
+    
+    if (!isValidEmail(email)) {
+        showNotification('Please enter a valid email address');
+        return;
+    }
+    
+    if (!password || password.length < 8) {
+        showNotification('Please enter a password with at least 8 characters');
+        return;
+    }
+    
+    if (!nrcNumber) {
+        showNotification('Please enter your NRC number');
+        return;
+    }
+    
+    // Save step 1 data - ensure email is stored as string
+    registrationData.personal = {
+        fullName: fullName,
+        email: String(email), // Ensure it's a string
+        password: password,
+        nrcNumber: nrcNumber
+    };
+    
+    // Update step indicator
+    document.getElementById('step1').classList.remove('active');
+    document.getElementById('step1').classList.add('completed');
+    document.getElementById('step2').classList.add('active');
+    
+    // Show step 2 form
+    document.getElementById('step1Form').classList.remove('active');
+    document.getElementById('step2Form').classList.add('active');
+    
+    currentStep = 2;
+}
         
         // Go to step 1
         function goToStep1() {
@@ -2644,95 +2645,123 @@
         }
         
         // Complete registration
-        function completeRegistration() {
-            // Validate step 3
-            const paymentMethod = document.getElementById('paymentMethod').value;
-            
-            if (!paymentMethod) {
-                showNotification('Please select payment method');
-                return;
-            }
-            
-            if (paymentMethod === 'bank') {
-                const bankName = document.getElementById('bankName').value.trim();
-                const accountNumber = document.getElementById('accountNumber').value.trim();
-                const accountName = document.getElementById('accountName').value.trim();
-                
-                if (!bankName || !accountNumber || !accountName) {
-                    showNotification('Please complete bank details');
-                    return;
-                }
-                
-                registrationData.payment = {
-                    method: 'bank',
-                    bankName: bankName,
-                    accountNumber: accountNumber,
-                    accountName: accountName
-                };
-            } else if (paymentMethod === 'mobile') {
-                const mobileProvider = document.getElementById('mobileProvider').value;
-                const mobileNumber = document.getElementById('mobileNumber').value.trim();
-                
-                if (!mobileProvider || !mobileNumber) {
-                    showNotification('Please complete mobile money details');
-                    return;
-                }
-                
-                registrationData.payment = {
-                    method: 'mobile',
-                    provider: mobileProvider,
-                    mobileNumber: mobileNumber
-                };
-            }
-            
-            // Show loading state
-            document.getElementById('step3Next').disabled = true;
-            document.getElementById('step3Next').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
-            
-            // Create user with email authentication
-            auth.createUserWithEmailAndPassword(
-                registrationData.personal.email, 
-                registrationData.personal.password
-            )
-                .then((userCredential) => {
-                    currentUser = userCredential.user;
-                    
-                    // Save driver data to Firebase
-                    return database.ref('drivers/' + currentUser.uid).set({
-                        ...registrationData.personal,
-                        ...registrationData.vehicle,
-                        ...registrationData.payment,
-                        registrationComplete: true,
-                        createdAt: firebase.database.ServerValue.TIMESTAMP,
-                        isOnline: false,
-                        walletBalance: 0
-                    });
-                })
-                .then(() => {
-                    // Show success step
-                    document.getElementById('step3').classList.remove('active');
-                    document.getElementById('step3').classList.add('completed');
-                    
-                    document.getElementById('step3Form').classList.remove('active');
-                    document.getElementById('successStep').classList.add('active');
-                    
-                    showNotification('Registration completed successfully!');
-                })
-                .catch((error) => {
-                    console.error('Error completing registration:', error);
-                    showNotification('Error completing registration. Please try again.');
-                    
-                    // Reset button
-                    document.getElementById('step3Next').disabled = false;
-                    document.getElementById('step3Next').innerHTML = 'Complete Registration';
-                });
+       // Complete registration
+function completeRegistration() {
+    // Validate step 3
+    const paymentMethod = document.getElementById('paymentMethod').value;
+    
+    if (!paymentMethod) {
+        showNotification('Please select payment method');
+        return;
+    }
+    
+    if (paymentMethod === 'bank') {
+        const bankName = document.getElementById('bankName').value.trim();
+        const accountNumber = document.getElementById('accountNumber').value.trim();
+        const accountName = document.getElementById('accountName').value.trim();
+        
+        if (!bankName || !accountNumber || !accountName) {
+            showNotification('Please complete bank details');
+            return;
         }
         
-        // Email validation helper
-        function isValidEmail(email) {
-            const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-            return re.test(String(email).toLowerCase());
+        registrationData.payment = {
+            method: 'bank',
+            bankName: bankName,
+            accountNumber: accountNumber,
+            accountName: accountName
+        };
+    } else if (paymentMethod === 'mobile') {
+        const mobileProvider = document.getElementById('mobileProvider').value;
+        const mobileNumber = document.getElementById('mobileNumber').value.trim();
+        
+        if (!mobileProvider || !mobileNumber) {
+            showNotification('Please complete mobile money details');
+            return;
         }
+        
+        registrationData.payment = {
+            method: 'mobile',
+            provider: mobileProvider,
+            mobileNumber: mobileNumber
+        };
+    }
+    
+    // Validate email is present and is a string
+    const email = registrationData.personal.email;
+    const password = registrationData.personal.password;
+    
+    if (!email || typeof email !== 'string') {
+        showNotification('Invalid email address');
+        return;
+    }
+    
+    if (!password || typeof password !== 'string') {
+        showNotification('Invalid password');
+        return;
+    }
+    
+    // Show loading state
+    document.getElementById('step3Next').disabled = true;
+    document.getElementById('step3Next').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
+    
+    // Create user with email authentication
+    auth.createUserWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            currentUser = userCredential.user;
+            
+            // Save driver data to Firebase
+            return database.ref('drivers/' + currentUser.uid).set({
+                ...registrationData.personal,
+                ...registrationData.vehicle,
+                ...registrationData.payment,
+                registrationComplete: true,
+                createdAt: firebase.database.ServerValue.TIMESTAMP,
+                isOnline: false,
+                walletBalance: 0
+            });
+        })
+        .then(() => {
+            // Show success step
+            document.getElementById('step3').classList.remove('active');
+            document.getElementById('step3').classList.add('completed');
+            
+            document.getElementById('step3Form').classList.remove('active');
+            document.getElementById('successStep').classList.add('active');
+            
+            showNotification('Registration completed successfully!');
+        })
+        .catch((error) => {
+            console.error('Error completing registration:', error);
+            
+            // Show more specific error messages
+            if (error.code === 'auth/email-already-in-use') {
+                showNotification('This email is already registered. Please use a different email.');
+            } else if (error.code === 'auth/invalid-email') {
+                showNotification('Invalid email address format.');
+            } else if (error.code === 'auth/weak-password') {
+                showNotification('Password is too weak. Please use a stronger password.');
+            } else {
+                showNotification('Error completing registration. Please try again.');
+            }
+            
+            // Reset button
+            document.getElementById('step3Next').disabled = false;
+            document.getElementById('step3Next').innerHTML = 'Complete Registration';
+        });
+}
+        
+       // Email validation helper
+function isValidEmail(email) {
+    // First check if it's a string
+    if (typeof email !== 'string') {
+        return false;
+    }
+    
+    // Then check the format
+    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(String(email).toLowerCase());
+}
         
         // Map initialization
         function initializeMap() {
@@ -4268,3 +4297,4 @@
     </script>
 </body>
 </html>
+
