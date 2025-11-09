@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jubel - Driver Registration & Dashboard</title>
+    <title>Jubel - Driver</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -48,8 +48,8 @@
             font-size: 14px;
         }
         
-        /* Welcome Screen Styles */
-        .welcome-container {
+        /* Welcome Screen */
+        .welcome-screen {
             position: fixed;
             top: 0;
             left: 0;
@@ -61,33 +61,51 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            padding: var(--app-padding);
+            padding: 20px;
+            transition: opacity 0.5s ease;
         }
         
-        .welcome-logo {
-            font-size: 4rem;
+        .welcome-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .jubel-logo {
+            width: 200px;
+            height: 200px;
+            background: var(--primary-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-heavy);
+        }
+        
+        .jubel-logo-text {
+            color: var(--white);
+            font-size: 2.5rem;
             font-weight: 800;
-            color: var(--primary-orange);
-            margin-bottom: 20px;
-            text-align: center;
+            letter-spacing: 1px;
         }
         
         .welcome-title {
-            font-size: 2rem;
+            font-size: 1.8rem;
             font-weight: 700;
-            color: var(--dark-gray);
             margin-bottom: 10px;
+            color: var(--dark-gray);
             text-align: center;
         }
         
         .welcome-subtitle {
-            color: var(--medium-gray);
             font-size: 1rem;
+            color: var(--medium-gray);
             margin-bottom: 40px;
             text-align: center;
+            max-width: 300px;
         }
         
-        .welcome-actions {
+        .auth-buttons {
             display: flex;
             flex-direction: column;
             gap: 15px;
@@ -95,50 +113,79 @@
             max-width: 300px;
         }
         
-        /* Login Screen Styles */
-        .login-container {
+        .auth-btn {
+            padding: 15px;
+            border: none;
+            border-radius: var(--element-radius);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn-login {
+            background: var(--primary-gradient);
+            color: var(--white);
+        }
+        
+        .btn-signup {
+            background: var(--white);
+            color: var(--primary-orange);
+            border: 2px solid var(--primary-orange);
+        }
+        
+        /* Auth Screens */
+        .auth-screen {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
             background: var(--white);
-            z-index: 1000;
+            z-index: 900;
+            padding: 20px;
+            overflow-y: auto;
             display: none;
-            flex-direction: column;
-            padding: var(--app-padding);
         }
         
-        .login-header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-top: 20px;
+        .auth-screen.active {
+            display: block;
         }
         
-        .login-logo {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: var(--primary-orange);
-            margin-bottom: 10px;
+        .auth-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
         }
         
-        .login-title {
-            font-size: 1.8rem;
-            font-weight: 700;
+        .back-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
             color: var(--dark-gray);
-            margin-bottom: 5px;
         }
         
-        .login-subtitle {
-            color: var(--medium-gray);
-            font-size: 0.9rem;
+        .auth-title {
+            font-size: 1.5rem;
+            font-weight: 700;
         }
         
-        .login-form {
-            flex: 1;
+        .auth-form {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
         }
         
         .form-group {
@@ -150,7 +197,6 @@
         .form-label {
             font-weight: 600;
             font-size: 0.9rem;
-            color: var(--dark-gray);
         }
         
         .form-input {
@@ -166,119 +212,6 @@
             border-color: var(--primary-orange);
         }
         
-        .form-hint {
-            font-size: 0.75rem;
-            color: var(--medium-gray);
-            margin-top: 3px;
-        }
-        
-        .form-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        
-        .btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: var(--element-radius);
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all var(--transition-speed) ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .btn-primary {
-            background: var(--primary-gradient);
-            color: var(--white);
-        }
-        
-        .btn-secondary {
-            background: var(--light-gray);
-            color: var(--dark-gray);
-        }
-        
-        .btn-full {
-            width: 100%;
-        }
-        
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        .auth-toggle {
-            text-align: center;
-            margin-top: 20px;
-        }
-        
-        .auth-toggle-link {
-            color: var(--primary-orange);
-            cursor: pointer;
-            font-weight: 600;
-        }
-        
-        /* Registration Screen Styles */
-        .registration-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--white);
-            z-index: 1000;
-            overflow-y: auto;
-            padding: var(--app-padding);
-            display: none;
-            flex-direction: column;
-        }
-        
-        .registration-header {
-            text-align: center;
-            margin-bottom: 20px;
-            padding-top: 20px;
-        }
-        
-        .registration-logo {
-            font-size: 2rem;
-            font-weight: 800;
-            color: var(--primary-orange);
-            margin-bottom: 10px;
-        }
-        
-        .registration-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-            margin-bottom: 5px;
-        }
-        
-        .registration-subtitle {
-            color: var(--medium-gray);
-            font-size: 0.9rem;
-        }
-        
-        .registration-form {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .form-step {
-            display: none;
-            flex-direction: column;
-            gap: 15px;
-            padding-bottom: 20px;
-        }
-        
-        .form-step.active {
-            display: flex;
-        }
-        
         .form-select {
             padding: 12px;
             border: 2px solid var(--border-color);
@@ -288,68 +221,14 @@
             cursor: pointer;
         }
         
-        .form-select:focus {
-            outline: none;
-            border-color: var(--primary-orange);
-        }
-        
-        .step-indicator {
+        .vehicle-selection {
             display: flex;
-            justify-content: center;
-            margin-bottom: 20px;
-            position: sticky;
-            top: 0;
-            background: var(--white);
-            padding: 10px 0;
-            z-index: 10;
-        }
-        
-        .step {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            background: var(--light-gray);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            color: var(--medium-gray);
-            position: relative;
-        }
-        
-        .step.active {
-            background: var(--primary-gradient);
-            color: var(--white);
-        }
-        
-        .step.completed {
-            background: var(--success-green);
-            color: var(--white);
-        }
-        
-        .step:not(:last-child)::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 100%;
-            width: 40px;
-            height: 2px;
-            background: var(--border-color);
-            transform: translateY(-50%);
-        }
-        
-        .step.completed:not(:last-child)::after {
-            background: var(--success-green);
-        }
-        
-        .vehicle-options {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
             gap: 10px;
             margin-bottom: 15px;
         }
         
         .vehicle-option {
+            flex: 1;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -359,11 +238,6 @@
             border-radius: var(--element-radius);
             cursor: pointer;
             transition: all var(--transition-speed) ease;
-            text-align: center;
-        }
-        
-        .vehicle-option:hover {
-            border-color: var(--primary-orange);
         }
         
         .vehicle-option.selected {
@@ -372,126 +246,73 @@
         }
         
         .vehicle-icon {
-            font-size: 2rem;
-            margin-bottom: 5px;
+            font-size: 1.5rem;
+            color: var(--medium-gray);
+        }
+        
+        .vehicle-option.selected .vehicle-icon {
+            color: var(--primary-orange);
         }
         
         .vehicle-name {
-            font-weight: 600;
             font-size: 0.9rem;
+            font-weight: 600;
         }
         
-        .vehicle-details-section {
+        .vehicle-details {
             display: none;
-            flex-direction: column;
-            gap: 15px;
-            margin-top: 10px;
+            margin-top: 15px;
             padding: 15px;
-            background: var(--light-gray);
+            border: 1px solid var(--border-color);
             border-radius: var(--element-radius);
+            background: var(--light-gray);
         }
         
-        .vehicle-details-section.active {
+        .vehicle-details.active {
+            display: block;
+        }
+        
+        .form-row {
             display: flex;
-        }
-        
-        .registration-success {
-            text-align: center;
-            padding: 40px 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-        }
-        
-        .success-icon {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: var(--success-green);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--white);
-            font-size: 2rem;
-        }
-        
-        .success-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-        }
-        
-        .success-message {
-            color: var(--medium-gray);
-            max-width: 400px;
-            line-height: 1.5;
-        }
-        
-        /* Email Verification Styles */
-        .verification-container {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: var(--white);
-            z-index: 1000;
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: var(--app-padding);
-        }
-        
-        .verification-content {
-            text-align: center;
-            max-width: 400px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 20px;
-        }
-        
-        .verification-icon {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: var(--info-blue);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--white);
-            font-size: 2rem;
-        }
-        
-        .verification-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--dark-gray);
-        }
-        
-        .verification-message {
-            color: var(--medium-gray);
-            line-height: 1.5;
-        }
-        
-        .verification-actions {
-            display: flex;
-            flex-direction: column;
             gap: 10px;
-            width: 100%;
-            max-width: 300px;
         }
         
-        /* Dashboard Styles */
-        .dashboard-container {
-            display: none;
-            height: 100vh;
-            overflow: hidden;
+        .form-row .form-group {
+            flex: 1;
         }
         
+        .submit-btn {
+            padding: 15px;
+            border: none;
+            border-radius: var(--element-radius);
+            background: var(--primary-gradient);
+            color: var(--white);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            margin-top: 10px;
+        }
+        
+        .submit-btn:disabled {
+            background: var(--medium-gray);
+            cursor: not-allowed;
+        }
+        
+        .auth-footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--medium-gray);
+        }
+        
+        .auth-link {
+            color: var(--primary-orange);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        /* Main App */
         #map {
             position: absolute;
             top: 0;
@@ -649,48 +470,75 @@
             font-size: 0.9rem;
         }
         
-        .hold-button-container {
-            position: relative;
+        .ride-action-btn {
             width: 100%;
-            height: 50px;
+            padding: 12px;
+            border: none;
             border-radius: var(--element-radius);
-            overflow: hidden;
             background: var(--white);
-            border: 2px solid var(--border-color);
+            color: var(--dark-gray);
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
             box-shadow: var(--shadow-medium);
-            margin-top: 10px;
-        }
-        
-        .hold-button-fill {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 0%;
-            background: var(--primary-gradient);
-            transition: width 0.1s linear;
-            z-index: 1;
-        }
-        
-        .hold-button-content {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            border: 2px solid var(--border-color);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 3px;
-            z-index: 2;
-            color: var(--dark-gray);
-            font-weight: 800;
-            font-size: 0.9rem;
+            gap: 6px;
+            position: relative;
+            overflow: hidden;
         }
         
-        .hold-button-content.active {
+        .ride-action-btn.hold-to-start {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn.hold-to-arrive {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn.hold-to-pickup {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn.hold-to-complete {
+            background: var(--white);
+            color: var(--dark-gray);
+        }
+        
+        .ride-action-btn.hold-active {
+            background: var(--primary-gradient);
             color: var(--white);
+            border-color: transparent;
+        }
+        
+        .ride-action-btn:active {
+            transform: scale(0.98);
+        }
+        
+        .hold-progress {
+            height: 3px;
+            background: var(--border-color);
+            border-radius: 2px;
+            width: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .hold-progress-bar {
+            height: 100%;
+            background: var(--primary-gradient);
+            width: 0%;
+            transition: width 0.1s linear;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
         
         .ride-request-popup {
@@ -838,6 +686,20 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
+        }
+        
+        .btn {
+            padding: 10px;
+            border: none;
+            border-radius: var(--element-radius);
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
         }
         
         .btn-accept {
@@ -1132,6 +994,354 @@
             max-width: 80%;
         }
         
+        .waypoints-container {
+            margin-top: 8px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        
+        .waypoint-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.75rem;
+        }
+        
+        .waypoint-item:last-child {
+            border-bottom: none;
+        }
+        
+        .waypoint-icon {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--info-blue);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            flex-shrink: 0;
+        }
+        
+        .waypoint-text {
+            flex: 1;
+        }
+        
+        .navigation-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .nav-control-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: var(--element-radius);
+            background: var(--info-blue);
+            color: var(--white);
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .nav-control-btn.secondary {
+            background: var(--medium-gray);
+        }
+        
+        .trip-info-card {
+            background: var(--white);
+            border-radius: var(--element-radius);
+            padding: 10px;
+            box-shadow: var(--shadow-medium);
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .trip-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 0.75rem;
+        }
+        
+        .trip-info-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .trip-info-label {
+            color: var(--medium-gray);
+            font-weight: 600;
+        }
+        
+        .trip-info-value {
+            font-weight: 700;
+        }
+        
+        .rating-display {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--warning-yellow);
+        }
+        
+        .commission-display {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
+            font-size: 0.75rem;
+        }
+        
+        .commission-label {
+            color: var(--medium-gray);
+        }
+        
+        .commission-value {
+            font-weight: 600;
+            color: var(--primary-orange);
+        }
+        
+        .commission-deduction {
+            color: var(--error-red);
+        }
+        
+        .balance-update {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+            font-size: 0.75rem;
+        }
+        
+        .balance-label-update {
+            color: var(--medium-gray);
+        }
+        
+        .balance-value-update {
+            font-weight: 600;
+            color: var(--success-green);
+        }
+        
+        .no-float-warning {
+            background-color: var(--light-orange);
+            border: 1px solid var(--primary-orange);
+            border-radius: var(--element-radius);
+            padding: 10px;
+            margin-bottom: 12px;
+            text-align: center;
+            color: var(--primary-orange);
+            font-weight: 600;
+        }
+        
+        .no-float-warning i {
+            margin-right: 6px;
+        }
+        
+        .float-section {
+            margin-bottom: 20px;
+        }
+        
+        .float-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .btn-float {
+            background: var(--white);
+            color: var(--primary-orange);
+            border: 2px solid var(--primary-orange);
+            padding: 10px;
+            font-size: 0.8rem;
+            border-radius: var(--element-radius);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            font-weight: 600;
+        }
+        
+        .btn-float:hover {
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .float-history {
+            margin-top: 12px;
+        }
+        
+        .float-history-item {
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+        }
+        
+        .float-history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .float-amount {
+            font-weight: 600;
+        }
+        
+        .float-amount.positive {
+            color: var(--success-green);
+        }
+        
+        .float-amount.negative {
+            color: var(--error-red);
+        }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 25px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--medium-gray);
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 19px;
+            width: 19px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--success-green);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(25px);
+        }
+        
+        .driver-marker {
+            background: var(--primary-gradient);
+            color: white;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .driver-marker-label {
+            background: white;
+            padding: 2px 5px;
+            border-radius: 8px;
+            margin-top: 4px;
+            font-size: 9px;
+            font-weight: bold;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+        }
+        
+        .hold-button-container {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            border-radius: var(--element-radius);
+            overflow: hidden;
+            background: var(--white);
+            border: 2px solid var(--border-color);
+            box-shadow: var(--shadow-medium);
+        }
+        
+        .hold-button-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background: var(--primary-gradient);
+            transition: width 0.1s linear;
+            z-index: 1;
+        }
+        
+        .hold-button-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            z-index: 2;
+            color: var(--dark-gray);
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+        
+        .hold-button-content.active {
+            color: var(--white);
+        }
+        
+        .advanced-features {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .feature-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            border-radius: var(--element-radius);
+            background: var(--light-gray);
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            font-weight: 600;
+            font-size: 0.75rem;
+        }
+        
+        .feature-btn:hover {
+            background: var(--light-orange);
+        }
+        
+        .feature-btn i {
+            font-size: 1rem;
+            color: var(--primary-orange);
+        }
+        
         .driver-status-indicator {
             position: fixed;
             top: 60px;
@@ -1228,6 +1438,21 @@
         
         .collapsible-icon.expanded {
             transform: rotate(180deg);
+        }
+        
+        .ride-request-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .form-group {
+            flex: 1;
         }
         
         .performance-stats {
@@ -1344,131 +1569,6 @@
             color: var(--white);
         }
         
-        .advanced-features {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        
-        .feature-btn {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px;
-            border-radius: var(--element-radius);
-            background: var(--light-gray);
-            border: none;
-            cursor: pointer;
-            transition: all var(--transition-speed) ease;
-            font-weight: 600;
-            font-size: 0.75rem;
-        }
-        
-        .feature-btn:hover {
-            background: var(--light-orange);
-        }
-        
-        .feature-btn i {
-            font-size: 1rem;
-            color: var(--primary-orange);
-        }
-        
-        .driver-marker {
-            background: var(--primary-gradient);
-            color: white;
-            border-radius: 50%;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .driver-marker-label {
-            background: white;
-            padding: 2px 5px;
-            border-radius: 8px;
-            margin-top: 4px;
-            font-size: 9px;
-            font-weight: bold;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-        }
-        
-        .bicycle-marker {
-            background: #2ecc71;
-            color: white;
-            border-radius: 50%;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .delivery-request-popup {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 200;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: var(--app-padding);
-        }
-        
-        .delivery-request-content {
-            background: var(--white);
-            border-radius: 15px;
-            width: 100%;
-            max-width: 360px;
-            max-height: 85vh;
-            overflow: hidden;
-            box-shadow: var(--shadow-heavy);
-            display: flex;
-            flex-direction: column;
-            transform: scale(0.9);
-            transition: transform var(--transition-speed) ease;
-            animation: popup-appear 0.3s ease forwards;
-        }
-        
-        .delivery-type-badge {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: var(--primary-orange);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.7rem;
-            font-weight: bold;
-        }
-        
-        .package-details {
-            background: var(--light-orange);
-            padding: 10px;
-            border-radius: var(--element-radius);
-            margin-bottom: 12px;
-        }
-        
-        .package-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-            font-size: 0.75rem;
-        }
-        
-        .package-row:last-child {
-            margin-bottom: 0;
-        }
-        
         @media (max-width: 480px) {
             .floating-balance, .online-toggle {
                 padding: 6px 8px;
@@ -1514,16 +1614,18 @@
 </head>
 <body>
     <!-- Welcome Screen -->
-    <div class="welcome-container" id="welcomeContainer">
-        <div class="welcome-logo">JUBEL</div>
-        <h1 class="welcome-title">Welcome Jubel Driver</h1>
-        <p class="welcome-subtitle">Start your journey with Jubel today</p>
-        <div class="welcome-actions">
-            <button class="btn btn-primary btn-full" id="loginBtn">
+    <div class="welcome-screen" id="welcomeScreen">
+        <div class="jubel-logo">
+            <div class="jubel-logo-text">J</div>
+        </div>
+        <h1 class="welcome-title">Welcome to Jubel Driver</h1>
+        <p class="welcome-subtitle">Join our network of professional drivers and start earning today</p>
+        <div class="auth-buttons">
+            <button class="auth-btn btn-login" id="loginBtn">
                 <i class="fas fa-sign-in-alt"></i>
-                Login
+                Log In
             </button>
-            <button class="btn btn-secondary btn-full" id="signupBtn">
+            <button class="auth-btn btn-signup" id="signupBtn">
                 <i class="fas fa-user-plus"></i>
                 Sign Up
             </button>
@@ -1531,262 +1633,185 @@
     </div>
     
     <!-- Login Screen -->
-    <div class="login-container" id="loginContainer">
-        <div class="login-header">
-            <div class="login-logo">JUBEL</div>
-            <h1 class="login-title">Driver Login</h1>
-            <p class="login-subtitle">Sign in to your driver account</p>
+    <div class="auth-screen" id="loginScreen">
+        <div class="auth-header">
+            <button class="back-button" id="backFromLogin">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="auth-title">Log In</h2>
         </div>
         
-        <div class="login-form">
+        <form class="auth-form" id="loginForm">
             <div class="form-group">
                 <label for="loginEmail" class="form-label">Email Address</label>
-                <input type="email" id="loginEmail" class="form-input" placeholder="Enter your email address">
+                <input type="email" id="loginEmail" class="form-input" placeholder="your.email@example.com" required>
             </div>
             
             <div class="form-group">
                 <label for="loginPassword" class="form-label">Password</label>
-                <input type="password" id="loginPassword" class="form-input" placeholder="Enter your password">
+                <input type="password" id="loginPassword" class="form-input" placeholder="Enter your password" required>
             </div>
             
-            <div class="form-actions">
-                <button class="btn btn-primary btn-full" id="loginSubmitBtn">
-                    <i class="fas fa-sign-in-alt"></i>
-                    Login
-                </button>
-            </div>
-            
-            <div class="auth-toggle">
-                <p>Don't have an account? <span class="auth-toggle-link" id="goToSignup">Sign up</span></p>
-            </div>
+            <button type="submit" class="submit-btn">Log In</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Don't have an account? <span class="auth-link" id="goToSignupFromLogin">Sign Up</span></p>
         </div>
     </div>
     
-    <!-- Registration Screen -->
-    <div class="registration-container" id="registrationContainer">
-        <div class="registration-header">
-            <div class="registration-logo">JUBEL</div>
-            <h1 class="registration-title">Driver Registration</h1>
-            <p class="registration-subtitle">Complete your profile to start driving</p>
+    <!-- Signup Screen -->
+    <div class="auth-screen" id="signupScreen">
+        <div class="auth-header">
+            <button class="back-button" id="backFromSignup">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="auth-title">Sign Up</h2>
         </div>
         
-        <div class="step-indicator">
-            <div class="step active" id="step1">1</div>
-            <div class="step" id="step2">2</div>
-            <div class="step" id="step3">3</div>
-        </div>
+        <form class="auth-form" id="signupForm">
+            <div class="form-group">
+                <label for="signupName" class="form-label">Full Name</label>
+                <input type="text" id="signupName" class="form-input" placeholder="Your full name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupEmail" class="form-label">Email Address</label>
+                <input type="email" id="signupEmail" class="form-input" placeholder="your.email@example.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupPhone" class="form-label">Phone Number</label>
+                <input type="tel" id="signupPhone" class="form-input" placeholder="Your phone number" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupNRC" class="form-label">NRC Number</label>
+                <input type="text" id="signupNRC" class="form-input" placeholder="Your NRC number" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupPassword" class="form-label">Password</label>
+                <input type="password" id="signupPassword" class="form-input" placeholder="Create a password" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupConfirmPassword" class="form-label">Confirm Password</label>
+                <input type="password" id="signupConfirmPassword" class="form-input" placeholder="Confirm your password" required>
+            </div>
+            
+            <h3 class="section-title">Vehicle Information</h3>
+            
+            <div class="vehicle-selection">
+                <div class="vehicle-option" data-type="car">
+                    <i class="fas fa-car vehicle-icon"></i>
+                    <span class="vehicle-name">Car</span>
+                </div>
+                <div class="vehicle-option" data-type="bike">
+                    <i class="fas fa-motorcycle vehicle-icon"></i>
+                    <span class="vehicle-name">Bike</span>
+                </div>
+                <div class="vehicle-option" data-type="bicycle">
+                    <i class="fas fa-bicycle vehicle-icon"></i>
+                    <span class="vehicle-name">Bicycle</span>
+                </div>
+            </div>
+            
+            <!-- Car Details -->
+            <div class="vehicle-details" id="carDetails">
+                <div class="form-group">
+                    <label for="carMake" class="form-label">Car Make</label>
+                    <input type="text" id="carMake" class="form-input" placeholder="Toyota, Honda, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="carModel" class="form-label">Car Model</label>
+                    <input type="text" id="carModel" class="form-input" placeholder="Corolla, Civic, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="carYear" class="form-label">Year</label>
+                    <input type="number" id="carYear" class="form-input" placeholder="2020">
+                </div>
+                
+                <div class="form-group">
+                    <label for="carColor" class="form-label">Color</label>
+                    <input type="text" id="carColor" class="form-input" placeholder="Red, Blue, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="carLicensePlate" class="form-label">License Plate</label>
+                    <input type="text" id="carLicensePlate" class="form-input" placeholder="ABC 123">
+                </div>
+                
+                <div class="form-group">
+                    <label for="carLicenseNumber" class="form-label">Driver's License Number</label>
+                    <input type="text" id="carLicenseNumber" class="form-input" placeholder="Your driver's license number">
+                </div>
+            </div>
+            
+            <!-- Bike Details -->
+            <div class="vehicle-details" id="bikeDetails">
+                <div class="form-group">
+                    <label for="bikeMake" class="form-label">Bike Make</label>
+                    <input type="text" id="bikeMake" class="form-input" placeholder="Honda, Yamaha, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="bikeModel" class="form-label">Bike Model</label>
+                    <input type="text" id="bikeModel" class="form-input" placeholder="CBR, R15, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="bikeYear" class="form-label">Year</label>
+                    <input type="number" id="bikeYear" class="form-input" placeholder="2020">
+                </div>
+                
+                <div class="form-group">
+                    <label for="bikeLicenseNumber" class="form-label">Driver's License Number</label>
+                    <input type="text" id="bikeLicenseNumber" class="form-input" placeholder="Your driver's license number">
+                </div>
+            </div>
+            
+            <!-- Bicycle Details -->
+            <div class="vehicle-details" id="bicycleDetails">
+                <div class="form-group">
+                    <label for="bicycleMake" class="form-label">Bicycle Make</label>
+                    <input type="text" id="bicycleMake" class="form-input" placeholder="Giant, Trek, etc.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="bicycleColor" class="form-label">Color</label>
+                    <input type="text" id="bicycleColor" class="form-input" placeholder="Red, Blue, etc.">
+                </div>
+            </div>
+            
+            <h3 class="section-title">Payment Information</h3>
+            
+            <div class="form-group">
+                <label for="paymentMethod" class="form-label">Payment Method</label>
+                <select id="paymentMethod" class="form-select">
+                    <option value="">Select payment method</option>
+                    <option value="bank">Bank Transfer</option>
+                    <option value="mobile">Mobile Money</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="paymentDetails" class="form-label">Payment Details</label>
+                <input type="text" id="paymentDetails" class="form-input" placeholder="Account number or mobile money number">
+            </div>
+            
+            <button type="submit" class="submit-btn" id="signupSubmitBtn">Create Account</button>
+        </form>
         
-        <div class="registration-form">
-            <!-- Step 1: Personal Information -->
-            <div class="form-step active" id="step1Form">
-                <h2 class="section-title">Personal Information</h2>
-                
-                <div class="form-group">
-                    <label for="fullName" class="form-label">Full Name</label>
-                    <input type="text" id="fullName" class="form-input" placeholder="Enter your full name">
-                </div>
-                
-                <div class="form-group">
-                    <label for="email" class="form-label">Email Address</label>
-                    <input type="email" id="email" class="form-input" placeholder="Enter your email address">
-                    <div class="form-hint">This will be used for authentication</div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" class="form-input" placeholder="Create a password">
-                    <div class="form-hint">Minimum 8 characters with letters and numbers</div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="nrcNumber" class="form-label">NRC Number</label>
-                    <input type="text" id="nrcNumber" class="form-input" placeholder="Enter your NRC number">
-                    <div class="form-hint">Format: 123456/78/9</div>
-                </div>
-                
-                <div class="form-actions">
-                    <button class="btn btn-secondary" disabled>Previous</button>
-                    <button class="btn btn-primary" id="step1Next">Next</button>
-                </div>
-            </div>
-            
-            <!-- Step 2: Vehicle Information -->
-            <div class="form-step" id="step2Form">
-                <h2 class="section-title">Vehicle Information</h2>
-                
-                <div class="vehicle-options">
-                    <div class="vehicle-option" data-type="car">
-                        <div class="vehicle-icon">🚗</div>
-                        <div class="vehicle-name">Car</div>
-                    </div>
-                    <div class="vehicle-option" data-type="motorcycle">
-                        <div class="vehicle-icon">🏍️</div>
-                        <div class="vehicle-name">Motorcycle</div>
-                    </div>
-                    <div class="vehicle-option" data-type="bicycle">
-                        <div class="vehicle-icon">🚲</div>
-                        <div class="vehicle-name">Bicycle</div>
-                    </div>
-                </div>
-                
-                <!-- Car Details -->
-                <div class="vehicle-details-section" id="carDetails">
-                    <div class="form-group">
-                        <label for="carMake" class="form-label">Car Make</label>
-                        <input type="text" id="carMake" class="form-input" placeholder="e.g. Toyota, Honda">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="carModel" class="form-label">Car Model</label>
-                        <input type="text" id="carModel" class="form-input" placeholder="e.g. Corolla, Civic">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="carYear" class="form-label">Car Year</label>
-                        <input type="number" id="carYear" class="form-input" placeholder="e.g. 2020" min="2000" max="2023">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="carColor" class="form-label">Car Color</label>
-                        <input type="text" id="carColor" class="form-input" placeholder="e.g. Red, Blue">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="licensePlate" class="form-label">License Plate</label>
-                        <input type="text" id="licensePlate" class="form-input" placeholder="e.g. ABC 123">
-                    </div>
-                </div>
-                
-                <!-- Motorcycle Details -->
-                <div class="vehicle-details-section" id="motorcycleDetails">
-                    <div class="form-group">
-                        <label for="bikeMake" class="form-label">Motorcycle Make</label>
-                        <input type="text" id="bikeMake" class="form-input" placeholder="e.g. Yamaha, Honda">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="bikeModel" class="form-label">Motorcycle Model</label>
-                        <input type="text" id="bikeModel" class="form-input" placeholder="e.g. MT-07, CBR">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="bikeYear" class="form-label">Motorcycle Year</label>
-                        <input type="number" id="bikeYear" class="form-input" placeholder="e.g. 2020" min="2000" max="2023">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="bikeColor" class="form-label">Motorcycle Color</label>
-                        <input type="text" id="bikeColor" class="form-input" placeholder="e.g. Red, Blue">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="bikePlate" class="form-label">License Plate</label>
-                        <input type="text" id="bikePlate" class="form-input" placeholder="e.g. MTC 123">
-                    </div>
-                </div>
-                
-                <!-- Bicycle Details -->
-                <div class="vehicle-details-section" id="bicycleDetails">
-                    <div class="form-group">
-                        <label for="bicycleMake" class="form-label">Bicycle Make</label>
-                        <input type="text" id="bicycleMake" class="form-input" placeholder="e.g. Trek, Giant">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="bicycleColor" class="form-label">Bicycle Color</label>
-                        <input type="text" id="bicycleColor" class="form-input" placeholder="e.g. Red, Blue">
-                    </div>
-                </div>
-                
-                <div class="form-actions">
-                    <button class="btn btn-secondary" id="step2Back">Previous</button>
-                    <button class="btn btn-primary" id="step2Next">Next</button>
-                </div>
-            </div>
-            
-            <!-- Step 3: Payment Information -->
-            <div class="form-step" id="step3Form">
-                <h2 class="section-title">Payment Information</h2>
-                
-                <div class="form-group">
-                    <label for="paymentMethod" class="form-label">Payment Method</label>
-                    <select id="paymentMethod" class="form-select">
-                        <option value="">Select payment method</option>
-                        <option value="bank">Bank Transfer</option>
-                        <option value="mobile">Mobile Money</option>
-                    </select>
-                </div>
-                
-                <div class="form-group" id="bankDetails" style="display: none;">
-                    <label for="bankName" class="form-label">Bank Name</label>
-                    <input type="text" id="bankName" class="form-input" placeholder="Enter bank name">
-                    
-                    <label for="accountNumber" class="form-label">Account Number</label>
-                    <input type="text" id="accountNumber" class="form-input" placeholder="Enter account number">
-                    
-                    <label for="accountName" class="form-label">Account Name</label>
-                    <input type="text" id="accountName" class="form-input" placeholder="Enter account holder name">
-                </div>
-                
-                <div class="form-group" id="mobileMoneyDetails" style="display: none;">
-                    <label for="mobileProvider" class="form-label">Mobile Provider</label>
-                    <select id="mobileProvider" class="form-select">
-                        <option value="">Select provider</option>
-                        <option value="mtn">MTN</option>
-                        <option value="airtel">Airtel</option>
-                        <option value="zamtel">Zamtel</option>
-                    </select>
-                    
-                    <label for="mobileNumber" class="form-label">Mobile Number</label>
-                    <input type="tel" id="mobileNumber" class="form-input" placeholder="Enter mobile number">
-                </div>
-                
-                <div class="form-actions">
-                    <button class="btn btn-secondary" id="step3Back">Previous</button>
-                    <button class="btn btn-primary" id="step3Next">Complete Registration</button>
-                </div>
-            </div>
-            
-            <!-- Registration Success -->
-            <div class="form-step" id="successStep">
-                <div class="registration-success">
-                    <div class="success-icon">
-                        <i class="fas fa-check"></i>
-                    </div>
-                    <h2 class="success-title">Registration Successful!</h2>
-                    <p class="success-message">Your driver account has been created successfully. You can now start accepting ride requests.</p>
-                    <button class="btn btn-primary btn-full" id="goToDashboard">Go to Dashboard</button>
-                </div>
-            </div>
+        <div class="auth-footer">
+            <p>Already have an account? <span class="auth-link" id="goToLoginFromSignup">Log In</span></p>
         </div>
     </div>
     
-    <!-- Email Verification Screen -->
-    <div class="verification-container" id="verificationContainer">
-        <div class="verification-content">
-            <div class="verification-icon">
-                <i class="fas fa-envelope"></i>
-            </div>
-            <h2 class="verification-title">Verify Your Email</h2>
-            <p class="verification-message">
-                We've sent a verification link to your email address. 
-                Please check your inbox and click the link to verify your account.
-            </p>
-            <div class="verification-actions">
-                <button class="btn btn-primary btn-full" id="resendVerificationBtn">
-                    <i class="fas fa-redo"></i>
-                    Resend Verification Email
-                </button>
-                <button class="btn btn-secondary btn-full" id="continueToDashboardBtn">
-                    <i class="fas fa-tachometer-alt"></i>
-                    Continue to Dashboard
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Dashboard -->
-    <div class="dashboard-container" id="dashboardContainer">
+    <!-- Main App (Hidden until authentication) -->
+    <div id="mainApp" style="display: none;">
         <!-- Main Map -->
         <div id="map"></div>
         
@@ -1798,8 +1823,11 @@
         
         <!-- Online Toggle -->
         <div class="online-toggle offline" id="onlineToggle">
+            <label class="toggle-switch">
+                <input type="checkbox" id="onlineToggleCheckbox">
+                <span class="toggle-slider"></span>
+            </label>
             <span id="onlineStatusText">Offline</span>
-            <i class="fas fa-toggle-off" id="toggleIcon"></i>
         </div>
         
         <!-- Driver Status Indicator -->
@@ -1849,7 +1877,7 @@
                 </div>
                 <div class="driver-details">
                     <h2 id="driverName">Driver Name</h2>
-                    <p><i class="fas fa-envelope"></i> <span id="driverEmail">user@example.com</span></p>
+                    <p><i class="fas fa-phone"></i> <span id="driverPhone">000-000-0000</span></p>
                     <p><i class="fas fa-car"></i> <span id="vehicleDetails">Toyota Corolla - ABC123</span></p>
                 </div>
             </div>
@@ -1938,7 +1966,6 @@
         <!-- Ride Request Popup -->
         <div class="ride-request-popup" id="rideRequestPopup">
             <div class="ride-request-content">
-                <div class="delivery-type-badge" id="requestTypeBadge">RIDE</div>
                 <div class="ride-request-map" id="rideRequestMap"></div>
                 <div class="ride-request-details">
                     <div class="customer-info">
@@ -1976,23 +2003,6 @@
                         </div>
                     </div>
                     
-                    <!-- Package Details (For Delivery) -->
-                    <div class="package-details" id="packageDetails" style="display: none;">
-                        <h4>Package Details</h4>
-                        <div class="package-row">
-                            <span>Package Size:</span>
-                            <span id="packageSize">Small</span>
-                        </div>
-                        <div class="package-row">
-                            <span>Weight:</span>
-                            <span id="packageWeight">2 kg</span>
-                        </div>
-                        <div class="package-row">
-                            <span>Fragile:</span>
-                            <span id="packageFragile">No</span>
-                        </div>
-                    </div>
-                    
                     <div class="fare-details">
                         <div class="fare-row">
                             <span>Base Fare</span>
@@ -2012,106 +2022,32 @@
                         </div>
                     </div>
                     
+                    <div class="trip-info-card">
+                        <div class="trip-info-row">
+                            <span class="trip-info-label">Distance</span>
+                            <span class="trip-info-value" id="tripDistance">5.2 km</span>
+                        </div>
+                        <div class="trip-info-row">
+                            <span class="trip-info-label">Estimated Time</span>
+                            <span class="trip-info-value" id="tripTime">15 min</span>
+                        </div>
+                        <div class="trip-info-row">
+                            <span class="trip-info-label">Surge Pricing</span>
+                            <span class="trip-info-value" id="surgeMultiplier">1.2x</span>
+                        </div>
+                    </div>
+                    
+                    <h4 class="section-title">Route Waypoints</h4>
+                    <div class="waypoints-container" id="waypointsContainer">
+                        <!-- Waypoints will be populated here -->
+                    </div>
+                    
                     <div class="ride-request-actions">
                         <button class="btn btn-accept" id="acceptRideBtn">
                             <i class="fas fa-check-circle"></i>
                             Accept
                         </button>
                         <button class="btn btn-reject" id="rejectRideBtn">
-                            <i class="fas fa-times-circle"></i>
-                            Reject
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Delivery Request Popup -->
-        <div class="delivery-request-popup" id="deliveryRequestPopup">
-            <div class="delivery-request-content">
-                <div class="delivery-type-badge">DELIVERY</div>
-                <div class="ride-request-map" id="deliveryRequestMap"></div>
-                <div class="ride-request-details">
-                    <div class="customer-info">
-                        <div class="customer-avatar">
-                            <i class="fas fa-user"></i>
-                        </div>
-                        <div class="customer-details">
-                            <h3 id="deliveryCustomerName">Customer Name</h3>
-                            <p><i class="fas fa-phone"></i> <span id="deliveryCustomerPhone">000-000-0000</span></p>
-                            <div class="rating-display">
-                                <i class="fas fa-star"></i>
-                                <span id="deliveryCustomerRating">4.8</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="trip-details">
-                        <div class="location-row">
-                            <div class="location-icon pickup-icon">
-                                <i class="fas fa-map-marker-alt"></i>
-                            </div>
-                            <div class="location-text">
-                                <h4>Pickup Location</h4>
-                                <p id="deliveryPickupLocation">123 Main Street, City</p>
-                            </div>
-                        </div>
-                        <div class="location-row">
-                            <div class="location-icon destination-icon">
-                                <i class="fas fa-flag"></i>
-                            </div>
-                            <div class="location-text">
-                                <h4>Delivery Address</h4>
-                                <p id="deliveryAddress">456 Oak Avenue, City</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="package-details">
-                        <h4>Package Details</h4>
-                        <div class="package-row">
-                            <span>Package Size:</span>
-                            <span id="deliveryPackageSize">Small</span>
-                        </div>
-                        <div class="package-row">
-                            <span>Weight:</span>
-                            <span id="deliveryPackageWeight">2 kg</span>
-                        </div>
-                        <div class="package-row">
-                            <span>Fragile:</span>
-                            <span id="deliveryPackageFragile">No</span>
-                        </div>
-                        <div class="package-row">
-                            <span>Delivery Instructions:</span>
-                            <span id="deliveryInstructions">Leave at front door</span>
-                        </div>
-                    </div>
-                    
-                    <div class="fare-details">
-                        <div class="fare-row">
-                            <span>Base Fare</span>
-                            <span id="deliveryBaseFare">K12.00</span>
-                        </div>
-                        <div class="fare-row">
-                            <span>Distance</span>
-                            <span id="deliveryDistanceFare">K4.00</span>
-                        </div>
-                        <div class="fare-row">
-                            <span>Package Fee</span>
-                            <span id="packageFee">K3.00</span>
-                        </div>
-                        <div class="fare-row total">
-                            <span>Total Fare</span>
-                            <span id="deliveryTotalFare">K19.00</span>
-                        </div>
-                    </div>
-                    
-                    <div class="ride-request-actions">
-                        <button class="btn btn-accept" id="acceptDeliveryBtn">
-                            <i class="fas fa-check-circle"></i>
-                            Accept
-                        </button>
-                        <button class="btn btn-reject" id="rejectDeliveryBtn">
                             <i class="fas fa-times-circle"></i>
                             Reject
                         </button>
@@ -2143,12 +2079,12 @@
                     <input type="text" id="driverNameInput" class="input-field" placeholder="Your full name">
                 </div>
                 <div class="input-group">
-                    <label for="driverEmailInput">Email Address</label>
-                    <input type="email" id="driverEmailInput" class="input-field" placeholder="Your email address">
+                    <label for="driverPhoneInput">Phone Number</label>
+                    <input type="tel" id="driverPhoneInput" class="input-field" placeholder="Your phone number">
                 </div>
                 <div class="input-group">
-                    <label for="driverNRCInput">NRC Number</label>
-                    <input type="text" id="driverNRCInput" class="input-field" placeholder="Your NRC number">
+                    <label for="driverEmailInput">Email Address</label>
+                    <input type="email" id="driverEmailInput" class="input-field" placeholder="Your email address">
                 </div>
                 <button class="btn btn-accept" id="saveDriverDetailsBtn">
                     <i class="fas fa-save"></i>
@@ -2170,8 +2106,8 @@
                     <input type="text" id="vehicleModelInput" class="input-field" placeholder="Toyota Corolla, etc.">
                 </div>
                 <div class="input-group">
-                    <label for="licensePlateInput">License Plate/ID</label>
-                    <input type="text" id="licensePlateInput" class="input-field" placeholder="ABC 123 or BIC-001">
+                    <label for="licensePlateInput">License Plate</label>
+                    <input type="text" id="licensePlateInput" class="input-field" placeholder="ABC 123">
                 </div>
                 <div class="input-group">
                     <label for="vehicleColorInput">Vehicle Color</label>
@@ -2221,6 +2157,37 @@
                     <div class="detail-row">
                         <span class="detail-label">Rating</span>
                         <span class="detail-value" id="driverRating">4.5 ★</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Float Management Section -->
+            <div class="float-section">
+                <h3 class="section-title">
+                    <i class="fas fa-money-bill-alt"></i>
+                    Float Management
+                </h3>
+                <div class="wallet-balance">
+                    <div class="balance-label">Current Float Balance</div>
+                    <div class="balance-amount-large" id="floatBalance">K0.00</div>
+                    <div>Minimum K10.00 required to go online</div>
+                </div>
+                
+                <div class="float-actions">
+                    <button class="btn-float" id="addFloatBtn">
+                        <i class="fas fa-plus-circle"></i>
+                        Add Float
+                    </button>
+                    <button class="btn-float" id="adjustFloatBtn">
+                        <i class="fas fa-exchange-alt"></i>
+                        Adjust Float
+                    </button>
+                </div>
+                
+                <div class="float-history">
+                    <h4 class="section-title">Float History</h4>
+                    <div id="floatHistoryList">
+                        <!-- Float history items will be populated here -->
                     </div>
                 </div>
             </div>
@@ -2295,10 +2262,10 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Notification -->
-        <div class="notification" id="notification"></div>
     </div>
+    
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
     
     <!-- Firebase and Leaflet JS -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -2328,7 +2295,7 @@
         let currentUser = null;
         let currentRide = null;
         let isOnline = false;
-        let driverMap, rideRequestMap, deliveryRequestMap;
+        let driverMap, rideRequestMap;
         let locationWatchId = null;
         let driverMarker = null;
         let customerMarker = null;
@@ -2337,205 +2304,85 @@
         let holdTimer = null;
         let holdProgress = 0;
         let currentRideRequest = null;
-        let currentDeliveryRequest = null;
         let earningsPeriod = 'today';
         let waypoints = [];
-        let walletBalance = 0;
+        let floatBalance = 0;
         let commissionRate = 0.08; // 8% commission
         let trafficLayer = null;
         let trafficEnabled = false;
         let mapType = 'standard';
         let isDarkMode = false;
         let rideQueue = [];
-        let selectedVehicleType = null;
-        
-        // Registration form state
-        let currentStep = 1;
-        let registrationData = {
-            personal: {},
-            vehicle: {},
-            payment: {}
-        };
+        let floatHistory = [];
+        let selectedVehicleType = '';
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
-            // Start with welcome screen
-            showWelcomeScreen();
-            
-            // Setup event listeners
-            setupWelcomeEventListeners();
-            setupLoginEventListeners();
-            setupRegistrationEventListeners();
-            
-            // Check if user is already logged in
-            checkAuthState();
+            initializeAuth();
+            setupAuthEventListeners();
         });
         
-        // Check authentication state
-        function checkAuthState() {
+        // Authentication functions
+        function initializeAuth() {
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
-                    // Check if driver has completed registration
-                    database.ref('drivers/' + currentUser.uid).once('value')
-                        .then(snapshot => {
-                            const driverData = snapshot.val();
-                            if (driverData && driverData.registrationComplete) {
-                                // Check if email is verified
-                                if (user.emailVerified) {
-                                    // Driver is registered and verified, show dashboard
-                                    showDashboard();
-                                    initializeMap();
-                                    setupDashboardEventListeners();
-                                    loadDriverData();
-                                } else {
-                                    // Email not verified, show verification screen
-                                    showVerificationScreen();
-                                }
-                            } else {
-                                // Driver needs to complete registration
-                                showRegistration();
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error checking driver registration:', error);
-                            showRegistration();
-                        });
+                    showMainApp();
+                    initializeMap();
+                    setupEventListeners();
+                    loadDriverData();
+                    initializeAdvancedFeatures();
                 } else {
-                    // No user logged in, show welcome screen
-                    showWelcomeScreen();
+                    // Show welcome screen
+                    document.getElementById('welcomeScreen').classList.remove('hidden');
                 }
             });
         }
         
-        // Show welcome screen
-        function showWelcomeScreen() {
-            document.getElementById('welcomeContainer').style.display = 'flex';
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('dashboardContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'none';
+        // Show main app after authentication
+        function showMainApp() {
+            document.getElementById('welcomeScreen').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('active');
+            document.getElementById('signupScreen').classList.remove('active');
+            document.getElementById('mainApp').style.display = 'block';
         }
         
-        // Show login screen
-        function showLoginScreen() {
-            document.getElementById('welcomeContainer').style.display = 'none';
-            document.getElementById('loginContainer').style.display = 'flex';
-            document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('dashboardContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'none';
-        }
-        
-        // Show registration screen
-        function showRegistration() {
-            document.getElementById('welcomeContainer').style.display = 'none';
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('registrationContainer').style.display = 'flex';
-            document.getElementById('dashboardContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'none';
+        // Setup authentication event listeners
+        function setupAuthEventListeners() {
+            // Welcome screen buttons
+            document.getElementById('loginBtn').addEventListener('click', () => {
+                document.getElementById('welcomeScreen').classList.add('hidden');
+                document.getElementById('loginScreen').classList.add('active');
+            });
             
-            // Auto-scroll to top when showing registration
-            document.getElementById('registrationContainer').scrollTo(0, 0);
-        }
-        
-        // Show verification screen
-        function showVerificationScreen() {
-            document.getElementById('welcomeContainer').style.display = 'none';
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('dashboardContainer').style.display = 'none';
-            document.getElementById('verificationContainer').style.display = 'flex';
-        }
-        
-        // Show dashboard
-        function showDashboard() {
-            document.getElementById('welcomeContainer').style.display = 'none';
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('registrationContainer').style.display = 'none';
-            document.getElementById('dashboardContainer').style.display = 'block';
-            document.getElementById('verificationContainer').style.display = 'none';
-        }
-        
-        // Setup welcome screen event listeners
-        function setupWelcomeEventListeners() {
-            document.getElementById('loginBtn').addEventListener('click', showLoginScreen);
-            document.getElementById('signupBtn').addEventListener('click', showRegistration);
-        }
-        
-        // Setup login event listeners
-        function setupLoginEventListeners() {
-            document.getElementById('loginSubmitBtn').addEventListener('click', loginUser);
-            document.getElementById('goToSignup').addEventListener('click', showRegistration);
-        }
-        
-        // Login user
-        function loginUser() {
-            const email = document.getElementById('loginEmail').value.trim();
-            const password = document.getElementById('loginPassword').value;
+            document.getElementById('signupBtn').addEventListener('click', () => {
+                document.getElementById('welcomeScreen').classList.add('hidden');
+                document.getElementById('signupScreen').classList.add('active');
+            });
             
-            if (!email) {
-                showNotification('Please enter your email address');
-                return;
-            }
+            // Back buttons
+            document.getElementById('backFromLogin').addEventListener('click', () => {
+                document.getElementById('loginScreen').classList.remove('active');
+                document.getElementById('welcomeScreen').classList.remove('hidden');
+            });
             
-            if (!password) {
-                showNotification('Please enter your password');
-                return;
-            }
+            document.getElementById('backFromSignup').addEventListener('click', () => {
+                document.getElementById('signupScreen').classList.remove('active');
+                document.getElementById('welcomeScreen').classList.remove('hidden');
+            });
             
-            // Show loading state
-            document.getElementById('loginSubmitBtn').disabled = true;
-            document.getElementById('loginSubmitBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+            // Navigation between auth screens
+            document.getElementById('goToSignupFromLogin').addEventListener('click', () => {
+                document.getElementById('loginScreen').classList.remove('active');
+                document.getElementById('signupScreen').classList.add('active');
+            });
             
-            auth.signInWithEmailAndPassword(email, password)
-                .then((userCredential) => {
-                    currentUser = userCredential.user;
-                    
-                    // Check if driver has completed registration
-                    return database.ref('drivers/' + currentUser.uid).once('value');
-                })
-                .then(snapshot => {
-                    const driverData = snapshot.val();
-                    if (driverData && driverData.registrationComplete) {
-                        // Check if email is verified
-                        if (currentUser.emailVerified) {
-                            // Driver is registered and verified, show dashboard
-                            showDashboard();
-                            initializeMap();
-                            setupDashboardEventListeners();
-                            loadDriverData();
-                            showNotification('Login successful!');
-                        } else {
-                            // Email not verified, show verification screen
-                            showVerificationScreen();
-                            showNotification('Please verify your email address to continue.');
-                        }
-                    } else {
-                        // Driver needs to complete registration
-                        showRegistration();
-                        showNotification('Please complete your registration.');
-                    }
-                })
-                .catch((error) => {
-                    console.error('Login error:', error);
-                    showNotification('Login failed. Please check your credentials.');
-                    
-                    // Reset button
-                    document.getElementById('loginSubmitBtn').disabled = false;
-                    document.getElementById('loginSubmitBtn').innerHTML = '<i class="fas fa-sign-in-alt"></i> Login';
-                });
-        }
-        
-        // Setup registration event listeners
-        function setupRegistrationEventListeners() {
-            // Step navigation
-            document.getElementById('step1Next').addEventListener('click', goToStep2);
-            document.getElementById('step2Back').addEventListener('click', goToStep1);
-            document.getElementById('step2Next').addEventListener('click', goToStep3);
-            document.getElementById('step3Back').addEventListener('click', goToStep2);
-            document.getElementById('step3Next').addEventListener('click', completeRegistration);
+            document.getElementById('goToLoginFromSignup').addEventListener('click', () => {
+                document.getElementById('signupScreen').classList.remove('active');
+                document.getElementById('loginScreen').classList.add('active');
+            });
             
-            // Vehicle type selection
+            // Vehicle selection
             document.querySelectorAll('.vehicle-option').forEach(option => {
                 option.addEventListener('click', function() {
                     // Remove selected class from all options
@@ -2546,389 +2393,118 @@
                     // Add selected class to clicked option
                     this.classList.add('selected');
                     
-                    // Set selected vehicle type
+                    // Hide all vehicle details
+                    document.querySelectorAll('.vehicle-details').forEach(details => {
+                        details.classList.remove('active');
+                    });
+                    
+                    // Show selected vehicle details
                     selectedVehicleType = this.getAttribute('data-type');
-                    
-                    // Show appropriate vehicle details
-                    toggleVehicleDetails();
-                    
-                    // Auto-scroll to vehicle details
-                    const registrationContainer = document.getElementById('registrationContainer');
-                    const vehicleDetails = document.querySelector('.vehicle-details-section.active');
-                    if (vehicleDetails) {
-                        setTimeout(() => {
-                            vehicleDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 300);
-                    }
+                    document.getElementById(selectedVehicleType + 'Details').classList.add('active');
                 });
             });
             
-            // Payment method change
-            document.getElementById('paymentMethod').addEventListener('change', togglePaymentDetails);
-            
-            // Go to dashboard
-            document.getElementById('goToDashboard').addEventListener('click', function() {
-                // Check if email is verified
-                if (currentUser && currentUser.emailVerified) {
-                    showDashboard();
-                    initializeMap();
-                    setupDashboardEventListeners();
-                    loadDriverData();
-                } else {
-                    showVerificationScreen();
-                }
-            });
-            
-            // Verification screen buttons
-            document.getElementById('resendVerificationBtn').addEventListener('click', resendVerificationEmail);
-            document.getElementById('continueToDashboardBtn').addEventListener('click', function() {
-                if (currentUser) {
-                    currentUser.reload().then(() => {
-                        if (currentUser.emailVerified) {
-                            showDashboard();
-                            initializeMap();
-                            setupDashboardEventListeners();
-                            loadDriverData();
-                        } else {
-                            showNotification('Email not verified yet. Please check your inbox.');
-                        }
-                    });
-                }
-            });
-        }
-        
-        // Go to step 2
-        function goToStep2() {
-            // Validate step 1
-            const fullName = document.getElementById('fullName').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value;
-            const nrcNumber = document.getElementById('nrcNumber').value.trim();
-            
-            if (!fullName) {
-                showNotification('Please enter your full name');
-                return;
-            }
-            
-            if (!email) {
-                showNotification('Please enter your email address');
-                return;
-            }
-            
-            if (!isValidEmail(email)) {
-                showNotification('Please enter a valid email address');
-                return;
-            }
-            
-            if (!password || password.length < 8) {
-                showNotification('Please enter a password with at least 8 characters');
-                return;
-            }
-            
-            if (!nrcNumber) {
-                showNotification('Please enter your NRC number');
-                return;
-            }
-            
-            // Save step 1 data
-            registrationData.personal = {
-                fullName: fullName,
-                email: email,
-                password: password,
-                nrcNumber: nrcNumber
-            };
-            
-            // Update step indicator
-            document.getElementById('step1').classList.remove('active');
-            document.getElementById('step1').classList.add('completed');
-            document.getElementById('step2').classList.add('active');
-            
-            // Show step 2 form
-            document.getElementById('step1Form').classList.remove('active');
-            document.getElementById('step2Form').classList.add('active');
-            
-            currentStep = 2;
-            
-            // Auto-scroll to top of step 2
-            setTimeout(() => {
-                document.getElementById('step2Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
-        }
-        
-        // Go to step 1
-        function goToStep1() {
-            // Update step indicator
-            document.getElementById('step2').classList.remove('active');
-            document.getElementById('step1').classList.add('active');
-            
-            // Show step 1 form
-            document.getElementById('step2Form').classList.remove('active');
-            document.getElementById('step1Form').classList.add('active');
-            
-            currentStep = 1;
-            
-            // Auto-scroll to top of step 1
-            setTimeout(() => {
-                document.getElementById('step1Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
-        }
-        
-        // Go to step 3
-        function goToStep3() {
-            // Validate step 2
-            if (!selectedVehicleType) {
-                showNotification('Please select vehicle type');
-                return;
-            }
-            
-            // Validate vehicle details based on type
-            if (selectedVehicleType === 'car') {
-                const carMake = document.getElementById('carMake').value.trim();
-                const carModel = document.getElementById('carModel').value.trim();
-                const carYear = document.getElementById('carYear').value.trim();
-                const carColor = document.getElementById('carColor').value.trim();
-                const licensePlate = document.getElementById('licensePlate').value.trim();
+            // Login form submission
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
                 
-                if (!carMake || !carModel || !carYear || !carColor || !licensePlate) {
-                    showNotification('Please complete all car details');
-                    return;
-                }
-                
-                registrationData.vehicle = {
-                    vehicleType: 'car',
-                    make: carMake,
-                    model: carModel,
-                    year: carYear,
-                    color: carColor,
-                    licensePlate: licensePlate
-                };
-            } else if (selectedVehicleType === 'motorcycle') {
-                const bikeMake = document.getElementById('bikeMake').value.trim();
-                const bikeModel = document.getElementById('bikeModel').value.trim();
-                const bikeYear = document.getElementById('bikeYear').value.trim();
-                const bikeColor = document.getElementById('bikeColor').value.trim();
-                const bikePlate = document.getElementById('bikePlate').value.trim();
-                
-                if (!bikeMake || !bikeModel || !bikeYear || !bikeColor || !bikePlate) {
-                    showNotification('Please complete all motorcycle details');
-                    return;
-                }
-                
-                registrationData.vehicle = {
-                    vehicleType: 'motorcycle',
-                    make: bikeMake,
-                    model: bikeModel,
-                    year: bikeYear,
-                    color: bikeColor,
-                    licensePlate: bikePlate
-                };
-            } else if (selectedVehicleType === 'bicycle') {
-                const bicycleMake = document.getElementById('bicycleMake').value.trim();
-                const bicycleColor = document.getElementById('bicycleColor').value.trim();
-                
-                if (!bicycleMake || !bicycleColor) {
-                    showNotification('Please complete all bicycle details');
-                    return;
-                }
-                
-                registrationData.vehicle = {
-                    vehicleType: 'bicycle',
-                    make: bicycleMake,
-                    color: bicycleColor,
-                    licensePlate: 'BIC-' + Math.floor(1000 + Math.random() * 9000) // Generate a random ID
-                };
-            }
-            
-            // Update step indicator
-            document.getElementById('step2').classList.remove('active');
-            document.getElementById('step2').classList.add('completed');
-            document.getElementById('step3').classList.add('active');
-            
-            // Show step 3 form
-            document.getElementById('step2Form').classList.remove('active');
-            document.getElementById('step3Form').classList.add('active');
-            
-            currentStep = 3;
-            
-            // Auto-scroll to top of step 3
-            setTimeout(() => {
-                document.getElementById('step3Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
-        }
-        
-        // Go to step 2
-        function goToStep2() {
-            // Update step indicator
-            document.getElementById('step3').classList.remove('active');
-            document.getElementById('step2').classList.add('active');
-            
-            // Show step 2 form
-            document.getElementById('step3Form').classList.remove('active');
-            document.getElementById('step2Form').classList.add('active');
-            
-            currentStep = 2;
-            
-            // Auto-scroll to top of step 2
-            setTimeout(() => {
-                document.getElementById('step2Form').scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 300);
-        }
-        
-        // Toggle vehicle details based on selected type
-        function toggleVehicleDetails() {
-            // Hide all vehicle detail sections
-            document.getElementById('carDetails').classList.remove('active');
-            document.getElementById('motorcycleDetails').classList.remove('active');
-            document.getElementById('bicycleDetails').classList.remove('active');
-            
-            // Show the selected vehicle detail section
-            if (selectedVehicleType === 'car') {
-                document.getElementById('carDetails').classList.add('active');
-            } else if (selectedVehicleType === 'motorcycle') {
-                document.getElementById('motorcycleDetails').classList.add('active');
-            } else if (selectedVehicleType === 'bicycle') {
-                document.getElementById('bicycleDetails').classList.add('active');
-            }
-        }
-        
-        // Toggle payment details based on selected method
-        function togglePaymentDetails() {
-            const paymentMethod = document.getElementById('paymentMethod').value;
-            const bankDetails = document.getElementById('bankDetails');
-            const mobileMoneyDetails = document.getElementById('mobileMoneyDetails');
-            
-            if (paymentMethod === 'bank') {
-                bankDetails.style.display = 'block';
-                mobileMoneyDetails.style.display = 'none';
-                
-                // Auto-scroll to bank details
-                setTimeout(() => {
-                    bankDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 300);
-            } else if (paymentMethod === 'mobile') {
-                bankDetails.style.display = 'none';
-                mobileMoneyDetails.style.display = 'block';
-                
-                // Auto-scroll to mobile money details
-                setTimeout(() => {
-                    mobileMoneyDetails.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 300);
-            } else {
-                bankDetails.style.display = 'none';
-                mobileMoneyDetails.style.display = 'none';
-            }
-        }
-        
-        // Complete registration
-        function completeRegistration() {
-            // Validate step 3
-            const paymentMethod = document.getElementById('paymentMethod').value;
-            
-            if (!paymentMethod) {
-                showNotification('Please select payment method');
-                return;
-            }
-            
-            if (paymentMethod === 'bank') {
-                const bankName = document.getElementById('bankName').value.trim();
-                const accountNumber = document.getElementById('accountNumber').value.trim();
-                const accountName = document.getElementById('accountName').value.trim();
-                
-                if (!bankName || !accountNumber || !accountName) {
-                    showNotification('Please complete bank details');
-                    return;
-                }
-                
-                registrationData.payment = {
-                    method: 'bank',
-                    bankName: bankName,
-                    accountNumber: accountNumber,
-                    accountName: accountName
-                };
-            } else if (paymentMethod === 'mobile') {
-                const mobileProvider = document.getElementById('mobileProvider').value;
-                const mobileNumber = document.getElementById('mobileNumber').value.trim();
-                
-                if (!mobileProvider || !mobileNumber) {
-                    showNotification('Please complete mobile money details');
-                    return;
-                }
-                
-                registrationData.payment = {
-                    method: 'mobile',
-                    provider: mobileProvider,
-                    mobileNumber: mobileNumber
-                };
-            }
-            
-            // Show loading state
-            document.getElementById('step3Next').disabled = true;
-            document.getElementById('step3Next').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
-            
-            // Create user with email authentication
-            auth.createUserWithEmailAndPassword(registrationData.personal.email, registrationData.personal.password)
-                .then((userCredential) => {
-                    currentUser = userCredential.user;
-                    
-                    // Send email verification
-                    return currentUser.sendEmailVerification();
-                })
-                .then(() => {
-                    // Save driver data to Firebase
-                    return database.ref('drivers/' + currentUser.uid).set({
-                        ...registrationData.personal,
-                        ...registrationData.vehicle,
-                        ...registrationData.payment,
-                        registrationComplete: true,
-                        createdAt: firebase.database.ServerValue.TIMESTAMP,
-                        isOnline: false,
-                        walletBalance: 0,
-                        emailVerified: false
-                    });
-                })
-                .then(() => {
-                    // Show verification screen instead of success step
-                    showVerificationScreen();
-                    showNotification('Registration completed! Please verify your email.');
-                })
-                .catch((error) => {
-                    console.error('Error completing registration:', error);
-                    
-                    // Show more specific error messages
-                    if (error.code === 'auth/email-already-in-use') {
-                        showNotification('This email is already registered. Please use a different email.');
-                    } else if (error.code === 'auth/invalid-email') {
-                        showNotification('Invalid email address format.');
-                    } else if (error.code === 'auth/weak-password') {
-                        showNotification('Password is too weak. Please use a stronger password.');
-                    } else {
-                        showNotification('Error completing registration. Please try again.');
-                    }
-                    
-                    // Reset button
-                    document.getElementById('step3Next').disabled = false;
-                    document.getElementById('step3Next').innerHTML = 'Complete Registration';
-                });
-        }
-        
-        // Resend verification email
-        function resendVerificationEmail() {
-            if (currentUser) {
-                currentUser.sendEmailVerification()
-                    .then(() => {
-                        showNotification('Verification email sent. Please check your inbox.');
+                auth.signInWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        // Signed in successfully
+                        showNotification('Login successful!');
                     })
-                    .catch(error => {
-                        console.error('Error sending verification email:', error);
-                        showNotification('Error sending verification email. Please try again.');
+                    .catch((error) => {
+                        console.error('Login error:', error);
+                        showNotification('Login failed: ' + error.message);
                     });
-            }
-        }
-        
-        // Email validation helper
-        function isValidEmail(email) {
-            const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
-            return re.test(String(email).toLowerCase());
+            });
+            
+            // Signup form submission
+            document.getElementById('signupForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Validate passwords match
+                const password = document.getElementById('signupPassword').value;
+                const confirmPassword = document.getElementById('signupConfirmPassword').value;
+                
+                if (password !== confirmPassword) {
+                    showNotification('Passwords do not match');
+                    return;
+                }
+                
+                // Validate vehicle type is selected
+                if (!selectedVehicleType) {
+                    showNotification('Please select a vehicle type');
+                    return;
+                }
+                
+                const email = document.getElementById('signupEmail').value;
+                const name = document.getElementById('signupName').value;
+                const phone = document.getElementById('signupPhone').value;
+                const nrc = document.getElementById('signupNRC').value;
+                const paymentMethod = document.getElementById('paymentMethod').value;
+                const paymentDetails = document.getElementById('paymentDetails').value;
+                
+                // Create user with email and password
+                auth.createUserWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        const user = userCredential.user;
+                        
+                        // Prepare vehicle data based on selected type
+                        let vehicleData = {};
+                        if (selectedVehicleType === 'car') {
+                            vehicleData = {
+                                type: 'car',
+                                make: document.getElementById('carMake').value,
+                                model: document.getElementById('carModel').value,
+                                year: document.getElementById('carYear').value,
+                                color: document.getElementById('carColor').value,
+                                licensePlate: document.getElementById('carLicensePlate').value,
+                                licenseNumber: document.getElementById('carLicenseNumber').value
+                            };
+                        } else if (selectedVehicleType === 'bike') {
+                            vehicleData = {
+                                type: 'bike',
+                                make: document.getElementById('bikeMake').value,
+                                model: document.getElementById('bikeModel').value,
+                                year: document.getElementById('bikeYear').value,
+                                licenseNumber: document.getElementById('bikeLicenseNumber').value
+                            };
+                        } else if (selectedVehicleType === 'bicycle') {
+                            vehicleData = {
+                                type: 'bicycle',
+                                make: document.getElementById('bicycleMake').value,
+                                color: document.getElementById('bicycleColor').value
+                            };
+                        }
+                        
+                        // Save user data to Firebase
+                        return database.ref('users/' + user.uid).set({
+                            name: name,
+                            email: email,
+                            phone: phone,
+                            nrc: nrc,
+                            vehicle: vehicleData,
+                            payment: {
+                                method: paymentMethod,
+                                details: paymentDetails
+                            },
+                            createdAt: firebase.database.ServerValue.TIMESTAMP,
+                            isOnline: false,
+                            walletBalance: 0,
+                            floatBalance: 0
+                        });
+                    })
+                    .then(() => {
+                        showNotification('Account created successfully!');
+                    })
+                    .catch((error) => {
+                        console.error('Signup error:', error);
+                        showNotification('Signup failed: ' + error.message);
+                    });
+            });
         }
         
         // Map initialization
@@ -2936,6 +2512,7 @@
             // Main driver map
             driverMap = L.map('map').setView([-15.4167, 28.2833], 13); // Default to Lusaka
             
+            // Use a clean map style without colors around the car
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(driverMap);
@@ -2946,12 +2523,6 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(rideRequestMap);
             
-            // Delivery request map
-            deliveryRequestMap = L.map('deliveryRequestMap').setView([-15.4167, 28.2833], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(deliveryRequestMap);
-            
             // Get driver's current location
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(position => {
@@ -2961,14 +2532,11 @@
                     // Update map with current location
                     driverMap.setView([lat, lng], 15);
                     
-                    // Add marker for driver location
-                    const vehicleType = registrationData.vehicle.vehicleType;
-                    const isBicycle = vehicleType === 'bicycle';
-                    
+                    // Add marker for driver location (without orange border)
                     driverMarker = L.marker([lat, lng], {
                         icon: L.divIcon({
-                            className: isBicycle ? 'bicycle-marker' : 'driver-marker',
-                            html: `<div class="${isBicycle ? 'bicycle-marker' : 'driver-marker'}">${isBicycle ? '🚲' : '🚗'}</div><div class="driver-marker-label">You</div>`,
+                            className: 'driver-marker',
+                            html: '<div class="driver-marker">🚗</div><div class="driver-marker-label">You</div>',
                             iconSize: [35, 50]
                         })
                     }).addTo(driverMap)
@@ -2991,8 +2559,7 @@
                     latitude: lat,
                     longitude: lng,
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    isOnline: true,
-                    vehicleType: registrationData.vehicle.vehicleType
+                    vehicleType: selectedVehicleType
                 });
                 
                 // Update marker position
@@ -3031,10 +2598,10 @@
             }
         }
         
-        // Setup dashboard event listeners
-        function setupDashboardEventListeners() {
+        // Event listeners setup
+        function setupEventListeners() {
             // Online toggle
-            document.getElementById('onlineToggle').addEventListener('click', toggleOnlineStatus);
+            document.getElementById('onlineToggleCheckbox').addEventListener('change', toggleOnlineStatus);
             
             // Navigation buttons
             document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -3060,10 +2627,6 @@
             document.getElementById('acceptRideBtn').addEventListener('click', acceptRide);
             document.getElementById('rejectRideBtn').addEventListener('click', rejectRide);
             
-            // Delivery request actions
-            document.getElementById('acceptDeliveryBtn').addEventListener('click', acceptDelivery);
-            document.getElementById('rejectDeliveryBtn').addEventListener('click', rejectDelivery);
-            
             // Ride action button (hold functionality)
             const rideActionBtn = document.getElementById('rideActionBtn');
             
@@ -3079,6 +2642,10 @@
             document.getElementById('saveVehicleDetailsBtn').addEventListener('click', saveVehicleDetails);
             document.getElementById('addFundsBtn').addEventListener('click', addFunds);
             document.getElementById('withdrawFundsBtn').addEventListener('click', withdrawFunds);
+            
+            // Float actions
+            document.getElementById('addFloatBtn').addEventListener('click', addFloat);
+            document.getElementById('adjustFloatBtn').addEventListener('click', adjustFloat);
             
             // Earnings period selection
             document.querySelectorAll('.period-btn').forEach(btn => {
@@ -3118,6 +2685,116 @@
             
             // Collapsible sections
             document.getElementById('driverDetailsHeader').addEventListener('click', toggleDriverDetails);
+        }
+        
+        // Initialize advanced features
+        function initializeAdvancedFeatures() {
+            // Initialize performance stats
+            updatePerformanceStats();
+            
+            // Initialize ride queue
+            initializeRideQueue();
+            
+            // Set up periodic updates
+            setInterval(updatePerformanceStats, 30000); // Update every 30 seconds
+            setInterval(checkForRideQueue, 15000); // Check for queue every 15 seconds
+        }
+        
+        // Update performance statistics
+        function updatePerformanceStats() {
+            if (currentUser) {
+                // In a real app, this would fetch actual data from Firebase
+                // For demo purposes, we'll use simulated data
+                document.getElementById('totalTrips').textContent = Math.floor(Math.random() * 100) + 50;
+                document.getElementById('ratingScore').textContent = (4 + Math.random()).toFixed(1);
+                document.getElementById('onlineTime').textContent = Math.floor(Math.random() * 10) + 1 + 'h';
+                document.getElementById('acceptanceRate').textContent = Math.floor(Math.random() * 30) + 70 + '%';
+            }
+        }
+        
+        // Initialize ride queue
+        function initializeRideQueue() {
+            // In a real app, this would fetch actual queue data from Firebase
+            // For demo purposes, we'll simulate a queue
+            rideQueue = [
+                {
+                    id: 'queue1',
+                    pickup: '123 Main Street',
+                    time: '5 min away',
+                    fare: 'K15.00'
+                },
+                {
+                    id: 'queue2',
+                    pickup: '456 Oak Avenue',
+                    time: '8 min away',
+                    fare: 'K18.50'
+                }
+            ];
+            
+            updateRideQueueDisplay();
+        }
+        
+        // Update ride queue display
+        function updateRideQueueDisplay() {
+            const queueList = document.getElementById('queueList');
+            queueList.innerHTML = '';
+            
+            if (rideQueue.length > 0) {
+                rideQueue.forEach(ride => {
+                    const queueItem = document.createElement('div');
+                    queueItem.className = 'queue-item';
+                    queueItem.innerHTML = `
+                        <div class="queue-info">
+                            <div class="queue-location">${ride.pickup}</div>
+                            <div class="queue-time">${ride.time} • ${ride.fare}</div>
+                        </div>
+                        <button class="queue-action" data-id="${ride.id}">Accept</button>
+                    `;
+                    queueList.appendChild(queueItem);
+                });
+                
+                // Show queue section
+                document.getElementById('rideQueue').style.display = 'block';
+                
+                // Add event listeners to queue actions
+                document.querySelectorAll('.queue-action').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const rideId = this.getAttribute('data-id');
+                        acceptRideFromQueue(rideId);
+                    });
+                });
+            } else {
+                document.getElementById('rideQueue').style.display = 'none';
+            }
+        }
+        
+        // Accept ride from queue
+        function acceptRideFromQueue(rideId) {
+            // In a real app, this would update the ride status in Firebase
+            showNotification(`Ride ${rideId} accepted from queue`);
+            
+            // Remove from queue
+            rideQueue = rideQueue.filter(ride => ride.id !== rideId);
+            updateRideQueueDisplay();
+        }
+        
+        // Check for ride queue updates
+        function checkForRideQueue() {
+            if (isOnline && !currentRide) {
+                // In a real app, this would check Firebase for new queue items
+                // For demo, we'll randomly add items occasionally
+                if (Math.random() > 0.7 && rideQueue.length < 3) {
+                    const newRide = {
+                        id: 'queue' + Date.now(),
+                        pickup: '789 New Street',
+                        time: '7 min away',
+                        fare: 'K' + (12 + Math.floor(Math.random() * 10)).toFixed(2)
+                    };
+                    rideQueue.push(newRide);
+                    updateRideQueueDisplay();
+                    showNotification('New ride added to queue');
+                }
+            }
         }
         
         // Toggle panel collapse
@@ -3206,6 +2883,8 @@
                 loadRideHistory();
             } else if (screenId === 'earnings') {
                 loadEarnings();
+            } else if (screenId === 'account') {
+                loadFloatHistory();
             }
         }
         
@@ -3217,13 +2896,19 @@
             const statusIndicator = document.getElementById('driverStatusIndicator');
             const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
-            const toggleIcon = document.getElementById('toggleIcon');
             
             if (isOnline) {
+                // Check if float balance is sufficient
+                if (floatBalance < 10) {
+                    showNotification('Cannot go online. Your float balance is below minimum K10.00. Please add float.');
+                    isOnline = false;
+                    document.getElementById('onlineToggleCheckbox').checked = false;
+                    return;
+                }
+                
                 onlineToggle.classList.remove('offline');
                 onlineToggle.classList.add('active');
                 onlineStatusText.textContent = 'Online';
-                toggleIcon.className = 'fas fa-toggle-on';
                 
                 // Show status indicator
                 statusIndicator.style.display = 'flex';
@@ -3241,7 +2926,6 @@
                 onlineToggle.classList.remove('active');
                 onlineToggle.classList.add('offline');
                 onlineStatusText.textContent = 'Offline';
-                toggleIcon.className = 'fas fa-toggle-off';
                 
                 // Hide status indicator
                 statusIndicator.style.display = 'none';
@@ -3250,65 +2934,36 @@
                 // Stop location tracking
                 stopLocationTracking();
                 
-                // Stop listening for ride requests
-                stopListeningForRideRequests();
-                
                 showNotification('You are now offline.');
             }
             
             // Update driver status in Firebase
             if (currentUser) {
-                database.ref('drivers/' + currentUser.uid).update({
+                database.ref('users/' + currentUser.uid).update({
                     isOnline: isOnline,
                     lastOnline: firebase.database.ServerValue.TIMESTAMP
                 });
-                
-                // Update driver location status
-                if (isOnline) {
-                    // Get current position to update location
-                    if (navigator.geolocation) {
-                        navigator.geolocation.getCurrentPosition(position => {
-                            const lat = position.coords.latitude;
-                            const lng = position.coords.longitude;
-                            updateDriverLocation(lat, lng);
-                        });
-                    }
-                } else {
-                    // Remove from online drivers
-                    database.ref('driverLocations/' + currentUser.uid).remove();
-                }
             }
         }
         
         // Listen for ride requests
         function listenForRideRequests() {
-            // Listen for new ride requests that are not yet assigned
-            database.ref('rides').orderByChild('status').equalTo('requested').on('child_added', snapshot => {
-                const ride = snapshot.val();
-                const rideId = snapshot.key;
-                
-                // Check if this ride is already assigned to another driver
-                if (!ride.driverId) {
-                    // Check if this ride matches the driver's vehicle type
-                    const driverVehicleType = registrationData.vehicle.vehicleType;
-                    
-                    // Bicycle drivers only get delivery requests
-                    if (driverVehicleType === 'bicycle' && ride.type === 'delivery') {
-                        // Show delivery request popup
-                        showDeliveryRequest(rideId, ride);
-                    } 
-                    // Car and motorcycle drivers get ride requests
-                    else if (driverVehicleType !== 'bicycle' && ride.type !== 'delivery') {
-                        // Show ride request popup
-                        showRideRequest(rideId, ride);
+            database.ref('rides').orderByChild('status').equalTo('requested').on('value', snapshot => {
+                const rides = snapshot.val();
+                if (rides) {
+                    // Get the first available ride request that matches the driver's vehicle type
+                    for (const rideId in rides) {
+                        const ride = rides[rideId];
+                        
+                        // Check if ride type matches driver's vehicle type
+                        if (ride.rideType === selectedVehicleType) {
+                            // Show ride request popup
+                            showRideRequest(rideId, ride);
+                            break;
+                        }
                     }
                 }
             });
-        }
-        
-        // Stop listening for ride requests
-        function stopListeningForRideRequests() {
-            database.ref('rides').off('child_added');
         }
         
         // Show ride request popup
@@ -3329,12 +2984,9 @@
             document.getElementById('customerRating').textContent = ride.passengerRating || '4.8';
             document.getElementById('pickupLocation').textContent = ride.pickupLocation;
             document.getElementById('destinationLocation').textContent = ride.destination;
-            
-            // Hide package details for regular rides
-            document.getElementById('packageDetails').style.display = 'none';
-            
-            // Update request type badge
-            document.getElementById('requestTypeBadge').textContent = 'RIDE';
+            document.getElementById('tripDistance').textContent = ride.distance ? `${ride.distance} km` : '5.2 km';
+            document.getElementById('tripTime').textContent = ride.estimatedTime || '15 min';
+            document.getElementById('surgeMultiplier').textContent = ride.surgeMultiplier || '1.0x';
             
             // Calculate and display fare details
             const baseFare = 15;
@@ -3350,51 +3002,11 @@
             // Update ride request map
             updateRideRequestMap(ride);
             
+            // Generate waypoints
+            generateWaypoints(ride);
+            
             // Show popup
             document.getElementById('rideRequestPopup').style.display = 'flex';
-        }
-        
-        // Show delivery request popup
-        function showDeliveryRequest(rideId, ride) {
-            // Check if driver has accepted a delivery already
-            if (currentRide) {
-                return; // Don't show new requests if driver is already on a delivery
-            }
-            
-            currentDeliveryRequest = {
-                id: rideId,
-                ...ride
-            };
-            
-            // Update popup content
-            document.getElementById('deliveryCustomerName').textContent = ride.customerName || 'Customer';
-            document.getElementById('deliveryCustomerPhone').textContent = ride.customerPhone || 'N/A';
-            document.getElementById('deliveryCustomerRating').textContent = ride.customerRating || '4.8';
-            document.getElementById('deliveryPickupLocation').textContent = ride.pickupLocation;
-            document.getElementById('deliveryAddress').textContent = ride.destination;
-            
-            // Update package details
-            document.getElementById('deliveryPackageSize').textContent = ride.packageSize || 'Small';
-            document.getElementById('deliveryPackageWeight').textContent = ride.packageWeight || '2 kg';
-            document.getElementById('deliveryPackageFragile').textContent = ride.isFragile ? 'Yes' : 'No';
-            document.getElementById('deliveryInstructions').textContent = ride.instructions || 'No special instructions';
-            
-            // Calculate and display fare details
-            const baseFare = 12;
-            const distanceFare = Math.max(0, (ride.distance ? parseFloat(ride.distance) * 4 : 4));
-            const packageFee = ride.packageSize === 'large' ? 5 : (ride.packageSize === 'medium' ? 3 : 2);
-            const totalFare = baseFare + distanceFare + packageFee;
-            
-            document.getElementById('deliveryBaseFare').textContent = `K${baseFare.toFixed(2)}`;
-            document.getElementById('deliveryDistanceFare').textContent = `K${distanceFare.toFixed(2)}`;
-            document.getElementById('packageFee').textContent = `K${packageFee.toFixed(2)}`;
-            document.getElementById('deliveryTotalFare').textContent = `K${totalFare.toFixed(2)}`;
-            
-            // Update delivery request map
-            updateDeliveryRequestMap(ride);
-            
-            // Show popup
-            document.getElementById('deliveryRequestPopup').style.display = 'flex';
         }
         
         // Update ride request map
@@ -3425,7 +3037,7 @@
             }).addTo(rideRequestMap).bindPopup('Destination');
             
             // Draw route
-            drawRouteOnRequestMap(rideRequestMap, ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+            drawRouteOnRequestMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
             
             // Fit map to show both locations with padding
             const bounds = L.latLngBounds(
@@ -3435,46 +3047,8 @@
             rideRequestMap.fitBounds(bounds, { padding: [20, 20] });
         }
         
-        // Update delivery request map
-        function updateDeliveryRequestMap(ride) {
-            // Clear existing map
-            deliveryRequestMap.eachLayer(layer => {
-                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-                    deliveryRequestMap.removeLayer(layer);
-                }
-            });
-            
-            // Add pickup marker
-            L.marker([ride.pickupLat, ride.pickupLng], {
-                icon: L.divIcon({
-                    className: 'pickup-marker',
-                    html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Pickup</div>',
-                    iconSize: [25, 40]
-                })
-            }).addTo(deliveryRequestMap).bindPopup('Pickup Location');
-            
-            // Add destination marker
-            L.marker([ride.destLat, ride.destLng], {
-                icon: L.divIcon({
-                    className: 'destination-marker',
-                    html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Delivery</div>',
-                    iconSize: [25, 40]
-                })
-            }).addTo(deliveryRequestMap).bindPopup('Delivery Address');
-            
-            // Draw route
-            drawRouteOnRequestMap(deliveryRequestMap, ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-            
-            // Fit map to show both locations with padding
-            const bounds = L.latLngBounds(
-                [ride.pickupLat, ride.pickupLng],
-                [ride.destLat, ride.destLng]
-            );
-            deliveryRequestMap.fitBounds(bounds, { padding: [20, 20] });
-        }
-        
-        // Draw route on request map
-        function drawRouteOnRequestMap(map, startLat, startLng, endLat, endLng) {
+        // Draw route on ride request map
+        function drawRouteOnRequestMap(startLat, startLng, endLat, endLng) {
             // Use OSRM API to get route
             fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
                 .then(response => response.json())
@@ -3488,7 +3062,7 @@
                             color: '#FF6B35',
                             weight: 4,
                             opacity: 0.7
-                        }).addTo(map);
+                        }).addTo(rideRequestMap);
                     }
                 })
                 .catch(error => {
@@ -3501,8 +3075,42 @@
                         color: '#FF6B35',
                         weight: 4,
                         opacity: 0.7
-                    }).addTo(map);
+                    }).addTo(rideRequestMap);
                 });
+        }
+        
+        // Generate waypoints between driver and pickup
+        function generateWaypoints(ride) {
+            waypoints = [];
+            const waypointsContainer = document.getElementById('waypointsContainer');
+            waypointsContainer.innerHTML = '';
+            
+            // Simulate generating waypoints along the route
+            // In a real app, you would get these from a routing service
+            const sampleWaypoints = [
+                "Turn left onto Independence Avenue",
+                "Continue straight for 1.2 km",
+                "Turn right onto Cairo Road",
+                "Merge onto Great East Road",
+                "Destination on your right"
+            ];
+            
+            sampleWaypoints.forEach((waypoint, index) => {
+                waypoints.push(waypoint);
+                
+                const waypointItem = document.createElement('div');
+                waypointItem.className = 'waypoint-item';
+                waypointItem.innerHTML = `
+                    <div class="waypoint-icon">
+                        <i class="fas fa-map-pin"></i>
+                    </div>
+                    <div class="waypoint-text">
+                        ${waypoint}
+                    </div>
+                `;
+                
+                waypointsContainer.appendChild(waypointItem);
+            });
         }
         
         // Accept a ride
@@ -3531,52 +3139,11 @@
                     // Update map for active ride
                     updateMapForActiveRide();
                     
-                    // Notify passenger that driver has accepted
-                    notifyPassenger('accepted');
-                    
                     showNotification('Ride accepted successfully.');
                 })
                 .catch(error => {
                     console.error('Error accepting ride:', error);
                     showNotification('Error accepting ride. Please try again.');
-                });
-            }
-        }
-        
-        // Accept a delivery
-        function acceptDelivery() {
-            if (currentDeliveryRequest && currentUser) {
-                // Update delivery with driver info
-                database.ref('rides/' + currentDeliveryRequest.id).update({
-                    driverId: currentUser.uid,
-                    status: 'accepted',
-                    acceptedAt: firebase.database.ServerValue.TIMESTAMP
-                })
-                .then(() => {
-                    currentRide = {
-                        id: currentDeliveryRequest.id,
-                        ...currentDeliveryRequest,
-                        driverId: currentUser.uid,
-                        status: 'accepted'
-                    };
-                    
-                    // Hide delivery request popup
-                    document.getElementById('deliveryRequestPopup').style.display = 'none';
-                    
-                    // Update driver panel for active delivery
-                    updateDriverPanelForActiveRide();
-                    
-                    // Update map for active delivery
-                    updateMapForActiveRide();
-                    
-                    // Notify customer that driver has accepted
-                    notifyPassenger('accepted');
-                    
-                    showNotification('Delivery accepted successfully.');
-                })
-                .catch(error => {
-                    console.error('Error accepting delivery:', error);
-                    showNotification('Error accepting delivery. Please try again.');
                 });
             }
         }
@@ -3592,41 +3159,15 @@
             }
         }
         
-        // Reject a delivery
-        function rejectDelivery() {
-            if (currentDeliveryRequest) {
-                // Hide delivery request popup
-                document.getElementById('deliveryRequestPopup').style.display = 'none';
-                currentDeliveryRequest = null;
-                
-                showNotification('Delivery rejected.');
-            }
-        }
-        
-        // Notify passenger about ride status
-        function notifyPassenger(status) {
-            if (currentRide && currentRide.passengerId) {
-                // In a real app, this would send a push notification to the passenger
-                // For demo, we'll just update the ride status in Firebase
-                database.ref('rides/' + currentRide.id).update({
-                    status: status,
-                    driverName: registrationData.personal.fullName,
-                    driverEmail: registrationData.personal.email,
-                    vehicleDetails: `${registrationData.vehicle.vehicleMake} ${registrationData.vehicle.vehicleModel} - ${registrationData.vehicle.licensePlate}`
-                });
-            }
-        }
-        
         // Update driver panel for active ride
         function updateDriverPanelForActiveRide() {
             if (currentRide) {
                 // Update driver details with customer info
-                const customerName = currentRide.passengerName || currentRide.customerName || 'Customer';
-                document.getElementById('driverName').textContent = customerName;
+                document.getElementById('driverName').textContent = currentRide.passengerName || 'Passenger';
+                document.getElementById('driverPhone').textContent = currentRide.passengerPhone || 'N/A';
                 
                 // Update vehicle details with trip info
-                const destination = currentRide.destination || 'Destination';
-                document.getElementById('vehicleDetails').textContent = `To: ${destination}`;
+                document.getElementById('vehicleDetails').textContent = `To: ${currentRide.destination}`;
                 
                 // Show ride action button
                 document.getElementById('rideActionBtn').style.display = 'block';
@@ -3636,6 +3177,9 @@
                 
                 // Update ride action button
                 updateRideActionButton('hold-to-start');
+                
+                // Hide ride queue
+                document.getElementById('rideQueue').style.display = 'none';
             }
         }
         
@@ -3683,11 +3227,13 @@
                 // Fit map to show driver, customer and destination with appropriate zoom
                 if (driverMarker) {
                     const driverLatLng = driverMarker.getLatLng();
+                    const customerLatLng = customerMarker.getLatLng();
+                    
                     const bounds = L.latLngBounds(
                         [driverLatLng.lat, driverLatLng.lng],
-                        [currentRide.pickupLat, currentRide.pickupLng],
-                        [currentRide.destLat, currentRide.destLng]
+                        [customerLatLng.lat, customerLatLng.lng]
                     );
+                    
                     driverMap.fitBounds(bounds, { padding: [50, 50] });
                 }
             }
@@ -3833,9 +3379,6 @@
                         const driverLatLng = driverMarker.getLatLng();
                         drawRoute(driverLatLng.lat, driverLatLng.lng, currentRide.destLat, currentRide.destLng);
                     }
-                    
-                    // Notify passenger
-                    notifyPassenger('started');
                 });
             } else if (holdButtonContent.innerHTML.includes('Arrive')) {
                 // Mark arrived
@@ -3846,9 +3389,6 @@
                     currentRide.status = 'arrived';
                     updateRideActionButton('hold-to-pickup');
                     showNotification('Arrival marked. Waiting for passenger.');
-                    
-                    // Notify passenger
-                    notifyPassenger('arrived');
                 });
             } else if (holdButtonContent.innerHTML.includes('Pickup')) {
                 // Mark pickup
@@ -3861,13 +3401,10 @@
                     showNotification('Passenger picked up. Starting trip.');
                     
                     // Update driver details back to driver info
-                    document.getElementById('driverName').textContent = registrationData.personal.fullName;
-                    document.getElementById('driverEmail').textContent = registrationData.personal.email;
+                    document.getElementById('driverName').textContent = document.getElementById('driverNameInput').value || 'Driver Name';
+                    document.getElementById('driverPhone').textContent = document.getElementById('driverPhoneInput').value || '000-000-0000';
                     document.getElementById('vehicleDetails').textContent = 
-                        `${registrationData.vehicle.vehicleMake} ${registrationData.vehicle.vehicleModel} - ${registrationData.vehicle.licensePlate}`;
-                    
-                    // Notify passenger
-                    notifyPassenger('picked_up');
+                        `${document.getElementById('vehicleTypeInput').value || 'Vehicle'} - ${document.getElementById('licensePlateInput').value || 'ABC123'}`;
                 });
             } else if (holdButtonContent.innerHTML.includes('Complete')) {
                 // Complete ride
@@ -3876,14 +3413,17 @@
                     completedAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
-                    // Calculate commission and update wallet balance
+                    // Calculate commission and update float balance
                     const totalFare = calculateTotalFare(currentRide);
                     const commission = totalFare * commissionRate;
                     const driverEarnings = totalFare - commission;
                     
-                    // Update wallet balance
-                    const newWalletBalance = walletBalance + driverEarnings;
-                    updateWalletBalance(newWalletBalance);
+                    // Update float balance
+                    const newFloatBalance = floatBalance + driverEarnings;
+                    updateFloatBalance(newFloatBalance);
+                    
+                    // Add float history entry
+                    addFloatHistoryEntry('earnings', driverEarnings, `Earnings from ride ${currentRide.id}`);
                     
                     // Add to earnings
                     const earningsData = {
@@ -3896,8 +3436,8 @@
                     
                     database.ref('earnings/' + currentUser.uid).push(earningsData)
                         .then(() => {
-                            // Show earnings notification
-                            showNotification(`Ride completed! You earned K${driverEarnings.toFixed(2)}. Commission: K${commission.toFixed(2)}`);
+                            // Show commission deduction notification
+                            showNotification(`Ride completed! K${driverEarnings.toFixed(2)} added to your balance. New balance: K${newFloatBalance.toFixed(2)}`);
                             
                             // Reset driver panel
                             currentRide = null;
@@ -3918,8 +3458,8 @@
                                 routePolyline = null;
                             }
                             
-                            // Notify passenger
-                            notifyPassenger('completed');
+                            // Show ride queue again
+                            updateRideQueueDisplay();
                         });
                 });
             }
@@ -3927,100 +3467,250 @@
         
         // Calculate total fare for a ride
         function calculateTotalFare(ride) {
-            if (ride.type === 'delivery') {
-                const baseFare = 12;
-                const distanceFare = Math.max(0, (ride.distance ? parseFloat(ride.distance) * 4 : 4));
-                const packageFee = ride.packageSize === 'large' ? 5 : (ride.packageSize === 'medium' ? 3 : 2);
-                return baseFare + distanceFare + packageFee;
-            } else {
-                const baseFare = 15;
-                const distanceFare = Math.max(0, (ride.distance ? parseFloat(ride.distance) * 5 : 5));
-                const discount = ride.promoCode ? 2 : 0;
-                return baseFare + distanceFare - discount;
-            }
+            const baseFare = 15;
+            const distanceFare = Math.max(0, (ride.distance ? parseFloat(ride.distance) * 5 : 5));
+            const discount = ride.promoCode ? 2 : 0;
+            return baseFare + distanceFare - discount;
         }
         
-        // Update wallet balance
-        function updateWalletBalance(newBalance) {
-            walletBalance = newBalance;
+        // Update float balance
+        function updateFloatBalance(newBalance) {
+            floatBalance = newBalance;
             
             // Update UI
-            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
-            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+            document.getElementById('walletBalance').textContent = `K${floatBalance.toFixed(2)}`;
+            document.getElementById('accountBalance').textContent = `K${floatBalance.toFixed(2)}`;
+            document.getElementById('floatBalance').textContent = `K${floatBalance.toFixed(2)}`;
             
             // Save to Firebase
             if (currentUser) {
-                database.ref('drivers/' + currentUser.uid).update({
-                    walletBalance: walletBalance
+                database.ref('users/' + currentUser.uid).update({
+                    walletBalance: floatBalance,
+                    floatBalance: floatBalance
                 });
+            }
+            
+            // Check if balance is below minimum and show warning if needed
+            if (floatBalance < 10) {
+                showNoFloatWarning();
+                
+                // If driver is online, force them offline
+                if (isOnline) {
+                    document.getElementById('onlineToggleCheckbox').checked = false;
+                    toggleOnlineStatus();
+                }
+            }
+        }
+        
+        // Show no float warning
+        function showNoFloatWarning() {
+            // Check if warning already exists
+            if (document.querySelector('.no-float-warning')) {
+                return;
+            }
+            
+            const warning = document.createElement('div');
+            warning.className = 'no-float-warning';
+            warning.innerHTML = `
+                <i class="fas fa-exclamation-triangle"></i>
+                Your float balance is below minimum K10.00. You cannot receive ride requests until you add float.
+            `;
+            
+            // Insert warning at the top of the account screen
+            const accountScreen = document.getElementById('accountScreen');
+            const firstChild = accountScreen.firstChild;
+            accountScreen.insertBefore(warning, firstChild);
+        }
+        
+        // Add float to account
+        function addFloat() {
+            const amount = prompt('Enter amount to add to your float (K):');
+            if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+                const addAmount = parseFloat(amount);
+                const newBalance = floatBalance + addAmount;
+                
+                // Update balance
+                updateFloatBalance(newBalance);
+                
+                // Add float history entry
+                addFloatHistoryEntry('deposit', addAmount, 'Float deposit');
+                
+                showNotification(`Successfully added K${addAmount.toFixed(2)} to your float.`);
+                
+                // Remove warning if balance is now sufficient
+                if (newBalance >= 10) {
+                    const warning = document.querySelector('.no-float-warning');
+                    if (warning) {
+                        warning.remove();
+                    }
+                }
+            } else if (amount) {
+                showNotification('Please enter a valid amount.');
+            }
+        }
+        
+        // Adjust float (withdraw)
+        function adjustFloat() {
+            if (floatBalance <= 0) {
+                showNotification('Your float balance is zero.');
+                return;
+            }
+            
+            const amount = prompt(`Enter amount to withdraw from float (K). Available: K${floatBalance.toFixed(2)}:`);
+            if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+                const withdrawAmount = parseFloat(amount);
+                
+                if (withdrawAmount > floatBalance) {
+                    showNotification('Insufficient float balance for this withdrawal.');
+                    return;
+                }
+                
+                const newBalance = floatBalance - withdrawAmount;
+                updateFloatBalance(newBalance);
+                
+                // Add float history entry
+                addFloatHistoryEntry('withdrawal', -withdrawAmount, 'Float withdrawal');
+                
+                showNotification(`Float withdrawal of K${withdrawAmount.toFixed(2)} processed.`);
+            } else if (amount) {
+                showNotification('Please enter a valid amount.');
+            }
+        }
+        
+        // Add float history entry
+        function addFloatHistoryEntry(type, amount, description) {
+            const historyEntry = {
+                type: type,
+                amount: amount,
+                description: description,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                balance: floatBalance
+            };
+            
+            // Add to local array
+            floatHistory.unshift(historyEntry);
+            
+            // Save to Firebase
+            if (currentUser) {
+                database.ref('floatHistory/' + currentUser.uid).push(historyEntry);
+            }
+            
+            // Update UI
+            updateFloatHistoryDisplay();
+        }
+        
+        // Load float history
+        function loadFloatHistory() {
+            if (currentUser) {
+                database.ref('floatHistory/' + currentUser.uid).orderByChild('timestamp').limitToLast(10).once('value')
+                    .then(snapshot => {
+                        const history = snapshot.val();
+                        floatHistory = [];
+                        
+                        if (history) {
+                            // Convert to array and sort by timestamp (newest first)
+                            Object.keys(history).forEach(key => {
+                                floatHistory.unshift({
+                                    id: key,
+                                    ...history[key]
+                                });
+                            });
+                        }
+                        
+                        updateFloatHistoryDisplay();
+                    })
+                    .catch(error => {
+                        console.error('Error loading float history:', error);
+                    });
+            }
+        }
+        
+        // Update float history display
+        function updateFloatHistoryDisplay() {
+            const floatHistoryList = document.getElementById('floatHistoryList');
+            floatHistoryList.innerHTML = '';
+            
+            if (floatHistory.length > 0) {
+                floatHistory.forEach(entry => {
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'float-history-item';
+                    
+                    const date = new Date(entry.timestamp);
+                    const formattedDate = date.toLocaleDateString();
+                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    const amountClass = entry.amount > 0 ? 'positive' : 'negative';
+                    const amountSign = entry.amount > 0 ? '+' : '';
+                    
+                    historyItem.innerHTML = `
+                        <div>
+                            <div>${entry.description}</div>
+                            <div style="font-size: 0.6rem; color: var(--medium-gray);">${formattedDate} ${formattedTime}</div>
+                        </div>
+                        <div class="float-amount ${amountClass}">${amountSign}K${Math.abs(entry.amount).toFixed(2)}</div>
+                    `;
+                    
+                    floatHistoryList.appendChild(historyItem);
+                });
+            } else {
+                floatHistoryList.innerHTML = '<p style="text-align: center; padding: 10px; color: var(--medium-gray);">No float history found.</p>';
             }
         }
         
         // Load driver data
         function loadDriverData() {
             if (currentUser) {
-                database.ref('drivers/' + currentUser.uid).once('value')
+                database.ref('users/' + currentUser.uid).once('value')
                     .then(snapshot => {
-                        const driverData = snapshot.val();
-                        if (driverData) {
+                        const userData = snapshot.val();
+                        if (userData) {
                             // Update form fields
-                            document.getElementById('driverNameInput').value = driverData.fullName || '';
-                            document.getElementById('driverEmailInput').value = driverData.email || '';
-                            document.getElementById('driverNRCInput').value = driverData.nrcNumber || '';
-                            document.getElementById('vehicleTypeInput').value = driverData.vehicleType || '';
-                            document.getElementById('vehicleModelInput').value = driverData.model || '';
-                            document.getElementById('licensePlateInput').value = driverData.licensePlate || '';
-                            document.getElementById('vehicleColorInput').value = driverData.color || '';
+                            document.getElementById('driverNameInput').value = userData.name || '';
+                            document.getElementById('driverPhoneInput').value = userData.phone || '';
+                            document.getElementById('driverEmailInput').value = userData.email || '';
+                            
+                            // Update vehicle data
+                            if (userData.vehicle) {
+                                selectedVehicleType = userData.vehicle.type;
+                                document.getElementById('vehicleTypeInput').value = userData.vehicle.type || '';
+                                document.getElementById('vehicleModelInput').value = userData.vehicle.model || '';
+                                document.getElementById('licensePlateInput').value = userData.vehicle.licensePlate || '';
+                                document.getElementById('vehicleColorInput').value = userData.vehicle.color || '';
+                            }
                             
                             // Update display
-                            document.getElementById('driverName').textContent = driverData.fullName || 'Driver Name';
-                            document.getElementById('driverEmail').textContent = driverData.email || 'user@example.com';
+                            document.getElementById('driverName').textContent = userData.name || 'Driver Name';
+                            document.getElementById('driverPhone').textContent = userData.phone || '000-000-0000';
                             document.getElementById('vehicleDetails').textContent = 
-                                `${driverData.make || 'Vehicle'} ${driverData.model || ''} - ${driverData.licensePlate || 'ABC123'}`;
+                                `${userData.vehicle?.type || 'Vehicle'} - ${userData.vehicle?.licensePlate || 'ABC123'}`;
                             
                             // Update wallet balance
-                            walletBalance = driverData.walletBalance || 0;
-                            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
-                            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                            floatBalance = userData.floatBalance || 0;
+                            document.getElementById('walletBalance').textContent = `K${floatBalance.toFixed(2)}`;
+                            document.getElementById('accountBalance').textContent = `K${floatBalance.toFixed(2)}`;
+                            document.getElementById('floatBalance').textContent = `K${floatBalance.toFixed(2)}`;
+                            
+                            // Show warning if balance is below minimum
+                            if (floatBalance < 10) {
+                                showNoFloatWarning();
+                            }
                             
                             // Update driver avatar
                             updateDriverAvatar();
                             
                             // Set online status if previously online
-                            if (driverData.isOnline) {
-                                document.getElementById('onlineToggle').classList.remove('offline');
-                                document.getElementById('onlineToggle').classList.add('active');
-                                document.getElementById('onlineStatusText').textContent = 'Online';
-                                document.getElementById('toggleIcon').className = 'fas fa-toggle-on';
-                                isOnline = true;
-                                
-                                // Start location tracking
-                                startLocationTracking();
-                                
-                                // Listen for ride requests
-                                listenForRideRequests();
+                            if (userData.isOnline) {
+                                document.getElementById('onlineToggleCheckbox').checked = true;
+                                toggleOnlineStatus();
                             }
-                            
-                            // Store registration data for use in the app
-                            registrationData.personal = {
-                                fullName: driverData.fullName,
-                                email: driverData.email,
-                                nrcNumber: driverData.nrcNumber
-                            };
-                            
-                            registrationData.vehicle = {
-                                vehicleType: driverData.vehicleType,
-                                vehicleMake: driverData.make,
-                                vehicleModel: driverData.model,
-                                vehicleYear: driverData.year,
-                                licensePlate: driverData.licensePlate,
-                                vehicleColor: driverData.color
-                            };
                         }
                     });
                 
                 // Load driver stats
                 loadDriverStats();
+                
+                // Load float history
+                loadFloatHistory();
             }
         }
         
@@ -4039,29 +3729,24 @@
         // Save driver details
         function saveDriverDetails() {
             const name = document.getElementById('driverNameInput').value;
+            const phone = document.getElementById('driverPhoneInput').value;
             const email = document.getElementById('driverEmailInput').value;
-            const nrc = document.getElementById('driverNRCInput').value;
             
             if (currentUser) {
-                database.ref('drivers/' + currentUser.uid).update({
-                    fullName: name,
-                    email: email,
-                    nrcNumber: nrc
+                database.ref('users/' + currentUser.uid).update({
+                    name: name,
+                    phone: phone,
+                    email: email
                 })
                 .then(() => {
                     showNotification('Driver details saved successfully.');
                     
                     // Update display
                     document.getElementById('driverName').textContent = name || 'Driver Name';
-                    document.getElementById('driverEmail').textContent = email || 'user@example.com';
+                    document.getElementById('driverPhone').textContent = phone || '000-000-0000';
                     
                     // Update avatar
                     updateDriverAvatar();
-                    
-                    // Update registration data
-                    registrationData.personal.fullName = name;
-                    registrationData.personal.email = email;
-                    registrationData.personal.nrcNumber = nrc;
                 })
                 .catch(error => {
                     console.error('Error saving driver details:', error);
@@ -4078,8 +3763,8 @@
             const vehicleColor = document.getElementById('vehicleColorInput').value;
             
             if (currentUser) {
-                database.ref('drivers/' + currentUser.uid).update({
-                    vehicleType: vehicleType,
+                database.ref('users/' + currentUser.uid + '/vehicle').update({
+                    type: vehicleType,
                     model: vehicleModel,
                     licensePlate: licensePlate,
                     color: vehicleColor
@@ -4089,13 +3774,7 @@
                     
                     // Update display
                     document.getElementById('vehicleDetails').textContent = 
-                        `${registrationData.vehicle.vehicleMake || 'Vehicle'} ${vehicleModel || ''} - ${licensePlate || 'ABC123'}`;
-                    
-                    // Update registration data
-                    registrationData.vehicle.vehicleType = vehicleType;
-                    registrationData.vehicle.vehicleModel = vehicleModel;
-                    registrationData.vehicle.licensePlate = licensePlate;
-                    registrationData.vehicle.vehicleColor = vehicleColor;
+                        `${vehicleType || 'Vehicle'} - ${licensePlate || 'ABC123'}`;
                 })
                 .catch(error => {
                     console.error('Error saving vehicle details:', error);
@@ -4109,12 +3788,23 @@
             const amount = prompt('Enter amount to add to your wallet (K):');
             if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
                 const addAmount = parseFloat(amount);
-                const newBalance = walletBalance + addAmount;
+                const newBalance = floatBalance + addAmount;
                 
                 // Update balance
-                updateWalletBalance(newBalance);
+                updateFloatBalance(newBalance);
+                
+                // Add float history entry
+                addFloatHistoryEntry('deposit', addAmount, 'Wallet deposit');
                 
                 showNotification(`Successfully added K${addAmount.toFixed(2)} to your wallet.`);
+                
+                // Remove warning if balance is now sufficient
+                if (newBalance >= 10) {
+                    const warning = document.querySelector('.no-float-warning');
+                    if (warning) {
+                        warning.remove();
+                    }
+                }
             } else if (amount) {
                 showNotification('Please enter a valid amount.');
             }
@@ -4122,22 +3812,25 @@
         
         // Withdraw funds from wallet
         function withdrawFunds() {
-            if (walletBalance <= 0) {
+            if (floatBalance <= 0) {
                 showNotification('Your wallet balance is zero.');
                 return;
             }
             
-            const amount = prompt(`Enter amount to withdraw (K). Available: K${walletBalance.toFixed(2)}:`);
+            const amount = prompt(`Enter amount to withdraw (K). Available: K${floatBalance.toFixed(2)}:`);
             if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
                 const withdrawAmount = parseFloat(amount);
                 
-                if (withdrawAmount > walletBalance) {
+                if (withdrawAmount > floatBalance) {
                     showNotification('Insufficient balance for this withdrawal.');
                     return;
                 }
                 
-                const newBalance = walletBalance - withdrawAmount;
-                updateWalletBalance(newBalance);
+                const newBalance = floatBalance - withdrawAmount;
+                updateFloatBalance(newBalance);
+                
+                // Add float history entry
+                addFloatHistoryEntry('withdrawal', -withdrawAmount, 'Wallet withdrawal');
                 
                 showNotification(`Withdrawal request submitted. K${withdrawAmount.toFixed(2)} will be processed within 24 hours.`);
             } else if (amount) {
@@ -4198,12 +3891,10 @@
                                 const formattedDate = date.toLocaleDateString();
                                 const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                                 
-                                const rideType = ride.type === 'delivery' ? 'Delivery' : 'Ride';
-                                
                                 historyItem.innerHTML = `
                                     <div class="history-locations">
                                         <div>
-                                            <strong>${rideType}:</strong> ${ride.pickupLocation}
+                                            <strong>From:</strong> ${ride.pickupLocation}
                                         </div>
                                         <div>
                                             <strong>To:</strong> ${ride.destination}
@@ -4376,7 +4067,7 @@
         // Contact customer
         function contactCustomer() {
             if (currentRide) {
-                const phoneNumber = currentRide.passengerPhone || currentRide.customerPhone;
+                const phoneNumber = currentRide.passengerPhone;
                 if (phoneNumber) {
                     // In a real app, this would initiate a phone call
                     showNotification(`Calling customer: ${phoneNumber}`);
@@ -4390,8 +4081,7 @@
         function viewRouteDetails() {
             if (currentRide) {
                 // In a real app, this would show detailed route information
-                const destination = currentRide.destination || 'destination';
-                showNotification(`Showing route details for trip to ${destination}`);
+                showNotification(`Showing route details for trip to ${currentRide.destination}`);
             }
         }
         
