@@ -43,6 +43,7 @@ let userStats = {
     cancelled: 0,
     pending: 0
 };
+let userId = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -54,10 +55,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Check if user needs to complete onboarding
 function checkOnboardingStatus() {
+    const onboardingCompleted = localStorage.getItem('onboardingCompleted');
     const userRegistered = localStorage.getItem('userRegistered');
     
-    if (!userRegistered) {
+    if (!onboardingCompleted) {
         showOnboardingScreen();
+    } else if (!userRegistered) {
+        showRegistrationScreen();
     } else {
         loadUserData();
         showMainApp();
@@ -68,6 +72,7 @@ function checkOnboardingStatus() {
 function showOnboardingScreen() {
     document.getElementById('onboardingScreen').classList.remove('hidden');
     document.getElementById('registrationScreen').classList.add('hidden');
+    document.getElementById('loginScreen').classList.add('hidden');
     document.querySelector('header').classList.add('hidden');
     document.querySelector('.main-content').classList.add('hidden');
     document.querySelector('.tab-container').classList.add('hidden');
@@ -76,6 +81,16 @@ function showOnboardingScreen() {
 function showRegistrationScreen() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('registrationScreen').classList.remove('hidden');
+    document.getElementById('loginScreen').classList.add('hidden');
+    document.querySelector('header').classList.add('hidden');
+    document.querySelector('.main-content').classList.add('hidden');
+    document.querySelector('.tab-container').classList.add('hidden');
+}
+
+function showLoginScreen() {
+    document.getElementById('onboardingScreen').classList.add('hidden');
+    document.getElementById('registrationScreen').classList.add('hidden');
+    document.getElementById('loginScreen').classList.remove('hidden');
     document.querySelector('header').classList.add('hidden');
     document.querySelector('.main-content').classList.add('hidden');
     document.querySelector('.tab-container').classList.add('hidden');
@@ -84,6 +99,7 @@ function showRegistrationScreen() {
 function showMainApp() {
     document.getElementById('onboardingScreen').classList.add('hidden');
     document.getElementById('registrationScreen').classList.add('hidden');
+    document.getElementById('loginScreen').classList.add('hidden');
     document.querySelector('header').classList.remove('hidden');
     document.querySelector('.main-content').classList.remove('hidden');
     document.querySelector('.tab-container').classList.remove('hidden');
@@ -118,11 +134,19 @@ function updateUserGreeting() {
 function setupEventListeners() {
     // Onboarding
     document.getElementById('getStartedBtn').addEventListener('click', function() {
+        localStorage.setItem('onboardingCompleted', 'true');
         showRegistrationScreen();
     });
     
     // Registration
-    document.getElementById('registrationForm').addEventListener('submit', registerUser);
+    document.getElementById('registerBtn').addEventListener('click', registerUser);
+    
+    // Login
+    document.getElementById('loginBtn').addEventListener('click', loginUser);
+    
+    // Navigation between auth screens
+    document.getElementById('switchToLogin').addEventListener('click', showLoginScreen);
+    document.getElementById('switchToRegister').addEventListener('click', showRegistrationScreen);
     
     // Tab navigation
     document.querySelectorAll('.tab').forEach(tab => {
@@ -413,64 +437,102 @@ function hideAllAddressSuggestions() {
     });
 }
 
-// User registration function
-function registerUser(e) {
-    e.preventDefault();
-    
-    const name = document.getElementById('userName').value;
+// Register user without authentication
+function registerUser() {
+    const name = document.getElementById('userFullName').value;
     const email = document.getElementById('userEmail').value;
     const phone = document.getElementById('userPhone').value;
+    const paymentPreference = document.getElementById('paymentPreference').value;
     
     if (!name || !email || !phone) {
         showNotification('Please complete all required fields.');
         return;
     }
     
-    // Generate unique user ID
-    const userId = generateUserId();
+    // Generate a unique user ID
+    userId = generateUserId(email, phone);
     
     // Generate unique referral code
     const referralCode = generateReferralCode(name);
     
-    // Create user data
     const userData = {
         name: name,
         email: email,
         phone: phone,
-        userId: userId,
-        referralCode: referralCode,
+        paymentPreference: paymentPreference,
         createdAt: firebase.database.ServerValue.TIMESTAMP,
         userType: 'passenger',
+        referralCode: referralCode,
         walletBalance: 0
     };
     
-    // Save user to Firebase
-    database.ref('users/' + userId).set(userData)
+    // Save user data to Firebase
+    database.ref('passengers/' + userId).set(userData)
         .then(() => {
-            // Store user ID in localStorage
             localStorage.setItem('userRegistered', 'true');
             localStorage.setItem('userId', userId);
-            
-            // Set current user
-            currentUser = {
-                uid: userId,
-                ...userData
-            };
-            
+            currentUser = { uid: userId, ...userData };
             userFullName = name;
-            
             showMainApp();
             showNotification('Account created successfully!');
+            
+            // Start location tracking
+            startLocationTracking();
         })
         .catch(error => {
-            console.error('Error creating user:', error);
+            console.error('Error saving user data:', error);
             showNotification('Error creating account. Please try again.');
         });
 }
 
-// Generate unique user ID
-function generateUserId() {
-    return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+// Login user without authentication
+function loginUser() {
+    const email = document.getElementById('loginEmail').value;
+    const phone = document.getElementById('loginPhone').value;
+    
+    if (!email || !phone) {
+        showNotification('Please enter both email and phone number.');
+        return;
+    }
+    
+    // Generate the same user ID that would be used during registration
+    const userId = generateUserId(email, phone);
+    
+    // Check if user exists in Firebase
+    database.ref('passengers/' + userId).once('value')
+        .then(snapshot => {
+            const userData = snapshot.val();
+            if (userData) {
+                localStorage.setItem('userRegistered', 'true');
+                localStorage.setItem('userId', userId);
+                currentUser = { uid: userId, ...userData };
+                userFullName = userData.name;
+                showMainApp();
+                showNotification('Welcome back!');
+                
+                // Start location tracking
+                startLocationTracking();
+            } else {
+                showNotification('No account found with these details. Please register first.');
+            }
+        })
+        .catch(error => {
+            console.error('Error logging in:', error);
+            showNotification('Error logging in. Please try again.');
+        });
+}
+
+// Generate a unique user ID based on email and phone
+function generateUserId(email, phone) {
+    // Simple hash function to generate a consistent ID
+    const str = email + phone;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return 'passenger_' + Math.abs(hash).toString();
 }
 
 // Generate referral code
@@ -542,9 +604,6 @@ function getUserLocation() {
             
             // Load nearby places list
             loadNearbyPlaces();
-            
-            // Start location tracking
-            startLocationTracking();
         }, error => {
             console.error('Geolocation error:', error);
             showNotification('Unable to get your location. Please enable location services.');
@@ -561,7 +620,7 @@ function startLocationTracking() {
             userLocation = { lat, lng };
             
             // Update user location in Firebase
-            database.ref('userLocations/' + currentUser.uid).set({
+            database.ref('passengerLocations/' + currentUser.uid).set({
                 latitude: lat,
                 longitude: lng,
                 timestamp: firebase.database.ServerValue.TIMESTAMP
@@ -1119,7 +1178,7 @@ function switchTab(tabId) {
 // Use saved location
 function useSavedLocation(addressType) {
     if (currentUser) {
-        database.ref('users/' + currentUser.uid).once('value')
+        database.ref('passengers/' + currentUser.uid).once('value')
             .then(snapshot => {
                 const userData = snapshot.val();
                 const address = userData ? userData[addressType + 'Address'] : null;
@@ -1243,7 +1302,7 @@ function requestRide() {
     }
     
     if (!currentUser) {
-        showNotification('Please complete registration to request a ride.');
+        showNotification('Please log in to request a ride.');
         return;
     }
     
@@ -1985,17 +2044,12 @@ function completePayment() {
 // Load user data
 function loadUserData() {
     const userId = localStorage.getItem('userId');
-    
     if (userId) {
-        database.ref('users/' + userId).once('value')
+        database.ref('passengers/' + userId).once('value')
             .then(snapshot => {
                 const userData = snapshot.val();
                 if (userData) {
-                    currentUser = {
-                        uid: userId,
-                        ...userData
-                    };
-                    
+                    currentUser = { uid: userId, ...userData };
                     userFullName = userData.name || "Passenger";
                     document.getElementById('userName').value = userFullName;
                     document.getElementById('userPhone').value = userData.phone || '';
@@ -2008,6 +2062,9 @@ function loadUserData() {
                     
                     // Update greeting
                     updateUserGreeting();
+                    
+                    // Start location tracking
+                    startLocationTracking();
                 }
             });
     }
@@ -2022,7 +2079,7 @@ function saveProfile() {
     const workAddress = document.getElementById('savedWork').value;
     
     if (currentUser) {
-        database.ref('users/' + currentUser.uid).update({
+        database.ref('passengers/' + currentUser.uid).update({
             name: name,
             phone: phone,
             email: email,
@@ -2400,7 +2457,7 @@ function setupActiveRide(ride) {
 // Load account data
 function loadAccountData() {
     if (currentUser) {
-        database.ref('users/' + currentUser.uid).once('value')
+        database.ref('passengers/' + currentUser.uid).once('value')
             .then(snapshot => {
                 const userData = snapshot.val();
                 if (userData) {
@@ -2506,7 +2563,7 @@ function depositToWallet() {
         const depositAmount = parseFloat(amount);
         const newBalance = walletBalance + depositAmount;
         
-        database.ref('users/' + currentUser.uid).update({
+        database.ref('passengers/' + currentUser.uid).update({
             walletBalance: newBalance
         })
         .then(() => {
@@ -2541,7 +2598,7 @@ function withdrawFromWallet() {
         
         const newBalance = walletBalance - withdrawalAmount;
         
-        database.ref('users/' + currentUser.uid).update({
+        database.ref('passengers/' + currentUser.uid).update({
             walletBalance: newBalance
         })
         .then(() => {
@@ -2577,7 +2634,7 @@ function loadSettings() {
     if (!currentUser) return;
     
     // Load user data for settings
-    database.ref('users/' + currentUser.uid).once('value')
+    database.ref('passengers/' + currentUser.uid).once('value')
         .then(snapshot => {
             const userData = snapshot.val();
             if (userData) {
@@ -2661,11 +2718,11 @@ function logout() {
             activeRideListener = null;
         }
         
-        localStorage.removeItem('userRegistered');
-        localStorage.removeItem('userId');
         currentUser = null;
         userFullName = "Passenger";
-        showOnboardingScreen();
+        localStorage.removeItem('userRegistered');
+        localStorage.removeItem('userId');
+        showRegistrationScreen();
         showNotification('Logged out successfully.');
     }
 }
