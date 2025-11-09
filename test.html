@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Firebase Phone Auth Demo (v10+)</title>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    input, button { padding: 10px; margin: 6px 0; width: 280px; }
+    #status { margin-top: 12px; font-weight: 600; }
+    #verify-section { display: none; }
+  </style>
+</head>
+<body>
+
+  <h2>📱 Firebase Phone Authentication</h2>
+
+  <div>
+    <label>Enter phone number (with +countrycode)</label><br>
+    <input type="tel" id="phoneNumber" placeholder="+26097XXXXXXX" /><br>
+
+    <div id="recaptcha-container"></div>
+    <button id="sendCodeBtn">Send verification code</button>
+  </div>
+
+  <div id="verify-section">
+    <label>Enter verification code</label><br>
+    <input type="text" id="verifyCode" placeholder="123456" /><br>
+    <button id="verifyBtn">Verify Code</button>
+  </div>
+
+  <div id="status"></div>
+
+  <script type="module">
+    // Import modular Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { 
+      getAuth, 
+      RecaptchaVerifier, 
+      signInWithPhoneNumber 
+    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
+      authDomain: "jubel-13e1a.firebaseapp.com",
+      databaseURL: "https://jubel-13e1a-default-rtdb.firebaseio.com",
+      projectId: "jubel-13e1a",
+      storageBucket: "jubel-13e1a.firebasestorage.app",
+      messagingSenderId: "882241095445",
+      appId: "1:882241095445:web:ee9ca40fddd008ca910b1c",
+      measurementId: "G-J5JPKL6B5F"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    // Initialize recaptcha
+    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      size: 'invisible',
+      callback: (response) => {
+        console.log('reCAPTCHA solved automatically:', response);
+      }
+    });
+
+    let confirmationResult;
+
+    function setStatus(msg) {
+      document.getElementById("status").innerText = msg;
+    }
+
+    document.getElementById("sendCodeBtn").addEventListener("click", async () => {
+      const phoneNumber = document.getElementById("phoneNumber").value;
+      if (!phoneNumber) return setStatus("Enter your phone number first!");
+
+      setStatus("Sending verification code...");
+
+      try {
+        confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
+        setStatus("Code sent! Check your SMS.");
+        document.getElementById("verify-section").style.display = "block";
+      } catch (err) {
+        console.error(err);
+        setStatus("Error: " + err.message);
+      }
+    });
+
+    document.getElementById("verifyBtn").addEventListener("click", async () => {
+      const code = document.getElementById("verifyCode").value;
+      if (!confirmationResult) return setStatus("No verification in progress!");
+      if (!code) return setStatus("Enter the SMS code!");
+
+      setStatus("Verifying code...");
+      try {
+        const result = await confirmationResult.confirm(code);
+        setStatus("✅ Auth success! Welcome " + (result.user.phoneNumber || "user"));
+        console.log("User:", result.user);
+      } catch (err) {
+        console.error(err);
+        setStatus("❌ Invalid code: " + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
