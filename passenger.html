@@ -1791,6 +1791,7 @@
         let destinationSearchResults = [];
         let selectedDestination = null;
         let driverLocationListener = null;
+        let userData = null;
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -1799,38 +1800,68 @@
         
         // Authentication functions
         function initializeAuth() {
-            // Check if user data is passed via URL parameters
+            // Get URL parameters
             const urlParams = new URLSearchParams(window.location.search);
             const email = urlParams.get('email');
             const uid = urlParams.get('uid');
             
             if (email && uid) {
-                // Try to sign in with the provided credentials
-                auth.signInAnonymously()
-                    .then(() => {
-                        // Set current user with provided data
+                // User is coming from signup page
+                loadUserData(uid);
+            } else {
+                // Check if user is already logged in
+                auth.onAuthStateChanged(user => {
+                    if (user) {
+                        currentUser = user;
+                        loadUserData(user.uid);
+                    } else {
+                        // Redirect to signup page
+                        window.location.href = 'signup.html';
+                    }
+                });
+            }
+        }
+        
+        // Load user data from Firebase
+        function loadUserData(uid) {
+            database.ref('users/' + uid).once('value')
+                .then(snapshot => {
+                    userData = snapshot.val();
+                    if (userData) {
                         currentUser = {
                             uid: uid,
-                            email: email
+                            email: userData.email,
+                            displayName: userData.name
                         };
                         
+                        // Initialize the app with user data
                         initializeMap();
                         setupEventListeners();
                         loadPassengerData();
+                        
+                        // Update UI with user data
+                        document.getElementById('accountName').textContent = userData.name || 'Passenger';
+                        document.getElementById('accountEmail').textContent = userData.email || 'Not set';
+                        document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
+                        document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
+                        
+                        // Update wallet balance
+                        walletBalance = userData.walletBalance || 0;
+                        document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                        document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                        
                         showNotification('Welcome back to Jubel!');
-                    })
-                    .catch((error) => {
-                        console.error('Login error:', error);
-                        showNotification('Login failed. Please try again.');
-                        // Redirect to signup page
+                    } else {
+                        showNotification('User data not found. Please sign up again.');
                         setTimeout(() => {
                             window.location.href = 'signup.html';
                         }, 2000);
-                    });
-            } else {
-                // Redirect to signup page
-                window.location.href = 'signup.html';
-            }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading user data:', error);
+                    showNotification('Error loading user data. Please try again.');
+                });
         }
         
         // Map initialization
@@ -1936,30 +1967,35 @@
             }).addTo(passengerMap)
                 .bindPopup('Pickup Location');
                 
-            // Update pickup location input
+            // Update pickup location input with precise address
             reverseGeocode(lat, lng, 'pickupLocation');
         }
         
-        // Reverse geocode coordinates to address
+        // Reverse geocode coordinates to address with high precision
         function reverseGeocode(lat, lng, elementId) {
-            // Using OpenStreetMap Nominatim API for reverse geocoding
+            // Using OpenStreetMap Nominatim API for reverse geocoding with high precision
             fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
                 .then(response => response.json())
                 .then(data => {
                     if (data && data.display_name) {
-                        // Get detailed address information
-                        let detailedAddress = data.display_name;
+                        // Extract precise address details
+                        let preciseAddress = data.display_name;
                         
-                        // Try to extract house number or plot number if available
+                        // Try to get house number or plot number if available
                         if (data.address) {
-                            if (data.address.house_number) {
-                                detailedAddress = `${data.address.house_number}, ${detailedAddress}`;
-                            } else if (data.address.plot_number) {
-                                detailedAddress = `${data.address.plot_number}, ${detailedAddress}`;
+                            const houseNumber = data.address.house_number || data.address.housenumber;
+                            const road = data.address.road;
+                            const suburb = data.address.suburb;
+                            const city = data.address.city || data.address.town || data.address.village;
+                            
+                            if (houseNumber && road) {
+                                preciseAddress = `${houseNumber} ${road}`;
+                                if (suburb) preciseAddress += `, ${suburb}`;
+                                if (city) preciseAddress += `, ${city}`;
                             }
                         }
                         
-                        document.getElementById(elementId).value = detailedAddress;
+                        document.getElementById(elementId).value = preciseAddress;
                     } else {
                         document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
                     }
@@ -2214,41 +2250,37 @@
         
         // Use saved location
         function useSavedLocation(addressType) {
-            if (currentUser) {
-                database.ref('passengers/' + currentUser.uid).once('value')
-                    .then(snapshot => {
-                        const userData = snapshot.val();
-                        const address = userData ? userData[addressType + 'Address'] : null;
-                        
-                        if (address) {
-                            document.getElementById('destinationLocation').value = address;
-                            updateFareEstimate();
-                            showNotification(`${addressType.charAt(0).toUpperCase() + addressType.slice(1)} address set as destination.`);
+            if (userData) {
+                const address = userData[addressType + 'Address'];
+                
+                if (address) {
+                    document.getElementById('destinationLocation').value = address;
+                    updateFareEstimate();
+                    showNotification(`${addressType.charAt(0).toUpperCase() + addressType.slice(1)} address set as destination.`);
+                    
+                    // Try to geocode the saved address to show on map
+                    forwardGeocode(address).then(results => {
+                        if (results.length > 0) {
+                            updateDestinationMarker(
+                                parseFloat(results[0].lat),
+                                parseFloat(results[0].lon),
+                                address
+                            );
                             
-                            // Try to geocode the saved address to show on map
-                            forwardGeocode(address).then(results => {
-                                if (results.length > 0) {
-                                    updateDestinationMarker(
-                                        parseFloat(results[0].lat),
-                                        parseFloat(results[0].lon),
-                                        address
-                                    );
-                                    
-                                    // Draw route from user location to destination
-                                    drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
-                                    
-                                    // Enable request ride button
-                                    document.getElementById('requestRideBtn').disabled = false;
-                                }
-                            });
-                        } else {
-                            showNotification(`No ${addressType} address saved. Please add it in settings.`);
+                            // Draw route from user location to destination
+                            drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
+                            
+                            // Enable request ride button
+                            document.getElementById('requestRideBtn').disabled = false;
                         }
                     });
+                } else {
+                    showNotification(`No ${addressType} address saved. Please add it in settings.`);
+                }
             }
         }
         
-        // Search places based on user input
+        // Search places based on user input within 50km radius
         function searchPlaces(query) {
             if (!userLocation) return;
             
@@ -2256,7 +2288,7 @@
             suggestionsContainer.innerHTML = '<div class="loading-text">Searching...</div>';
             suggestionsContainer.style.display = 'block';
             
-            // Using Overpass API for place search
+            // Using Overpass API for place search within 50km radius
             const radius = 50000; // 50km in meters
             const overpassQuery = `
                 [out:json][timeout:25];
@@ -2653,8 +2685,8 @@
                 const rideRequest = {
                     id: rideId,
                     passengerId: currentUser.uid,
-                    passengerName: userFullName || 'Passenger',
-                    passengerPhone: getUserPhone(),
+                    passengerName: userData.name || 'Passenger',
+                    passengerPhone: userData.phone || 'Not provided',
                     pickupLocation: pickupLocation,
                     destination: destinationLocation,
                     pickupLat: pickupLatLng.lat,
@@ -2696,14 +2728,6 @@
                 console.error('Error geocoding destination:', error);
                 showNotification('Error calculating route. Please try again.');
             });
-        }
-        
-        // Get user phone number
-        function getUserPhone() {
-            if (currentUser) {
-                return document.getElementById('passengerPhoneInput')?.value || 'Not provided';
-            }
-            return 'Not provided';
         }
         
         // Update UI for active ride
@@ -3024,7 +3048,7 @@
         // Apply referral code
         function applyReferralCode(referralCode) {
             // Find user with this referral code
-            database.ref('passengers').orderByChild('referralCode').equalTo(referralCode).once('value')
+            database.ref('users').orderByChild('referralCode').equalTo(referralCode).once('value')
                 .then(snapshot => {
                     if (snapshot.exists()) {
                         const referrerData = snapshot.val();
@@ -3044,7 +3068,7 @@
                         
                         // Reward referrer with K50
                         const newBalance = (referrer.walletBalance || 0) + 50;
-                        database.ref('passengers/' + referrerId).update({
+                        database.ref('users/' + referrerId).update({
                             walletBalance: newBalance
                         })
                         .then(() => {
@@ -3121,26 +3145,6 @@
         // Load passenger data
         function loadPassengerData() {
             if (currentUser) {
-                database.ref('passengers/' + currentUser.uid).once('value')
-                    .then(snapshot => {
-                        const passengerData = snapshot.val();
-                        if (passengerData) {
-                            // Update form fields
-                            userFullName = passengerData.name || "Passenger";
-                            
-                            // Update wallet balance
-                            walletBalance = passengerData.walletBalance || 0;
-                            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
-                            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
-                            
-                            // Update referral code
-                            document.getElementById('referralCode').textContent = passengerData.referralCode || 'JUBEL-XXXX';
-                        }
-                    });
-                
-                // Load ride history
-                loadRideHistory();
-                
                 // Update user stats
                 updateUserStats();
             }
@@ -3148,30 +3152,24 @@
         
         // Load account data
         function loadAccountData() {
-            if (currentUser) {
-                database.ref('passengers/' + currentUser.uid).once('value')
-                    .then(snapshot => {
-                        const userData = snapshot.val();
-                        if (userData) {
-                            // Update account information
-                            document.getElementById('accountName').textContent = userData.name || 'Passenger';
-                            document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
-                            document.getElementById('accountEmail').textContent = userData.email || 'Not set';
-                            document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
-                            
-                            // Update wallet balance
-                            walletBalance = userData.walletBalance || 0;
-                            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
-                            
-                            // Update account avatar
-                            const accountAvatar = document.getElementById('accountAvatar');
-                            if (userData.name) {
-                                accountAvatar.textContent = userData.name.charAt(0).toUpperCase();
-                            } else {
-                                accountAvatar.innerHTML = '<i class="fas fa-user"></i>';
-                            }
-                        }
-                    });
+            if (currentUser && userData) {
+                // Update account information
+                document.getElementById('accountName').textContent = userData.name || 'Passenger';
+                document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
+                document.getElementById('accountEmail').textContent = userData.email || 'Not set';
+                document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
+                
+                // Update wallet balance
+                walletBalance = userData.walletBalance || 0;
+                document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                
+                // Update account avatar
+                const accountAvatar = document.getElementById('accountAvatar');
+                if (userData.name) {
+                    accountAvatar.textContent = userData.name.charAt(0).toUpperCase();
+                } else {
+                    accountAvatar.innerHTML = '<i class="fas fa-user"></i>';
+                }
                 
                 // Load user stats
                 updateUserStats();
@@ -3228,7 +3226,7 @@
                 const depositAmount = parseFloat(amount);
                 const newBalance = walletBalance + depositAmount;
                 
-                database.ref('passengers/' + currentUser.uid).update({
+                database.ref('users/' + currentUser.uid).update({
                     walletBalance: newBalance
                 })
                 .then(() => {
@@ -3264,7 +3262,7 @@
                 
                 const newBalance = walletBalance - withdrawalAmount;
                 
-                database.ref('passengers/' + currentUser.uid).update({
+                database.ref('users/' + currentUser.uid).update({
                     walletBalance: newBalance
                 })
                 .then(() => {
