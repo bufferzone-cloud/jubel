@@ -1799,42 +1799,38 @@
         
         // Authentication functions
         function initializeAuth() {
-            auth.onAuthStateChanged(user => {
-                if (user) {
-                    currentUser = user;
-                    initializeMap();
-                    setupEventListeners();
-                    loadPassengerData();
-                } else {
-                    // Check if user data is passed via URL parameters
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const email = urlParams.get('email');
-                    const password = urlParams.get('password');
-                    
-                    if (email && password) {
-                        // Try to sign in with the provided credentials
-                        auth.signInWithEmailAndPassword(email, password)
-                            .then((userCredential) => {
-                                currentUser = userCredential.user;
-                                initializeMap();
-                                setupEventListeners();
-                                loadPassengerData();
-                                showNotification('Login successful!');
-                            })
-                            .catch((error) => {
-                                console.error('Login error:', error);
-                                showNotification('Login failed. Please try again.');
-                                // Redirect to signup page
-                                setTimeout(() => {
-                                    window.location.href = 'signup.html';
-                                }, 2000);
-                            });
-                    } else {
+            // Check if user data is passed via URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const email = urlParams.get('email');
+            const uid = urlParams.get('uid');
+            
+            if (email && uid) {
+                // Try to sign in with the provided credentials
+                auth.signInAnonymously()
+                    .then(() => {
+                        // Set current user with provided data
+                        currentUser = {
+                            uid: uid,
+                            email: email
+                        };
+                        
+                        initializeMap();
+                        setupEventListeners();
+                        loadPassengerData();
+                        showNotification('Welcome back to Jubel!');
+                    })
+                    .catch((error) => {
+                        console.error('Login error:', error);
+                        showNotification('Login failed. Please try again.');
                         // Redirect to signup page
-                        window.location.href = 'signup.html';
-                    }
-                }
-            });
+                        setTimeout(() => {
+                            window.location.href = 'signup.html';
+                        }, 2000);
+                    });
+            } else {
+                // Redirect to signup page
+                window.location.href = 'signup.html';
+            }
         }
         
         // Map initialization
@@ -1947,18 +1943,30 @@
         // Reverse geocode coordinates to address
         function reverseGeocode(lat, lng, elementId) {
             // Using OpenStreetMap Nominatim API for reverse geocoding
-            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
                 .then(response => response.json())
                 .then(data => {
                     if (data && data.display_name) {
-                        document.getElementById(elementId).value = data.display_name;
+                        // Get detailed address information
+                        let detailedAddress = data.display_name;
+                        
+                        // Try to extract house number or plot number if available
+                        if (data.address) {
+                            if (data.address.house_number) {
+                                detailedAddress = `${data.address.house_number}, ${detailedAddress}`;
+                            } else if (data.address.plot_number) {
+                                detailedAddress = `${data.address.plot_number}, ${detailedAddress}`;
+                            }
+                        }
+                        
+                        document.getElementById(elementId).value = detailedAddress;
                     } else {
-                        document.getElementById(elementId).value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                        document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
                     }
                 })
                 .catch(error => {
                     console.error('Reverse geocoding error:', error);
-                    document.getElementById(elementId).value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                    document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
                 });
         }
         
