@@ -6,14 +6,49 @@
     <title>Jubel - Passenger</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="auth.css">
     <style>
-        /* Main App Styles */
-        #mainApp {
-            display: none;
+        :root {
+            --primary-orange: #FF6B35;
+            --primary-red: #E74C3C;
+            --primary-gradient: linear-gradient(135deg, #FF6B35, #E74C3C);
+            --secondary-orange: #E55A28;
+            --secondary-red: #C0392B;
+            --light-orange: #FFE8E0;
+            --light-red: #FADBD8;
+            --white: #FFFFFF;
+            --light-gray: #F5F5F5;
+            --dark-gray: #333333;
+            --medium-gray: #777777;
+            --success-green: #2ecc71;
+            --warning-yellow: #f39c12;
+            --info-blue: #3498db;
+            --error-red: #e74c3c;
+            --border-color: #E8E8E8;
+            --shadow-light: 0 2px 12px rgba(255, 107, 53, 0.1);
+            --shadow-medium: 0 4px 20px rgba(255, 107, 53, 0.15);
+            --shadow-heavy: 0 8px 30px rgba(255, 107, 53, 0.2);
+            --app-padding: 12px;
+            --element-radius: 8px;
+            --transition-speed: 0.3s;
         }
         
-        /* Map Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--white);
+            color: var(--dark-gray);
+            max-width: 100%;
+            overflow-x: hidden;
+            height: 100vh;
+            font-size: 14px;
+        }
+        
+        /* Main App */
         #map {
             position: absolute;
             top: 0;
@@ -23,7 +58,6 @@
             z-index: 1;
         }
         
-        /* Floating Balance - Moved to Right */
         .floating-balance {
             position: fixed;
             top: 15px;
@@ -47,7 +81,6 @@
             font-size: 0.9rem;
         }
         
-        /* Passenger Panel - 50% height when collapsed */
         .passenger-panel {
             position: fixed;
             bottom: 0;
@@ -60,13 +93,12 @@
             padding: var(--app-padding);
             transform: translateY(0);
             transition: transform var(--transition-speed) ease;
-            max-height: 80vh;
+            max-height: 50vh;
             overflow-y: auto;
         }
         
         .passenger-panel.collapsed {
-            transform: translateY(calc(50% - 50px));
-            max-height: 50vh;
+            transform: translateY(calc(100% - 50px));
         }
         
         .panel-collapse-handle {
@@ -109,7 +141,6 @@
             font-size: 0.9rem;
         }
         
-        /* Ride Request Form */
         .ride-request-form {
             display: flex;
             flex-direction: column;
@@ -124,6 +155,7 @@
             border: 2px solid var(--border-color);
             border-radius: var(--element-radius);
             background: var(--white);
+            position: relative;
         }
         
         .location-input i {
@@ -137,7 +169,6 @@
             font-size: 0.9rem;
         }
         
-        /* Vehicle Selection with Updated Labels */
         .vehicle-selection {
             display: flex;
             gap: 8px;
@@ -181,32 +212,6 @@
             color: var(--medium-gray);
         }
         
-        /* Promo Button */
-        .promo-button-container {
-            margin: 10px 0;
-        }
-        
-        .btn-promo-toggle {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid var(--primary-orange);
-            border-radius: var(--element-radius);
-            background: transparent;
-            color: var(--primary-orange);
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all var(--transition-speed) ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .btn-promo-toggle:hover {
-            background: var(--light-orange);
-        }
-        
         .promo-section {
             margin-top: 10px;
             padding: 10px;
@@ -243,38 +248,42 @@
             font-weight: 600;
         }
         
-        /* Enhanced Fare and ETA Display */
+        .promo-toggle {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--element-radius);
+            background: var(--light-gray);
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
         .fare-display {
             background: var(--primary-gradient);
             color: var(--white);
-            padding: 15px;
+            padding: 12px;
             border-radius: var(--element-radius);
             text-align: center;
-            margin: 15px 0;
+            margin: 10px 0;
             box-shadow: var(--shadow-medium);
-            border: 2px solid var(--white);
-        }
-        
-        .fare-display p {
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            opacity: 0.9;
         }
         
         .fare-amount {
-            font-size: 2rem;
+            font-size: 1.8rem;
             font-weight: 800;
-            margin-bottom: 5px;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+            margin: 5px 0;
         }
         
         .eta-display {
-            font-size: 1.1rem;
-            font-weight: 700;
-            background: rgba(255,255,255,0.2);
-            padding: 5px 10px;
-            border-radius: 20px;
-            display: inline-block;
+            font-size: 1rem;
+            font-weight: 600;
+            opacity: 0.9;
         }
         
         .request-ride-btn {
@@ -295,9 +304,9 @@
         .request-ride-btn:disabled {
             background: var(--medium-gray);
             cursor: not-allowed;
+            box-shadow: none;
         }
         
-        /* Ride Info Panel */
         .ride-info-panel {
             background: var(--white);
             border-radius: var(--element-radius);
@@ -439,13 +448,12 @@
             color: var(--white);
         }
         
-        /* Screen Content */
         .screen-content {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            bottom: 70px;
+            bottom: 50px;
             background: var(--white);
             z-index: 90;
             padding: var(--app-padding);
@@ -482,17 +490,6 @@
             font-weight: 700;
         }
         
-        /* Hide floating elements on other screens */
-        .screen-content.active ~ .floating-balance,
-        .screen-content.active ~ .ride-status,
-        .screen-content.active ~ .estimated-time,
-        .screen-content.active ~ .map-controls,
-        .screen-content.active ~ .quick-actions,
-        .screen-content.active ~ .dark-mode-toggle {
-            display: none !important;
-        }
-        
-        /* Account, History, Payments Sections */
         .account-section, .history-section, .payments-section {
             margin-bottom: 20px;
         }
@@ -677,7 +674,24 @@
             color: #1565c0;
         }
         
-        /* Map Elements */
+        .notification {
+            position: fixed;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-gradient);
+            color: var(--white);
+            padding: 10px 16px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 300;
+            display: none;
+            font-weight: 600;
+            text-align: center;
+            font-size: 0.8rem;
+            max-width: 80%;
+        }
+        
         .driver-marker {
             background: var(--primary-gradient);
             color: white;
@@ -740,10 +754,9 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
         
-        /* Quick Actions */
         .quick-actions {
             position: fixed;
-            bottom: 70px;
+            bottom: 50px;
             right: 15px;
             display: flex;
             flex-direction: column;
@@ -806,7 +819,7 @@
         
         .dark-mode-toggle {
             position: fixed;
-            bottom: 70px;
+            bottom: 50px;
             left: 15px;
             width: 45px;
             height: 45px;
@@ -823,7 +836,6 @@
             z-index: 100;
         }
         
-        /* Ride Status */
         .ride-status {
             position: fixed;
             top: 15px;
@@ -887,7 +899,6 @@
             font-size: 0.8rem;
         }
         
-        /* Saved Locations */
         .saved-locations {
             display: flex;
             gap: 8px;
@@ -913,7 +924,6 @@
             border-color: var(--primary-orange);
         }
         
-        /* Suggestions */
         .suggestion-list {
             position: absolute;
             top: 100%;
@@ -934,6 +944,9 @@
             border-bottom: 1px solid var(--border-color);
             cursor: pointer;
             transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .suggestion-item:hover {
@@ -946,7 +959,6 @@
         
         .suggestion-icon {
             font-size: 1rem;
-            margin-right: 8px;
         }
         
         .suggestion-details {
@@ -969,26 +981,28 @@
             margin-top: 2px;
         }
         
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--primary-gradient);
-            color: var(--white);
-            padding: 10px 16px;
-            border-radius: var(--element-radius);
-            box-shadow: var(--shadow-heavy);
-            z-index: 300;
-            display: none;
-            font-weight: 600;
+        .loading-text {
             text-align: center;
-            font-size: 0.8rem;
-            max-width: 80%;
+            padding: 20px;
+            color: var(--medium-gray);
         }
         
-        /* Stats Grid */
+        .no-places {
+            text-align: center;
+            padding: 20px;
+            color: var(--medium-gray);
+        }
+        
+        .filter-options {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .filter-options select, .filter-options input {
+            flex: 1;
+        }
+        
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -1014,7 +1028,6 @@
             color: var(--medium-gray);
         }
         
-        /* Referral Section */
         .referral-section {
             background: var(--light-orange);
             padding: 15px;
@@ -1072,7 +1085,23 @@
             color: white;
         }
         
-        /* Popup Styles */
+        .rating-stars {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        
+        .star {
+            font-size: 1.5rem;
+            color: var(--light-gray);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .star.active {
+            color: var(--warning-yellow);
+        }
+        
         .popup-overlay {
             position: fixed;
             top: 0;
@@ -1199,7 +1228,7 @@
             }
             
             .quick-actions {
-                bottom: 65px;
+                bottom: 50px;
                 right: 10px;
             }
             
@@ -1210,7 +1239,7 @@
             }
             
             .dark-mode-toggle {
-                bottom: 65px;
+                bottom: 50px;
                 left: 10px;
                 width: 40px;
                 height: 40px;
@@ -1219,121 +1248,31 @@
     </style>
 </head>
 <body>
-    <!-- Welcome Screen -->
-    <div class="welcome-screen" id="welcomeScreen">
-        <div class="jubel-logo">
-            <div class="jubel-logo-text">J</div>
-        </div>
-        <h1 class="welcome-title">Welcome to Jubel</h1>
-        <p class="welcome-subtitle">Get where you need to go with safe, reliable rides</p>
-        <div class="auth-buttons">
-            <button class="auth-btn btn-login" id="loginBtn">
-                <i class="fas fa-sign-in-alt"></i>
-                Log In
-            </button>
-            <button class="auth-btn btn-signup" id="signupBtn">
-                <i class="fas fa-user-plus"></i>
-                Sign Up
-            </button>
-        </div>
-    </div>
-    
-    <!-- Login Screen -->
-    <div class="auth-screen" id="loginScreen">
-        <div class="auth-header">
-            <button class="back-button" id="backFromLogin">
-                <i class="fas fa-arrow-left"></i>
-            </button>
-            <h2 class="auth-title">Log In</h2>
-        </div>
-        
-        <form class="auth-form" id="loginForm">
-            <div class="form-group">
-                <label for="loginEmail" class="form-label">Email Address</label>
-                <input type="email" id="loginEmail" class="form-input" placeholder="your.email@example.com" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="loginPassword" class="form-label">Password</label>
-                <input type="password" id="loginPassword" class="form-input" placeholder="Enter your password" required>
-            </div>
-            
-            <button type="submit" class="submit-btn">Log In</button>
-        </form>
-        
-        <div class="auth-footer">
-            <p>Don't have an account? <span class="auth-link" id="goToSignupFromLogin">Sign Up</span></p>
-        </div>
-    </div>
-    
-    <!-- Signup Screen -->
-    <div class="auth-screen" id="signupScreen">
-        <div class="auth-header">
-            <button class="back-button" id="backFromSignup">
-                <i class="fas fa-arrow-left"></i>
-            </button>
-            <h2 class="auth-title">Sign Up</h2>
-        </div>
-        
-        <form class="auth-form" id="signupForm">
-            <div class="form-group">
-                <label for="signupName" class="form-label">Full Name</label>
-                <input type="text" id="signupName" class="form-input" placeholder="Your full name" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="signupEmail" class="form-label">Email Address</label>
-                <input type="email" id="signupEmail" class="form-input" placeholder="your.email@example.com" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="signupPhone" class="form-label">Phone Number</label>
-                <input type="tel" id="signupPhone" class="form-input" placeholder="Your phone number" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="signupPassword" class="form-label">Password</label>
-                <input type="password" id="signupPassword" class="form-input" placeholder="Create a password" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="signupConfirmPassword" class="form-label">Confirm Password</label>
-                <input type="password" id="signupConfirmPassword" class="form-input" placeholder="Confirm your password" required>
-            </div>
-            
-            <button type="submit" class="submit-btn" id="signupSubmitBtn">Create Account</button>
-        </form>
-        
-        <div class="auth-footer">
-            <p>Already have an account? <span class="auth-link" id="goToLoginFromSignup">Log In</span></p>
-        </div>
-    </div>
-    
-    <!-- Main App (Hidden until authentication) -->
-    <div id="mainApp" style="display: none;">
+    <!-- Main App -->
+    <div id="mainApp">
         <!-- Main Map -->
         <div id="map"></div>
         
-        <!-- Floating Balance - Moved to Right -->
-        <div class="floating-balance">
+        <!-- Floating Balance (Only on Home Screen) -->
+        <div class="floating-balance home-only">
             <i class="fas fa-wallet"></i>
             <span>Balance: <span class="balance-amount" id="walletBalance">K0.00</span></span>
         </div>
         
-        <!-- Ride Status -->
-        <div class="ride-status" id="rideStatus" style="display: none;">
+        <!-- Ride Status (Only on Home Screen) -->
+        <div class="ride-status home-only" id="rideStatus" style="display: none;">
             <div class="status-dot" id="statusDot"></div>
             <span id="statusText">Searching for driver</span>
         </div>
         
-        <!-- Estimated Time -->
-        <div class="estimated-time" id="estimatedTime" style="display: none;">
+        <!-- Estimated Time (Only on Home Screen) -->
+        <div class="estimated-time home-only" id="estimatedTime" style="display: none;">
             <i class="fas fa-clock"></i>
             <span id="timeText">5 min</span>
         </div>
         
-        <!-- Map Controls -->
-        <div class="map-controls">
+        <!-- Map Controls (Only on Home Screen) -->
+        <div class="map-controls home-only">
             <button class="map-control-btn" id="zoomInBtn" title="Zoom In">
                 <i class="fas fa-plus"></i>
             </button>
@@ -1345,8 +1284,8 @@
             </button>
         </div>
         
-        <!-- Quick Actions -->
-        <div class="quick-actions">
+        <!-- Quick Actions (Only on Home Screen) -->
+        <div class="quick-actions home-only">
             <button class="quick-action-btn" id="centerMapBtn" title="Center Map">
                 <i class="fas fa-crosshairs"></i>
             </button>
@@ -1358,8 +1297,8 @@
             </button>
         </div>
         
-        <!-- Dark Mode Toggle -->
-        <button class="dark-mode-toggle" id="darkModeToggle" title="Toggle Dark Mode">
+        <!-- Dark Mode Toggle (Only on Home Screen) -->
+        <button class="dark-mode-toggle home-only" id="darkModeToggle" title="Toggle Dark Mode">
             <i class="fas fa-moon"></i>
         </button>
         
@@ -1411,42 +1350,36 @@
                         </button>
                     </div>
                     
-                    <!-- Updated Vehicle Selection with New Labels -->
                     <div class="vehicle-selection">
                         <div class="vehicle-option selected" data-type="car">
                             <i class="fas fa-car vehicle-icon"></i>
                             <span class="vehicle-name">Ride</span>
-                            <span class="vehicle-price">Starting K11</span>
+                            <span class="vehicle-price">K15.00</span>
                         </div>
                         <div class="vehicle-option" data-type="bike">
                             <i class="fas fa-motorcycle vehicle-icon"></i>
                             <span class="vehicle-name">Delivery</span>
-                            <span class="vehicle-price">Starting K8</span>
+                            <span class="vehicle-price">K10.00</span>
                         </div>
                         <div class="vehicle-option" data-type="bicycle">
                             <i class="fas fa-bicycle vehicle-icon"></i>
                             <span class="vehicle-name">Short Delivery</span>
-                            <span class="vehicle-price">Starting K5</span>
+                            <span class="vehicle-price">K5.00</span>
                         </div>
                     </div>
                     
-                    <!-- Promo Button -->
-                    <div class="promo-button-container">
-                        <button class="btn-promo-toggle" id="promoToggleBtn">
-                            <i class="fas fa-tag"></i>
-                            Apply Promo Coupon
-                        </button>
-                    </div>
+                    <button class="promo-toggle" id="promoToggle">
+                        <i class="fas fa-tag"></i>
+                        Apply Promo Coupon
+                    </button>
                     
-                    <!-- Promo Section (Hidden by default) -->
                     <div class="promo-section" id="promoSection">
                         <div class="promo-input">
-                            <input type="text" id="promoCode" placeholder="Enter promo code">
+                            <input type="text" id="promoCode" placeholder="Promo code">
                             <button class="btn-promo" id="applyPromoBtn">Apply</button>
                         </div>
                     </div>
                     
-                    <!-- Enhanced Fare and ETA Display -->
                     <div class="fare-display">
                         <p>Estimated Fare</p>
                         <div class="fare-amount" id="estimatedFare">K0.00</div>
@@ -1854,12 +1787,10 @@
         let userLocation = null;
         let destinationSearchResults = [];
         let selectedDestination = null;
-        let referralBonusApplied = false;
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             initializeAuth();
-            setupAuthEventListeners();
         });
         
         // Authentication functions
@@ -1867,163 +1798,14 @@
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
-                    showMainApp();
                     initializeMap();
                     setupEventListeners();
                     loadPassengerData();
                 } else {
-                    // Show welcome screen
-                    document.getElementById('welcomeScreen').classList.remove('hidden');
+                    // Redirect to signup page
+                    window.location.href = 'signup.html';
                 }
             });
-        }
-        
-        // Show main app after authentication
-        function showMainApp() {
-            document.getElementById('welcomeScreen').classList.add('hidden');
-            document.getElementById('loginScreen').classList.remove('active');
-            document.getElementById('signupScreen').classList.remove('active');
-            document.getElementById('mainApp').style.display = 'block';
-        }
-        
-        // Setup authentication event listeners
-        function setupAuthEventListeners() {
-            // Welcome screen buttons
-            document.getElementById('loginBtn').addEventListener('click', () => {
-                document.getElementById('welcomeScreen').classList.add('hidden');
-                document.getElementById('loginScreen').classList.add('active');
-            });
-            
-            document.getElementById('signupBtn').addEventListener('click', () => {
-                document.getElementById('welcomeScreen').classList.add('hidden');
-                document.getElementById('signupScreen').classList.add('active');
-            });
-            
-            // Back buttons
-            document.getElementById('backFromLogin').addEventListener('click', () => {
-                document.getElementById('loginScreen').classList.remove('active');
-                document.getElementById('welcomeScreen').classList.remove('hidden');
-            });
-            
-            document.getElementById('backFromSignup').addEventListener('click', () => {
-                document.getElementById('signupScreen').classList.remove('active');
-                document.getElementById('welcomeScreen').classList.remove('hidden');
-            });
-            
-            // Navigation between auth screens
-            document.getElementById('goToSignupFromLogin').addEventListener('click', () => {
-                document.getElementById('loginScreen').classList.remove('active');
-                document.getElementById('signupScreen').classList.add('active');
-            });
-            
-            document.getElementById('goToLoginFromSignup').addEventListener('click', () => {
-                document.getElementById('signupScreen').classList.remove('active');
-                document.getElementById('loginScreen').classList.add('active');
-            });
-            
-            // Login form submission
-            document.getElementById('loginForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                const email = document.getElementById('loginEmail').value;
-                const password = document.getElementById('loginPassword').value;
-                
-                auth.signInWithEmailAndPassword(email, password)
-                    .then((userCredential) => {
-                        // Signed in successfully
-                        showNotification('Login successful!');
-                    })
-                    .catch((error) => {
-                        console.error('Login error:', error);
-                        showNotification('Login failed: ' + error.message);
-                    });
-            });
-            
-            // Signup form submission
-            document.getElementById('signupForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                // Validate passwords match
-                const password = document.getElementById('signupPassword').value;
-                const confirmPassword = document.getElementById('signupConfirmPassword').value;
-                
-                if (password !== confirmPassword) {
-                    showNotification('Passwords do not match');
-                    return;
-                }
-                
-                const email = document.getElementById('signupEmail').value;
-                const name = document.getElementById('signupName').value;
-                const phone = document.getElementById('signupPhone').value;
-                
-                // Create user with email and password
-                auth.createUserWithEmailAndPassword(email, password)
-                    .then((userCredential) => {
-                        const user = userCredential.user;
-                        
-                        // Generate referral code with 4 random numbers
-                        const referralCode = generateReferralCode();
-                        
-                        // Save user data to Firebase
-                        return database.ref('passengers/' + user.uid).set({
-                            name: name,
-                            email: email,
-                            phone: phone,
-                            createdAt: firebase.database.ServerValue.TIMESTAMP,
-                            walletBalance: 0,
-                            referralCode: referralCode,
-                            referredBy: null, // Will be set if user used a referral code
-                            referralBonusApplied: false
-                        });
-                    })
-                    .then(() => {
-                        showNotification('Account created successfully!');
-                    })
-                    .catch((error) => {
-                        console.error('Signup error:', error);
-                        showNotification('Signup failed: ' + error.message);
-                    });
-            });
-        }
-        
-        // Generate referral code with JUBEL + 4 random numbers
-        function generateReferralCode() {
-            const randomNum = Math.floor(1000 + Math.random() * 9000);
-            return `JUBEL${randomNum}`;
-        }
-        
-        // Apply referral code when signing up
-        function applyReferralCode(code) {
-            if (!code || !code.startsWith('JUBEL')) {
-                return false;
-            }
-            
-            // Find user with this referral code
-            database.ref('passengers').orderByChild('referralCode').equalTo(code).once('value')
-                .then(snapshot => {
-                    if (snapshot.exists()) {
-                        const referrerData = Object.values(snapshot.val())[0];
-                        const referrerId = Object.keys(snapshot.val())[0];
-                        
-                        // Add K50 to referrer's wallet
-                        const newBalance = (referrerData.walletBalance || 0) + 50;
-                        database.ref('passengers/' + referrerId).update({
-                            walletBalance: newBalance
-                        });
-                        
-                        // Mark that this user was referred
-                        database.ref('passengers/' + currentUser.uid).update({
-                            referredBy: referrerId
-                        });
-                        
-                        showNotification('Referral code applied! K50 has been added to your referrer\'s wallet.');
-                        return true;
-                    }
-                    return false;
-                })
-                .catch(error => {
-                    console.error('Error applying referral code:', error);
-                    return false;
-                });
         }
         
         // Map initialization
@@ -2206,8 +1988,10 @@
             // Contact driver button
             document.getElementById('contactDriverBtn').addEventListener('click', contactDriver);
             
-            // Promo toggle button
-            document.getElementById('promoToggleBtn').addEventListener('click', togglePromoSection);
+            // Promo code toggle
+            document.getElementById('promoToggle').addEventListener('click', function() {
+                document.getElementById('promoSection').classList.toggle('active');
+            });
             
             // Apply promo code
             document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
@@ -2238,7 +2022,7 @@
             // Panel collapse
             document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
             
-            // Destination input with real-time suggestions
+            // Destination input
             document.getElementById('destinationLocation').addEventListener('input', function() {
                 const query = this.value;
                 updateFareEstimate();
@@ -2290,12 +2074,14 @@
             // Close popup buttons
             document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
             document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
-        }
-        
-        // Toggle promo section visibility
-        function togglePromoSection() {
-            const promoSection = document.getElementById('promoSection');
-            promoSection.classList.toggle('active');
+            
+            // Star rating
+            document.querySelectorAll('.star').forEach(star => {
+                star.addEventListener('click', function() {
+                    const rating = parseInt(this.getAttribute('data-rating'));
+                    setRating(rating);
+                });
+            });
         }
         
         // Switch between screens
@@ -2314,6 +2100,17 @@
             });
             document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
             
+            // Show/hide floating elements based on screen
+            if (screenId === 'home') {
+                document.querySelectorAll('.home-only').forEach(el => {
+                    el.style.display = 'flex';
+                });
+            } else {
+                document.querySelectorAll('.home-only').forEach(el => {
+                    el.style.display = 'none';
+                });
+            }
+            
             // Load data for specific screens
             if (screenId === 'history') {
                 loadRideHistory();
@@ -2322,7 +2119,7 @@
             }
         }
         
-        // Toggle panel collapse to 50% height
+        // Toggle panel collapse
         function togglePanelCollapse() {
             const panel = document.getElementById('passengerPanel');
             panel.classList.toggle('collapsed');
@@ -2400,7 +2197,7 @@
                                         address
                                     );
                                     
-                                    // Draw route from user location to destination following roads
+                                    // Draw route from user location to destination
                                     drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
                                     
                                     // Enable request ride button
@@ -2491,7 +2288,6 @@
                             <div class="suggestion-icon">${getPlaceIcon(placeType)}</div>
                             <div class="suggestion-details">
                                 <div class="suggestion-name">${result.tags.name}</div>
-                                <div class="suggestion-type">${formatPlaceType(placeType)}</div>
                                 <div class="suggestion-address">${getPlaceAddress(result)}</div>
                                 <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
                             </div>
@@ -2509,7 +2305,7 @@
                                 result.tags.name
                             );
                             
-                            // Draw route from user location to destination following roads
+                            // Draw route from user location to destination
                             drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
                             
                             selectedDestination = result;
@@ -2567,13 +2363,6 @@
             };
             
             return icons[placeType] || '📍';
-        }
-        
-        // Format place type for display
-        function formatPlaceType(type) {
-            return type.split('_').map(word => 
-                word.charAt(0).toUpperCase() + word.slice(1)
-            ).join(' ');
         }
         
         // Get place address from tags
@@ -2720,7 +2509,7 @@
             passengerMap.fitBounds(bounds, { padding: [15, 15] });
         }
         
-        // Draw route from user location to destination following roads
+        // Draw route from user location to destination
         function drawRoute(startLat, startLng, endLat, endLng) {
             // Remove existing route if any
             if (routePolyline) {
@@ -2875,7 +2664,7 @@
         // Get user phone number
         function getUserPhone() {
             if (currentUser) {
-                return document.getElementById('passengerPhoneInput').value || 'Not provided';
+                return document.getElementById('passengerPhoneInput')?.value || 'Not provided';
             }
             return 'Not provided';
         }
@@ -2978,7 +2767,7 @@
                         // Add driver marker to map
                         addDriverMarker(ride.driverLat, ride.driverLng);
                         
-                        // Draw route from driver to pickup following roads
+                        // Draw route from driver to pickup
                         drawRoute(ride.driverLat, ride.driverLng, ride.pickupLat, ride.pickupLng);
                         
                         showNotification(`Driver ${driver.name} is on the way!`);
@@ -3009,7 +2798,7 @@
                             document.getElementById('statusText').textContent = 'Trip in progress';
                             // Update destination marker
                             addDestinationMarker(ride.destLat, ride.destLng);
-                            // Draw route to destination following roads
+                            // Draw route to destination
                             drawRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
                             break;
                         case 'completed':
@@ -3129,22 +2918,78 @@
                 return;
             }
             
-            // Simulate promo code validation
-            // In a real app, this would check against a database of valid promo codes
+            // Check if promo code is a referral code
             if (promoCode.startsWith('JUBEL')) {
-                appliedPromoCode = promoCode;
-                showNotification('Promo code applied! 20% discount will be applied to your ride.');
-                updateFareEstimate();
-                
-                // Update UI to show applied promo
-                document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
-                document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
-                document.getElementById('applyPromoBtn').classList.remove('btn-promo');
-                document.getElementById('applyPromoBtn').classList.add('btn-success');
+                // This is a referral code - apply discount and reward referrer
+                applyReferralCode(promoCode);
             } else {
-                showNotification('Invalid promo code. Please check and try again.');
-                document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
+                // Regular promo code validation
+                // In a real app, this would check against a database of valid promo codes
+                if (promoCode.startsWith('JUBEL-')) {
+                    appliedPromoCode = promoCode;
+                    showNotification('Promo code applied! 20% discount will be applied to your ride.');
+                    updateFareEstimate();
+                    
+                    // Update UI to show applied promo
+                    document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
+                    document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
+                    document.getElementById('applyPromoBtn').classList.remove('btn-promo');
+                    document.getElementById('applyPromoBtn').classList.add('btn-success');
+                } else {
+                    showNotification('Invalid promo code. Please check and try again.');
+                    document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
+                }
             }
+        }
+        
+        // Apply referral code
+        function applyReferralCode(referralCode) {
+            // Find user with this referral code
+            database.ref('passengers').orderByChild('referralCode').equalTo(referralCode).once('value')
+                .then(snapshot => {
+                    if (snapshot.exists()) {
+                        const referrerData = snapshot.val();
+                        const referrerId = Object.keys(referrerData)[0];
+                        const referrer = referrerData[referrerId];
+                        
+                        // Apply discount to current user
+                        appliedPromoCode = referralCode;
+                        showNotification('Referral code applied! 20% discount will be applied to your ride.');
+                        updateFareEstimate();
+                        
+                        // Update UI to show applied promo
+                        document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
+                        document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
+                        document.getElementById('applyPromoBtn').classList.remove('btn-promo');
+                        document.getElementById('applyPromoBtn').classList.add('btn-success');
+                        
+                        // Reward referrer with K50
+                        const newBalance = (referrer.walletBalance || 0) + 50;
+                        database.ref('passengers/' + referrerId).update({
+                            walletBalance: newBalance
+                        })
+                        .then(() => {
+                            // Notify referrer (in a real app, this would be a push notification)
+                            console.log(`Rewarded ${referrer.name} with K50 for referral`);
+                        });
+                        
+                        // Mark this referral as used
+                        database.ref('referrals').push().set({
+                            referrerId: referrerId,
+                            referredUserId: currentUser.uid,
+                            referralCode: referralCode,
+                            timestamp: firebase.database.ServerValue.TIMESTAMP,
+                            rewardAmount: 50
+                        });
+                    } else {
+                        showNotification('Invalid referral code. Please check and try again.');
+                        document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error applying referral code:', error);
+                    showNotification('Error applying referral code. Please try again.');
+                });
         }
         
         // Reset UI after ride completion or cancellation
@@ -3165,8 +3010,6 @@
             document.getElementById('applyPromoBtn').innerHTML = 'Apply';
             document.getElementById('applyPromoBtn').classList.remove('btn-success');
             document.getElementById('applyPromoBtn').classList.add('btn-promo');
-            
-            // Hide promo section
             document.getElementById('promoSection').classList.remove('active');
             
             // Remove driver marker
@@ -3198,9 +3041,6 @@
                         const passengerData = snapshot.val();
                         if (passengerData) {
                             // Update form fields
-                            document.getElementById('passengerNameInput').value = passengerData.name || '';
-                            document.getElementById('passengerPhoneInput').value = passengerData.phone || '';
-                            document.getElementById('passengerEmailInput').value = passengerData.email || '';
                             userFullName = passengerData.name || "Passenger";
                             
                             // Update wallet balance
@@ -3275,29 +3115,6 @@
                         document.getElementById('ridesPending').textContent = userStats.pending;
                     }
                 });
-        }
-        
-        // Save passenger details
-        function savePassengerDetails() {
-            const name = document.getElementById('passengerNameInput').value;
-            const phone = document.getElementById('passengerPhoneInput').value;
-            const email = document.getElementById('passengerEmailInput').value;
-            
-            if (currentUser) {
-                database.ref('passengers/' + currentUser.uid).update({
-                    name: name,
-                    phone: phone,
-                    email: email
-                })
-                .then(() => {
-                    userFullName = name;
-                    showNotification('Personal details saved successfully.');
-                })
-                .catch(error => {
-                    console.error('Error saving passenger details:', error);
-                    showNotification('Error saving personal details. Please try again.');
-                });
-            }
         }
         
         // Share referral code
@@ -3623,7 +3440,7 @@
                 })
             }).addTo(popupRideMap).bindPopup('Destination');
             
-            // Draw route following roads
+            // Draw route
             drawRouteOnPopupMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
             
             // Fit map to show both locations
@@ -3634,7 +3451,7 @@
             popupRideMap.fitBounds(bounds, { padding: [15, 15] });
         }
         
-        // Draw route on popup map following roads
+        // Draw route on popup map
         function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
             // Use OSRM API to get route
             fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
@@ -3669,6 +3486,19 @@
         // Close ride details popup
         function closeRideDetailsPopup() {
             document.getElementById('rideDetailsPopup').classList.add('hidden');
+        }
+        
+        // Set rating stars
+        function setRating(rating) {
+            userRating = rating;
+            document.querySelectorAll('.star').forEach(star => {
+                const starRating = parseInt(star.getAttribute('data-rating'));
+                if (starRating <= rating) {
+                    star.classList.add('active');
+                } else {
+                    star.classList.remove('active');
+                }
+            });
         }
         
         // Show ride completion
