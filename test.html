@@ -1,107 +1,2458 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Firebase Phone Auth Demo (v10+)</title>
-
-  <style>
-    body { font-family: Arial, sans-serif; margin: 40px; }
-    input, button { padding: 10px; margin: 6px 0; width: 280px; }
-    #status { margin-top: 12px; font-weight: 600; }
-    #verify-section { display: none; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jubel - Passenger</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-orange: #FF6B35;
+            --primary-red: #E74C3C;
+            --primary-gradient: linear-gradient(135deg, #FF6B35, #E74C3C);
+            --secondary-orange: #E55A28;
+            --secondary-red: #C0392B;
+            --light-orange: #FFE8E0;
+            --light-red: #FADBD8;
+            --white: #FFFFFF;
+            --light-gray: #F5F5F5;
+            --dark-gray: #333333;
+            --medium-gray: #777777;
+            --success-green: #2ecc71;
+            --warning-yellow: #f39c12;
+            --info-blue: #3498db;
+            --error-red: #e74c3c;
+            --border-color: #E8E8E8;
+            --shadow-light: 0 2px 12px rgba(255, 107, 53, 0.1);
+            --shadow-medium: 0 4px 20px rgba(255, 107, 53, 0.15);
+            --shadow-heavy: 0 8px 30px rgba(255, 107, 53, 0.2);
+            --app-padding: 12px;
+            --element-radius: 8px;
+            --transition-speed: 0.3s;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: var(--white);
+            color: var(--dark-gray);
+            max-width: 100%;
+            overflow-x: hidden;
+            height: 100vh;
+            font-size: 14px;
+        }
+        
+        /* Welcome Screen */
+        .welcome-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--white);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            transition: opacity 0.5s ease;
+        }
+        
+        .welcome-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .jubel-logo {
+            width: 200px;
+            height: 200px;
+            background: var(--primary-gradient);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow-heavy);
+        }
+        
+        .jubel-logo-text {
+            color: var(--white);
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+        
+        .welcome-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--dark-gray);
+            text-align: center;
+        }
+        
+        .welcome-subtitle {
+            font-size: 1rem;
+            color: var(--medium-gray);
+            margin-bottom: 40px;
+            text-align: center;
+            max-width: 300px;
+        }
+        
+        .auth-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+            max-width: 300px;
+        }
+        
+        .auth-btn {
+            padding: 15px;
+            border: none;
+            border-radius: var(--element-radius);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .btn-login {
+            background: var(--primary-gradient);
+            color: var(--white);
+        }
+        
+        .btn-signup {
+            background: var(--white);
+            color: var(--primary-orange);
+            border: 2px solid var(--primary-orange);
+        }
+        
+        /* Auth Screens */
+        .auth-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--white);
+            z-index: 900;
+            padding: 20px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .auth-screen.active {
+            display: block;
+        }
+        
+        .auth-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .back-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+            color: var(--dark-gray);
+        }
+        
+        .auth-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .form-input {
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 1rem;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+        }
+        
+        .submit-btn {
+            padding: 15px;
+            border: none;
+            border-radius: var(--element-radius);
+            background: var(--primary-gradient);
+            color: var(--white);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            margin-top: 10px;
+        }
+        
+        .auth-footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--medium-gray);
+        }
+        
+        .auth-link {
+            color: var(--primary-orange);
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        /* Main App */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        .floating-balance {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: var(--white);
+            padding: 8px 12px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            color: var(--dark-gray);
+            border: 2px solid var(--primary-orange);
+            font-size: 0.8rem;
+        }
+        
+        .balance-amount {
+            color: var(--primary-orange);
+            font-size: 0.9rem;
+        }
+        
+        .passenger-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--white);
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 100;
+            padding: var(--app-padding);
+            transform: translateY(0);
+            transition: transform var(--transition-speed) ease;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .passenger-panel.collapsed {
+            transform: translateY(calc(100% - 50px));
+        }
+        
+        .panel-collapse-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            margin: 0 auto 10px;
+            cursor: pointer;
+        }
+        
+        .nav-buttons {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            padding: 8px 4px;
+            border-radius: var(--element-radius);
+            background: var(--light-gray);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            border: none;
+            font-size: 0.65rem;
+            font-weight: 600;
+        }
+        
+        .nav-btn.active {
+            background: var(--primary-gradient);
+            color: var(--white);
+        }
+        
+        .nav-btn i {
+            font-size: 0.9rem;
+        }
+        
+        .ride-request-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .location-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            background: var(--white);
+        }
+        
+        .location-input i {
+            color: var(--primary-orange);
+        }
+        
+        .location-input input {
+            border: none;
+            outline: none;
+            width: 100%;
+            font-size: 0.9rem;
+        }
+        
+        .vehicle-selection {
+            display: flex;
+            gap: 8px;
+            margin: 10px 0;
+        }
+        
+        .vehicle-option {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            padding: 10px 5px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .vehicle-option.selected {
+            border-color: var(--primary-orange);
+            background: var(--light-orange);
+        }
+        
+        .vehicle-icon {
+            font-size: 1.2rem;
+            color: var(--medium-gray);
+        }
+        
+        .vehicle-option.selected .vehicle-icon {
+            color: var(--primary-orange);
+        }
+        
+        .vehicle-name {
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .vehicle-price {
+            font-size: 0.7rem;
+            color: var(--medium-gray);
+        }
+        
+        .request-ride-btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: var(--element-radius);
+            background: var(--primary-gradient);
+            color: var(--white);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            margin-top: 10px;
+        }
+        
+        .request-ride-btn:disabled {
+            background: var(--medium-gray);
+            cursor: not-allowed;
+        }
+        
+        .ride-info-panel {
+            background: var(--white);
+            border-radius: var(--element-radius);
+            padding: 12px;
+            box-shadow: var(--shadow-medium);
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .driver-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        
+        .driver-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            color: var(--white);
+            font-weight: 700;
+        }
+        
+        .driver-details h2 {
+            font-size: 0.95rem;
+            margin-bottom: 3px;
+        }
+        
+        .driver-details p {
+            color: var(--medium-gray);
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .trip-details {
+            margin-bottom: 12px;
+        }
+        
+        .location-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        
+        .location-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            flex-shrink: 0;
+        }
+        
+        .pickup-icon {
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .destination-icon {
+            background: var(--primary-red);
+            color: var(--white);
+        }
+        
+        .location-text {
+            flex: 1;
+        }
+        
+        .location-text h4 {
+            font-size: 0.85rem;
+            margin-bottom: 3px;
+        }
+        
+        .location-text p {
+            color: var(--medium-gray);
+            font-size: 0.75rem;
+        }
+        
+        .fare-details {
+            background: var(--light-orange);
+            padding: 10px;
+            border-radius: var(--element-radius);
+            margin-bottom: 12px;
+        }
+        
+        .fare-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.75rem;
+        }
+        
+        .fare-row.total {
+            font-weight: 700;
+            font-size: 0.9rem;
+            border-top: 1px solid var(--border-color);
+            padding-top: 6px;
+            margin-top: 6px;
+        }
+        
+        .ride-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .btn {
+            padding: 10px;
+            border: none;
+            border-radius: var(--element-radius);
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
+        .btn-cancel {
+            background: var(--error-red);
+            color: var(--white);
+        }
+        
+        .btn-contact {
+            background: var(--info-blue);
+            color: var(--white);
+        }
+        
+        .screen-content {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 70px;
+            background: var(--white);
+            z-index: 90;
+            padding: var(--app-padding);
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .screen-content.active {
+            display: block;
+        }
+        
+        .screen-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        
+        .back-button {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            border: none;
+            font-size: 1rem;
+        }
+        
+        .screen-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        
+        .account-section, .history-section, .payments-section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .input-group {
+            margin-bottom: 10px;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+        }
+        
+        .wallet-balance {
+            background: var(--primary-gradient);
+            color: var(--white);
+            padding: 12px;
+            border-radius: var(--element-radius);
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        
+        .balance-label {
+            font-size: 0.75rem;
+            margin-bottom: 3px;
+        }
+        
+        .balance-amount-large {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        
+        .wallet-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .btn-wallet {
+            background: var(--white);
+            color: var(--primary-orange);
+            border: 2px solid var(--primary-orange);
+            padding: 8px;
+            font-size: 0.75rem;
+            border-radius: var(--element-radius);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .btn-wallet:hover {
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .payment-methods {
+            margin-top: 12px;
+        }
+        
+        .payment-method {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .payment-method.selected {
+            border-color: var(--primary-orange);
+            background: var(--light-orange);
+        }
+        
+        .payment-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            color: var(--medium-gray);
+        }
+        
+        .payment-details {
+            flex: 1;
+        }
+        
+        .payment-name {
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        
+        .payment-info {
+            color: var(--medium-gray);
+            font-size: 0.7rem;
+        }
+        
+        .history-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            font-size: 0.75rem;
+        }
+        
+        .history-item:last-child {
+            border-bottom: none;
+        }
+        
+        .history-item:hover {
+            background: var(--light-orange);
+        }
+        
+        .history-locations {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        
+        .history-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--medium-gray);
+        }
+        
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            font-weight: 700;
+        }
+        
+        .status-completed {
+            background: #e6f7e9;
+            color: #2e7d32;
+        }
+        
+        .status-cancelled {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-gradient);
+            color: var(--white);
+            padding: 10px 16px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 300;
+            display: none;
+            font-weight: 600;
+            text-align: center;
+            font-size: 0.8rem;
+            max-width: 80%;
+        }
+        
+        .driver-marker {
+            background: var(--primary-gradient);
+            color: white;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .driver-marker-label {
+            background: white;
+            padding: 2px 5px;
+            border-radius: 8px;
+            margin-top: 4px;
+            font-size: 9px;
+            font-weight: bold;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+        }
+        
+        .pickup-marker {
+            background: var(--primary-orange);
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .destination-marker {
+            background: var(--primary-red);
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .current-location-marker {
+            background: var(--info-blue);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .quick-actions {
+            position: fixed;
+            bottom: 70px;
+            right: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+        }
+        
+        .quick-action-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: var(--primary-orange);
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .quick-action-btn:hover {
+            transform: scale(1.1);
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .map-controls {
+            position: fixed;
+            top: 60px;
+            left: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+        }
+        
+        .map-control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--primary-orange);
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .map-control-btn:hover {
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .dark-mode-toggle {
+            position: fixed;
+            bottom: 70px;
+            left: 15px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: var(--primary-orange);
+            z-index: 100;
+        }
+        
+        .ride-status {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            background: var(--white);
+            padding: 8px 12px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            color: var(--dark-gray);
+            border: 2px solid var(--border-color);
+            font-size: 0.8rem;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--medium-gray);
+        }
+        
+        .status-dot.searching {
+            background: var(--warning-yellow);
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.arriving {
+            background: var(--info-blue);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-dot.riding {
+            background: var(--success-green);
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .estimated-time {
+            position: fixed;
+            top: 60px;
+            right: 15px;
+            background: var(--white);
+            padding: 8px 12px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 700;
+            color: var(--dark-gray);
+            border: 2px solid var(--border-color);
+            font-size: 0.8rem;
+        }
+        
+        .promo-section {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px dashed var(--border-color);
+            border-radius: var(--element-radius);
+        }
+        
+        .promo-input {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .promo-input input {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+        }
+        
+        .btn-promo {
+            background: var(--primary-orange);
+            color: var(--white);
+            border: none;
+            border-radius: var(--element-radius);
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        @media (max-width: 480px) {
+            .floating-balance, .ride-status {
+                padding: 6px 8px;
+                font-size: 0.7rem;
+            }
+            
+            .passenger-panel {
+                padding: 10px;
+            }
+            
+            .nav-buttons {
+                gap: 4px;
+            }
+            
+            .nav-btn {
+                padding: 6px 3px;
+                font-size: 0.6rem;
+            }
+            
+            .quick-actions {
+                bottom: 65px;
+                right: 10px;
+            }
+            
+            .quick-action-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+            
+            .dark-mode-toggle {
+                bottom: 65px;
+                left: 10px;
+                width: 40px;
+                height: 40px;
+            }
+        }
+    </style>
 </head>
 <body>
+    <!-- Welcome Screen -->
+    <div class="welcome-screen" id="welcomeScreen">
+        <div class="jubel-logo">
+            <div class="jubel-logo-text">J</div>
+        </div>
+        <h1 class="welcome-title">Welcome to Jubel</h1>
+        <p class="welcome-subtitle">Get where you need to go with safe, reliable rides</p>
+        <div class="auth-buttons">
+            <button class="auth-btn btn-login" id="loginBtn">
+                <i class="fas fa-sign-in-alt"></i>
+                Log In
+            </button>
+            <button class="auth-btn btn-signup" id="signupBtn">
+                <i class="fas fa-user-plus"></i>
+                Sign Up
+            </button>
+        </div>
+    </div>
+    
+    <!-- Login Screen -->
+    <div class="auth-screen" id="loginScreen">
+        <div class="auth-header">
+            <button class="back-button" id="backFromLogin">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="auth-title">Log In</h2>
+        </div>
+        
+        <form class="auth-form" id="loginForm">
+            <div class="form-group">
+                <label for="loginEmail" class="form-label">Email Address</label>
+                <input type="email" id="loginEmail" class="form-input" placeholder="your.email@example.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="loginPassword" class="form-label">Password</label>
+                <input type="password" id="loginPassword" class="form-input" placeholder="Enter your password" required>
+            </div>
+            
+            <button type="submit" class="submit-btn">Log In</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Don't have an account? <span class="auth-link" id="goToSignupFromLogin">Sign Up</span></p>
+        </div>
+    </div>
+    
+    <!-- Signup Screen -->
+    <div class="auth-screen" id="signupScreen">
+        <div class="auth-header">
+            <button class="back-button" id="backFromSignup">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h2 class="auth-title">Sign Up</h2>
+        </div>
+        
+        <form class="auth-form" id="signupForm">
+            <div class="form-group">
+                <label for="signupName" class="form-label">Full Name</label>
+                <input type="text" id="signupName" class="form-input" placeholder="Your full name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupEmail" class="form-label">Email Address</label>
+                <input type="email" id="signupEmail" class="form-input" placeholder="your.email@example.com" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupPhone" class="form-label">Phone Number</label>
+                <input type="tel" id="signupPhone" class="form-input" placeholder="Your phone number" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupPassword" class="form-label">Password</label>
+                <input type="password" id="signupPassword" class="form-input" placeholder="Create a password" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="signupConfirmPassword" class="form-label">Confirm Password</label>
+                <input type="password" id="signupConfirmPassword" class="form-input" placeholder="Confirm your password" required>
+            </div>
+            
+            <button type="submit" class="submit-btn" id="signupSubmitBtn">Create Account</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Already have an account? <span class="auth-link" id="goToLoginFromSignup">Log In</span></p>
+        </div>
+    </div>
+    
+    <!-- Main App (Hidden until authentication) -->
+    <div id="mainApp" style="display: none;">
+        <!-- Main Map -->
+        <div id="map"></div>
+        
+        <!-- Floating Balance -->
+        <div class="floating-balance">
+            <i class="fas fa-wallet"></i>
+            <span>Balance: <span class="balance-amount" id="walletBalance">K0.00</span></span>
+        </div>
+        
+        <!-- Ride Status -->
+        <div class="ride-status" id="rideStatus" style="display: none;">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Searching for driver</span>
+        </div>
+        
+        <!-- Estimated Time -->
+        <div class="estimated-time" id="estimatedTime" style="display: none;">
+            <i class="fas fa-clock"></i>
+            <span id="timeText">5 min</span>
+        </div>
+        
+        <!-- Map Controls -->
+        <div class="map-controls">
+            <button class="map-control-btn" id="zoomInBtn" title="Zoom In">
+                <i class="fas fa-plus"></i>
+            </button>
+            <button class="map-control-btn" id="zoomOutBtn" title="Zoom Out">
+                <i class="fas fa-minus"></i>
+            </button>
+            <button class="map-control-btn" id="mapTypeBtn" title="Change Map Type">
+                <i class="fas fa-layer-group"></i>
+            </button>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <button class="quick-action-btn" id="centerMapBtn" title="Center Map">
+                <i class="fas fa-crosshairs"></i>
+            </button>
+            <button class="quick-action-btn" id="refreshLocationBtn" title="Refresh Location">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button class="quick-action-btn" id="toggleTrafficBtn" title="Toggle Traffic">
+                <i class="fas fa-traffic-light"></i>
+            </button>
+        </div>
+        
+        <!-- Dark Mode Toggle -->
+        <button class="dark-mode-toggle" id="darkModeToggle" title="Toggle Dark Mode">
+            <i class="fas fa-moon"></i>
+        </button>
+        
+        <!-- Passenger Panel -->
+        <div class="passenger-panel" id="passengerPanel">
+            <div class="panel-collapse-handle" id="panelCollapseHandle"></div>
+            
+            <div class="nav-buttons">
+                <button class="nav-btn active" data-screen="home">
+                    <i class="fas fa-home"></i>
+                    <span>Home</span>
+                </button>
+                <button class="nav-btn" data-screen="account">
+                    <i class="fas fa-user"></i>
+                    <span>Account</span>
+                </button>
+                <button class="nav-btn" data-screen="history">
+                    <i class="fas fa-history"></i>
+                    <span>History</span>
+                </button>
+                <button class="nav-btn" data-screen="payments">
+                    <i class="fas fa-credit-card"></i>
+                    <span>Payments</span>
+                </button>
+            </div>
+            
+            <!-- Home Screen Content -->
+            <div id="homeScreenContent">
+                <!-- Ride Request Form -->
+                <div class="ride-request-form" id="rideRequestForm">
+                    <div class="location-input">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <input type="text" id="pickupLocation" placeholder="Current location" readonly>
+                    </div>
+                    <div class="location-input">
+                        <i class="fas fa-flag"></i>
+                        <input type="text" id="destinationLocation" placeholder="Where to?">
+                    </div>
+                    
+                    <div class="vehicle-selection">
+                        <div class="vehicle-option" data-type="car">
+                            <i class="fas fa-car vehicle-icon"></i>
+                            <span class="vehicle-name">Car</span>
+                            <span class="vehicle-price">K15.00</span>
+                        </div>
+                        <div class="vehicle-option" data-type="bike">
+                            <i class="fas fa-motorcycle vehicle-icon"></i>
+                            <span class="vehicle-name">Bike</span>
+                            <span class="vehicle-price">K10.00</span>
+                        </div>
+                        <div class="vehicle-option" data-type="bicycle">
+                            <i class="fas fa-bicycle vehicle-icon"></i>
+                            <span class="vehicle-name">Bicycle</span>
+                            <span class="vehicle-price">K5.00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="promo-section">
+                        <div class="promo-input">
+                            <input type="text" id="promoCode" placeholder="Promo code">
+                            <button class="btn-promo" id="applyPromoBtn">Apply</button>
+                        </div>
+                    </div>
+                    
+                    <button class="request-ride-btn" id="requestRideBtn">Request Ride</button>
+                </div>
+                
+                <!-- Ride Info Panel (Hidden initially) -->
+                <div class="ride-info-panel" id="rideInfoPanel" style="display: none;">
+                    <div class="driver-info">
+                        <div class="driver-avatar" id="driverAvatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="driver-details">
+                            <h2 id="driverName">Driver Name</h2>
+                            <p><i class="fas fa-phone"></i> <span id="driverPhone">000-000-0000</span></p>
+                            <p><i class="fas fa-car"></i> <span id="vehicleDetails">Toyota Corolla - ABC123</span></p>
+                        </div>
+                    </div>
+                    
+                    <div class="trip-details">
+                        <div class="location-row">
+                            <div class="location-icon pickup-icon">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <div class="location-text">
+                                <h4>Pickup Location</h4>
+                                <p id="currentPickupLocation">123 Main Street, City</p>
+                            </div>
+                        </div>
+                        <div class="location-row">
+                            <div class="location-icon destination-icon">
+                                <i class="fas fa-flag"></i>
+                            </div>
+                            <div class="location-text">
+                                <h4>Destination</h4>
+                                <p id="currentDestinationLocation">456 Oak Avenue, City</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="fare-details">
+                        <div class="fare-row">
+                            <span>Base Fare</span>
+                            <span id="baseFare">K15.00</span>
+                        </div>
+                        <div class="fare-row">
+                            <span>Distance</span>
+                            <span id="distanceFare">K5.00</span>
+                        </div>
+                        <div class="fare-row">
+                            <span>Discount</span>
+                            <span id="discountFare">-K2.00</span>
+                        </div>
+                        <div class="fare-row total">
+                            <span>Total Fare</span>
+                            <span id="totalFare">K18.00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="ride-actions">
+                        <button class="btn btn-cancel" id="cancelRideBtn">
+                            <i class="fas fa-times-circle"></i>
+                            Cancel Ride
+                        </button>
+                        <button class="btn btn-contact" id="contactDriverBtn">
+                            <i class="fas fa-phone"></i>
+                            Contact Driver
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Screen Contents -->
+        <div class="screen-content" id="homeScreen">
+            <!-- Home screen is the map, so this is empty -->
+        </div>
+        
+        <div class="screen-content" id="accountScreen">
+            <div class="screen-header">
+                <button class="back-button" data-screen="home">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2 class="screen-title">Account</h2>
+            </div>
+            
+            <div class="account-section">
+                <h3 class="section-title">
+                    <i class="fas fa-user"></i>
+                    Personal Details
+                </h3>
+                <div class="input-group">
+                    <label for="passengerNameInput">Full Name</label>
+                    <input type="text" id="passengerNameInput" class="input-field" placeholder="Your full name">
+                </div>
+                <div class="input-group">
+                    <label for="passengerPhoneInput">Phone Number</label>
+                    <input type="tel" id="passengerPhoneInput" class="input-field" placeholder="Your phone number">
+                </div>
+                <div class="input-group">
+                    <label for="passengerEmailInput">Email Address</label>
+                    <input type="email" id="passengerEmailInput" class="input-field" placeholder="Your email address">
+                </div>
+                <button class="btn btn-accept" id="savePassengerDetailsBtn">
+                    <i class="fas fa-save"></i>
+                    Save Details
+                </button>
+            </div>
+            
+            <div class="account-section">
+                <h3 class="section-title">
+                    <i class="fas fa-wallet"></i>
+                    Wallet & Balance
+                </h3>
+                <div class="wallet-balance">
+                    <div class="balance-label">Available Balance</div>
+                    <div class="balance-amount-large" id="accountBalance">K0.00</div>
+                    <div>Add funds for seamless payments</div>
+                </div>
+                
+                <div class="wallet-actions">
+                    <button class="btn-wallet" id="addFundsBtn">
+                        <i class="fas fa-plus-circle"></i>
+                        Add Funds
+                    </button>
+                    <button class="btn-wallet" id="withdrawFundsBtn">
+                        <i class="fas fa-minus-circle"></i>
+                        Withdraw
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="screen-content" id="historyScreen">
+            <div class="screen-header">
+                <button class="back-button" data-screen="home">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2 class="screen-title">Ride History</h2>
+            </div>
+            
+            <div class="history-section">
+                <div id="historyList">
+                    <!-- History items will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="screen-content" id="paymentsScreen">
+            <div class="screen-header">
+                <button class="back-button" data-screen="home">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <h2 class="screen-title">Payment Methods</h2>
+            </div>
+            
+            <div class="payments-section">
+                <h3 class="section-title">
+                    <i class="fas fa-credit-card"></i>
+                    Payment Methods
+                </h3>
+                
+                <div class="payment-methods">
+                    <div class="payment-method selected">
+                        <div class="payment-icon">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <div class="payment-details">
+                            <div class="payment-name">Jubel Wallet</div>
+                            <div class="payment-info">Balance: K50.00</div>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-method">
+                        <div class="payment-icon">
+                            <i class="fas fa-mobile-alt"></i>
+                        </div>
+                        <div class="payment-details">
+                            <div class="payment-name">Mobile Money</div>
+                            <div class="payment-info">MTN, Airtel, Zamtel</div>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-method">
+                        <div class="payment-icon">
+                            <i class="fas fa-credit-card"></i>
+                        </div>
+                        <div class="payment-details">
+                            <div class="payment-name">Credit/Debit Card</div>
+                            <div class="payment-info">Visa, Mastercard</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-accept" id="addPaymentMethodBtn">
+                    <i class="fas fa-plus"></i>
+                    Add Payment Method
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+    
+    <!-- Firebase and Leaflet JS -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
+            authDomain: "jubel-13e1a.firebaseapp.com",
+            databaseURL: "https://jubel-13e1a-default-rtdb.firebaseio.com",
+            projectId: "jubel-13e1a",
+            storageBucket: "jubel-13e1a.firebasestorage.app",
+            messagingSenderId: "882241095445",
+            appId: "1:882241095445:web:ee9ca40fddd008ca910b1c",
+            measurementId: "G-J5JPKL6B5F"
+        };
 
-  <h2>📱 Firebase Phone Authentication</h2>
-
-  <div>
-    <label>Enter phone number (with +countrycode)</label><br>
-    <input type="tel" id="phoneNumber" placeholder="+26097XXXXXXX" /><br>
-
-    <div id="recaptcha-container"></div>
-    <button id="sendCodeBtn">Send verification code</button>
-  </div>
-
-  <div id="verify-section">
-    <label>Enter verification code</label><br>
-    <input type="text" id="verifyCode" placeholder="123456" /><br>
-    <button id="verifyBtn">Verify Code</button>
-  </div>
-
-  <div id="status"></div>
-
-  <script type="module">
-    // Import modular Firebase SDKs
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { 
-      getAuth, 
-      RecaptchaVerifier, 
-      signInWithPhoneNumber 
-    } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
-
-    // Firebase config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
-      authDomain: "jubel-13e1a.firebaseapp.com",
-      databaseURL: "https://jubel-13e1a-default-rtdb.firebaseio.com",
-      projectId: "jubel-13e1a",
-      storageBucket: "jubel-13e1a.firebasestorage.app",
-      messagingSenderId: "882241095445",
-      appId: "1:882241095445:web:ee9ca40fddd008ca910b1c",
-      measurementId: "G-J5JPKL6B5F"
-    };
-
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-    // Initialize recaptcha
-    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      size: 'invisible',
-      callback: (response) => {
-        console.log('reCAPTCHA solved automatically:', response);
-      }
-    });
-
-    let confirmationResult;
-
-    function setStatus(msg) {
-      document.getElementById("status").innerText = msg;
-    }
-
-    document.getElementById("sendCodeBtn").addEventListener("click", async () => {
-      const phoneNumber = document.getElementById("phoneNumber").value;
-      if (!phoneNumber) return setStatus("Enter your phone number first!");
-
-      setStatus("Sending verification code...");
-
-      try {
-        confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
-        setStatus("Code sent! Check your SMS.");
-        document.getElementById("verify-section").style.display = "block";
-      } catch (err) {
-        console.error(err);
-        setStatus("Error: " + err.message);
-      }
-    });
-
-    document.getElementById("verifyBtn").addEventListener("click", async () => {
-      const code = document.getElementById("verifyCode").value;
-      if (!confirmationResult) return setStatus("No verification in progress!");
-      if (!code) return setStatus("Enter the SMS code!");
-
-      setStatus("Verifying code...");
-      try {
-        const result = await confirmationResult.confirm(code);
-        setStatus("✅ Auth success! Welcome " + (result.user.phoneNumber || "user"));
-        console.log("User:", result.user);
-      } catch (err) {
-        console.error(err);
-        setStatus("❌ Invalid code: " + err.message);
-      }
-    });
-  </script>
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        const auth = firebase.auth();
+        
+        // App state
+        let currentUser = null;
+        let currentRide = null;
+        let passengerMap;
+        let locationWatchId = null;
+        let currentLocationMarker = null;
+        let pickupMarker = null;
+        let destinationMarker = null;
+        let driverMarker = null;
+        let routePolyline = null;
+        let selectedVehicleType = 'car';
+        let walletBalance = 0;
+        let isDarkMode = false;
+        let trafficLayer = null;
+        let trafficEnabled = false;
+        let mapType = 'standard';
+        
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeAuth();
+            setupAuthEventListeners();
+        });
+        
+        // Authentication functions
+        function initializeAuth() {
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    showMainApp();
+                    initializeMap();
+                    setupEventListeners();
+                    loadPassengerData();
+                } else {
+                    // Show welcome screen
+                    document.getElementById('welcomeScreen').classList.remove('hidden');
+                }
+            });
+        }
+        
+        // Show main app after authentication
+        function showMainApp() {
+            document.getElementById('welcomeScreen').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('active');
+            document.getElementById('signupScreen').classList.remove('active');
+            document.getElementById('mainApp').style.display = 'block';
+        }
+        
+        // Setup authentication event listeners
+        function setupAuthEventListeners() {
+            // Welcome screen buttons
+            document.getElementById('loginBtn').addEventListener('click', () => {
+                document.getElementById('welcomeScreen').classList.add('hidden');
+                document.getElementById('loginScreen').classList.add('active');
+            });
+            
+            document.getElementById('signupBtn').addEventListener('click', () => {
+                document.getElementById('welcomeScreen').classList.add('hidden');
+                document.getElementById('signupScreen').classList.add('active');
+            });
+            
+            // Back buttons
+            document.getElementById('backFromLogin').addEventListener('click', () => {
+                document.getElementById('loginScreen').classList.remove('active');
+                document.getElementById('welcomeScreen').classList.remove('hidden');
+            });
+            
+            document.getElementById('backFromSignup').addEventListener('click', () => {
+                document.getElementById('signupScreen').classList.remove('active');
+                document.getElementById('welcomeScreen').classList.remove('hidden');
+            });
+            
+            // Navigation between auth screens
+            document.getElementById('goToSignupFromLogin').addEventListener('click', () => {
+                document.getElementById('loginScreen').classList.remove('active');
+                document.getElementById('signupScreen').classList.add('active');
+            });
+            
+            document.getElementById('goToLoginFromSignup').addEventListener('click', () => {
+                document.getElementById('signupScreen').classList.remove('active');
+                document.getElementById('loginScreen').classList.add('active');
+            });
+            
+            // Login form submission
+            document.getElementById('loginForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const email = document.getElementById('loginEmail').value;
+                const password = document.getElementById('loginPassword').value;
+                
+                auth.signInWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        // Signed in successfully
+                        showNotification('Login successful!');
+                    })
+                    .catch((error) => {
+                        console.error('Login error:', error);
+                        showNotification('Login failed: ' + error.message);
+                    });
+            });
+            
+            // Signup form submission
+            document.getElementById('signupForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Validate passwords match
+                const password = document.getElementById('signupPassword').value;
+                const confirmPassword = document.getElementById('signupConfirmPassword').value;
+                
+                if (password !== confirmPassword) {
+                    showNotification('Passwords do not match');
+                    return;
+                }
+                
+                const email = document.getElementById('signupEmail').value;
+                const name = document.getElementById('signupName').value;
+                const phone = document.getElementById('signupPhone').value;
+                
+                // Create user with email and password
+                auth.createUserWithEmailAndPassword(email, password)
+                    .then((userCredential) => {
+                        const user = userCredential.user;
+                        
+                        // Save user data to Firebase
+                        return database.ref('passengers/' + user.uid).set({
+                            name: name,
+                            email: email,
+                            phone: phone,
+                            createdAt: firebase.database.ServerValue.TIMESTAMP,
+                            walletBalance: 0
+                        });
+                    })
+                    .then(() => {
+                        showNotification('Account created successfully!');
+                    })
+                    .catch((error) => {
+                        console.error('Signup error:', error);
+                        showNotification('Signup failed: ' + error.message);
+                    });
+            });
+        }
+        
+        // Map initialization
+        function initializeMap() {
+            // Main passenger map
+            passengerMap = L.map('map').setView([-15.4167, 28.2833], 13); // Default to Lusaka
+            
+            // Use a clean map style
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(passengerMap);
+            
+            // Get passenger's current location
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    // Update map with current location
+                    passengerMap.setView([lat, lng], 15);
+                    
+                    // Add marker for current location
+                    currentLocationMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'current-location-marker',
+                            html: '<div class="current-location-marker"><i class="fas fa-user"></i></div>',
+                            iconSize: [20, 20]
+                        })
+                    }).addTo(passengerMap)
+                        .bindPopup('Your location')
+                        .openPopup();
+                        
+                    // Set pickup location to current location
+                    updatePickupLocation(lat, lng);
+                }, error => {
+                    console.error('Geolocation error:', error);
+                    showNotification('Unable to get your location. Please enable location services.');
+                });
+            }
+        }
+        
+        // Update pickup location
+        function updatePickupLocation(lat, lng) {
+            // Update pickup marker
+            if (pickupMarker) {
+                passengerMap.removeLayer(pickupMarker);
+            }
+            
+            pickupMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'pickup-marker',
+                    html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
+                    iconSize: [25, 25]
+                })
+            }).addTo(passengerMap)
+                .bindPopup('Pickup Location');
+                
+            // Update pickup location input
+            reverseGeocode(lat, lng, 'pickupLocation');
+        }
+        
+        // Reverse geocode coordinates to address
+        function reverseGeocode(lat, lng, elementId) {
+            // Using OpenStreetMap Nominatim API for reverse geocoding
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.display_name) {
+                        document.getElementById(elementId).value = data.display_name;
+                    } else {
+                        document.getElementById(elementId).value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                    }
+                })
+                .catch(error => {
+                    console.error('Reverse geocoding error:', error);
+                    document.getElementById(elementId).value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                });
+        }
+        
+        // Event listeners setup
+        function setupEventListeners() {
+            // Navigation buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const screen = this.getAttribute('data-screen');
+                    switchScreen(screen);
+                });
+            });
+            
+            // Back buttons
+            document.querySelectorAll('.back-button').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const screen = this.getAttribute('data-screen');
+                    switchScreen(screen);
+                });
+            });
+            
+            // Vehicle selection
+            document.querySelectorAll('.vehicle-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    // Remove selected class from all options
+                    document.querySelectorAll('.vehicle-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    
+                    // Add selected class to clicked option
+                    this.classList.add('selected');
+                    
+                    // Update selected vehicle type
+                    selectedVehicleType = this.getAttribute('data-type');
+                });
+            });
+            
+            // Request ride button
+            document.getElementById('requestRideBtn').addEventListener('click', requestRide);
+            
+            // Cancel ride button
+            document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
+            
+            // Contact driver button
+            document.getElementById('contactDriverBtn').addEventListener('click', contactDriver);
+            
+            // Apply promo code
+            document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
+            
+            // Account actions
+            document.getElementById('savePassengerDetailsBtn').addEventListener('click', savePassengerDetails);
+            document.getElementById('addFundsBtn').addEventListener('click', addFunds);
+            document.getElementById('withdrawFundsBtn').addEventListener('click', withdrawFunds);
+            
+            // Add payment method
+            document.getElementById('addPaymentMethodBtn').addEventListener('click', addPaymentMethod);
+            
+            // Quick actions
+            document.getElementById('centerMapBtn').addEventListener('click', centerMap);
+            document.getElementById('refreshLocationBtn').addEventListener('click', refreshPassengerPosition);
+            document.getElementById('toggleTrafficBtn').addEventListener('click', toggleTraffic);
+            
+            // Map controls
+            document.getElementById('zoomInBtn').addEventListener('click', () => passengerMap.zoomIn());
+            document.getElementById('zoomOutBtn').addEventListener('click', () => passengerMap.zoomOut());
+            document.getElementById('mapTypeBtn').addEventListener('click', toggleMapType);
+            
+            // Dark mode toggle
+            document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
+            
+            // Panel collapse
+            document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
+            
+            // Destination input
+            document.getElementById('destinationLocation').addEventListener('focus', function() {
+                // When destination input is focused, show suggestions
+                showDestinationSuggestions();
+            });
+        }
+        
+        // Switch between screens
+        function switchScreen(screenId) {
+            // Hide all screens
+            document.querySelectorAll('.screen-content').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            
+            // Show selected screen
+            document.getElementById(screenId + 'Screen').classList.add('active');
+            
+            // Update active nav button
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
+            
+            // Load data for specific screens
+            if (screenId === 'history') {
+                loadRideHistory();
+            }
+        }
+        
+        // Toggle panel collapse
+        function togglePanelCollapse() {
+            const panel = document.getElementById('passengerPanel');
+            panel.classList.toggle('collapsed');
+        }
+        
+        // Toggle map type
+        function toggleMapType() {
+            // Remove current tile layer
+            passengerMap.eachLayer(layer => {
+                if (layer instanceof L.TileLayer) {
+                    passengerMap.removeLayer(layer);
+                }
+            });
+            
+            // Add new tile layer based on current map type
+            if (mapType === 'standard') {
+                // Switch to satellite
+                L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenTopoMap contributors'
+                }).addTo(passengerMap);
+                mapType = 'satellite';
+                showNotification('Switched to satellite view');
+            } else {
+                // Switch back to standard
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(passengerMap);
+                mapType = 'standard';
+                showNotification('Switched to standard view');
+            }
+        }
+        
+        // Toggle dark mode
+        function toggleDarkMode() {
+            isDarkMode = !isDarkMode;
+            const body = document.body;
+            const darkModeToggle = document.getElementById('darkModeToggle');
+            
+            if (isDarkMode) {
+                body.style.backgroundColor = '#1a1a1a';
+                body.style.color = '#ffffff';
+                darkModeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+                darkModeToggle.style.background = '#333';
+                darkModeToggle.style.color = '#ffcc00';
+                showNotification('Dark mode enabled');
+            } else {
+                body.style.backgroundColor = '';
+                body.style.color = '';
+                darkModeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+                darkModeToggle.style.background = '';
+                darkModeToggle.style.color = '';
+                showNotification('Dark mode disabled');
+            }
+        }
+        
+        // Request a ride
+        function requestRide() {
+            const pickupLocation = document.getElementById('pickupLocation').value;
+            const destinationLocation = document.getElementById('destinationLocation').value;
+            
+            if (!destinationLocation) {
+                showNotification('Please enter a destination');
+                return;
+            }
+            
+            if (!currentLocationMarker) {
+                showNotification('Unable to determine your location. Please try again.');
+                return;
+            }
+            
+            const pickupLatLng = currentLocationMarker.getLatLng();
+            
+            // Generate a unique ride ID
+            const rideId = 'ride_' + Date.now();
+            
+            // Create ride request
+            const rideRequest = {
+                id: rideId,
+                passengerId: currentUser.uid,
+                passengerName: document.getElementById('passengerNameInput').value || 'Passenger',
+                passengerPhone: document.getElementById('passengerPhoneInput').value || 'N/A',
+                pickupLocation: pickupLocation,
+                pickupLat: pickupLatLng.lat,
+                pickupLng: pickupLatLng.lng,
+                destination: destinationLocation,
+                rideType: selectedVehicleType,
+                status: 'requested',
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                fare: calculateFare(selectedVehicleType)
+            };
+            
+            // Save ride request to Firebase
+            database.ref('rides/' + rideId).set(rideRequest)
+                .then(() => {
+                    currentRide = rideRequest;
+                    
+                    // Update UI for active ride
+                    updateUIForActiveRide();
+                    
+                    // Show ride status
+                    document.getElementById('rideStatus').style.display = 'flex';
+                    document.getElementById('statusDot').className = 'status-dot searching';
+                    document.getElementById('statusText').textContent = 'Searching for driver';
+                    
+                    showNotification('Ride requested. Searching for a driver...');
+                    
+                    // Listen for driver assignment
+                    listenForDriverAssignment(rideId);
+                })
+                .catch(error => {
+                    console.error('Error requesting ride:', error);
+                    showNotification('Error requesting ride. Please try again.');
+                });
+        }
+        
+        // Calculate fare based on vehicle type
+        function calculateFare(vehicleType) {
+            switch(vehicleType) {
+                case 'car':
+                    return 15.00;
+                case 'bike':
+                    return 10.00;
+                case 'bicycle':
+                    return 5.00;
+                default:
+                    return 15.00;
+            }
+        }
+        
+        // Update UI for active ride
+        function updateUIForActiveRide() {
+            // Hide ride request form
+            document.getElementById('rideRequestForm').style.display = 'none';
+            
+            // Show ride info panel
+            document.getElementById('rideInfoPanel').style.display = 'block';
+            
+            // Update ride info
+            document.getElementById('currentPickupLocation').textContent = currentRide.pickupLocation;
+            document.getElementById('currentDestinationLocation').textContent = currentRide.destination;
+            
+            // Calculate and display fare
+            const baseFare = currentRide.fare;
+            const discount = 0; // Would be calculated based on promo code
+            const totalFare = baseFare - discount;
+            
+            document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
+            document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
+            document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
+        }
+        
+        // Listen for driver assignment
+        function listenForDriverAssignment(rideId) {
+            database.ref('rides/' + rideId).on('value', snapshot => {
+                const ride = snapshot.val();
+                if (ride && ride.driverId) {
+                    // Driver has been assigned
+                    currentRide = ride;
+                    
+                    // Update ride status
+                    document.getElementById('statusDot').className = 'status-dot arriving';
+                    document.getElementById('statusText').textContent = 'Driver arriving';
+                    
+                    // Show estimated time
+                    document.getElementById('estimatedTime').style.display = 'flex';
+                    document.getElementById('timeText').textContent = '5 min';
+                    
+                    // Get driver details
+                    database.ref('users/' + ride.driverId).once('value')
+                        .then(driverSnapshot => {
+                            const driver = driverSnapshot.val();
+                            if (driver) {
+                                // Update driver info
+                                document.getElementById('driverName').textContent = driver.name || 'Driver';
+                                document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
+                                
+                                if (driver.vehicle) {
+                                    document.getElementById('vehicleDetails').textContent = 
+                                        `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
+                                }
+                                
+                                // Update driver avatar
+                                const driverAvatar = document.getElementById('driverAvatar');
+                                if (driver.name) {
+                                    driverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
+                                }
+                                
+                                // Add driver marker to map
+                                addDriverMarker(ride.driverLat, ride.driverLng);
+                                
+                                // Draw route from driver to pickup
+                                drawRoute(ride.driverLat, ride.driverLng, ride.pickupLat, ride.pickupLng);
+                                
+                                showNotification(`Driver ${driver.name} is on the way!`);
+                            }
+                        });
+                    
+                    // Listen for ride status updates
+                    listenForRideStatusUpdates(rideId);
+                }
+            });
+        }
+        
+        // Listen for ride status updates
+        function listenForRideStatusUpdates(rideId) {
+            database.ref('rides/' + rideId).on('value', snapshot => {
+                const ride = snapshot.val();
+                if (ride) {
+                    currentRide = ride;
+                    
+                    switch(ride.status) {
+                        case 'accepted':
+                            document.getElementById('statusText').textContent = 'Driver on the way';
+                            break;
+                        case 'arrived':
+                            document.getElementById('statusText').textContent = 'Driver arrived';
+                            document.getElementById('statusDot').className = 'status-dot riding';
+                            showNotification('Your driver has arrived!');
+                            break;
+                        case 'started':
+                            document.getElementById('statusText').textContent = 'Trip in progress';
+                            // Update destination marker
+                            addDestinationMarker(ride.destLat, ride.destLng);
+                            // Draw route to destination
+                            drawRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+                            break;
+                        case 'completed':
+                            document.getElementById('statusText').textContent = 'Trip completed';
+                            document.getElementById('rideStatus').style.display = 'none';
+                            document.getElementById('estimatedTime').style.display = 'none';
+                            resetUIAfterRide();
+                            showNotification('Trip completed. Thank you for using Jubel!');
+                            break;
+                        case 'cancelled':
+                            document.getElementById('rideStatus').style.display = 'none';
+                            document.getElementById('estimatedTime').style.display = 'none';
+                            resetUIAfterRide();
+                            showNotification('Ride cancelled');
+                            break;
+                    }
+                }
+            });
+        }
+        
+        // Add driver marker to map
+        function addDriverMarker(lat, lng) {
+            if (driverMarker) {
+                passengerMap.removeLayer(driverMarker);
+            }
+            
+            driverMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'driver-marker',
+                    html: '<div class="driver-marker">🚗</div><div class="driver-marker-label">Driver</div>',
+                    iconSize: [35, 50]
+                })
+            }).addTo(passengerMap)
+                .bindPopup('Your driver');
+        }
+        
+        // Add destination marker to map
+        function addDestinationMarker(lat, lng) {
+            if (destinationMarker) {
+                passengerMap.removeLayer(destinationMarker);
+            }
+            
+            destinationMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    className: 'destination-marker',
+                    html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
+                    iconSize: [25, 25]
+                })
+            }).addTo(passengerMap)
+                .bindPopup('Destination');
+        }
+        
+        // Draw route on map
+        function drawRoute(startLat, startLng, endLat, endLng) {
+            // Remove existing route if any
+            if (routePolyline) {
+                passengerMap.removeLayer(routePolyline);
+            }
+            
+            // Use OSRM API to get route
+            fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                        
+                        // Draw the route on the map
+                        routePolyline = L.polyline(routeCoordinates, {
+                            color: '#FF6B35',
+                            weight: 4,
+                            opacity: 0.7
+                        }).addTo(passengerMap);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching route:', error);
+                    // Fallback: draw a straight line
+                    routePolyline = L.polyline([
+                        [startLat, startLng],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7
+                    }).addTo(passengerMap);
+                });
+        }
+        
+        // Cancel ride
+        function cancelRide() {
+            if (currentRide) {
+                database.ref('rides/' + currentRide.id).update({
+                    status: 'cancelled',
+                    cancelledAt: firebase.database.ServerValue.TIMESTAMP
+                })
+                .then(() => {
+                    resetUIAfterRide();
+                    showNotification('Ride cancelled');
+                })
+                .catch(error => {
+                    console.error('Error cancelling ride:', error);
+                    showNotification('Error cancelling ride. Please try again.');
+                });
+            }
+        }
+        
+        // Contact driver
+        function contactDriver() {
+            if (currentRide && currentRide.driverPhone) {
+                // In a real app, this would initiate a phone call
+                showNotification(`Calling driver: ${currentRide.driverPhone}`);
+            } else {
+                showNotification('Driver phone number not available.');
+            }
+        }
+        
+        // Apply promo code
+        function applyPromoCode() {
+            const promoCode = document.getElementById('promoCode').value;
+            if (promoCode) {
+                // In a real app, this would validate the promo code with the server
+                showNotification(`Promo code "${promoCode}" applied successfully!`);
+            } else {
+                showNotification('Please enter a promo code');
+            }
+        }
+        
+        // Reset UI after ride completion or cancellation
+        function resetUIAfterRide() {
+            // Show ride request form
+            document.getElementById('rideRequestForm').style.display = 'flex';
+            
+            // Hide ride info panel
+            document.getElementById('rideInfoPanel').style.display = 'none';
+            
+            // Clear destination input
+            document.getElementById('destinationLocation').value = '';
+            
+            // Clear promo code
+            document.getElementById('promoCode').value = '';
+            
+            // Remove driver marker
+            if (driverMarker) {
+                passengerMap.removeLayer(driverMarker);
+                driverMarker = null;
+            }
+            
+            // Remove destination marker
+            if (destinationMarker) {
+                passengerMap.removeLayer(destinationMarker);
+                destinationMarker = null;
+            }
+            
+            // Remove route
+            if (routePolyline) {
+                passengerMap.removeLayer(routePolyline);
+                routePolyline = null;
+            }
+            
+            currentRide = null;
+        }
+        
+        // Load passenger data
+        function loadPassengerData() {
+            if (currentUser) {
+                database.ref('passengers/' + currentUser.uid).once('value')
+                    .then(snapshot => {
+                        const passengerData = snapshot.val();
+                        if (passengerData) {
+                            // Update form fields
+                            document.getElementById('passengerNameInput').value = passengerData.name || '';
+                            document.getElementById('passengerPhoneInput').value = passengerData.phone || '';
+                            document.getElementById('passengerEmailInput').value = passengerData.email || '';
+                            
+                            // Update wallet balance
+                            walletBalance = passengerData.walletBalance || 0;
+                            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                        }
+                    });
+                
+                // Load ride history
+                loadRideHistory();
+            }
+        }
+        
+        // Save passenger details
+        function savePassengerDetails() {
+            const name = document.getElementById('passengerNameInput').value;
+            const phone = document.getElementById('passengerPhoneInput').value;
+            const email = document.getElementById('passengerEmailInput').value;
+            
+            if (currentUser) {
+                database.ref('passengers/' + currentUser.uid).update({
+                    name: name,
+                    phone: phone,
+                    email: email
+                })
+                .then(() => {
+                    showNotification('Personal details saved successfully.');
+                })
+                .catch(error => {
+                    console.error('Error saving passenger details:', error);
+                    showNotification('Error saving personal details. Please try again.');
+                });
+            }
+        }
+        
+        // Add funds to wallet
+        function addFunds() {
+            const amount = prompt('Enter amount to add to your wallet (K):');
+            if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+                const addAmount = parseFloat(amount);
+                const newBalance = walletBalance + addAmount;
+                
+                // Update balance
+                updateWalletBalance(newBalance);
+                
+                showNotification(`Successfully added K${addAmount.toFixed(2)} to your wallet.`);
+            } else if (amount) {
+                showNotification('Please enter a valid amount.');
+            }
+        }
+        
+        // Withdraw funds from wallet
+        function withdrawFunds() {
+            if (walletBalance <= 0) {
+                showNotification('Your wallet balance is zero.');
+                return;
+            }
+            
+            const amount = prompt(`Enter amount to withdraw (K). Available: K${walletBalance.toFixed(2)}:`);
+            if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+                const withdrawAmount = parseFloat(amount);
+                
+                if (withdrawAmount > walletBalance) {
+                    showNotification('Insufficient balance for this withdrawal.');
+                    return;
+                }
+                
+                const newBalance = walletBalance - withdrawAmount;
+                updateWalletBalance(newBalance);
+                
+                showNotification(`Withdrawal request submitted. K${withdrawAmount.toFixed(2)} will be processed within 24 hours.`);
+            } else if (amount) {
+                showNotification('Please enter a valid amount.');
+            }
+        }
+        
+        // Update wallet balance
+        function updateWalletBalance(newBalance) {
+            walletBalance = newBalance;
+            
+            // Update UI
+            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+            
+            // Save to Firebase
+            if (currentUser) {
+                database.ref('passengers/' + currentUser.uid).update({
+                    walletBalance: walletBalance
+                });
+            }
+        }
+        
+        // Add payment method
+        function addPaymentMethod() {
+            showNotification('Payment method feature coming soon!');
+        }
+        
+        // Load ride history
+        function loadRideHistory() {
+            if (currentUser) {
+                database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).once('value')
+                    .then(snapshot => {
+                        const historyList = document.getElementById('historyList');
+                        historyList.innerHTML = '';
+                        
+                        const rides = snapshot.val();
+                        if (rides) {
+                            // Convert to array and sort by timestamp (newest first)
+                            const ridesArray = Object.keys(rides).map(rideId => ({
+                                id: rideId,
+                                ...rides[rideId]
+                            })).sort((a, b) => b.timestamp - a.timestamp);
+                            
+                            ridesArray.forEach(ride => {
+                                const historyItem = document.createElement('div');
+                                historyItem.className = 'history-item';
+                                
+                                const date = new Date(ride.timestamp);
+                                const formattedDate = date.toLocaleDateString();
+                                const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                
+                                historyItem.innerHTML = `
+                                    <div class="history-locations">
+                                        <div>
+                                            <strong>From:</strong> ${ride.pickupLocation}
+                                        </div>
+                                        <div>
+                                            <strong>To:</strong> ${ride.destination}
+                                        </div>
+                                    </div>
+                                    <div class="history-info">
+                                        <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                                        <div>${formattedDate} ${formattedTime}</div>
+                                        <div class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">
+                                            ${ride.status === 'completed' ? 'Completed' : 'Cancelled'}
+                                        </div>
+                                    </div>
+                                `;
+                                
+                                historyList.appendChild(historyItem);
+                            });
+                        } else {
+                            historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No ride history found.</p>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading ride history:', error);
+                        historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--error-red);">Error loading ride history.</p>';
+                    });
+            }
+        }
+        
+        // Show destination suggestions
+        function showDestinationSuggestions() {
+            // In a real app, this would show a dropdown with location suggestions
+            // For this demo, we'll just focus on the input
+        }
+        
+        // Quick actions
+        
+        // Center map on passenger location
+        function centerMap() {
+            if (currentLocationMarker) {
+                const passengerLatLng = currentLocationMarker.getLatLng();
+                passengerMap.setView(passengerLatLng, 16);
+                showNotification('Map centered on your location');
+            }
+        }
+        
+        // Refresh passenger position
+        function refreshPassengerPosition() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    // Update map with current location
+                    passengerMap.setView([lat, lng], 16);
+                    
+                    // Update passenger marker position
+                    if (currentLocationMarker) {
+                        currentLocationMarker.setLatLng([lat, lng]);
+                    } else {
+                        currentLocationMarker = L.marker([lat, lng], {
+                            icon: L.divIcon({
+                                className: 'current-location-marker',
+                                html: '<div class="current-location-marker"><i class="fas fa-user"></i></div>',
+                                iconSize: [20, 20]
+                            })
+                        }).addTo(passengerMap)
+                            .bindPopup('Your location');
+                    }
+                    
+                    // Update pickup location
+                    updatePickupLocation(lat, lng);
+                    
+                    showNotification('Location refreshed');
+                }, error => {
+                    console.error('Geolocation error:', error);
+                    showNotification('Unable to refresh location. Please enable location services.');
+                });
+            }
+        }
+        
+        // Toggle traffic layer
+        function toggleTraffic() {
+            if (trafficEnabled) {
+                // Remove traffic layer
+                if (trafficLayer) {
+                    passengerMap.removeLayer(trafficLayer);
+                    trafficLayer = null;
+                }
+                trafficEnabled = false;
+                showNotification('Traffic layer disabled');
+            } else {
+                // Add traffic layer (using OpenStreetMap traffic tiles as an example)
+                trafficLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(passengerMap);
+                trafficEnabled = true;
+                showNotification('Traffic layer enabled');
+            }
+        }
+        
+        // Show notification
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+    </script>
 </body>
 </html>
