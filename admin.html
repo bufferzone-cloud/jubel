@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jubel - Admin Dashboard</title>
+    <title>Jubel - Manager Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -24,9 +24,9 @@
             --info-blue: #3498db;
             --error-red: #e74c3c;
             --border-color: #E8E8E8;
-            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.1);
-            --shadow-medium: 0 4px 15px rgba(0, 0, 0, 0.15);
-            --shadow-heavy: 0 6px 20px rgba(0, 0, 0, 0.2);
+            --shadow-light: 0 2px 12px rgba(255, 107, 53, 0.1);
+            --shadow-medium: 0 4px 20px rgba(255, 107, 53, 0.15);
+            --shadow-heavy: 0 8px 30px rgba(255, 107, 53, 0.2);
             --app-padding: 12px;
             --element-radius: 8px;
             --transition-speed: 0.3s;
@@ -53,13 +53,12 @@
             background: var(--primary-gradient);
             color: var(--white);
             padding: 12px var(--app-padding);
-            position: sticky;
+            position: fixed;
             top: 0;
-            z-index: 100;
+            left: 0;
+            right: 0;
+            z-index: 1000;
             box-shadow: var(--shadow-medium);
-        }
-        
-        .header-content {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -88,6 +87,12 @@
             font-weight: 700;
         }
         
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
         .user-info {
             display: flex;
             align-items: center;
@@ -106,104 +111,134 @@
             font-weight: 700;
         }
         
-        /* Main Content */
-        .main-content {
-            padding: var(--app-padding);
-            padding-bottom: 70px;
-            overflow-y: auto;
-            height: calc(100vh - 60px);
+        .stats-bar {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8rem;
         }
         
-        /* Dashboard */
-        .dashboard-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .stat-card {
-            background: var(--white);
-            border-radius: var(--element-radius);
-            padding: 12px;
-            box-shadow: var(--shadow-light);
-            border: 1px solid var(--border-color);
-            text-align: center;
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
         
         .stat-value {
-            font-size: 1.4rem;
-            font-weight: 800;
-            margin-bottom: 4px;
-        }
-        
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--medium-gray);
-        }
-        
-        .stat-card.primary {
-            background: var(--primary-gradient);
-            color: var(--white);
-        }
-        
-        .section {
-            margin-bottom: 15px;
-        }
-        
-        .section-title {
-            font-size: 1rem;
             font-weight: 700;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
         }
         
-        .card {
+        /* Main Map */
+        #map {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            position: fixed;
+            top: 70px;
+            left: 15px;
             background: var(--white);
             border-radius: var(--element-radius);
-            padding: 12px;
-            box-shadow: var(--shadow-light);
-            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-heavy);
+            z-index: 100;
+            padding: 10px;
+            width: 300px;
+            max-height: calc(100vh - 90px);
+            overflow-y: auto;
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .panel-title {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        
+        .panel-tabs {
+            display: flex;
+            gap: 5px;
             margin-bottom: 10px;
         }
         
-        /* Tabs */
-        .tabs {
-            display: flex;
-            overflow-x: auto;
-            gap: 8px;
-            margin-bottom: 15px;
-            padding-bottom: 5px;
-        }
-        
-        .tab {
-            padding: 8px 12px;
+        .panel-tab {
+            flex: 1;
+            padding: 8px 5px;
             border-radius: var(--element-radius);
             background: var(--light-gray);
             font-weight: 600;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             cursor: pointer;
-            white-space: nowrap;
+            text-align: center;
             transition: all var(--transition-speed) ease;
         }
         
-        .tab.active {
+        .panel-tab.active {
             background: var(--primary-gradient);
             color: var(--white);
         }
         
-        /* Tab Content */
-        .tab-content {
+        .panel-content {
             display: none;
         }
         
-        .tab-content.active {
+        .panel-content.active {
             display: block;
         }
         
-        /* List Items */
+        .search-bar {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius) 0 0 var(--element-radius);
+            font-size: 0.8rem;
+        }
+        
+        .search-btn {
+            padding: 8px 12px;
+            background: var(--primary-orange);
+            color: var(--white);
+            border: none;
+            border-radius: 0 var(--element-radius) var(--element-radius) 0;
+            cursor: pointer;
+        }
+        
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .filter-select {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+            background-color: var(--white);
+        }
+        
+        .list-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
         .list-item {
             padding: 10px;
             border-bottom: 1px solid var(--border-color);
@@ -262,7 +297,7 @@
         
         .status-started {
             background: #e8f5e9;
-            color: #388e3c;
+            color: #2e7d32;
         }
         
         .status-completed {
@@ -275,81 +310,35 @@
             color: #c62828;
         }
         
-        /* Map */
-        #map {
-            height: 200px;
-            width: 100%;
-            border-radius: var(--element-radius);
-            margin-bottom: 10px;
+        /* Map Controls */
+        .map-controls {
+            position: fixed;
+            top: 70px;
+            right: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
         }
         
-        /* Forms */
-        .form-group {
-            margin-bottom: 10px;
-        }
-        
-        .form-label {
-            font-weight: 600;
-            font-size: 0.8rem;
-            margin-bottom: 5px;
-            display: block;
-        }
-        
-        .form-input {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid var(--border-color);
-            border-radius: var(--element-radius);
-            font-size: 0.8rem;
-            transition: all var(--transition-speed) ease;
-        }
-        
-        .form-input:focus {
-            outline: none;
-            border-color: var(--primary-orange);
-        }
-        
-        .form-select {
-            width: 100%;
-            padding: 10px;
-            border: 2px solid var(--border-color);
-            border-radius: var(--element-radius);
-            font-size: 0.8rem;
-            background-color: var(--white);
-            cursor: pointer;
-        }
-        
-        .btn {
-            padding: 10px;
-            border: none;
-            border-radius: var(--element-radius);
-            font-size: 0.8rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all var(--transition-speed) ease;
+        .map-control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: var(--shadow-heavy);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--primary-orange);
+            transition: all var(--transition-speed) ease;
         }
         
-        .btn-primary {
-            background: var(--primary-gradient);
-            color: var(--white);
-        }
-        
-        .btn-secondary {
-            background: var(--light-gray);
-            color: var(--dark-gray);
-        }
-        
-        .btn-danger {
-            background: var(--error-red);
-            color: var(--white);
-        }
-        
-        .btn-success {
-            background: var(--success-green);
+        .map-control-btn:hover {
+            background: var(--primary-orange);
             color: var(--white);
         }
         
@@ -361,7 +350,7 @@
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 1000;
+            z-index: 2000;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -414,134 +403,6 @@
             margin-top: 15px;
         }
         
-        /* Bottom Navigation */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--white);
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            padding: 8px var(--app-padding);
-            z-index: 100;
-        }
-        
-        .nav-item {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            padding: 6px 0;
-            border-radius: var(--element-radius);
-            cursor: pointer;
-            transition: all var(--transition-speed) ease;
-            font-size: 0.7rem;
-            font-weight: 600;
-        }
-        
-        .nav-item.active {
-            color: var(--primary-orange);
-        }
-        
-        .nav-icon {
-            font-size: 1.2rem;
-        }
-        
-        /* Table */
-        .table-container {
-            overflow-x: auto;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.75rem;
-        }
-        
-        th, td {
-            padding: 8px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        th {
-            font-weight: 700;
-            background: var(--light-gray);
-        }
-        
-        /* Search Bar */
-        .search-bar {
-            display: flex;
-            margin-bottom: 10px;
-        }
-        
-        .search-input {
-            flex: 1;
-            padding: 10px;
-            border: 2px solid var(--border-color);
-            border-radius: var(--element-radius) 0 0 var(--element-radius);
-            font-size: 0.8rem;
-        }
-        
-        .search-btn {
-            padding: 10px 12px;
-            background: var(--primary-orange);
-            color: var(--white);
-            border: none;
-            border-radius: 0 var(--element-radius) var(--element-radius) 0;
-            cursor: pointer;
-        }
-        
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--primary-gradient);
-            color: var(--white);
-            padding: 10px 16px;
-            border-radius: var(--element-radius);
-            box-shadow: var(--shadow-heavy);
-            z-index: 300;
-            display: none;
-            font-weight: 600;
-            text-align: center;
-            font-size: 0.8rem;
-            max-width: 80%;
-        }
-        
-        /* Filter */
-        .filter-bar {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-        
-        .filter-select {
-            flex: 1;
-            padding: 8px;
-            border: 2px solid var(--border-color);
-            border-radius: var(--element-radius);
-            font-size: 0.8rem;
-            background-color: var(--white);
-        }
-        
-        /* Charts */
-        .chart-container {
-            height: 150px;
-            background: var(--light-gray);
-            border-radius: var(--element-radius);
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--medium-gray);
-            font-size: 0.8rem;
-        }
-        
         /* Detail View */
         .detail-row {
             display: flex;
@@ -587,167 +448,167 @@
             gap: 4px;
         }
         
-        /* Map Controls */
-        .map-controls {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            z-index: 100;
-        }
-        
-        .map-control-btn {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: var(--white);
-            box-shadow: var(--shadow-heavy);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: none;
-            cursor: pointer;
-            font-size: 1rem;
-            color: var(--primary-orange);
-            transition: all var(--transition-speed) ease;
-        }
-        
-        .map-control-btn:hover {
-            background: var(--primary-orange);
+        .btn-primary {
+            background: var(--primary-gradient);
             color: var(--white);
         }
         
-        /* Map Container */
-        .map-container {
-            position: relative;
-            height: 100%;
-            width: 100%;
+        .btn-secondary {
+            background: var(--light-gray);
+            color: var(--dark-gray);
         }
         
-        /* Full Screen Map */
-        .full-screen-map {
+        .btn-danger {
+            background: var(--error-red);
+            color: var(--white);
+        }
+        
+        .btn-success {
+            background: var(--success-green);
+            color: var(--white);
+        }
+        
+        /* Notification */
+        .notification {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 200;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-gradient);
+            color: var(--white);
+            padding: 10px 16px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 3000;
+            display: none;
+            font-weight: 600;
+            text-align: center;
+            font-size: 0.8rem;
+            max-width: 80%;
+        }
+        
+        /* Ride Details Card */
+        .ride-details-card {
+            position: fixed;
+            bottom: 15px;
+            right: 15px;
+            background: var(--white);
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 100;
+            padding: 10px;
+            width: 300px;
             display: none;
         }
         
-        .full-screen-map.active {
-            display: block;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
         }
         
-        /* Ride Tracking */
-        .ride-tracking {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
+        .card-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        
+        .close-card {
+            background: none;
+            border: none;
+            font-size: 1rem;
+            cursor: pointer;
+            color: var(--medium-gray);
+        }
+        
+        /* Legend */
+        .map-legend {
+            position: fixed;
+            bottom: 15px;
+            left: 330px;
             background: var(--white);
             border-radius: var(--element-radius);
-            padding: 12px;
             box-shadow: var(--shadow-heavy);
             z-index: 100;
-            max-width: 300px;
+            padding: 10px;
+            font-size: 0.75rem;
         }
         
-        /* Driver Marker */
-        .driver-marker {
-            background: var(--primary-gradient);
-            color: white;
-            border-radius: 50%;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .driver-marker-label {
-            background: white;
-            padding: 2px 5px;
-            border-radius: 8px;
-            margin-top: 4px;
-            font-size: 9px;
-            font-weight: bold;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-        }
-        
-        /* Passenger Marker */
-        .passenger-marker {
-            background: var(--info-blue);
-            color: white;
-            border-radius: 50%;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .passenger-marker-label {
-            background: white;
-            padding: 2px 5px;
-            border-radius: 8px;
-            margin-top: 4px;
-            font-size: 9px;
-            font-weight: bold;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-        }
-        
-        /* Active Ride Marker */
-        .active-ride-marker {
-            background: var(--success-green);
-            color: white;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .active-ride-marker-label {
-            background: white;
-            padding: 2px 5px;
-            border-radius: 8px;
-            margin-top: 4px;
-            font-size: 9px;
-            font-weight: bold;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-        }
-        
-        /* Referral Code */
-        .referral-code {
-            background: var(--light-orange);
-            padding: 8px;
-            border-radius: var(--element-radius);
-            font-family: monospace;
+        .legend-title {
             font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 3px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .legend-driver {
+            background: #FF6B35;
+        }
+        
+        .legend-passenger {
+            background: #3498db;
+        }
+        
+        .legend-ride {
+            background: #2ecc71;
+        }
+        
+        /* Empty State */
+        .empty-state {
             text-align: center;
-            margin-top: 8px;
+            padding: 20px;
+            color: var(--medium-gray);
+        }
+        
+        @media (max-width: 768px) {
+            .control-panel {
+                width: 250px;
+            }
+            
+            .ride-details-card {
+                width: 250px;
+            }
+            
+            .map-legend {
+                left: 280px;
+            }
         }
         
         @media (max-width: 480px) {
-            .dashboard-stats {
-                grid-template-columns: 1fr;
+            .control-panel {
+                width: 200px;
             }
             
-            .modal {
-                max-width: 100%;
+            .ride-details-card {
+                width: 200px;
             }
             
-            .ride-tracking {
-                max-width: 250px;
+            .map-legend {
+                left: 230px;
+                bottom: 80px;
+            }
+            
+            .header-actions {
+                flex-direction: column;
+                gap: 5px;
+                align-items: flex-end;
+            }
+            
+            .stats-bar {
+                font-size: 0.7rem;
             }
         }
     </style>
@@ -755,10 +616,24 @@
 <body>
     <!-- Header -->
     <div class="header">
-        <div class="header-content">
-            <div class="logo">
-                <div class="logo-icon">J</div>
-                <div class="logo-text">Jubel Admin</div>
+        <div class="logo">
+            <div class="logo-icon">J</div>
+            <div class="logo-text">Jubel Manager</div>
+        </div>
+        <div class="header-actions">
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <i class="fas fa-car"></i>
+                    <span class="stat-value" id="onlineDrivers">0</span> Online
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-users"></i>
+                    <span class="stat-value" id="onlinePassengers">0</span> Active
+                </div>
+                <div class="stat-item">
+                    <i class="fas fa-road"></i>
+                    <span class="stat-value" id="activeRides">0</span> Rides
+                </div>
             </div>
             <div class="user-info">
                 <div class="user-avatar" id="userAvatar">A</div>
@@ -766,89 +641,23 @@
         </div>
     </div>
     
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Dashboard Tab -->
-        <div id="dashboardTab" class="tab-content active">
-            <div class="dashboard-stats">
-                <div class="stat-card primary">
-                    <div class="stat-value" id="totalRides">0</div>
-                    <div class="stat-label">Total Rides</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="activeRides">0</div>
-                    <div class="stat-label">Active Rides</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="totalDrivers">0</div>
-                    <div class="stat-label">Total Drivers</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="onlineDrivers">0</div>
-                    <div class="stat-label">Online Drivers</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="totalPassengers">0</div>
-                    <div class="stat-label">Total Passengers</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="todayEarnings">K0</div>
-                    <div class="stat-label">Today's Earnings</div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h3 class="section-title">
-                    <i class="fas fa-map-marker-alt"></i>
-                    Live Tracking Map
-                </h3>
-                <div class="map-container">
-                    <div id="map"></div>
-                    <div class="map-controls">
-                        <button class="map-control-btn" id="zoomInBtn" title="Zoom In">
-                            <i class="fas fa-plus"></i>
-                        </button>
-                        <button class="map-control-btn" id="zoomOutBtn" title="Zoom Out">
-                            <i class="fas fa-minus"></i>
-                        </button>
-                        <button class="map-control-btn" id="centerMapBtn" title="Center Map">
-                            <i class="fas fa-crosshairs"></i>
-                        </button>
-                        <button class="map-control-btn" id="toggleFullScreenBtn" title="Full Screen">
-                            <i class="fas fa-expand"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h3 class="section-title">
-                    <i class="fas fa-chart-line"></i>
-                    Analytics
-                </h3>
-                <div class="card">
-                    <div class="chart-container">
-                        Revenue Chart (Would display here)
-                    </div>
-                    <div class="chart-container">
-                        Ride Activity Chart (Would display here)
-                    </div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h3 class="section-title">
-                    <i class="fas fa-list"></i>
-                    Recent Activity
-                </h3>
-                <div id="recentActivityList">
-                    <!-- Recent activity will be populated by JavaScript -->
-                </div>
-            </div>
+    <!-- Main Map -->
+    <div id="map"></div>
+    
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <div class="panel-header">
+            <h3 class="panel-title">Dashboard Controls</h3>
         </div>
         
-        <!-- Drivers Tab -->
-        <div id="driversTab" class="tab-content">
+        <div class="panel-tabs">
+            <div class="panel-tab active" data-panel="drivers">Drivers</div>
+            <div class="panel-tab" data-panel="passengers">Passengers</div>
+            <div class="panel-tab" data-panel="rides">Rides</div>
+        </div>
+        
+        <!-- Drivers Panel -->
+        <div id="driversPanel" class="panel-content active">
             <div class="search-bar">
                 <input type="text" class="search-input" id="driverSearch" placeholder="Search drivers...">
                 <button class="search-btn" id="driverSearchBtn">
@@ -861,7 +670,6 @@
                     <option value="all">All Drivers</option>
                     <option value="online">Online</option>
                     <option value="offline">Offline</option>
-                    <option value="suspended">Suspended</option>
                 </select>
                 <select class="filter-select" id="driverVehicleFilter">
                     <option value="all">All Vehicles</option>
@@ -871,13 +679,13 @@
                 </select>
             </div>
             
-            <div id="driversList">
+            <div class="list-container" id="driversList">
                 <!-- Drivers will be populated by JavaScript -->
             </div>
         </div>
         
-        <!-- Passengers Tab -->
-        <div id="passengersTab" class="tab-content">
+        <!-- Passengers Panel -->
+        <div id="passengersPanel" class="panel-content">
             <div class="search-bar">
                 <input type="text" class="search-input" id="passengerSearch" placeholder="Search passengers...">
                 <button class="search-btn" id="passengerSearchBtn">
@@ -889,17 +697,17 @@
                 <select class="filter-select" id="passengerStatusFilter">
                     <option value="all">All Passengers</option>
                     <option value="active">Active</option>
-                    <option value="suspended">Suspended</option>
+                    <option value="inactive">Inactive</option>
                 </select>
             </div>
             
-            <div id="passengersList">
+            <div class="list-container" id="passengersList">
                 <!-- Passengers will be populated by JavaScript -->
             </div>
         </div>
         
-        <!-- Rides Tab -->
-        <div id="ridesTab" class="tab-content">
+        <!-- Rides Panel -->
+        <div id="ridesPanel" class="panel-content">
             <div class="search-bar">
                 <input type="text" class="search-input" id="rideSearch" placeholder="Search rides...">
                 <button class="search-btn" id="rideSearchBtn">
@@ -916,170 +724,58 @@
                     <option value="completed">Completed</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
-                <input type="date" class="filter-select" id="rideDateFilter">
             </div>
             
-            <div id="ridesList">
+            <div class="list-container" id="ridesList">
                 <!-- Rides will be populated by JavaScript -->
             </div>
         </div>
-        
-        <!-- Reports Tab -->
-        <div id="reportsTab" class="tab-content">
-            <div class="tabs">
-                <div class="tab active" data-report="revenue">Revenue</div>
-                <div class="tab" data-report="rides">Rides</div>
-                <div class="tab" data-report="drivers">Drivers</div>
-                <div class="tab" data-report="passengers">Passengers</div>
-            </div>
-            
-            <div class="filter-bar">
-                <select class="filter-select" id="reportPeriod">
-                    <option value="today">Today</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="quarter">This Quarter</option>
-                    <option value="year">This Year</option>
-                </select>
-            </div>
-            
-            <div id="revenueReport" class="report-content active">
-                <div class="card">
-                    <div class="chart-container">
-                        Revenue Report Chart
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Rides</th>
-                                    <th>Revenue</th>
-                                    <th>Commission</th>
-                                </tr>
-                            </thead>
-                            <tbody id="revenueTable">
-                                <!-- Revenue data will be populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="ridesReport" class="report-content">
-                <div class="card">
-                    <div class="chart-container">
-                        Rides Report Chart
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Total Rides</th>
-                                    <th>Completed</th>
-                                    <th>Cancelled</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ridesReportTable">
-                                <!-- Rides report data will be populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="driversReport" class="report-content">
-                <div class="card">
-                    <div class="chart-container">
-                        Drivers Report Chart
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Driver</th>
-                                    <th>Rides</th>
-                                    <th>Earnings</th>
-                                    <th>Rating</th>
-                                </tr>
-                            </thead>
-                            <tbody id="driversReportTable">
-                                <!-- Drivers report data will be populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="passengersReport" class="report-content">
-                <div class="card">
-                    <div class="chart-container">
-                        Passengers Report Chart
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Passenger</th>
-                                    <th>Rides</th>
-                                    <th>Spent</th>
-                                    <th>Rating</th>
-                                </tr>
-                            </thead>
-                            <tbody id="passengersReportTable">
-                                <!-- Passengers report data will be populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    </div>
+    
+    <!-- Map Controls -->
+    <div class="map-controls">
+        <button class="map-control-btn" id="zoomInBtn" title="Zoom In">
+            <i class="fas fa-plus"></i>
+        </button>
+        <button class="map-control-btn" id="zoomOutBtn" title="Zoom Out">
+            <i class="fas fa-minus"></i>
+        </button>
+        <button class="map-control-btn" id="centerMapBtn" title="Center Map">
+            <i class="fas fa-crosshairs"></i>
+        </button>
+        <button class="map-control-btn" id="refreshBtn" title="Refresh Data">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+        <button class="map-control-btn" id="toggleTrafficBtn" title="Toggle Traffic">
+            <i class="fas fa-traffic-light"></i>
+        </button>
+    </div>
+    
+    <!-- Ride Details Card -->
+    <div class="ride-details-card" id="rideDetailsCard">
+        <div class="card-header">
+            <h4 class="card-title">Active Ride</h4>
+            <button class="close-card" id="closeRideCard">&times;</button>
+        </div>
+        <div id="rideDetailsContent">
+            <!-- Ride details will be populated by JavaScript -->
         </div>
     </div>
     
-    <!-- Bottom Navigation -->
-    <div class="bottom-nav">
-        <div class="nav-item active" data-tab="dashboardTab">
-            <i class="fas fa-home nav-icon"></i>
-            <span>Dashboard</span>
-        </div>
-        <div class="nav-item" data-tab="driversTab">
-            <i class="fas fa-car nav-icon"></i>
+    <!-- Map Legend -->
+    <div class="map-legend">
+        <div class="legend-title">Map Legend</div>
+        <div class="legend-item">
+            <div class="legend-color legend-driver"></div>
             <span>Drivers</span>
         </div>
-        <div class="nav-item" data-tab="passengersTab">
-            <i class="fas fa-users nav-icon"></i>
+        <div class="legend-item">
+            <div class="legend-color legend-passenger"></div>
             <span>Passengers</span>
         </div>
-        <div class="nav-item" data-tab="ridesTab">
-            <i class="fas fa-road nav-icon"></i>
-            <span>Rides</span>
-        </div>
-        <div class="nav-item" data-tab="reportsTab">
-            <i class="fas fa-chart-bar nav-icon"></i>
-            <span>Reports</span>
-        </div>
-    </div>
-    
-    <!-- Full Screen Map -->
-    <div class="full-screen-map" id="fullScreenMap">
-        <div id="fullScreenMapContainer" style="height: 100%; width: 100%;"></div>
-        <div class="map-controls">
-            <button class="map-control-btn" id="fullScreenZoomInBtn" title="Zoom In">
-                <i class="fas fa-plus"></i>
-            </button>
-            <button class="map-control-btn" id="fullScreenZoomOutBtn" title="Zoom Out">
-                <i class="fas fa-minus"></i>
-            </button>
-            <button class="map-control-btn" id="fullScreenCenterBtn" title="Center Map">
-                <i class="fas fa-crosshairs"></i>
-            </button>
-            <button class="map-control-btn" id="exitFullScreenBtn" title="Exit Full Screen">
-                <i class="fas fa-compress"></i>
-            </button>
-        </div>
-        <div class="ride-tracking" id="fullScreenRideTracking">
-            <!-- Ride tracking info will be populated by JavaScript -->
+        <div class="legend-item">
+            <div class="legend-color legend-ride"></div>
+            <span>Active Rides</span>
         </div>
     </div>
     
@@ -1157,41 +853,6 @@
                         <i class="fas fa-sync-alt"></i>
                         Reassign
                     </button>
-                    <button class="action-btn btn-success" id="trackRideBtn">
-                        <i class="fas fa-map-marker-alt"></i>
-                        Track
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Settings Modal -->
-    <div class="modal-overlay" id="settingsModal">
-        <div class="modal">
-            <div class="modal-header">
-                <h3 class="modal-title">System Settings</h3>
-                <button class="close-modal" id="closeSettingsModal">&times;</button>
-            </div>
-            <div class="modal-content">
-                <div class="form-group">
-                    <label class="form-label">Fare Rate (K per 90 meters)</label>
-                    <input type="number" id="fareRate" class="form-input" value="1" step="0.1">
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Commission Rate (%)</label>
-                    <input type="number" id="commissionRate" class="form-input" value="8" step="1">
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Minimum Float (K)</label>
-                    <input type="number" id="minFloat" class="form-input" value="10" step="1">
-                </div>
-                
-                <div class="modal-actions">
-                    <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
-                    <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
                 </div>
             </div>
         </div>
@@ -1226,26 +887,28 @@
         
         // App state
         let currentUser = null;
-        let managerMap, fullScreenMap;
+        let managerMap;
         let driverMarkers = {};
         let passengerMarkers = {};
-        let activeRideMarkers = {};
-        let activeRidePolylines = {};
+        let rideMarkers = {};
+        let rideRoutes = {};
         let selectedDriver = null;
         let selectedPassenger = null;
         let selectedRide = null;
         let driversData = {};
         let passengersData = {};
         let ridesData = {};
-        let activeRides = {};
-        let trackedRide = null;
+        let driverLocations = {};
+        let passengerLocations = {};
+        let activePanel = 'drivers';
+        let trafficLayer = null;
+        let trafficEnabled = false;
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             initializeAuth();
             setupEventListeners();
             initializeMap();
-            initializeFullScreenMap();
         });
         
         // Authentication functions
@@ -1258,7 +921,7 @@
                     loadDriversData();
                     loadPassengersData();
                     loadRidesData();
-                    loadSettings();
+                    listenForRealTimeUpdates();
                 } else {
                     // Redirect to login if not authenticated
                     showLoginScreen();
@@ -1287,166 +950,239 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(managerMap);
-            
-            // Listen for driver location updates
-            database.ref('driverLocations').on('value', snapshot => {
-                const locations = snapshot.val();
-                updateDriverMarkers(locations);
-            });
-            
-            // Listen for active rides
-            database.ref('rides').orderByChild('status').equalTo('accepted').on('value', snapshot => {
-                const rides = snapshot.val();
-                updateActiveRideMarkers(rides);
-            });
-            
-            database.ref('rides').orderByChild('status').equalTo('started').on('value', snapshot => {
-                const rides = snapshot.val();
-                updateActiveRideMarkers(rides);
-            });
         }
         
-        // Initialize full screen map
-        function initializeFullScreenMap() {
-            fullScreenMap = L.map('fullScreenMapContainer').setView([-15.4167, 28.2833], 13);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
-            }).addTo(fullScreenMap);
-            
-            // Copy markers from main map to full screen map
-            database.ref('driverLocations').once('value').then(snapshot => {
-                const locations = snapshot.val();
-                updateFullScreenDriverMarkers(locations);
+        // Setup event listeners
+        function setupEventListeners() {
+            // Panel tabs
+            document.querySelectorAll('.panel-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const panelId = this.getAttribute('data-panel');
+                    switchPanel(panelId);
+                });
             });
             
-            database.ref('rides').orderByChild('status').equalTo('accepted').once('value').then(snapshot => {
-                const rides = snapshot.val();
-                updateFullScreenActiveRideMarkers(rides);
+            // Search buttons
+            document.getElementById('driverSearchBtn').addEventListener('click', searchDrivers);
+            document.getElementById('passengerSearchBtn').addEventListener('click', searchPassengers);
+            document.getElementById('rideSearchBtn').addEventListener('click', searchRides);
+            
+            // Filter changes
+            document.getElementById('driverStatusFilter').addEventListener('change', filterDrivers);
+            document.getElementById('driverVehicleFilter').addEventListener('change', filterDrivers);
+            document.getElementById('passengerStatusFilter').addEventListener('change', filterPassengers);
+            document.getElementById('rideStatusFilter').addEventListener('change', filterRides);
+            
+            // Map controls
+            document.getElementById('zoomInBtn').addEventListener('click', () => managerMap.zoomIn());
+            document.getElementById('zoomOutBtn').addEventListener('click', () => managerMap.zoomOut());
+            document.getElementById('centerMapBtn').addEventListener('click', centerMap);
+            document.getElementById('refreshBtn').addEventListener('click', refreshData);
+            document.getElementById('toggleTrafficBtn').addEventListener('click', toggleTraffic);
+            
+            // Modal close buttons
+            document.getElementById('closeDriverModal').addEventListener('click', closeDriverModal);
+            document.getElementById('closePassengerModal').addEventListener('click', closePassengerModal);
+            document.getElementById('closeRideModal').addEventListener('click', closeRideModal);
+            document.getElementById('closeRideCard').addEventListener('click', closeRideCard);
+            
+            // Action buttons
+            document.getElementById('editDriverBtn').addEventListener('click', editDriver);
+            document.getElementById('suspendDriverBtn').addEventListener('click', suspendDriver);
+            document.getElementById('trackDriverBtn').addEventListener('click', trackDriver);
+            document.getElementById('editPassengerBtn').addEventListener('click', editPassenger);
+            document.getElementById('suspendPassengerBtn').addEventListener('click', suspendPassenger);
+            document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
+            document.getElementById('reassignRideBtn').addEventListener('click', reassignRide);
+        }
+        
+        // Switch between panels
+        function switchPanel(panelId) {
+            // Hide all panel contents
+            document.querySelectorAll('.panel-content').forEach(content => {
+                content.classList.remove('active');
             });
             
-            database.ref('rides').orderByChild('status').equalTo('started').once('value').then(snapshot => {
-                const rides = snapshot.val();
-                updateFullScreenActiveRideMarkers(rides);
+            // Show selected panel content
+            document.getElementById(panelId + 'Panel').classList.add('active');
+            
+            // Update active tab
+            document.querySelectorAll('.panel-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`.panel-tab[data-panel="${panelId}"]`).classList.add('active');
+            
+            activePanel = panelId;
+        }
+        
+        // Listen for real-time updates
+        function listenForRealTimeUpdates() {
+            // Listen for driver location updates
+            database.ref('driverLocations').on('value', snapshot => {
+                driverLocations = snapshot.val() || {};
+                updateDriverMarkers();
+            });
+            
+            // Listen for passenger location updates
+            database.ref('passengerLocations').on('value', snapshot => {
+                passengerLocations = snapshot.val() || {};
+                updatePassengerMarkers();
+            });
+            
+            // Listen for ride updates
+            database.ref('rides').on('value', snapshot => {
+                ridesData = snapshot.val() || {};
+                updateRideMarkers();
+                updateDashboardStats();
+                
+                // Update rides list if active panel is rides
+                if (activePanel === 'rides') {
+                    displayRides(ridesData);
+                }
+            });
+            
+            // Listen for driver updates
+            database.ref('users').orderByChild('userType').equalTo('driver').on('value', snapshot => {
+                driversData = snapshot.val() || {};
+                updateDashboardStats();
+                
+                // Update drivers list if active panel is drivers
+                if (activePanel === 'drivers') {
+                    displayDrivers(driversData);
+                }
+            });
+            
+            // Listen for passenger updates
+            database.ref('users').orderByChild('userType').equalTo('passenger').on('value', snapshot => {
+                passengersData = snapshot.val() || {};
+                updateDashboardStats();
+                
+                // Update passengers list if active panel is passengers
+                if (activePanel === 'passengers') {
+                    displayPassengers(passengersData);
+                }
             });
         }
         
         // Update driver markers on map
-        function updateDriverMarkers(locations) {
-            if (locations) {
-                Object.keys(locations).forEach(driverId => {
-                    const location = locations[driverId];
+        function updateDriverMarkers() {
+            // Clear existing markers
+            Object.values(driverMarkers).forEach(marker => {
+                managerMap.removeLayer(marker);
+            });
+            driverMarkers = {};
+            
+            if (driverLocations) {
+                Object.keys(driverLocations).forEach(driverId => {
+                    const location = driverLocations[driverId];
                     const driver = driversData[driverId];
                     
                     if (driver && location.latitude && location.longitude) {
-                        // Remove existing marker if present
-                        if (driverMarkers[driverId]) {
-                            managerMap.removeLayer(driverMarkers[driverId]);
-                        }
-                        
                         // Create marker for driver
                         const marker = L.marker([location.latitude, location.longitude], {
                             icon: L.divIcon({
                                 className: 'driver-marker',
-                                html: `<div class="driver-marker">${getVehicleIcon(driver.vehicleType)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
-                                iconSize: [35, 50]
+                                html: `<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🚗</div>`,
+                                iconSize: [25, 25]
                             })
                         }).addTo(managerMap)
-                            .bindPopup(createDriverPopup(driver, location));
+                            .bindPopup(`
+                                <div style="min-width: 200px;">
+                                    <strong>${driver.name || 'Driver'}</strong><br>
+                                    ${driver.vehicleType || 'Vehicle'}<br>
+                                    Status: ${driver.isOnline ? 'Online' : 'Offline'}<br>
+                                    <button onclick="showDriverDetails('${driverId}')" style="margin-top: 5px; padding: 5px 10px; background: #FF6B35; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
+                                </div>
+                            `);
                         
                         driverMarkers[driverId] = marker;
                     }
                 });
-                
-                // Fit map to show all drivers if there are any
-                if (Object.keys(driverMarkers).length > 0) {
-                    const group = new L.featureGroup(Object.values(driverMarkers));
-                    managerMap.fitBounds(group.getBounds(), { padding: [20, 20] });
-                }
             }
         }
         
-        // Update driver markers on full screen map
-        function updateFullScreenDriverMarkers(locations) {
-            if (locations) {
-                Object.keys(locations).forEach(driverId => {
-                    const location = locations[driverId];
-                    const driver = driversData[driverId];
+        // Update passenger markers on map
+        function updatePassengerMarkers() {
+            // Clear existing markers
+            Object.values(passengerMarkers).forEach(marker => {
+                managerMap.removeLayer(marker);
+            });
+            passengerMarkers = {};
+            
+            if (passengerLocations) {
+                Object.keys(passengerLocations).forEach(passengerId => {
+                    const location = passengerLocations[passengerId];
+                    const passenger = passengersData[passengerId];
                     
-                    if (driver && location.latitude && location.longitude) {
-                        // Create marker for driver
+                    if (passenger && location.latitude && location.longitude) {
+                        // Create marker for passenger
                         const marker = L.marker([location.latitude, location.longitude], {
                             icon: L.divIcon({
-                                className: 'driver-marker',
-                                html: `<div class="driver-marker">${getVehicleIcon(driver.vehicleType)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
-                                iconSize: [35, 50]
-                            })
-                        }).addTo(fullScreenMap)
-                            .bindPopup(createDriverPopup(driver, location));
-                    }
-                });
-            }
-        }
-        
-        // Update active ride markers
-        function updateActiveRideMarkers(rides) {
-            if (rides) {
-                Object.keys(rides).forEach(rideId => {
-                    const ride = rides[rideId];
-                    
-                    // Remove existing markers and polylines if present
-                    if (activeRideMarkers[rideId]) {
-                        managerMap.removeLayer(activeRideMarkers[rideId]);
-                        delete activeRideMarkers[rideId];
-                    }
-                    
-                    if (activeRidePolylines[rideId]) {
-                        managerMap.removeLayer(activeRidePolylines[rideId]);
-                        delete activeRidePolylines[rideId];
-                    }
-                    
-                    // Create marker for active ride
-                    if (ride.pickupLat && ride.pickupLng) {
-                        const marker = L.marker([ride.pickupLat, ride.pickupLng], {
-                            icon: L.divIcon({
-                                className: 'active-ride-marker',
-                                html: `<div class="active-ride-marker">🚗</div><div class="active-ride-marker-label">Active Ride</div>`,
-                                iconSize: [40, 55]
+                                className: 'passenger-marker',
+                                html: `<div style="background: #3498db; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px;"><i class="fas fa-user"></i></div>`,
+                                iconSize: [20, 20]
                             })
                         }).addTo(managerMap)
-                            .bindPopup(createActiveRidePopup(ride));
+                            .bindPopup(`
+                                <div style="min-width: 200px;">
+                                    <strong>${passenger.name || 'Passenger'}</strong><br>
+                                    Status: Active<br>
+                                    <button onclick="showPassengerDetails('${passengerId}')" style="margin-top: 5px; padding: 5px 10px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
+                                </div>
+                            `);
                         
-                        activeRideMarkers[rideId] = marker;
-                        
-                        // Draw route if destination coordinates are available
-                        if (ride.destLat && ride.destLng) {
-                            drawRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng, rideId);
-                        }
+                        passengerMarkers[passengerId] = marker;
                     }
                 });
             }
         }
         
-        // Update active ride markers on full screen map
-        function updateFullScreenActiveRideMarkers(rides) {
-            if (rides) {
-                Object.keys(rides).forEach(rideId => {
-                    const ride = rides[rideId];
+        // Update ride markers and routes on map
+        function updateRideMarkers() {
+            // Clear existing markers and routes
+            Object.values(rideMarkers).forEach(marker => {
+                managerMap.removeLayer(marker);
+            });
+            rideMarkers = {};
+            
+            Object.values(rideRoutes).forEach(route => {
+                managerMap.removeLayer(route);
+            });
+            rideRoutes = {};
+            
+            if (ridesData) {
+                Object.keys(ridesData).forEach(rideId => {
+                    const ride = ridesData[rideId];
                     
-                    // Create marker for active ride
-                    if (ride.pickupLat && ride.pickupLng) {
+                    // Only show active rides (requested, accepted, started)
+                    if (ride.status === 'requested' || ride.status === 'accepted' || ride.status === 'started') {
+                        // Create marker for ride
                         const marker = L.marker([ride.pickupLat, ride.pickupLng], {
                             icon: L.divIcon({
-                                className: 'active-ride-marker',
-                                html: `<div class="active-ride-marker">🚗</div><div class="active-ride-marker-label">Active Ride</div>`,
-                                iconSize: [40, 55]
+                                className: 'ride-marker',
+                                html: `<div style="background: #2ecc71; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 14px;"><i class="fas fa-road"></i></div>`,
+                                iconSize: [30, 30]
                             })
-                        }).addTo(fullScreenMap)
-                            .bindPopup(createActiveRidePopup(ride));
+                        }).addTo(managerMap)
+                            .bindPopup(`
+                                <div style="min-width: 200px;">
+                                    <strong>Ride #${rideId.substring(0, 8)}</strong><br>
+                                    Passenger: ${ride.passengerName || 'N/A'}<br>
+                                    Status: ${ride.status}<br>
+                                    <button onclick="showRideDetails('${rideId}')" style="margin-top: 5px; padding: 5px 10px; background: #2ecc71; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
+                                </div>
+                            `);
                         
-                        // Draw route if destination coordinates are available
-                        if (ride.destLat && ride.destLng) {
-                            drawFullScreenRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng, rideId);
+                        rideMarkers[rideId] = marker;
+                        
+                        // Draw route if we have both pickup and destination coordinates
+                        if (ride.pickupLat && ride.pickupLng && ride.destLat && ride.destLng) {
+                            drawRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng, rideId);
+                        }
+                        
+                        // Show ride details card if this is the selected ride
+                        if (selectedRide === rideId) {
+                            showRideDetailsCard(rideId);
                         }
                     }
                 });
@@ -1464,366 +1200,68 @@
                         const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
                         
                         // Draw the route on the map
-                        activeRidePolylines[rideId] = L.polyline(routeCoordinates, {
-                            color: '#FF6B35',
+                        const polyline = L.polyline(routeCoordinates, {
+                            color: '#2ecc71',
                             weight: 4,
                             opacity: 0.7
                         }).addTo(managerMap);
+                        
+                        rideRoutes[rideId] = polyline;
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching route:', error);
                     // Fallback: draw a straight line
-                    activeRidePolylines[rideId] = L.polyline([
+                    const polyline = L.polyline([
                         [startLat, startLng],
                         [endLat, endLng]
                     ], {
-                        color: '#FF6B35',
+                        color: '#2ecc71',
                         weight: 4,
                         opacity: 0.7
                     }).addTo(managerMap);
+                    
+                    rideRoutes[rideId] = polyline;
                 });
-        }
-        
-        // Draw route on full screen map
-        function drawFullScreenRoute(startLat, startLng, endLat, endLng, rideId) {
-            // Use OSRM API to get route
-            fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.routes && data.routes.length > 0) {
-                        const route = data.routes[0];
-                        const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                        
-                        // Draw the route on the map
-                        L.polyline(routeCoordinates, {
-                            color: '#FF6B35',
-                            weight: 4,
-                            opacity: 0.7
-                        }).addTo(fullScreenMap);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching route:', error);
-                    // Fallback: draw a straight line
-                    L.polyline([
-                        [startLat, startLng],
-                        [endLat, endLng]
-                    ], {
-                        color: '#FF6B35',
-                        weight: 4,
-                        opacity: 0.7
-                    }).addTo(fullScreenMap);
-                });
-        }
-        
-        // Get vehicle icon based on type
-        function getVehicleIcon(vehicleType) {
-            switch(vehicleType) {
-                case 'car': return '🚗';
-                case 'bike': return '🏍️';
-                case 'bicycle': return '🚲';
-                default: return '🚗';
-            }
-        }
-        
-        // Create driver popup content
-        function createDriverPopup(driver, location) {
-            return `
-                <div>
-                    <strong>${driver.name || 'Driver'}</strong><br>
-                    ${driver.vehicleType || 'Vehicle'} - ${driver.licensePlate || 'N/A'}<br>
-                    Status: ${driver.isOnline ? 'Online' : 'Offline'}<br>
-                    Rating: ${driver.rating || 'N/A'}<br>
-                    <button onclick="showDriverDetails('${driver.uid}')" style="margin-top: 5px; padding: 5px 10px; background: #FF6B35; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
-                </div>
-            `;
-        }
-        
-        // Create active ride popup content
-        function createActiveRidePopup(ride) {
-            return `
-                <div>
-                    <strong>Active Ride</strong><br>
-                    Passenger: ${ride.passengerName || 'N/A'}<br>
-                    Driver: ${ride.driverId ? 'Assigned' : 'Not assigned'}<br>
-                    From: ${ride.pickupLocation || 'N/A'}<br>
-                    To: ${ride.destination || 'N/A'}<br>
-                    Fare: K${ride.fare ? ride.fare.toFixed(2) : '0.00'}<br>
-                    <button onclick="showRideDetails('${ride.id}')" style="margin-top: 5px; padding: 5px 10px; background: #FF6B35; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
-                </div>
-            `;
-        }
-        
-        // Event listeners setup
-        function setupEventListeners() {
-            // Bottom navigation
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.addEventListener('click', function() {
-                    const tabId = this.getAttribute('data-tab');
-                    switchTab(tabId);
-                });
-            });
-            
-            // Report tabs
-            document.querySelectorAll('.tab[data-report]').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const reportId = this.getAttribute('data-report');
-                    switchReport(reportId);
-                });
-            });
-            
-            // Search buttons
-            document.getElementById('driverSearchBtn').addEventListener('click', searchDrivers);
-            document.getElementById('passengerSearchBtn').addEventListener('click', searchPassengers);
-            document.getElementById('rideSearchBtn').addEventListener('click', searchRides);
-            
-            // Filter changes
-            document.getElementById('driverStatusFilter').addEventListener('change', filterDrivers);
-            document.getElementById('driverVehicleFilter').addEventListener('change', filterDrivers);
-            document.getElementById('passengerStatusFilter').addEventListener('change', filterPassengers);
-            document.getElementById('rideStatusFilter').addEventListener('change', filterRides);
-            document.getElementById('rideDateFilter').addEventListener('change', filterRides);
-            document.getElementById('reportPeriod').addEventListener('change', loadReports);
-            
-            // Map controls
-            document.getElementById('zoomInBtn').addEventListener('click', () => managerMap.zoomIn());
-            document.getElementById('zoomOutBtn').addEventListener('click', () => managerMap.zoomOut());
-            document.getElementById('centerMapBtn').addEventListener('click', centerMap);
-            document.getElementById('toggleFullScreenBtn').addEventListener('click', toggleFullScreenMap);
-            
-            // Full screen map controls
-            document.getElementById('fullScreenZoomInBtn').addEventListener('click', () => fullScreenMap.zoomIn());
-            document.getElementById('fullScreenZoomOutBtn').addEventListener('click', () => fullScreenMap.zoomOut());
-            document.getElementById('fullScreenCenterBtn').addEventListener('click', centerFullScreenMap);
-            document.getElementById('exitFullScreenBtn').addEventListener('click', exitFullScreenMap);
-            
-            // Modal close buttons
-            document.getElementById('closeDriverModal').addEventListener('click', closeDriverModal);
-            document.getElementById('closePassengerModal').addEventListener('click', closePassengerModal);
-            document.getElementById('closeRideModal').addEventListener('click', closeRideModal);
-            document.getElementById('closeSettingsModal').addEventListener('click', closeSettingsModal);
-            document.getElementById('cancelSettingsBtn').addEventListener('click', closeSettingsModal);
-            
-            // Action buttons
-            document.getElementById('editDriverBtn').addEventListener('click', editDriver);
-            document.getElementById('suspendDriverBtn').addEventListener('click', suspendDriver);
-            document.getElementById('trackDriverBtn').addEventListener('click', trackDriver);
-            document.getElementById('editPassengerBtn').addEventListener('click', editPassenger);
-            document.getElementById('suspendPassengerBtn').addEventListener('click', suspendPassenger);
-            document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
-            document.getElementById('reassignRideBtn').addEventListener('click', reassignRide);
-            document.getElementById('trackRideBtn').addEventListener('click', trackRide);
-            document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
-            
-            // Settings button in header
-            document.getElementById('userAvatar').addEventListener('click', openSettings);
-        }
-        
-        // Tab switching
-        function switchTab(tabId) {
-            // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            // Show selected tab content
-            document.getElementById(tabId).classList.add('active');
-            
-            // Update active nav item
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            document.querySelector(`.nav-item[data-tab="${tabId}"]`).classList.add('active');
-            
-            // Load data for specific tabs
-            if (tabId === 'driversTab') {
-                loadDriversData();
-            } else if (tabId === 'passengersTab') {
-                loadPassengersData();
-            } else if (tabId === 'ridesTab') {
-                loadRidesData();
-            } else if (tabId === 'reportsTab') {
-                loadReports();
-            } else if (tabId === 'dashboardTab') {
-                loadDashboardData();
-            }
-        }
-        
-        // Report switching
-        function switchReport(reportId) {
-            // Hide all report contents
-            document.querySelectorAll('.report-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            
-            // Show selected report content
-            document.getElementById(reportId + 'Report').classList.add('active');
-            
-            // Update active tab
-            document.querySelectorAll('.tab[data-report]').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            document.querySelector(`.tab[data-report="${reportId}"]`).classList.add('active');
-        }
-        
-        // Center map on all markers
-        function centerMap() {
-            if (Object.keys(driverMarkers).length > 0) {
-                const group = new L.featureGroup(Object.values(driverMarkers));
-                managerMap.fitBounds(group.getBounds(), { padding: [20, 20] });
-            } else {
-                // Default to Lusaka if no drivers
-                managerMap.setView([-15.4167, 28.2833], 13);
-            }
-        }
-        
-        // Center full screen map
-        function centerFullScreenMap() {
-            if (Object.keys(driverMarkers).length > 0) {
-                const group = new L.featureGroup(Object.values(driverMarkers));
-                fullScreenMap.fitBounds(group.getBounds(), { padding: [20, 20] });
-            } else {
-                // Default to Lusaka if no drivers
-                fullScreenMap.setView([-15.4167, 28.2833], 13);
-            }
-        }
-        
-        // Toggle full screen map
-        function toggleFullScreenMap() {
-            document.getElementById('fullScreenMap').classList.add('active');
-            // Refresh the full screen map to ensure it displays correctly
-            setTimeout(() => {
-                fullScreenMap.invalidateSize();
-            }, 100);
-        }
-        
-        // Exit full screen map
-        function exitFullScreenMap() {
-            document.getElementById('fullScreenMap').classList.remove('active');
         }
         
         // Load dashboard data
         function loadDashboardData() {
-            // Load total rides
-            database.ref('rides').once('value')
-                .then(snapshot => {
-                    const rides = snapshot.val();
-                    const totalRides = rides ? Object.keys(rides).length : 0;
-                    document.getElementById('totalRides').textContent = totalRides;
-                    
-                    // Calculate active rides
-                    let activeRides = 0;
-                    let totalEarnings = 0;
-                    let todayEarnings = 0;
-                    const today = new Date();
-                    
-                    if (rides) {
-                        Object.keys(rides).forEach(rideId => {
-                            const ride = rides[rideId];
-                            
-                            if (ride.status === 'accepted' || ride.status === 'started') {
-                                activeRides++;
-                            }
-                            
-                            if (ride.status === 'completed' && ride.fare) {
-                                totalEarnings += ride.fare;
-                                
-                                // Check if completed today
-                                if (ride.completedAt) {
-                                    const completedDate = new Date(ride.completedAt);
-                                    if (completedDate.toDateString() === today.toDateString()) {
-                                        todayEarnings += ride.fare;
-                                    }
-                                }
-                            }
-                        });
-                    }
-                    
-                    document.getElementById('activeRides').textContent = activeRides;
-                    document.getElementById('todayEarnings').textContent = `K${todayEarnings.toFixed(2)}`;
-                    
-                    // Load recent activity
-                    loadRecentActivity(rides);
-                })
-                .catch(error => {
-                    console.error('Error loading rides:', error);
-                });
-            
-            // Load drivers data
-            database.ref('users').orderByChild('userType').equalTo('driver').once('value')
-                .then(snapshot => {
-                    const drivers = snapshot.val();
-                    const totalDrivers = drivers ? Object.keys(drivers).length : 0;
-                    document.getElementById('totalDrivers').textContent = totalDrivers;
-                    
-                    // Calculate online drivers
-                    let onlineDrivers = 0;
-                    if (drivers) {
-                        Object.keys(drivers).forEach(driverId => {
-                            const driver = drivers[driverId];
-                            if (driver.isOnline) {
-                                onlineDrivers++;
-                            }
-                        });
-                    }
-                    
-                    document.getElementById('onlineDrivers').textContent = onlineDrivers;
-                })
-                .catch(error => {
-                    console.error('Error loading drivers:', error);
-                });
-            
-            // Load passengers data
-            database.ref('users').orderByChild('userType').equalTo('passenger').once('value')
-                .then(snapshot => {
-                    const passengers = snapshot.val();
-                    const totalPassengers = passengers ? Object.keys(passengers).length : 0;
-                    document.getElementById('totalPassengers').textContent = totalPassengers;
-                })
-                .catch(error => {
-                    console.error('Error loading passengers:', error);
-                });
+            updateDashboardStats();
         }
         
-        // Load recent activity for dashboard
-        function loadRecentActivity(rides) {
-            const recentActivityList = document.getElementById('recentActivityList');
-            recentActivityList.innerHTML = '';
+        // Update dashboard statistics
+        function updateDashboardStats() {
+            let onlineDrivers = 0;
+            let onlinePassengers = 0;
+            let activeRides = 0;
             
-            if (rides) {
-                // Sort rides by timestamp (newest first) and take the first 5
-                const sortedRides = Object.keys(rides)
-                    .map(rideId => ({ id: rideId, ...rides[rideId] }))
-                    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
-                    .slice(0, 5);
-                
-                sortedRides.forEach(ride => {
-                    const activityItem = document.createElement('div');
-                    activityItem.className = 'list-item';
-                    
-                    const date = new Date(ride.timestamp);
-                    const formattedDate = date.toLocaleDateString();
-                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                    
-                    activityItem.innerHTML = `
-                        <div class="item-title">${ride.passengerName || 'Passenger'} → ${ride.destination || 'Destination'}</div>
-                        <div class="item-details">
-                            <span>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</span> • 
-                            <span>${formattedDate} ${formattedTime}</span> • 
-                            <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
-                        </div>
-                    `;
-                    
-                    activityItem.addEventListener('click', function() {
-                        showRideDetails(ride.id);
-                    });
-                    
-                    recentActivityList.appendChild(activityItem);
+            // Count online drivers
+            if (driversData) {
+                Object.values(driversData).forEach(driver => {
+                    if (driver.isOnline) {
+                        onlineDrivers++;
+                    }
                 });
-            } else {
-                recentActivityList.innerHTML = '<div class="card"><p>No recent activity found.</p></div>';
             }
+            
+            // Count online passengers (simplified - all passengers with locations are considered active)
+            if (passengerLocations) {
+                onlinePassengers = Object.keys(passengerLocations).length;
+            }
+            
+            // Count active rides
+            if (ridesData) {
+                Object.values(ridesData).forEach(ride => {
+                    if (ride.status === 'requested' || ride.status === 'accepted' || ride.status === 'started') {
+                        activeRides++;
+                    }
+                });
+            }
+            
+            document.getElementById('onlineDrivers').textContent = onlineDrivers;
+            document.getElementById('onlinePassengers').textContent = onlinePassengers;
+            document.getElementById('activeRides').textContent = activeRides;
         }
         
         // Load drivers data
@@ -1868,7 +1306,7 @@
                     driversList.appendChild(driverItem);
                 });
             } else {
-                driversList.innerHTML = '<div class="card"><p>No drivers found.</p></div>';
+                driversList.innerHTML = '<div class="empty-state">No drivers found.</div>';
             }
         }
         
@@ -1911,7 +1349,7 @@
                     passengersList.appendChild(passengerItem);
                 });
             } else {
-                passengersList.innerHTML = '<div class="card"><p>No passengers found.</p></div>';
+                passengersList.innerHTML = '<div class="empty-state">No passengers found.</div>';
             }
         }
         
@@ -1962,7 +1400,7 @@
                     ridesList.appendChild(rideItem);
                 });
             } else {
-                ridesList.innerHTML = '<div class="card"><p>No rides found.</p></div>';
+                ridesList.innerHTML = '<div class="empty-state">No rides found.</div>';
             }
         }
         
@@ -1988,12 +1426,28 @@
                     <span class="detail-value">${driver.email || 'N/A'}</span>
                 </div>
                 <div class="detail-row">
+                    <span class="detail-label">NRC:</span>
+                    <span class="detail-value">${driver.nrc || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
                     <span class="detail-label">Vehicle Type:</span>
                     <span class="detail-value">${driver.vehicleType || 'N/A'}</span>
                 </div>
                 <div class="detail-row">
+                    <span class="detail-label">Vehicle Make:</span>
+                    <span class="detail-value">${driver.vehicleMake || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Vehicle Model:</span>
+                    <span class="detail-value">${driver.vehicleModel || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
                     <span class="detail-label">License Plate:</span>
                     <span class="detail-value">${driver.licensePlate || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">License Number:</span>
+                    <span class="detail-value">${driver.licenseNumber || 'N/A'}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">Status:</span>
@@ -2089,9 +1543,6 @@
                     <span class="detail-label">Referral Code:</span>
                     <span class="detail-value">${passenger.referralCode || 'N/A'}</span>
                 </div>
-                <div class="referral-code">
-                    ${passenger.referralCode || 'No referral code'}
-                </div>
             `;
             
             // Update suspend button text based on current status
@@ -2170,6 +1621,47 @@
             document.getElementById('rideDetailModal').classList.add('active');
         }
         
+        // Show ride details in card
+        function showRideDetailsCard(rideId) {
+            const ride = ridesData[rideId];
+            if (!ride) return;
+            
+            selectedRide = rideId;
+            
+            const rideDetailsContent = document.getElementById('rideDetailsContent');
+            
+            rideDetailsContent.innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">Passenger:</span>
+                    <span class="detail-value">${ride.passengerName || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Driver:</span>
+                    <span class="detail-value">${ride.driverId ? 'Assigned' : 'Not assigned'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Pickup:</span>
+                    <span class="detail-value">${ride.pickupLocation || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Destination:</span>
+                    <span class="detail-value">${ride.destination || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Fare:</span>
+                    <span class="detail-value">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value">
+                        <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
+                    </span>
+                </div>
+            `;
+            
+            document.getElementById('rideDetailsCard').style.display = 'block';
+        }
+        
         // Close modals
         function closeDriverModal() {
             document.getElementById('driverDetailModal').classList.remove('active');
@@ -2186,13 +1678,9 @@
             selectedRide = null;
         }
         
-        function closeSettingsModal() {
-            document.getElementById('settingsModal').classList.remove('active');
-        }
-        
-        // Open settings modal
-        function openSettings() {
-            document.getElementById('settingsModal').classList.add('active');
+        function closeRideCard() {
+            document.getElementById('rideDetailsCard').style.display = 'none';
+            selectedRide = null;
         }
         
         // Driver actions
@@ -2232,7 +1720,6 @@
             }
             
             closeDriverModal();
-            switchTab('dashboardTab');
         }
         
         // Passenger actions
@@ -2276,7 +1763,7 @@
                     showNotification('Ride cancelled successfully.');
                     closeRideModal();
                     loadRidesData();
-                    loadDashboardData();
+                    updateDashboardStats();
                 })
                 .catch(error => {
                     console.error('Error cancelling ride:', error);
@@ -2289,39 +1776,6 @@
             if (!selectedRide) return;
             showNotification('Reassign ride functionality would open here.');
             // In a real app, this would open a driver selection interface
-        }
-        
-        function trackRide() {
-            if (!selectedRide) return;
-            
-            const ride = ridesData[selectedRide];
-            if (activeRideMarkers[selectedRide]) {
-                toggleFullScreenMap();
-                fullScreenMap.setView(activeRideMarkers[selectedRide].getLatLng(), 15);
-                activeRideMarkers[selectedRide].openPopup();
-                
-                // Update ride tracking info
-                const trackingInfo = document.getElementById('fullScreenRideTracking');
-                trackingInfo.innerHTML = `
-                    <h4>Tracking Ride</h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Passenger:</span>
-                        <span class="detail-value">${ride.passengerName || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Destination:</span>
-                        <span class="detail-value">${ride.destination || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Status:</span>
-                        <span class="detail-value">
-                            <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
-                        </span>
-                    </div>
-                `;
-            }
-            
-            closeRideModal();
         }
         
         // Search functions
@@ -2395,8 +1849,6 @@
                     statusMatch = driver.isOnline === true;
                 } else if (statusFilter === 'offline') {
                     statusMatch = driver.isOnline === false;
-                } else if (statusFilter === 'suspended') {
-                    statusMatch = driver.isSuspended === true;
                 }
                 
                 if (vehicleFilter !== 'all') {
@@ -2421,7 +1873,7 @@
                 
                 if (statusFilter === 'active') {
                     statusMatch = passenger.isSuspended !== true;
-                } else if (statusFilter === 'suspended') {
+                } else if (statusFilter === 'inactive') {
                     statusMatch = passenger.isSuspended === true;
                 }
                 
@@ -2435,25 +1887,17 @@
         
         function filterRides() {
             const statusFilter = document.getElementById('rideStatusFilter').value;
-            const dateFilter = document.getElementById('rideDateFilter').value;
             const filteredRides = {};
             
             Object.keys(ridesData).forEach(rideId => {
                 const ride = ridesData[rideId];
                 let statusMatch = true;
-                let dateMatch = true;
                 
                 if (statusFilter !== 'all') {
                     statusMatch = ride.status === statusFilter;
                 }
                 
-                if (dateFilter) {
-                    const rideDate = new Date(ride.timestamp);
-                    const filterDate = new Date(dateFilter);
-                    dateMatch = rideDate.toDateString() === filterDate.toDateString();
-                }
-                
-                if (statusMatch && dateMatch) {
+                if (statusMatch) {
                     filteredRides[rideId] = ride;
                 }
             });
@@ -2461,54 +1905,49 @@
             displayRides(filteredRides);
         }
         
-        // Load reports
-        function loadReports() {
-            const period = document.getElementById('reportPeriod').value;
-            // In a real app, this would fetch and display report data based on the selected period
-            showNotification(`Loading ${period} reports...`);
-        }
-        
-        // Load settings
-        function loadSettings() {
-            database.ref('settings').once('value')
-                .then(snapshot => {
-                    const settings = snapshot.val();
-                    if (settings) {
-                        if (settings.fareRate) {
-                            document.getElementById('fareRate').value = settings.fareRate;
-                        }
-                        if (settings.commissionRate) {
-                            document.getElementById('commissionRate').value = settings.commissionRate;
-                        }
-                        if (settings.minFloat) {
-                            document.getElementById('minFloat').value = settings.minFloat;
-                        }
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading settings:', error);
-                });
-        }
-        
-        // Save settings
-        function saveSettings() {
-            const fareRate = parseFloat(document.getElementById('fareRate').value);
-            const commissionRate = parseFloat(document.getElementById('commissionRate').value);
-            const minFloat = parseFloat(document.getElementById('minFloat').value);
+        // Map controls
+        function centerMap() {
+            // Center map on all visible markers
+            const allMarkers = [
+                ...Object.values(driverMarkers),
+                ...Object.values(passengerMarkers),
+                ...Object.values(rideMarkers)
+            ];
             
-            database.ref('settings').set({
-                fareRate: fareRate,
-                commissionRate: commissionRate,
-                minFloat: minFloat
-            })
-            .then(() => {
-                showNotification('Settings saved successfully.');
-                closeSettingsModal();
-            })
-            .catch(error => {
-                console.error('Error saving settings:', error);
-                showNotification('Error saving settings.', 'error');
-            });
+            if (allMarkers.length > 0) {
+                const group = new L.featureGroup(allMarkers);
+                managerMap.fitBounds(group.getBounds(), { padding: [20, 20] });
+            } else {
+                // Default to Lusaka if no markers
+                managerMap.setView([-15.4167, 28.2833], 13);
+            }
+        }
+        
+        function refreshData() {
+            showNotification('Refreshing data...');
+            loadDriversData();
+            loadPassengersData();
+            loadRidesData();
+            updateDashboardStats();
+        }
+        
+        function toggleTraffic() {
+            if (trafficEnabled) {
+                // Remove traffic layer
+                if (trafficLayer) {
+                    managerMap.removeLayer(trafficLayer);
+                    trafficLayer = null;
+                }
+                trafficEnabled = false;
+                showNotification('Traffic layer disabled');
+            } else {
+                // Add traffic layer (using OpenStreetMap traffic tiles as an example)
+                trafficLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(managerMap);
+                trafficEnabled = true;
+                showNotification('Traffic layer enabled');
+            }
         }
         
         // Show notification
@@ -2529,16 +1968,6 @@
                 notification.style.display = 'none';
             }, 3000);
         }
-        
-        // Global function to show driver details from map popup
-        window.showDriverDetails = function(driverId) {
-            showDriverDetails(driverId);
-        };
-        
-        // Global function to show ride details from map popup
-        window.showRideDetails = function(rideId) {
-            showRideDetails(rideId);
-        };
     </script>
 </body>
 </html>
