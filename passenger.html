@@ -962,6 +962,8 @@
         
         .suggestion-icon {
             font-size: 1rem;
+            width: 20px;
+            text-align: center;
         }
         
         .suggestion-details {
@@ -1935,6 +1937,7 @@
         let userData = null;
         let selectedPaymentType = 'wallet';
         let rideFare = 0;
+        let currentCity = "Lusaka"; // Default city, will be updated based on user location
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -2049,6 +2052,9 @@
                     // Set pickup location to current location
                     updatePickupLocation(lat, lng);
                     
+                    // Determine current city based on coordinates
+                    determineCurrentCity(lat, lng);
+                    
                     // Start location tracking
                     startLocationTracking();
                 }, error => {
@@ -2056,6 +2062,22 @@
                     showNotification('Unable to get your location. Please enable location services.');
                 });
             }
+        }
+        
+        // Determine current city based on coordinates
+        function determineCurrentCity(lat, lng) {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.address) {
+                        // Try to get city, town, or village name
+                        currentCity = data.address.city || data.address.town || data.address.village || data.address.county || "Lusaka";
+                        console.log("Current city determined as:", currentCity);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error determining city:', error);
+                });
         }
         
         // Start continuous location tracking
@@ -2455,119 +2477,200 @@
             }
         }
         
-        // Search places based on user input within 50km radius
+        // Search places based on user input within the current city
         function searchPlaces(query) {
-            if (!userLocation) return;
+            if (!userLocation || !currentCity) return;
             
             const suggestionsContainer = document.getElementById('destinationSuggestions');
-            suggestionsContainer.innerHTML = '<div class="loading-text">Searching...</div>';
+            suggestionsContainer.innerHTML = '<div class="loading-text">Searching places in ' + currentCity + '...</div>';
             suggestionsContainer.style.display = 'block';
             
-            // Using Overpass API for place search within 50km radius
-            const radius = 50000; // 50km in meters
+            // Using Overpass API for place search within the current city
             const overpassQuery = `
                 [out:json][timeout:25];
                 (
-                  node["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
-                  way["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
-                  relation["name"~"${query}",i](around:${radius},${userLocation.lat},${userLocation.lng});
+                  node["name"~"${query}",i]["place"~"city|town|village|suburb",i](${currentCity});
+                  node["name"~"${query}",i](area.search);
+                  way["name"~"${query}",i](area.search);
+                  relation["name"~"${query}",i](area.search);
                 );
                 out center;
             `;
             
-            fetch('https://overpass-api.de/api/interpreter', {
-                method: 'POST',
-                body: overpassQuery
-            })
-            .then(response => response.json())
-            .then(data => {
-                suggestionsContainer.innerHTML = '';
-                destinationSearchResults = [];
-                
-                if (data.elements && data.elements.length > 0) {
-                    // Process search results
-                    const results = data.elements
-                        .filter(element => element.tags && element.tags.name)
-                        .map(element => {
-                            // Calculate center coordinates for ways and relations
-                            let lat, lon;
-                            if (element.type === 'node') {
-                                lat = element.lat;
-                                lon = element.lon;
-                            } else {
-                                lat = element.center.lat;
-                                lon = element.center.lon;
-                            }
-                            
-                            // Calculate distance from user
-                            const distance = calculateDistance(
-                                userLocation.lat, userLocation.lng,
-                                lat, lon
-                            );
-                            
-                            return {
-                                ...element,
-                                displayLat: lat,
-                                displayLon: lon,
-                                distance
-                            };
-                        })
-                        .sort((a, b) => a.distance - b.distance)
-                        .slice(0, 10);
-                    
-                    if (results.length === 0) {
-                        suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+            // First, get the area ID for the current city
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(currentCity)}&featuretype=city&limit=1`)
+                .then(response => response.json())
+                .then(cityData => {
+                    if (cityData.length === 0) {
+                        suggestionsContainer.innerHTML = '<div class="no-places">Could not determine current city. Please try again.</div>';
                         return;
                     }
                     
-                    destinationSearchResults = results;
+                    const city = cityData[0];
+                    const cityBounds = {
+                        south: parseFloat(city.boundingbox[0]),
+                        north: parseFloat(city.boundingbox[1]),
+                        west: parseFloat(city.boundingbox[2]),
+                        east: parseFloat(city.boundingbox[3])
+                    };
                     
-                    results.forEach(result => {
-                        const suggestionItem = document.createElement('div');
-                        suggestionItem.className = 'suggestion-item';
-                        
-                        const placeType = result.tags.amenity || result.tags.shop || result.tags.tourism || result.tags.building || 'place';
-                        
-                        suggestionItem.innerHTML = `
-                            <div class="suggestion-icon">${getPlaceIcon(placeType)}</div>
-                            <div class="suggestion-details">
-                                <div class="suggestion-name">${result.tags.name}</div>
-                                <div class="suggestion-address">${getPlaceAddress(result)}</div>
-                                <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
-                            </div>
-                        `;
-                        
-                        suggestionItem.addEventListener('click', function() {
-                            document.getElementById('destinationLocation').value = result.tags.name;
-                            suggestionsContainer.style.display = 'none';
-                            updateFareEstimate();
+                    // Search for places within the city bounds
+                    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&bounded=1&viewbox=${cityBounds.west},${cityBounds.north},${cityBounds.east},${cityBounds.south}&limit=10`)
+                        .then(response => response.json())
+                        .then(data => {
+                            suggestionsContainer.innerHTML = '';
+                            destinationSearchResults = [];
                             
-                            // Update destination marker on map
-                            updateDestinationMarker(
-                                result.displayLat, 
-                                result.displayLon, 
-                                result.tags.name
-                            );
-                            
-                            // Draw route from user location to destination
-                            drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
-                            
-                            selectedDestination = result;
-                            
-                            // Enable request ride button
-                            document.getElementById('requestRideBtn').disabled = false;
+                            if (data && data.length > 0) {
+                                // Process search results
+                                const results = data
+                                    .filter(place => place.display_name && place.lat && place.lon)
+                                    .map(place => {
+                                        // Calculate distance from user
+                                        const distance = calculateDistance(
+                                            userLocation.lat, userLocation.lng,
+                                            parseFloat(place.lat), parseFloat(place.lon)
+                                        );
+                                        
+                                        return {
+                                            ...place,
+                                            displayLat: parseFloat(place.lat),
+                                            displayLon: parseFloat(place.lon),
+                                            distance
+                                        };
+                                    })
+                                    .sort((a, b) => a.distance - b.distance)
+                                    .slice(0, 10);
+                                
+                                if (results.length === 0) {
+                                    suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + currentCity + '</div>';
+                                    return;
+                                }
+                                
+                                destinationSearchResults = results;
+                                
+                                results.forEach(result => {
+                                    const suggestionItem = document.createElement('div');
+                                    suggestionItem.className = 'suggestion-item';
+                                    
+                                    // Determine place type and icon
+                                    const placeType = getPlaceType(result);
+                                    const placeIcon = getPlaceIcon(placeType);
+                                    
+                                    suggestionItem.innerHTML = `
+                                        <div class="suggestion-icon">${placeIcon}</div>
+                                        <div class="suggestion-details">
+                                            <div class="suggestion-name">${result.display_name.split(',')[0]}</div>
+                                            <div class="suggestion-address">${result.display_name.split(',').slice(1, 3).join(',')}</div>
+                                            <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
+                                        </div>
+                                    `;
+                                    
+                                    suggestionItem.addEventListener('click', function() {
+                                        document.getElementById('destinationLocation').value = result.display_name;
+                                        suggestionsContainer.style.display = 'none';
+                                        updateFareEstimate();
+                                        
+                                        // Update destination marker on map
+                                        updateDestinationMarker(
+                                            result.displayLat, 
+                                            result.displayLon, 
+                                            result.display_name
+                                        );
+                                        
+                                        // Draw route from user location to destination
+                                        drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
+                                        
+                                        selectedDestination = result;
+                                        
+                                        // Enable request ride button
+                                        document.getElementById('requestRideBtn').disabled = false;
+                                    });
+                                    
+                                    suggestionsContainer.appendChild(suggestionItem);
+                                });
+                            } else {
+                                suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + currentCity + '</div>';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error searching places:', error);
+                            suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
                         });
-                        
-                        suggestionsContainer.appendChild(suggestionItem);
-                    });
-                } else {
-                    suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
-                }
-            })
-            .catch(error => {
-                console.error('Error searching places:', error);
-                suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
-            });
+                })
+                .catch(error => {
+                    console.error('Error getting city data:', error);
+                    suggestionsContainer.innerHTML = '<div class="no-places">Error determining city. Please try again.</div>';
+                });
+        }
+        
+        // Get place type from search result
+        function getPlaceType(place) {
+            if (place.type === 'restaurant' || place.class === 'amenity' && place.type === 'restaurant') {
+                return 'restaurant';
+            } else if (place.type === 'cafe' || place.class === 'amenity' && place.type === 'cafe') {
+                return 'cafe';
+            } else if (place.type === 'bar' || place.class === 'amenity' && place.type === 'bar') {
+                return 'bar';
+            } else if (place.type === 'pub' || place.class === 'amenity' && place.type === 'pub') {
+                return 'pub';
+            } else if (place.type === 'fast_food' || place.class === 'amenity' && place.type === 'fast_food') {
+                return 'fast_food';
+            } else if (place.type === 'bank' || place.class === 'amenity' && place.type === 'bank') {
+                return 'bank';
+            } else if (place.type === 'atm' || place.class === 'amenity' && place.type === 'atm') {
+                return 'atm';
+            } else if (place.type === 'hospital' || place.class === 'amenity' && place.type === 'hospital') {
+                return 'hospital';
+            } else if (place.type === 'pharmacy' || place.class === 'amenity' && place.type === 'pharmacy') {
+                return 'pharmacy';
+            } else if (place.type === 'school' || place.class === 'amenity' && place.type === 'school') {
+                return 'school';
+            } else if (place.type === 'university' || place.class === 'amenity' && place.type === 'university') {
+                return 'university';
+            } else if (place.type === 'library' || place.class === 'amenity' && place.type === 'library') {
+                return 'library';
+            } else if (place.type === 'cinema' || place.class === 'amenity' && place.type === 'cinema') {
+                return 'cinema';
+            } else if (place.type === 'theatre' || place.class === 'amenity' && place.type === 'theatre') {
+                return 'theatre';
+            } else if (place.type === 'museum' || place.class === 'amenity' && place.type === 'museum') {
+                return 'museum';
+            } else if (place.type === 'hotel' || place.class === 'tourism' && place.type === 'hotel') {
+                return 'hotel';
+            } else if (place.type === 'supermarket' || place.class === 'shop' && place.type === 'supermarket') {
+                return 'supermarket';
+            } else if (place.type === 'mall' || place.class === 'shop' && place.type === 'mall') {
+                return 'mall';
+            } else if (place.type === 'clothes' || place.class === 'shop' && place.type === 'clothes') {
+                return 'clothes';
+            } else if (place.type === 'fuel' || place.class === 'amenity' && place.type === 'fuel') {
+                return 'fuel';
+            } else if (place.type === 'parking' || place.class === 'amenity' && place.type === 'parking') {
+                return 'parking';
+            } else if (place.type === 'bus_station' || place.class === 'amenity' && place.type === 'bus_station') {
+                return 'bus_station';
+            } else if (place.type === 'taxi' || place.class === 'amenity' && place.type === 'taxi') {
+                return 'taxi';
+            } else if (place.type === 'police' || place.class === 'amenity' && place.type === 'police') {
+                return 'police';
+            } else if (place.type === 'market' || place.class === 'amenity' && place.type === 'marketplace') {
+                return 'market';
+            } else if (place.type === 'post_office' || place.class === 'amenity' && place.type === 'post_office') {
+                return 'post_office';
+            } else if (place.type === 'place_of_worship' || place.class === 'amenity' && place.type === 'place_of_worship') {
+                return 'place_of_worship';
+            } else if (place.type === 'stadium' || place.class === 'leisure' && place.type === 'stadium') {
+                return 'stadium';
+            } else if (place.type === 'park' || place.class === 'leisure' && place.type === 'park') {
+                return 'park';
+            } else if (place.type === 'monument' || place.class === 'historic' && place.type === 'monument') {
+                return 'monument';
+            } else if (place.type === 'castle' || place.class === 'historic' && place.type === 'castle') {
+                return 'castle';
+            } else {
+                return 'place';
+            }
         }
         
         // Get icon for place type
@@ -2607,14 +2710,6 @@
             };
             
             return icons[placeType] || '📍';
-        }
-        
-        // Get place address from tags
-        function getPlaceAddress(place) {
-            if (place.tags['addr:street']) {
-                return `${place.tags['addr:street']}${place.tags['addr:housenumber'] ? ' ' + place.tags['addr:housenumber'] : ''}`;
-            }
-            return 'Address not available';
         }
         
         // Hide destination suggestions
@@ -3911,6 +4006,9 @@
                     
                     // Update pickup location
                     updatePickupLocation(lat, lng);
+                    
+                    // Determine current city based on coordinates
+                    determineCurrentCity(lat, lng);
                     
                     showNotification('Location refreshed');
                 }, error => {
