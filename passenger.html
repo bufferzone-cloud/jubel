@@ -1211,6 +1211,91 @@
             margin-top: 15px;
         }
         
+        /* Payment Selection Popup Styles */
+        .payment-selection-popup {
+            max-width: 400px;
+        }
+        
+        .payment-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .payment-option.selected {
+            border-color: var(--primary-orange);
+            background: var(--light-orange);
+        }
+        
+        .payment-option-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--light-gray);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: var(--medium-gray);
+        }
+        
+        .payment-option.selected .payment-option-icon {
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        .payment-option-details {
+            flex: 1;
+        }
+        
+        .payment-option-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .payment-option-description {
+            color: var(--medium-gray);
+            font-size: 0.75rem;
+        }
+        
+        .payment-option-balance {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--primary-orange);
+        }
+        
+        .confirm-payment-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: var(--element-radius);
+            background: var(--primary-gradient);
+            color: var(--white);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            margin-top: 15px;
+        }
+        
+        .confirm-payment-btn:disabled {
+            background: var(--medium-gray);
+            cursor: not-allowed;
+        }
+        
+        .insufficient-balance {
+            color: var(--error-red);
+            font-size: 0.8rem;
+            margin-top: 5px;
+            display: none;
+        }
+        
         @media (max-width: 480px) {
             .floating-balance, .ride-status {
                 padding: 6px 8px;
@@ -1653,6 +1738,62 @@
         </div>
     </div>
     
+    <!-- Payment Selection Popup -->
+    <div id="paymentSelectionPopup" class="popup-overlay hidden">
+        <div class="popup-form payment-selection-popup">
+            <div class="popup-header">
+                <h2 class="popup-title">
+                    <i class="fas fa-credit-card"></i>
+                    Select Payment Method
+                </h2>
+                <button class="close-popup" id="closePaymentPopup">&times;</button>
+            </div>
+            <div class="popup-content">
+                <div class="payment-options">
+                    <div class="payment-option selected" data-payment-type="wallet">
+                        <div class="payment-option-icon">
+                            <i class="fas fa-wallet"></i>
+                        </div>
+                        <div class="payment-option-details">
+                            <div class="payment-option-name">Jubel Wallet</div>
+                            <div class="payment-option-description">Pay with your Jubel wallet balance</div>
+                            <div class="payment-option-balance" id="paymentWalletBalance">Balance: K0.00</div>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-option" data-payment-type="mobile">
+                        <div class="payment-option-icon">
+                            <i class="fas fa-mobile-alt"></i>
+                        </div>
+                        <div class="payment-option-details">
+                            <div class="payment-option-name">Mobile Money</div>
+                            <div class="payment-option-description">Pay with Airtel, MTN or Zamtel Money</div>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-option" data-payment-type="cash">
+                        <div class="payment-option-icon">
+                            <i class="fas fa-money-bill"></i>
+                        </div>
+                        <div class="payment-option-details">
+                            <div class="payment-option-name">Cash on Delivery</div>
+                            <div class="payment-option-description">Pay with cash when you arrive</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="insufficient-balance" id="insufficientBalance">
+                    <i class="fas fa-exclamation-circle"></i>
+                    Insufficient balance in your Jubel wallet
+                </div>
+                
+                <button class="confirm-payment-btn" id="confirmPaymentBtn">
+                    Confirm Payment & Request Ride
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Ride Details Popup -->
     <div id="rideDetailsPopup" class="popup-overlay hidden">
         <div class="popup-form large-popup">
@@ -1792,6 +1933,8 @@
         let selectedDestination = null;
         let driverLocationListener = null;
         let userData = null;
+        let selectedPaymentType = 'wallet';
+        let rideFare = 0;
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -1849,6 +1992,7 @@
                         walletBalance = userData.walletBalance || 0;
                         document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
                         document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                        document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
                         
                         showNotification('Welcome back to Jubel!');
                     } else {
@@ -2052,8 +2196,39 @@
                 });
             });
             
+            // Payment option selection in popup
+            document.querySelectorAll('.payment-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    document.querySelectorAll('.payment-option').forEach(opt => {
+                        opt.classList.remove('selected');
+                    });
+                    this.classList.add('selected');
+                    selectedPaymentType = this.getAttribute('data-payment-type');
+                    
+                    // Check if wallet balance is sufficient if wallet is selected
+                    if (selectedPaymentType === 'wallet') {
+                        if (walletBalance < rideFare) {
+                            document.getElementById('insufficientBalance').style.display = 'block';
+                            document.getElementById('confirmPaymentBtn').disabled = true;
+                        } else {
+                            document.getElementById('insufficientBalance').style.display = 'none';
+                            document.getElementById('confirmPaymentBtn').disabled = false;
+                        }
+                    } else {
+                        document.getElementById('insufficientBalance').style.display = 'none';
+                        document.getElementById('confirmPaymentBtn').disabled = false;
+                    }
+                });
+            });
+            
             // Request ride button
-            document.getElementById('requestRideBtn').addEventListener('click', requestRide);
+            document.getElementById('requestRideBtn').addEventListener('click', showPaymentSelection);
+            
+            // Confirm payment button
+            document.getElementById('confirmPaymentBtn').addEventListener('click', requestRide);
+            
+            // Close payment popup
+            document.getElementById('closePaymentPopup').addEventListener('click', closePaymentSelection);
             
             // Cancel ride button
             document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
@@ -2543,6 +2718,9 @@
                         
                         // Enable request ride button
                         document.getElementById('requestRideBtn').disabled = false;
+                        
+                        // Store fare for later use
+                        rideFare = baseFare;
                     }
                 });
             } else {
@@ -2618,6 +2796,42 @@
                         dashArray: '8, 8'
                     }).addTo(passengerMap);
                 });
+        }
+        
+        // Show payment selection popup
+        function showPaymentSelection() {
+            const pickupLocation = document.getElementById('pickupLocation').value;
+            const destinationLocation = document.getElementById('destinationLocation').value;
+            
+            if (!destinationLocation) {
+                showNotification('Please enter a destination');
+                return;
+            }
+            
+            if (!currentLocationMarker) {
+                showNotification('Unable to determine your location. Please try again.');
+                return;
+            }
+            
+            // Update wallet balance in payment popup
+            document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
+            
+            // Check if wallet balance is sufficient
+            if (walletBalance < rideFare) {
+                document.getElementById('insufficientBalance').style.display = 'block';
+                document.getElementById('confirmPaymentBtn').disabled = true;
+            } else {
+                document.getElementById('insufficientBalance').style.display = 'none';
+                document.getElementById('confirmPaymentBtn').disabled = false;
+            }
+            
+            // Show payment selection popup
+            document.getElementById('paymentSelectionPopup').classList.remove('hidden');
+        }
+        
+        // Close payment selection popup
+        function closePaymentSelection() {
+            document.getElementById('paymentSelectionPopup').classList.add('hidden');
         }
         
         // Request a ride
@@ -2699,13 +2913,32 @@
                     status: 'requested',
                     timestamp: firebase.database.ServerValue.TIMESTAMP,
                     updatedAt: firebase.database.ServerValue.TIMESTAMP,
-                    promoCode: appliedPromoCode
+                    promoCode: appliedPromoCode,
+                    paymentMethod: selectedPaymentType
                 };
                 
-                // Save ride request to Firebase
-                database.ref('rides/' + rideId).set(rideRequest)
+                // If payment is via wallet, deduct fare from wallet
+                if (selectedPaymentType === 'wallet') {
+                    const newBalance = walletBalance - fare;
+                    
+                    // Update wallet balance in Firebase
+                    database.ref('users/' + currentUser.uid).update({
+                        walletBalance: newBalance
+                    })
+                    .then(() => {
+                        // Update local wallet balance
+                        walletBalance = newBalance;
+                        document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                        document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                        
+                        // Save ride request to Firebase
+                        return database.ref('rides/' + rideId).set(rideRequest);
+                    })
                     .then(() => {
                         currentRide = rideRequest;
+                        
+                        // Close payment popup
+                        closePaymentSelection();
                         
                         // Update UI for active ride
                         updateUIForActiveRide();
@@ -2724,6 +2957,33 @@
                         console.error('Error requesting ride:', error);
                         showNotification('Error requesting ride. Please try again.');
                     });
+                } else {
+                    // For other payment methods, just save the ride request
+                    database.ref('rides/' + rideId).set(rideRequest)
+                        .then(() => {
+                            currentRide = rideRequest;
+                            
+                            // Close payment popup
+                            closePaymentSelection();
+                            
+                            // Update UI for active ride
+                            updateUIForActiveRide();
+                            
+                            // Show ride status
+                            document.getElementById('rideStatus').style.display = 'flex';
+                            document.getElementById('statusDot').className = 'status-dot searching';
+                            document.getElementById('statusText').textContent = 'Searching for driver';
+                            
+                            showNotification('Ride requested. Searching for a driver...');
+                            
+                            // Listen for driver assignment
+                            listenForDriverAssignment(rideId);
+                        })
+                        .catch(error => {
+                            console.error('Error requesting ride:', error);
+                            showNotification('Error requesting ride. Please try again.');
+                        });
+                }
             }).catch(error => {
                 console.error('Error geocoding destination:', error);
                 showNotification('Error calculating route. Please try again.');
@@ -3233,6 +3493,7 @@
                     walletBalance = newBalance;
                     document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
                     document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                    document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
                     showNotification(`Successfully deposited K${depositAmount.toFixed(2)} to your wallet.`);
                 })
                 .catch(error => {
@@ -3269,6 +3530,7 @@
                     walletBalance = newBalance;
                     document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
                     document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+                    document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
                     showNotification(`Successfully withdrew K${withdrawalAmount.toFixed(2)} from your wallet.`);
                 })
                 .catch(error => {
