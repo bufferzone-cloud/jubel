@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* All CSS styles remain the same as in your original code */
         :root {
             --primary-orange: #FF6B35;
             --primary-red: #E74C3C;
@@ -1657,7 +1658,7 @@
                         const marker = L.marker([location.latitude, location.longitude], {
                             icon: L.divIcon({
                                 className: 'driver-marker',
-                                html: `<div class="driver-marker">${getVehicleIcon(driver.vehicleType)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
+                                html: `<div class="driver-marker">${getVehicleIcon(driver.vehicle?.type)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
                                 iconSize: [35, 50]
                             })
                         }).addTo(managerMap)
@@ -1687,7 +1688,7 @@
                         const marker = L.marker([location.latitude, location.longitude], {
                             icon: L.divIcon({
                                 className: 'driver-marker',
-                                html: `<div class="driver-marker">${getVehicleIcon(driver.vehicleType)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
+                                html: `<div class="driver-marker">${getVehicleIcon(driver.vehicle?.type)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
                                 iconSize: [35, 50]
                             })
                         }).addTo(fullScreenMap)
@@ -1841,7 +1842,7 @@
             return `
                 <div>
                     <strong>${driver.name || 'Driver'}</strong><br>
-                    ${driver.vehicleType || 'Vehicle'} - ${driver.licensePlate || 'N/A'}<br>
+                    ${driver.vehicle?.type || 'Vehicle'} - ${driver.vehicle?.licensePlate || 'N/A'}<br>
                     Status: ${driver.isOnline ? 'Online' : 'Offline'}<br>
                     Rating: ${driver.rating || 'N/A'}<br>
                     <button onclick="showDriverDetails('${driver.uid}')" style="margin-top: 5px; padding: 5px 10px; background: #FF6B35; color: white; border: none; border-radius: 4px; cursor: pointer;">View Details</button>
@@ -2372,17 +2373,97 @@
             }
         }
         
-        // Load drivers data
+        // Load drivers data - UPDATED TO GET DRIVER DETAILS FROM USERS NODE
         function loadDriversData() {
             database.ref('users').orderByChild('userType').equalTo('driver').once('value')
                 .then(snapshot => {
                     driversData = snapshot.val() || {};
                     displayDrivers(driversData);
+                    
+                    // Update dashboard stats with driver data
+                    updateDriverStats(driversData);
                 })
                 .catch(error => {
                     console.error('Error loading drivers:', error);
                     showNotification('Error loading drivers data.', 'error');
                 });
+        }
+        
+        // Update driver statistics for dashboard
+        function updateDriverStats(drivers) {
+            let onlineDrivers = 0;
+            let offlineDrivers = 0;
+            let suspendedDrivers = 0;
+            let carDrivers = 0;
+            let bikeDrivers = 0;
+            let bicycleDrivers = 0;
+            let onlineCarDrivers = 0;
+            let onlineBikeDrivers = 0;
+            let onlineBicycleDrivers = 0;
+            let totalRating = 0;
+            let ratedDrivers = 0;
+            
+            if (drivers) {
+                Object.keys(drivers).forEach(driverId => {
+                    const driver = drivers[driverId];
+                    
+                    // Count by status
+                    if (driver.isOnline) {
+                        onlineDrivers++;
+                        
+                        // Count by vehicle type for online drivers
+                        if (driver.vehicle && driver.vehicle.type === 'car') {
+                            onlineCarDrivers++;
+                        } else if (driver.vehicle && driver.vehicle.type === 'bike') {
+                            onlineBikeDrivers++;
+                        } else if (driver.vehicle && driver.vehicle.type === 'bicycle') {
+                            onlineBicycleDrivers++;
+                        }
+                    } else {
+                        offlineDrivers++;
+                    }
+                    
+                    if (driver.isSuspended) {
+                        suspendedDrivers++;
+                    }
+                    
+                    // Count by vehicle type
+                    if (driver.vehicle) {
+                        if (driver.vehicle.type === 'car') {
+                            carDrivers++;
+                        } else if (driver.vehicle.type === 'bike') {
+                            bikeDrivers++;
+                        } else if (driver.vehicle.type === 'bicycle') {
+                            bicycleDrivers++;
+                        }
+                    }
+                    
+                    // Calculate average rating
+                    if (driver.rating) {
+                        totalRating += driver.rating;
+                        ratedDrivers++;
+                    }
+                });
+            }
+            
+            // Update dashboard stats
+            document.getElementById('totalDrivers').textContent = Object.keys(drivers).length;
+            document.getElementById('onlineDrivers').textContent = onlineDrivers;
+            
+            statsData.totalDrivers = Object.keys(drivers).length;
+            statsData.onlineDrivers = onlineDrivers;
+            statsData.offlineDrivers = offlineDrivers;
+            statsData.suspendedDrivers = suspendedDrivers;
+            statsData.carDrivers = carDrivers;
+            statsData.bikeDrivers = bikeDrivers;
+            statsData.bicycleDrivers = bicycleDrivers;
+            statsData.onlineCarDrivers = onlineCarDrivers;
+            statsData.onlineBikeDrivers = onlineBikeDrivers;
+            statsData.onlineBicycleDrivers = onlineBicycleDrivers;
+            statsData.avgDriverRating = ratedDrivers > 0 ? totalRating / ratedDrivers : 0;
+            
+            // Update dropdown stats
+            updateStatsDropdowns();
         }
         
         // Display drivers in the list
@@ -2512,7 +2593,7 @@
             }
         }
         
-        // Show driver details in modal
+        // Show driver details in modal - UPDATED TO DISPLAY ALL DRIVER FIELDS
         function showDriverDetails(driverId) {
             const driver = driversData[driverId];
             if (!driver) return;
@@ -2521,7 +2602,7 @@
             
             const driverDetailContent = document.getElementById('driverDetailContent');
             
-            // Get vehicle details
+            // Get vehicle details with proper null checks
             const vehicleType = driver.vehicle?.type || 'N/A';
             const vehicleMake = driver.vehicle?.make || 'N/A';
             const vehicleModel = driver.vehicle?.model || 'N/A';
@@ -2529,6 +2610,10 @@
             const licenseNumber = driver.vehicle?.licenseNumber || 'N/A';
             const vehicleColor = driver.vehicle?.color || 'N/A';
             const vehicleYear = driver.vehicle?.year || 'N/A';
+            
+            // Get payment details with proper null checks
+            const paymentMethod = driver.payment?.method || 'N/A';
+            const paymentDetails = driver.payment?.details || 'N/A';
             
             driverDetailContent.innerHTML = `
                 <div class="detail-row">
@@ -2622,11 +2707,11 @@
                     <div class="detail-grid">
                         <div class="detail-row">
                             <span class="detail-label">Method:</span>
-                            <span class="detail-value">${driver.payment?.method || 'N/A'}</span>
+                            <span class="detail-value">${paymentMethod}</span>
                         </div>
                         <div class="detail-row">
                             <span class="detail-label">Details:</span>
-                            <span class="detail-value">${driver.payment?.details || 'N/A'}</span>
+                            <span class="detail-value">${paymentDetails}</span>
                         </div>
                     </div>
                 </div>
@@ -2696,8 +2781,8 @@
                             <span class="detail-value">K${passenger.walletBalance || 0}</span>
                         </div>
                         <div class="detail-row">
-                            <span class="detail-label">Joined:</span>
-                            <span class="detail-value">${passenger.createdAt ? new Date(passenger.createdAt).toLocaleDateString() : 'N/A'}</span>
+                            <span class="detail-label">Last Login:</span>
+                            <span class="detail-value">${passenger.lastLogin ? new Date(passenger.lastLogin).toLocaleDateString() : 'N/A'}</span>
                         </div>
                     </div>
                 </div>
