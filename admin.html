@@ -129,6 +129,13 @@
             box-shadow: var(--shadow-light);
             border: 1px solid var(--border-color);
             text-align: center;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-medium);
         }
         
         .stat-value {
@@ -277,7 +284,7 @@
         
         /* Map */
         #map {
-            height: 400px; /* Increased map height */
+            height: 300px;
             width: 100%;
             border-radius: var(--element-radius);
             margin-bottom: 10px;
@@ -737,6 +744,96 @@
             margin-top: 8px;
         }
         
+        /* Dropdown Stats */
+        .stats-dropdown {
+            position: absolute;
+            background: var(--white);
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            padding: 10px;
+            z-index: 10;
+            width: 200px;
+            display: none;
+            border: 1px solid var(--border-color);
+        }
+        
+        .stats-dropdown.active {
+            display: block;
+        }
+        
+        .dropdown-item {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        
+        .dropdown-label {
+            font-weight: 600;
+            color: var(--medium-gray);
+            font-size: 0.75rem;
+        }
+        
+        .dropdown-value {
+            font-weight: 700;
+            font-size: 0.8rem;
+        }
+        
+        /* Earnings Header */
+        .earnings-header {
+            background: var(--primary-gradient);
+            color: var(--white);
+            padding: 15px;
+            border-radius: var(--element-radius);
+            text-align: center;
+            margin-bottom: 15px;
+            box-shadow: var(--shadow-medium);
+        }
+        
+        .earnings-label {
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        
+        .earnings-amount {
+            font-size: 2rem;
+            font-weight: 800;
+        }
+        
+        /* Expanded Details */
+        .expanded-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        
+        .expanded-details.active {
+            max-height: 500px;
+        }
+        
+        .detail-section {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .detail-section-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+            color: var(--medium-gray);
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
         @media (max-width: 480px) {
             .dashboard-stats {
                 grid-template-columns: 1fr;
@@ -748,6 +845,10 @@
             
             .ride-tracking {
                 max-width: 250px;
+            }
+            
+            .detail-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -770,30 +871,148 @@
     <div class="main-content">
         <!-- Dashboard Tab -->
         <div id="dashboardTab" class="tab-content active">
+            <!-- App Earnings Header -->
+            <div class="earnings-header">
+                <div class="earnings-label">App Earnings (8% Commission)</div>
+                <div class="earnings-amount" id="appEarnings">K0.00</div>
+            </div>
+            
             <div class="dashboard-stats">
-                <div class="stat-card primary">
+                <div class="stat-card primary" id="totalRidesCard">
                     <div class="stat-value" id="totalRides">0</div>
                     <div class="stat-label">Total Rides</div>
+                    <div class="stats-dropdown" id="totalRidesDropdown">
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Completed:</span>
+                            <span class="dropdown-value" id="completedRides">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Cancelled:</span>
+                            <span class="dropdown-value" id="cancelledRides">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Active:</span>
+                            <span class="dropdown-value" id="activeRidesCount">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Requested:</span>
+                            <span class="dropdown-value" id="requestedRides">0</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" id="activeRidesCard">
                     <div class="stat-value" id="activeRides">0</div>
                     <div class="stat-label">Active Rides</div>
+                    <div class="stats-dropdown" id="activeRidesDropdown">
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Accepted:</span>
+                            <span class="dropdown-value" id="acceptedRides">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Started:</span>
+                            <span class="dropdown-value" id="startedRides">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Arrived:</span>
+                            <span class="dropdown-value" id="arrivedRides">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Picked Up:</span>
+                            <span class="dropdown-value" id="pickedUpRides">0</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" id="totalDriversCard">
                     <div class="stat-value" id="totalDrivers">0</div>
                     <div class="stat-label">Total Drivers</div>
+                    <div class="stats-dropdown" id="totalDriversDropdown">
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Online:</span>
+                            <span class="dropdown-value" id="onlineDriversCount">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Offline:</span>
+                            <span class="dropdown-value" id="offlineDrivers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Suspended:</span>
+                            <span class="dropdown-value" id="suspendedDrivers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Cars:</span>
+                            <span class="dropdown-value" id="carDrivers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Bikes:</span>
+                            <span class="dropdown-value" id="bikeDrivers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Bicycles:</span>
+                            <span class="dropdown-value" id="bicycleDrivers">0</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" id="onlineDriversCard">
                     <div class="stat-value" id="onlineDrivers">0</div>
                     <div class="stat-label">Online Drivers</div>
+                    <div class="stats-dropdown" id="onlineDriversDropdown">
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Cars:</span>
+                            <span class="dropdown-value" id="onlineCarDrivers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Bikes:</span>
+                            <span class="dropdown-value" id="onlineBikeDrivers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Bicycles:</span>
+                            <span class="dropdown-value" id="onlineBicycleDrivers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Avg Rating:</span>
+                            <span class="dropdown-value" id="avgDriverRating">0.0</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" id="totalPassengersCard">
                     <div class="stat-value" id="totalPassengers">0</div>
                     <div class="stat-label">Total Passengers</div>
+                    <div class="stats-dropdown" id="totalPassengersDropdown">
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Active:</span>
+                            <span class="dropdown-value" id="activePassengers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Suspended:</span>
+                            <span class="dropdown-value" id="suspendedPassengers">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Avg Rating:</span>
+                            <span class="dropdown-value" id="avgPassengerRating">0.0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Avg Rides:</span>
+                            <span class="dropdown-value" id="avgPassengerRides">0</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" id="todayEarningsCard">
                     <div class="stat-value" id="todayEarnings">K0</div>
                     <div class="stat-label">Today's Earnings</div>
+                    <div class="stats-dropdown" id="todayEarningsDropdown">
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Rides Today:</span>
+                            <span class="dropdown-value" id="ridesToday">0</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Commission:</span>
+                            <span class="dropdown-value" id="commissionToday">K0.00</span>
+                        </div>
+                        <div class="dropdown-item">
+                            <span class="dropdown-label">Avg Fare:</span>
+                            <span class="dropdown-value" id="avgFareToday">K0.00</span>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -817,21 +1036,6 @@
                         <button class="map-control-btn" id="toggleFullScreenBtn" title="Full Screen">
                             <i class="fas fa-expand"></i>
                         </button>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h3 class="section-title">
-                    <i class="fas fa-chart-line"></i>
-                    Analytics
-                </h3>
-                <div class="card">
-                    <div class="chart-container">
-                        Revenue Chart (Would display here)
-                    </div>
-                    <div class="chart-container">
-                        Ride Activity Chart (Would display here)
                     </div>
                 </div>
             </div>
@@ -1148,6 +1352,9 @@
                 <div id="rideDetailContent">
                     <!-- Ride details will be populated by JavaScript -->
                 </div>
+                <div class="expanded-details" id="rideExpandedDetails">
+                    <!-- Expanded ride details will be populated by JavaScript -->
+                </div>
                 <div class="action-buttons">
                     <button class="action-btn btn-danger" id="cancelRideBtn">
                         <i class="fas fa-times"></i>
@@ -1239,6 +1446,38 @@
         let ridesData = {};
         let activeRides = {};
         let trackedRide = null;
+        let appEarnings = 0;
+        let statsData = {
+            totalRides: 0,
+            activeRides: 0,
+            totalDrivers: 0,
+            onlineDrivers: 0,
+            totalPassengers: 0,
+            todayEarnings: 0,
+            completedRides: 0,
+            cancelledRides: 0,
+            requestedRides: 0,
+            acceptedRides: 0,
+            startedRides: 0,
+            arrivedRides: 0,
+            pickedUpRides: 0,
+            offlineDrivers: 0,
+            suspendedDrivers: 0,
+            carDrivers: 0,
+            bikeDrivers: 0,
+            bicycleDrivers: 0,
+            onlineCarDrivers: 0,
+            onlineBikeDrivers: 0,
+            onlineBicycleDrivers: 0,
+            avgDriverRating: 0,
+            activePassengers: 0,
+            suspendedPassengers: 0,
+            avgPassengerRating: 0,
+            avgPassengerRides: 0,
+            ridesToday: 0,
+            commissionToday: 0,
+            avgFareToday: 0
+        };
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -1246,6 +1485,7 @@
             setupEventListeners();
             initializeMap();
             initializeFullScreenMap();
+            setupStatsDropdowns();
         });
         
         // Authentication functions
@@ -1288,10 +1528,10 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(managerMap);
             
-            // Listen for driver location updates from usrs collection
-            database.ref('usrs').orderByChild('userType').equalTo('driver').on('value', snapshot => {
-                const drivers = snapshot.val();
-                updateDriverMarkersFromUsrs(drivers);
+            // Listen for driver location updates
+            database.ref('driverLocations').on('value', snapshot => {
+                const locations = snapshot.val();
+                updateDriverMarkers(locations);
             });
             
             // Listen for active rides
@@ -1315,9 +1555,9 @@
             }).addTo(fullScreenMap);
             
             // Copy markers from main map to full screen map
-            database.ref('usrs').orderByChild('userType').equalTo('driver').once('value').then(snapshot => {
-                const drivers = snapshot.val();
-                updateFullScreenDriverMarkersFromUsrs(drivers);
+            database.ref('driverLocations').once('value').then(snapshot => {
+                const locations = snapshot.val();
+                updateFullScreenDriverMarkers(locations);
             });
             
             database.ref('rides').orderByChild('status').equalTo('accepted').once('value').then(snapshot => {
@@ -1331,28 +1571,28 @@
             });
         }
         
-        // Update driver markers from usrs collection
-        function updateDriverMarkersFromUsrs(drivers) {
-            if (drivers) {
-                Object.keys(drivers).forEach(driverId => {
-                    const driver = drivers[driverId];
+        // Update driver markers on map
+        function updateDriverMarkers(locations) {
+            if (locations) {
+                Object.keys(locations).forEach(driverId => {
+                    const location = locations[driverId];
+                    const driver = driversData[driverId];
                     
-                    // Check if driver has location data
-                    if (driver && driver.location && driver.location.latitude && driver.location.longitude) {
+                    if (driver && location.latitude && location.longitude) {
                         // Remove existing marker if present
                         if (driverMarkers[driverId]) {
                             managerMap.removeLayer(driverMarkers[driverId]);
                         }
                         
                         // Create marker for driver
-                        const marker = L.marker([driver.location.latitude, driver.location.longitude], {
+                        const marker = L.marker([location.latitude, location.longitude], {
                             icon: L.divIcon({
                                 className: 'driver-marker',
                                 html: `<div class="driver-marker">${getVehicleIcon(driver.vehicleType)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
                                 iconSize: [35, 50]
                             })
                         }).addTo(managerMap)
-                            .bindPopup(createDriverPopup(driver, driver.location));
+                            .bindPopup(createDriverPopup(driver, location));
                         
                         driverMarkers[driverId] = marker;
                     }
@@ -1366,23 +1606,23 @@
             }
         }
         
-        // Update driver markers on full screen map from usrs collection
-        function updateFullScreenDriverMarkersFromUsrs(drivers) {
-            if (drivers) {
-                Object.keys(drivers).forEach(driverId => {
-                    const driver = drivers[driverId];
+        // Update driver markers on full screen map
+        function updateFullScreenDriverMarkers(locations) {
+            if (locations) {
+                Object.keys(locations).forEach(driverId => {
+                    const location = locations[driverId];
+                    const driver = driversData[driverId];
                     
-                    // Check if driver has location data
-                    if (driver && driver.location && driver.location.latitude && driver.location.longitude) {
+                    if (driver && location.latitude && location.longitude) {
                         // Create marker for driver
-                        const marker = L.marker([driver.location.latitude, driver.location.longitude], {
+                        const marker = L.marker([location.latitude, location.longitude], {
                             icon: L.divIcon({
                                 className: 'driver-marker',
                                 html: `<div class="driver-marker">${getVehicleIcon(driver.vehicleType)}</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
                                 iconSize: [35, 50]
                             })
                         }).addTo(fullScreenMap)
-                            .bindPopup(createDriverPopup(driver, driver.location));
+                            .bindPopup(createDriverPopup(driver, location));
                     }
                 });
             }
@@ -1618,6 +1858,50 @@
             
             // Settings button in header
             document.getElementById('userAvatar').addEventListener('click', openSettings);
+            
+            // View more details for rides
+            document.addEventListener('click', function(e) {
+                if (e.target && e.target.classList.contains('view-more-details')) {
+                    const rideId = e.target.getAttribute('data-ride-id');
+                    toggleRideDetails(rideId);
+                }
+            });
+        }
+        
+        // Setup stats dropdowns
+        function setupStatsDropdowns() {
+            const statCards = document.querySelectorAll('.stat-card');
+            
+            statCards.forEach(card => {
+                card.addEventListener('click', function(e) {
+                    // Close all other dropdowns
+                    document.querySelectorAll('.stats-dropdown').forEach(dropdown => {
+                        if (dropdown !== this.querySelector('.stats-dropdown')) {
+                            dropdown.classList.remove('active');
+                        }
+                    });
+                    
+                    // Toggle current dropdown
+                    const dropdown = this.querySelector('.stats-dropdown');
+                    if (dropdown) {
+                        dropdown.classList.toggle('active');
+                        
+                        // Position dropdown
+                        const rect = this.getBoundingClientRect();
+                        dropdown.style.top = `${rect.bottom + 5}px`;
+                        dropdown.style.left = `${rect.left}px`;
+                    }
+                });
+            });
+            
+            // Close dropdowns when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.stat-card')) {
+                    document.querySelectorAll('.stats-dropdown').forEach(dropdown => {
+                        dropdown.classList.remove('active');
+                    });
+                }
+            });
         }
         
         // Tab switching
@@ -1711,37 +1995,85 @@
                     const rides = snapshot.val();
                     const totalRides = rides ? Object.keys(rides).length : 0;
                     document.getElementById('totalRides').textContent = totalRides;
+                    statsData.totalRides = totalRides;
                     
-                    // Calculate active rides
+                    // Calculate active rides and other stats
                     let activeRides = 0;
                     let totalEarnings = 0;
                     let todayEarnings = 0;
+                    let completedRides = 0;
+                    let cancelledRides = 0;
+                    let requestedRides = 0;
+                    let acceptedRides = 0;
+                    let startedRides = 0;
+                    let arrivedRides = 0;
+                    let pickedUpRides = 0;
+                    let ridesToday = 0;
+                    let commissionToday = 0;
+                    let totalFareToday = 0;
+                    
                     const today = new Date();
                     
                     if (rides) {
                         Object.keys(rides).forEach(rideId => {
                             const ride = rides[rideId];
                             
-                            if (ride.status === 'accepted' || ride.status === 'started') {
+                            // Count by status
+                            if (ride.status === 'accepted' || ride.status === 'started' || ride.status === 'arrived' || ride.status === 'picked_up') {
                                 activeRides++;
                             }
                             
                             if (ride.status === 'completed' && ride.fare) {
+                                completedRides++;
                                 totalEarnings += ride.fare;
                                 
                                 // Check if completed today
                                 if (ride.completedAt) {
                                     const completedDate = new Date(ride.completedAt);
                                     if (completedDate.toDateString() === today.toDateString()) {
+                                        ridesToday++;
                                         todayEarnings += ride.fare;
+                                        totalFareToday += ride.fare;
+                                        commissionToday += ride.fare * 0.08; // 8% commission
                                     }
                                 }
+                            } else if (ride.status === 'cancelled') {
+                                cancelledRides++;
+                            } else if (ride.status === 'requested') {
+                                requestedRides++;
+                            } else if (ride.status === 'accepted') {
+                                acceptedRides++;
+                            } else if (ride.status === 'started') {
+                                startedRides++;
+                            } else if (ride.status === 'arrived') {
+                                arrivedRides++;
+                            } else if (ride.status === 'picked_up') {
+                                pickedUpRides++;
                             }
                         });
                     }
                     
                     document.getElementById('activeRides').textContent = activeRides;
                     document.getElementById('todayEarnings').textContent = `K${todayEarnings.toFixed(2)}`;
+                    statsData.activeRides = activeRides;
+                    statsData.todayEarnings = todayEarnings;
+                    statsData.completedRides = completedRides;
+                    statsData.cancelledRides = cancelledRides;
+                    statsData.requestedRides = requestedRides;
+                    statsData.acceptedRides = acceptedRides;
+                    statsData.startedRides = startedRides;
+                    statsData.arrivedRides = arrivedRides;
+                    statsData.pickedUpRides = pickedUpRides;
+                    statsData.ridesToday = ridesToday;
+                    statsData.commissionToday = commissionToday;
+                    statsData.avgFareToday = ridesToday > 0 ? totalFareToday / ridesToday : 0;
+                    
+                    // Update dropdown stats
+                    updateStatsDropdowns();
+                    
+                    // Calculate app earnings (8% of all completed rides)
+                    appEarnings = totalEarnings * 0.08;
+                    document.getElementById('appEarnings').textContent = `K${appEarnings.toFixed(2)}`;
                     
                     // Load recent activity
                     loadRecentActivity(rides);
@@ -1750,40 +2082,179 @@
                     console.error('Error loading rides:', error);
                 });
             
-            // Load drivers data from usrs collection
-            database.ref('usrs').orderByChild('userType').equalTo('driver').once('value')
+            // Load drivers data
+            database.ref('users').orderByChild('userType').equalTo('driver').once('value')
                 .then(snapshot => {
                     const drivers = snapshot.val();
                     const totalDrivers = drivers ? Object.keys(drivers).length : 0;
                     document.getElementById('totalDrivers').textContent = totalDrivers;
+                    statsData.totalDrivers = totalDrivers;
                     
-                    // Calculate online drivers
+                    // Calculate driver statistics
                     let onlineDrivers = 0;
+                    let offlineDrivers = 0;
+                    let suspendedDrivers = 0;
+                    let carDrivers = 0;
+                    let bikeDrivers = 0;
+                    let bicycleDrivers = 0;
+                    let onlineCarDrivers = 0;
+                    let onlineBikeDrivers = 0;
+                    let onlineBicycleDrivers = 0;
+                    let totalRating = 0;
+                    let ratedDrivers = 0;
+                    
                     if (drivers) {
                         Object.keys(drivers).forEach(driverId => {
                             const driver = drivers[driverId];
+                            
+                            // Count by status
                             if (driver.isOnline) {
                                 onlineDrivers++;
+                                
+                                // Count by vehicle type for online drivers
+                                if (driver.vehicle && driver.vehicle.type === 'car') {
+                                    onlineCarDrivers++;
+                                } else if (driver.vehicle && driver.vehicle.type === 'bike') {
+                                    onlineBikeDrivers++;
+                                } else if (driver.vehicle && driver.vehicle.type === 'bicycle') {
+                                    onlineBicycleDrivers++;
+                                }
+                            } else {
+                                offlineDrivers++;
+                            }
+                            
+                            if (driver.isSuspended) {
+                                suspendedDrivers++;
+                            }
+                            
+                            // Count by vehicle type
+                            if (driver.vehicle) {
+                                if (driver.vehicle.type === 'car') {
+                                    carDrivers++;
+                                } else if (driver.vehicle.type === 'bike') {
+                                    bikeDrivers++;
+                                } else if (driver.vehicle.type === 'bicycle') {
+                                    bicycleDrivers++;
+                                }
+                            }
+                            
+                            // Calculate average rating
+                            if (driver.rating) {
+                                totalRating += driver.rating;
+                                ratedDrivers++;
                             }
                         });
                     }
                     
                     document.getElementById('onlineDrivers').textContent = onlineDrivers;
+                    statsData.onlineDrivers = onlineDrivers;
+                    statsData.offlineDrivers = offlineDrivers;
+                    statsData.suspendedDrivers = suspendedDrivers;
+                    statsData.carDrivers = carDrivers;
+                    statsData.bikeDrivers = bikeDrivers;
+                    statsData.bicycleDrivers = bicycleDrivers;
+                    statsData.onlineCarDrivers = onlineCarDrivers;
+                    statsData.onlineBikeDrivers = onlineBikeDrivers;
+                    statsData.onlineBicycleDrivers = onlineBicycleDrivers;
+                    statsData.avgDriverRating = ratedDrivers > 0 ? totalRating / ratedDrivers : 0;
+                    
+                    // Update dropdown stats
+                    updateStatsDropdowns();
                 })
                 .catch(error => {
                     console.error('Error loading drivers:', error);
                 });
             
-            // Load passengers data from usrs collection
-            database.ref('usrs').orderByChild('userType').equalTo('passenger').once('value')
+            // Load passengers data
+            database.ref('users').orderByChild('userType').equalTo('passenger').once('value')
                 .then(snapshot => {
                     const passengers = snapshot.val();
                     const totalPassengers = passengers ? Object.keys(passengers).length : 0;
                     document.getElementById('totalPassengers').textContent = totalPassengers;
+                    statsData.totalPassengers = totalPassengers;
+                    
+                    // Calculate passenger statistics
+                    let activePassengers = 0;
+                    let suspendedPassengers = 0;
+                    let totalRating = 0;
+                    let ratedPassengers = 0;
+                    let totalRides = 0;
+                    
+                    if (passengers) {
+                        Object.keys(passengers).forEach(passengerId => {
+                            const passenger = passengers[passengerId];
+                            
+                            // Count by status
+                            if (passenger.isSuspended) {
+                                suspendedPassengers++;
+                            } else {
+                                activePassengers++;
+                            }
+                            
+                            // Calculate average rating
+                            if (passenger.rating) {
+                                totalRating += passenger.rating;
+                                ratedPassengers++;
+                            }
+                            
+                            // Calculate total rides
+                            if (passenger.totalRides) {
+                                totalRides += passenger.totalRides;
+                            }
+                        });
+                    }
+                    
+                    statsData.activePassengers = activePassengers;
+                    statsData.suspendedPassengers = suspendedPassengers;
+                    statsData.avgPassengerRating = ratedPassengers > 0 ? totalRating / ratedPassengers : 0;
+                    statsData.avgPassengerRides = totalPassengers > 0 ? totalRides / totalPassengers : 0;
+                    
+                    // Update dropdown stats
+                    updateStatsDropdowns();
                 })
                 .catch(error => {
                     console.error('Error loading passengers:', error);
                 });
+        }
+        
+        // Update stats dropdowns with current data
+        function updateStatsDropdowns() {
+            // Total Rides dropdown
+            document.getElementById('completedRides').textContent = statsData.completedRides;
+            document.getElementById('cancelledRides').textContent = statsData.cancelledRides;
+            document.getElementById('activeRidesCount').textContent = statsData.activeRides;
+            document.getElementById('requestedRides').textContent = statsData.requestedRides;
+            
+            // Active Rides dropdown
+            document.getElementById('acceptedRides').textContent = statsData.acceptedRides;
+            document.getElementById('startedRides').textContent = statsData.startedRides;
+            document.getElementById('arrivedRides').textContent = statsData.arrivedRides;
+            document.getElementById('pickedUpRides').textContent = statsData.pickedUpRides;
+            
+            // Total Drivers dropdown
+            document.getElementById('onlineDriversCount').textContent = statsData.onlineDrivers;
+            document.getElementById('offlineDrivers').textContent = statsData.offlineDrivers;
+            document.getElementById('suspendedDrivers').textContent = statsData.suspendedDrivers;
+            document.getElementById('carDrivers').textContent = statsData.carDrivers;
+            document.getElementById('bikeDrivers').textContent = statsData.bikeDrivers;
+            document.getElementById('bicycleDrivers').textContent = statsData.bicycleDrivers;
+            
+            // Online Drivers dropdown
+            document.getElementById('onlineCarDrivers').textContent = statsData.onlineCarDrivers;
+            document.getElementById('onlineBikeDrivers').textContent = statsData.onlineBikeDrivers;
+            document.getElementById('onlineBicycleDrivers').textContent = statsData.onlineBicycleDrivers;
+            document.getElementById('avgDriverRating').textContent = statsData.avgDriverRating.toFixed(1);
+            
+            // Total Passengers dropdown
+            document.getElementById('activePassengers').textContent = statsData.activePassengers;
+            document.getElementById('suspendedPassengers').textContent = statsData.suspendedPassengers;
+            document.getElementById('avgPassengerRating').textContent = statsData.avgPassengerRating.toFixed(1);
+            document.getElementById('avgPassengerRides').textContent = statsData.avgPassengerRides.toFixed(1);
+            
+            // Today's Earnings dropdown
+            document.getElementById('ridesToday').textContent = statsData.ridesToday;
+            document.getElementById('commissionToday').textContent = `K${statsData.commissionToday.toFixed(2)}`;
+            document.getElementById('avgFareToday').textContent = `K${statsData.avgFareToday.toFixed(2)}`;
         }
         
         // Load recent activity for dashboard
@@ -1826,9 +2297,9 @@
             }
         }
         
-        // Load drivers data from usrs collection
+        // Load drivers data
         function loadDriversData() {
-            database.ref('usrs').orderByChild('userType').equalTo('driver').once('value')
+            database.ref('users').orderByChild('userType').equalTo('driver').once('value')
                 .then(snapshot => {
                     driversData = snapshot.val() || {};
                     displayDrivers(driversData);
@@ -1856,7 +2327,7 @@
                     driverItem.innerHTML = `
                         <div class="item-title">${driver.name || 'Unknown Driver'}</div>
                         <div class="item-details">
-                            <span>${driver.vehicleType || 'Vehicle'} • ${driver.phone || 'N/A'}</span>
+                            <span>${driver.vehicle?.type || 'Vehicle'} • ${driver.phone || 'N/A'}</span>
                             <span class="status-badge ${statusClass}">${status}</span>
                         </div>
                     `;
@@ -1872,9 +2343,9 @@
             }
         }
         
-        // Load passengers data from usrs collection
+        // Load passengers data
         function loadPassengersData() {
-            database.ref('usrs').orderByChild('userType').equalTo('passenger').once('value')
+            database.ref('users').orderByChild('userType').equalTo('passenger').once('value')
                 .then(snapshot => {
                     passengersData = snapshot.val() || {};
                     displayPassengers(passengersData);
@@ -1974,6 +2445,16 @@
             selectedDriver = driverId;
             
             const driverDetailContent = document.getElementById('driverDetailContent');
+            
+            // Get vehicle details
+            const vehicleType = driver.vehicle?.type || 'N/A';
+            const vehicleMake = driver.vehicle?.make || 'N/A';
+            const vehicleModel = driver.vehicle?.model || 'N/A';
+            const licensePlate = driver.vehicle?.licensePlate || 'N/A';
+            const licenseNumber = driver.vehicle?.licenseNumber || 'N/A';
+            const vehicleColor = driver.vehicle?.color || 'N/A';
+            const vehicleYear = driver.vehicle?.year || 'N/A';
+            
             driverDetailContent.innerHTML = `
                 <div class="detail-row">
                     <span class="detail-label">Name:</span>
@@ -1988,40 +2469,91 @@
                     <span class="detail-value">${driver.email || 'N/A'}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-label">Vehicle Type:</span>
-                    <span class="detail-value">${driver.vehicleType || 'N/A'}</span>
+                    <span class="detail-label">NRC:</span>
+                    <span class="detail-value">${driver.nrc || 'N/A'}</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">License Plate:</span>
-                    <span class="detail-value">${driver.licensePlate || 'N/A'}</span>
+                <div class="detail-section">
+                    <div class="detail-section-title">Vehicle Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Type:</span>
+                            <span class="detail-value">${vehicleType}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Make:</span>
+                            <span class="detail-value">${vehicleMake}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Model:</span>
+                            <span class="detail-value">${vehicleModel}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Year:</span>
+                            <span class="detail-value">${vehicleYear}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Color:</span>
+                            <span class="detail-value">${vehicleColor}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">License Plate:</span>
+                            <span class="detail-value">${licensePlate}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Driver's License:</span>
+                            <span class="detail-value">${licenseNumber}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="detail-value">
-                        <span class="status-badge ${driver.isOnline ? 'status-online' : 'status-offline'}">
-                            ${driver.isOnline ? 'Online' : 'Offline'}
-                        </span>
-                    </span>
+                <div class="detail-section">
+                    <div class="detail-section-title">Account Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Status:</span>
+                            <span class="detail-value">
+                                <span class="status-badge ${driver.isOnline ? 'status-online' : 'status-offline'}">
+                                    ${driver.isOnline ? 'Online' : 'Offline'}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Rating:</span>
+                            <span class="detail-value">${driver.rating || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Total Rides:</span>
+                            <span class="detail-value">${driver.totalRides || 0}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Total Earnings:</span>
+                            <span class="detail-value">K${driver.totalEarnings || 0}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Float Balance:</span>
+                            <span class="detail-value">K${driver.floatBalance || 0}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Wallet Balance:</span>
+                            <span class="detail-value">K${driver.walletBalance || 0}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Joined:</span>
+                            <span class="detail-value">${driver.createdAt ? new Date(driver.createdAt).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Rating:</span>
-                    <span class="detail-value">${driver.rating || 'N/A'}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Total Rides:</span>
-                    <span class="detail-value">${driver.totalRides || 0}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Total Earnings:</span>
-                    <span class="detail-value">K${driver.totalEarnings || 0}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Float Balance:</span>
-                    <span class="detail-value">K${driver.floatBalance || 0}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Wallet Balance:</span>
-                    <span class="detail-value">K${driver.walletBalance || 0}</span>
+                <div class="detail-section">
+                    <div class="detail-section-title">Payment Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Method:</span>
+                            <span class="detail-value">${driver.payment?.method || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Details:</span>
+                            <span class="detail-value">${driver.payment?.details || 'N/A'}</span>
+                        </div>
+                    </div>
                 </div>
             `;
             
@@ -2061,33 +2593,60 @@
                     <span class="detail-label">Email:</span>
                     <span class="detail-value">${passenger.email || 'N/A'}</span>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status:</span>
-                    <span class="detail-value">
-                        <span class="status-badge ${passenger.isSuspended ? 'status-cancelled' : 'status-completed'}">
-                            ${passenger.isSuspended ? 'Suspended' : 'Active'}
-                        </span>
-                    </span>
+                <div class="detail-section">
+                    <div class="detail-section-title">Account Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Status:</span>
+                            <span class="detail-value">
+                                <span class="status-badge ${passenger.isSuspended ? 'status-cancelled' : 'status-completed'}">
+                                    ${passenger.isSuspended ? 'Suspended' : 'Active'}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Rating:</span>
+                            <span class="detail-value">${passenger.rating || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Total Rides:</span>
+                            <span class="detail-value">${passenger.totalRides || 0}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Total Spent:</span>
+                            <span class="detail-value">K${passenger.totalSpent || 0}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Wallet Balance:</span>
+                            <span class="detail-value">K${passenger.walletBalance || 0}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Joined:</span>
+                            <span class="detail-value">${passenger.createdAt ? new Date(passenger.createdAt).toLocaleDateString() : 'N/A'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Rating:</span>
-                    <span class="detail-value">${passenger.rating || 'N/A'}</span>
+                <div class="detail-section">
+                    <div class="detail-section-title">Address Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Home Address:</span>
+                            <span class="detail-value">${passenger.homeAddress || 'Not set'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Work Address:</span>
+                            <span class="detail-value">${passenger.workAddress || 'Not set'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="detail-row">
-                    <span class="detail-label">Total Rides:</span>
-                    <span class="detail-value">${passenger.totalRides || 0}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Total Spent:</span>
-                    <span class="detail-value">K${passenger.totalSpent || 0}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Wallet Balance:</span>
-                    <span class="detail-value">K${passenger.walletBalance || 0}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Referral Code:</span>
-                    <span class="detail-value">${passenger.referralCode || 'N/A'}</span>
+                <div class="detail-section">
+                    <div class="detail-section-title">Referral Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Referral Code:</span>
+                            <span class="detail-value">${passenger.referralCode || 'N/A'}</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="referral-code">
                     ${passenger.referralCode || 'No referral code'}
@@ -2117,10 +2676,15 @@
             selectedRide = rideId;
             
             const rideDetailContent = document.getElementById('rideDetailContent');
+            const expandedDetails = document.getElementById('rideExpandedDetails');
             
             const date = new Date(ride.timestamp);
             const formattedDate = date.toLocaleDateString();
             const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            // Calculate commission (8%)
+            const commission = ride.fare ? ride.fare * 0.08 : 0;
+            const driverEarnings = ride.fare ? ride.fare - commission : 0;
             
             rideDetailContent.innerHTML = `
                 <div class="detail-row">
@@ -2165,9 +2729,87 @@
                     <span class="detail-label">Ride Type:</span>
                     <span class="detail-value">${ride.rideType || 'Standard'}</span>
                 </div>
+                <button class="btn btn-secondary view-more-details" data-ride-id="${rideId}" style="width: 100%; margin-top: 10px;">
+                    <i class="fas fa-chevron-down"></i> View More Details
+                </button>
             `;
             
+            // Expanded details (initially hidden)
+            expandedDetails.innerHTML = `
+                <div class="detail-section">
+                    <div class="detail-section-title">Financial Breakdown</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Total Fare:</span>
+                            <span class="detail-value">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Commission (8%):</span>
+                            <span class="detail-value">K${commission.toFixed(2)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Driver Earnings:</span>
+                            <span class="detail-value">K${driverEarnings.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-section-title">Timeline</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Requested:</span>
+                            <span class="detail-value">${formattedDate} ${formattedTime}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Accepted:</span>
+                            <span class="detail-value">${ride.acceptedAt ? new Date(ride.acceptedAt).toLocaleString() : 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Started:</span>
+                            <span class="detail-value">${ride.startedAt ? new Date(ride.startedAt).toLocaleString() : 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Completed:</span>
+                            <span class="detail-value">${ride.completedAt ? new Date(ride.completedAt).toLocaleString() : 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="detail-section">
+                    <div class="detail-section-title">Additional Information</div>
+                    <div class="detail-grid">
+                        <div class="detail-row">
+                            <span class="detail-label">Payment Method:</span>
+                            <span class="detail-value">${ride.paymentMethod || 'N/A'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Promo Code:</span>
+                            <span class="detail-value">${ride.promoCode || 'None'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Estimated Time:</span>
+                            <span class="detail-value">${ride.estimatedTime || 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Hide expanded details initially
+            expandedDetails.classList.remove('active');
+            
             document.getElementById('rideDetailModal').classList.add('active');
+        }
+        
+        // Toggle ride details expansion
+        function toggleRideDetails(rideId) {
+            const expandedDetails = document.getElementById('rideExpandedDetails');
+            expandedDetails.classList.toggle('active');
+            
+            const button = document.querySelector(`.view-more-details[data-ride-id="${rideId}"]`);
+            if (expandedDetails.classList.contains('active')) {
+                button.innerHTML = '<i class="fas fa-chevron-up"></i> View Less Details';
+            } else {
+                button.innerHTML = '<i class="fas fa-chevron-down"></i> View More Details';
+            }
         }
         
         // Close modals
@@ -2208,13 +2850,14 @@
             const driver = driversData[selectedDriver];
             const newStatus = !driver.isSuspended;
             
-            database.ref('usrs/' + selectedDriver).update({
+            database.ref('users/' + selectedDriver).update({
                 isSuspended: newStatus
             })
             .then(() => {
                 showNotification(`Driver ${newStatus ? 'suspended' : 'activated'} successfully.`);
                 closeDriverModal();
                 loadDriversData();
+                loadDashboardData(); // Refresh stats
             })
             .catch(error => {
                 console.error('Error updating driver status:', error);
@@ -2248,13 +2891,14 @@
             const passenger = passengersData[selectedPassenger];
             const newStatus = !passenger.isSuspended;
             
-            database.ref('usrs/' + selectedPassenger).update({
+            database.ref('users/' + selectedPassenger).update({
                 isSuspended: newStatus
             })
             .then(() => {
                 showNotification(`Passenger ${newStatus ? 'suspended' : 'activated'} successfully.`);
                 closePassengerModal();
                 loadPassengersData();
+                loadDashboardData(); // Refresh stats
             })
             .catch(error => {
                 console.error('Error updating passenger status:', error);
@@ -2335,7 +2979,7 @@
                     (driver.name && driver.name.toLowerCase().includes(query)) ||
                     (driver.phone && driver.phone.includes(query)) ||
                     (driver.email && driver.email.toLowerCase().includes(query)) ||
-                    (driver.licensePlate && driver.licensePlate.toLowerCase().includes(query))
+                    (driver.vehicle?.licensePlate && driver.vehicle.licensePlate.toLowerCase().includes(query))
                 ) {
                     filteredDrivers[driverId] = driver;
                 }
@@ -2400,7 +3044,7 @@
                 }
                 
                 if (vehicleFilter !== 'all') {
-                    vehicleMatch = driver.vehicleType === vehicleFilter;
+                    vehicleMatch = driver.vehicle?.type === vehicleFilter;
                 }
                 
                 if (statusMatch && vehicleMatch) {
@@ -2461,11 +3105,473 @@
             displayRides(filteredRides);
         }
         
-        // Load reports
+        // Load reports with real data
         function loadReports() {
             const period = document.getElementById('reportPeriod').value;
-            // In a real app, this would fetch and display report data based on the selected period
-            showNotification(`Loading ${period} reports...`);
+            
+            // Load revenue report
+            loadRevenueReport(period);
+            
+            // Load rides report
+            loadRidesReport(period);
+            
+            // Load drivers report
+            loadDriversReport(period);
+            
+            // Load passengers report
+            loadPassengersReport(period);
+        }
+        
+        // Load revenue report
+        function loadRevenueReport(period) {
+            database.ref('rides').once('value')
+                .then(snapshot => {
+                    const rides = snapshot.val();
+                    const revenueTable = document.getElementById('revenueTable');
+                    revenueTable.innerHTML = '';
+                    
+                    if (rides) {
+                        let periodRides = {};
+                        const now = new Date();
+                        
+                        // Filter rides by period
+                        Object.keys(rides).forEach(rideId => {
+                            const ride = rides[rideId];
+                            const rideDate = new Date(ride.timestamp);
+                            let include = false;
+                            
+                            switch(period) {
+                                case 'today':
+                                    if (rideDate.toDateString() === now.toDateString()) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'week':
+                                    const startOfWeek = new Date(now);
+                                    startOfWeek.setDate(now.getDate() - now.getDay());
+                                    startOfWeek.setHours(0, 0, 0, 0);
+                                    
+                                    if (rideDate >= startOfWeek) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'month':
+                                    if (rideDate.getMonth() === now.getMonth() && 
+                                        rideDate.getFullYear() === now.getFullYear()) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'quarter':
+                                    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                                    const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+                                    
+                                    if (rideDate >= quarterStart) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'year':
+                                    if (rideDate.getFullYear() === now.getFullYear()) {
+                                        include = true;
+                                    }
+                                    break;
+                            }
+                            
+                            if (include && ride.status === 'completed' && ride.fare) {
+                                const dateKey = rideDate.toDateString();
+                                if (!periodRides[dateKey]) {
+                                    periodRides[dateKey] = {
+                                        rides: 0,
+                                        revenue: 0,
+                                        commission: 0
+                                    };
+                                }
+                                
+                                periodRides[dateKey].rides++;
+                                periodRides[dateKey].revenue += ride.fare;
+                                periodRides[dateKey].commission += ride.fare * 0.08; // 8% commission
+                            }
+                        });
+                        
+                        // Convert to array and sort by date (newest first)
+                        const revenueData = Object.keys(periodRides)
+                            .map(date => ({
+                                date: date,
+                                ...periodRides[date]
+                            }))
+                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+                        
+                        // Populate table
+                        revenueData.forEach(data => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${data.date}</td>
+                                <td>${data.rides}</td>
+                                <td>K${data.revenue.toFixed(2)}</td>
+                                <td>K${data.commission.toFixed(2)}</td>
+                            `;
+                            revenueTable.appendChild(row);
+                        });
+                        
+                        // Show message if no data
+                        if (revenueData.length === 0) {
+                            revenueTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No revenue data for this period</td></tr>';
+                        }
+                    } else {
+                        revenueTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No ride data available</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading revenue report:', error);
+                    document.getElementById('revenueTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading revenue data</td></tr>';
+                });
+        }
+        
+        // Load rides report
+        function loadRidesReport(period) {
+            database.ref('rides').once('value')
+                .then(snapshot => {
+                    const rides = snapshot.val();
+                    const ridesReportTable = document.getElementById('ridesReportTable');
+                    ridesReportTable.innerHTML = '';
+                    
+                    if (rides) {
+                        let periodRides = {};
+                        const now = new Date();
+                        
+                        // Filter rides by period
+                        Object.keys(rides).forEach(rideId => {
+                            const ride = rides[rideId];
+                            const rideDate = new Date(ride.timestamp);
+                            let include = false;
+                            
+                            switch(period) {
+                                case 'today':
+                                    if (rideDate.toDateString() === now.toDateString()) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'week':
+                                    const startOfWeek = new Date(now);
+                                    startOfWeek.setDate(now.getDate() - now.getDay());
+                                    startOfWeek.setHours(0, 0, 0, 0);
+                                    
+                                    if (rideDate >= startOfWeek) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'month':
+                                    if (rideDate.getMonth() === now.getMonth() && 
+                                        rideDate.getFullYear() === now.getFullYear()) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'quarter':
+                                    const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                                    const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+                                    
+                                    if (rideDate >= quarterStart) {
+                                        include = true;
+                                    }
+                                    break;
+                                case 'year':
+                                    if (rideDate.getFullYear() === now.getFullYear()) {
+                                        include = true;
+                                    }
+                                    break;
+                            }
+                            
+                            if (include) {
+                                const dateKey = rideDate.toDateString();
+                                if (!periodRides[dateKey]) {
+                                    periodRides[dateKey] = {
+                                        total: 0,
+                                        completed: 0,
+                                        cancelled: 0
+                                    };
+                                }
+                                
+                                periodRides[dateKey].total++;
+                                
+                                if (ride.status === 'completed') {
+                                    periodRides[dateKey].completed++;
+                                } else if (ride.status === 'cancelled') {
+                                    periodRides[dateKey].cancelled++;
+                                }
+                            }
+                        });
+                        
+                        // Convert to array and sort by date (newest first)
+                        const ridesData = Object.keys(periodRides)
+                            .map(date => ({
+                                date: date,
+                                ...periodRides[date]
+                            }))
+                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+                        
+                        // Populate table
+                        ridesData.forEach(data => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${data.date}</td>
+                                <td>${data.total}</td>
+                                <td>${data.completed}</td>
+                                <td>${data.cancelled}</td>
+                            `;
+                            ridesReportTable.appendChild(row);
+                        });
+                        
+                        // Show message if no data
+                        if (ridesData.length === 0) {
+                            ridesReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No ride data for this period</td></tr>';
+                        }
+                    } else {
+                        ridesReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No ride data available</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading rides report:', error);
+                    document.getElementById('ridesReportTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading rides data</td></tr>';
+                });
+        }
+        
+        // Load drivers report
+        function loadDriversReport(period) {
+            database.ref('users').orderByChild('userType').equalTo('driver').once('value')
+                .then(snapshot => {
+                    const drivers = snapshot.val();
+                    const driversReportTable = document.getElementById('driversReportTable');
+                    driversReportTable.innerHTML = '';
+                    
+                    if (drivers) {
+                        // Get ride data for the period
+                        database.ref('rides').once('value')
+                            .then(ridesSnapshot => {
+                                const rides = ridesSnapshot.val();
+                                const now = new Date();
+                                
+                                // Calculate driver statistics
+                                const driverStats = {};
+                                
+                                Object.keys(drivers).forEach(driverId => {
+                                    const driver = drivers[driverId];
+                                    driverStats[driverId] = {
+                                        name: driver.name || 'Unknown Driver',
+                                        rides: 0,
+                                        earnings: 0,
+                                        rating: driver.rating || 0
+                                    };
+                                    
+                                    // Count rides for this driver in the selected period
+                                    if (rides) {
+                                        Object.keys(rides).forEach(rideId => {
+                                            const ride = rides[rideId];
+                                            
+                                            if (ride.driverId === driverId && ride.status === 'completed' && ride.fare) {
+                                                const rideDate = new Date(ride.timestamp);
+                                                let include = false;
+                                                
+                                                switch(period) {
+                                                    case 'today':
+                                                        if (rideDate.toDateString() === now.toDateString()) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'week':
+                                                        const startOfWeek = new Date(now);
+                                                        startOfWeek.setDate(now.getDate() - now.getDay());
+                                                        startOfWeek.setHours(0, 0, 0, 0);
+                                                        
+                                                        if (rideDate >= startOfWeek) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'month':
+                                                        if (rideDate.getMonth() === now.getMonth() && 
+                                                            rideDate.getFullYear() === now.getFullYear()) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'quarter':
+                                                        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                                                        const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+                                                        
+                                                        if (rideDate >= quarterStart) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'year':
+                                                        if (rideDate.getFullYear() === now.getFullYear()) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                }
+                                                
+                                                if (include) {
+                                                    driverStats[driverId].rides++;
+                                                    driverStats[driverId].earnings += ride.fare * 0.92; // 92% for driver (8% commission)
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                                
+                                // Convert to array and sort by earnings (highest first)
+                                const driversData = Object.keys(driverStats)
+                                    .map(driverId => ({
+                                        id: driverId,
+                                        ...driverStats[driverId]
+                                    }))
+                                    .sort((a, b) => b.earnings - a.earnings);
+                                
+                                // Populate table
+                                driversData.forEach(data => {
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td>${data.name}</td>
+                                        <td>${data.rides}</td>
+                                        <td>K${data.earnings.toFixed(2)}</td>
+                                        <td>${data.rating.toFixed(1)}</td>
+                                    `;
+                                    driversReportTable.appendChild(row);
+                                });
+                                
+                                // Show message if no data
+                                if (driversData.length === 0) {
+                                    driversReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No driver data for this period</td></tr>';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error loading rides for drivers report:', error);
+                                driversReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading driver data</td></tr>';
+                            });
+                    } else {
+                        driversReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No driver data available</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading drivers report:', error);
+                    document.getElementById('driversReportTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading driver data</td></tr>';
+                });
+        }
+        
+        // Load passengers report
+        function loadPassengersReport(period) {
+            database.ref('users').orderByChild('userType').equalTo('passenger').once('value')
+                .then(snapshot => {
+                    const passengers = snapshot.val();
+                    const passengersReportTable = document.getElementById('passengersReportTable');
+                    passengersReportTable.innerHTML = '';
+                    
+                    if (passengers) {
+                        // Get ride data for the period
+                        database.ref('rides').once('value')
+                            .then(ridesSnapshot => {
+                                const rides = ridesSnapshot.val();
+                                const now = new Date();
+                                
+                                // Calculate passenger statistics
+                                const passengerStats = {};
+                                
+                                Object.keys(passengers).forEach(passengerId => {
+                                    const passenger = passengers[passengerId];
+                                    passengerStats[passengerId] = {
+                                        name: passenger.name || 'Unknown Passenger',
+                                        rides: 0,
+                                        spent: 0,
+                                        rating: passenger.rating || 0
+                                    };
+                                    
+                                    // Count rides for this passenger in the selected period
+                                    if (rides) {
+                                        Object.keys(rides).forEach(rideId => {
+                                            const ride = rides[rideId];
+                                            
+                                            if (ride.passengerId === passengerId && ride.status === 'completed' && ride.fare) {
+                                                const rideDate = new Date(ride.timestamp);
+                                                let include = false;
+                                                
+                                                switch(period) {
+                                                    case 'today':
+                                                        if (rideDate.toDateString() === now.toDateString()) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'week':
+                                                        const startOfWeek = new Date(now);
+                                                        startOfWeek.setDate(now.getDate() - now.getDay());
+                                                        startOfWeek.setHours(0, 0, 0, 0);
+                                                        
+                                                        if (rideDate >= startOfWeek) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'month':
+                                                        if (rideDate.getMonth() === now.getMonth() && 
+                                                            rideDate.getFullYear() === now.getFullYear()) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'quarter':
+                                                        const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
+                                                        const quarterStart = new Date(now.getFullYear(), quarterStartMonth, 1);
+                                                        
+                                                        if (rideDate >= quarterStart) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                    case 'year':
+                                                        if (rideDate.getFullYear() === now.getFullYear()) {
+                                                            include = true;
+                                                        }
+                                                        break;
+                                                }
+                                                
+                                                if (include) {
+                                                    passengerStats[passengerId].rides++;
+                                                    passengerStats[passengerId].spent += ride.fare;
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                                
+                                // Convert to array and sort by spending (highest first)
+                                const passengersData = Object.keys(passengerStats)
+                                    .map(passengerId => ({
+                                        id: passengerId,
+                                        ...passengerStats[passengerId]
+                                    }))
+                                    .sort((a, b) => b.spent - a.spent);
+                                
+                                // Populate table
+                                passengersData.forEach(data => {
+                                    const row = document.createElement('tr');
+                                    row.innerHTML = `
+                                        <td>${data.name}</td>
+                                        <td>${data.rides}</td>
+                                        <td>K${data.spent.toFixed(2)}</td>
+                                        <td>${data.rating.toFixed(1)}</td>
+                                    `;
+                                    passengersReportTable.appendChild(row);
+                                });
+                                
+                                // Show message if no data
+                                if (passengersData.length === 0) {
+                                    passengersReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No passenger data for this period</td></tr>';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error loading rides for passengers report:', error);
+                                passengersReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading passenger data</td></tr>';
+                            });
+                    } else {
+                        passengersReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No passenger data available</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading passengers report:', error);
+                    document.getElementById('passengersReportTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading passenger data</td></tr>';
+                });
         }
         
         // Load settings
