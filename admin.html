@@ -6,6 +6,7 @@
     <title>Jubel - Admin Dashboard</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-orange: #FF6B35;
@@ -539,7 +540,7 @@
         /* Charts */
         .chart-container {
             height: 150px;
-            background: var(--light-gray);
+            background: var(--white);
             border-radius: var(--element-radius);
             margin-bottom: 10px;
             display: flex;
@@ -547,6 +548,7 @@
             justify-content: center;
             color: var(--medium-gray);
             font-size: 0.8rem;
+            position: relative;
         }
         
         /* Detail View */
@@ -832,6 +834,17 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
+        }
+        
+        /* Stats Cards Container */
+        .stats-cards-container {
+            position: relative;
+        }
+        
+        /* Chart Canvas */
+        .chart-canvas {
+            width: 100%;
+            height: 100%;
         }
         
         @media (max-width: 480px) {
@@ -1150,7 +1163,7 @@
             <div id="revenueReport" class="report-content active">
                 <div class="card">
                     <div class="chart-container">
-                        Revenue Report Chart
+                        <canvas id="revenueChart" class="chart-canvas"></canvas>
                     </div>
                     <div class="table-container">
                         <table>
@@ -1173,7 +1186,7 @@
             <div id="ridesReport" class="report-content">
                 <div class="card">
                     <div class="chart-container">
-                        Rides Report Chart
+                        <canvas id="ridesChart" class="chart-canvas"></canvas>
                     </div>
                     <div class="table-container">
                         <table>
@@ -1196,7 +1209,7 @@
             <div id="driversReport" class="report-content">
                 <div class="card">
                     <div class="chart-container">
-                        Drivers Report Chart
+                        <canvas id="driversChart" class="chart-canvas"></canvas>
                     </div>
                     <div class="table-container">
                         <table>
@@ -1219,7 +1232,7 @@
             <div id="passengersReport" class="report-content">
                 <div class="card">
                     <div class="chart-container">
-                        Passengers Report Chart
+                        <canvas id="passengersChart" class="chart-canvas"></canvas>
                     </div>
                     <div class="table-container">
                         <table>
@@ -1478,6 +1491,12 @@
             commissionToday: 0,
             avgFareToday: 0
         };
+        
+        // Chart instances
+        let revenueChart = null;
+        let ridesChart = null;
+        let driversChart = null;
+        let passengersChart = null;
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -3212,6 +3231,9 @@
                             revenueTable.appendChild(row);
                         });
                         
+                        // Create chart
+                        createRevenueChart(revenueData);
+                        
                         // Show message if no data
                         if (revenueData.length === 0) {
                             revenueTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No revenue data for this period</td></tr>';
@@ -3224,6 +3246,67 @@
                     console.error('Error loading revenue report:', error);
                     document.getElementById('revenueTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading revenue data</td></tr>';
                 });
+        }
+        
+        // Create revenue chart
+        function createRevenueChart(revenueData) {
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (revenueChart) {
+                revenueChart.destroy();
+            }
+            
+            // Prepare data for chart
+            const labels = revenueData.map(item => item.date);
+            const revenue = revenueData.map(item => item.revenue);
+            const commission = revenueData.map(item => item.commission);
+            
+            revenueChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Revenue',
+                            data: revenue,
+                            backgroundColor: '#FF6B35',
+                            borderColor: '#E55A28',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Commission',
+                            data: commission,
+                            backgroundColor: '#E74C3C',
+                            borderColor: '#C0392B',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'K' + value;
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Revenue & Commission Over Time'
+                        }
+                    }
+                }
+            });
         }
         
         // Load rides report
@@ -3320,6 +3403,9 @@
                             ridesReportTable.appendChild(row);
                         });
                         
+                        // Create chart
+                        createRidesChart(ridesData);
+                        
                         // Show message if no data
                         if (ridesData.length === 0) {
                             ridesReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No ride data for this period</td></tr>';
@@ -3332,6 +3418,73 @@
                     console.error('Error loading rides report:', error);
                     document.getElementById('ridesReportTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading rides data</td></tr>';
                 });
+        }
+        
+        // Create rides chart
+        function createRidesChart(ridesData) {
+            const ctx = document.getElementById('ridesChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (ridesChart) {
+                ridesChart.destroy();
+            }
+            
+            // Prepare data for chart
+            const labels = ridesData.map(item => item.date);
+            const total = ridesData.map(item => item.total);
+            const completed = ridesData.map(item => item.completed);
+            const cancelled = ridesData.map(item => item.cancelled);
+            
+            ridesChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total Rides',
+                            data: total,
+                            backgroundColor: '#3498db',
+                            borderColor: '#2980b9',
+                            borderWidth: 2,
+                            fill: false
+                        },
+                        {
+                            label: 'Completed',
+                            data: completed,
+                            backgroundColor: '#2ecc71',
+                            borderColor: '#27ae60',
+                            borderWidth: 2,
+                            fill: false
+                        },
+                        {
+                            label: 'Cancelled',
+                            data: cancelled,
+                            backgroundColor: '#e74c3c',
+                            borderColor: '#c0392b',
+                            borderWidth: 2,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Ride Activity Over Time'
+                        }
+                    }
+                }
+            });
         }
         
         // Load drivers report
@@ -3435,6 +3588,9 @@
                                     driversReportTable.appendChild(row);
                                 });
                                 
+                                // Create chart
+                                createDriversChart(driversData);
+                                
                                 // Show message if no data
                                 if (driversData.length === 0) {
                                     driversReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No driver data for this period</td></tr>';
@@ -3452,6 +3608,53 @@
                     console.error('Error loading drivers report:', error);
                     document.getElementById('driversReportTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading driver data</td></tr>';
                 });
+        }
+        
+        // Create drivers chart
+        function createDriversChart(driversData) {
+            const ctx = document.getElementById('driversChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (driversChart) {
+                driversChart.destroy();
+            }
+            
+            // Prepare data for chart (top 10 drivers by earnings)
+            const topDrivers = driversData.slice(0, 10);
+            const labels = topDrivers.map(driver => driver.name);
+            const earnings = topDrivers.map(driver => driver.earnings);
+            
+            driversChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Earnings (K)',
+                        data: earnings,
+                        backgroundColor: '#FF6B35',
+                        borderColor: '#E55A28',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Top Drivers by Earnings'
+                        }
+                    }
+                }
+            });
         }
         
         // Load passengers report
@@ -3555,6 +3758,9 @@
                                     passengersReportTable.appendChild(row);
                                 });
                                 
+                                // Create chart
+                                createPassengersChart(passengersData);
+                                
                                 // Show message if no data
                                 if (passengersData.length === 0) {
                                     passengersReportTable.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px;">No passenger data for this period</td></tr>';
@@ -3572,6 +3778,53 @@
                     console.error('Error loading passengers report:', error);
                     document.getElementById('passengersReportTable').innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading passenger data</td></tr>';
                 });
+        }
+        
+        // Create passengers chart
+        function createPassengersChart(passengersData) {
+            const ctx = document.getElementById('passengersChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (passengersChart) {
+                passengersChart.destroy();
+            }
+            
+            // Prepare data for chart (top 10 passengers by spending)
+            const topPassengers = passengersData.slice(0, 10);
+            const labels = topPassengers.map(passenger => passenger.name);
+            const spent = topPassengers.map(passenger => passenger.spent);
+            
+            passengersChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Amount Spent (K)',
+                        data: spent,
+                        backgroundColor: '#9b59b6',
+                        borderColor: '#8e44ad',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: 'Top Passengers by Spending'
+                        }
+                    }
+                }
+            });
         }
         
         // Load settings
