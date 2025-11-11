@@ -1592,6 +1592,82 @@
             width: 100%;
         }
         
+        /* New styles for the modifications */
+        .hold-button-content span {
+            color: #000000 !important; /* Black text for hold buttons */
+        }
+        
+        .wallet-section {
+            margin-bottom: 20px;
+        }
+        
+        .wallet-balance-card {
+            background: var(--primary-gradient);
+            color: var(--white);
+            padding: 12px;
+            border-radius: var(--element-radius);
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        
+        .float-balance-card {
+            background: var(--light-orange);
+            color: var(--dark-gray);
+            padding: 12px;
+            border-radius: var(--element-radius);
+            text-align: center;
+            margin-bottom: 12px;
+            border: 2px solid var(--primary-orange);
+        }
+        
+        .balance-amount-medium {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        
+        .history-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 0.7rem;
+        }
+        
+        .history-detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .history-detail-label {
+            color: var(--medium-gray);
+            font-weight: 600;
+        }
+        
+        .history-detail-value {
+            font-weight: 600;
+        }
+        
+        .sound-control {
+            position: fixed;
+            bottom: 130px;
+            left: 15px;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: var(--primary-orange);
+            z-index: 100;
+        }
+        
         @media (max-width: 480px) {
             .floating-float, .online-toggle {
                 padding: 6px 8px;
@@ -1628,6 +1704,13 @@
             
             .dark-mode-toggle {
                 bottom: 65px;
+                left: 10px;
+                width: 40px;
+                height: 40px;
+            }
+            
+            .sound-control {
+                bottom: 120px;
                 left: 10px;
                 width: 40px;
                 height: 40px;
@@ -1838,13 +1921,13 @@
         <!-- Main Map -->
         <div id="map"></div>
         
-        <!-- Floating Float -->
-        <div class="floating-float">
+        <!-- Floating Float (Only on Home Screen) -->
+        <div class="floating-float" id="floatingFloat">
             <i class="fas fa-wallet"></i>
             <span>Float: <span class="float-amount" id="floatBalanceDisplay">K0.00</span></span>
         </div>
         
-        <!-- Online Toggle -->
+        <!-- Online Toggle (Only on Home Screen) -->
         <div class="online-toggle offline" id="onlineToggle">
             <label class="toggle-switch">
                 <input type="checkbox" id="onlineToggleCheckbox">
@@ -1853,14 +1936,14 @@
             <span id="onlineStatusText">Offline</span>
         </div>
         
-        <!-- Driver Status Indicator -->
+        <!-- Driver Status Indicator (Only on Home Screen) -->
         <div class="driver-status-indicator" id="driverStatusIndicator" style="display: none;">
             <div class="status-dot" id="statusDot"></div>
             <span id="statusText">Offline</span>
         </div>
         
-        <!-- Map Controls -->
-        <div class="map-controls">
+        <!-- Map Controls (Only on Home Screen) -->
+        <div class="map-controls" id="mapControls">
             <button class="map-control-btn" id="zoomInBtn" title="Zoom In">
                 <i class="fas fa-plus"></i>
             </button>
@@ -1872,8 +1955,8 @@
             </button>
         </div>
         
-        <!-- Quick Actions -->
-        <div class="quick-actions">
+        <!-- Quick Actions (Only on Home Screen) -->
+        <div class="quick-actions" id="quickActions">
             <button class="quick-action-btn" id="centerMapBtn" title="Center Map">
                 <i class="fas fa-crosshairs"></i>
             </button>
@@ -1885,9 +1968,14 @@
             </button>
         </div>
         
-        <!-- Dark Mode Toggle -->
+        <!-- Dark Mode Toggle (Only on Home Screen) -->
         <button class="dark-mode-toggle" id="darkModeToggle" title="Toggle Dark Mode">
             <i class="fas fa-moon"></i>
+        </button>
+        
+        <!-- Sound Control (Only on Home Screen) -->
+        <button class="sound-control" id="soundControl" title="Toggle Sound">
+            <i class="fas fa-volume-up"></i>
         </button>
         
         <!-- Driver Panel -->
@@ -2134,15 +2222,16 @@
                 </div>
             </div>
             
-            <div class="account-section">
+            <!-- Wallet Section (Separate from Float) -->
+            <div class="wallet-section">
                 <h3 class="section-title">
                     <i class="fas fa-wallet"></i>
-                    Wallet & Balance
+                    Wallet & Earnings
                 </h3>
-                <div class="wallet-balance">
+                <div class="wallet-balance-card">
                     <div class="balance-label">Available Balance</div>
-                    <div class="balance-amount-large" id="accountBalance">K0.00</div>
-                    <div>Add funds to receive ride requests</div>
+                    <div class="balance-amount-large" id="walletBalance">K0.00</div>
+                    <div>Money earned from completed trips</div>
                 </div>
                 
                 <div class="wallet-actions">
@@ -2176,15 +2265,15 @@
                 </div>
             </div>
             
-            <!-- Float Management Section -->
+            <!-- Float Management Section (Separate from Wallet) -->
             <div class="float-section">
                 <h3 class="section-title">
                     <i class="fas fa-money-bill-alt"></i>
                     Float Management
                 </h3>
-                <div class="wallet-balance">
+                <div class="float-balance-card">
                     <div class="balance-label">Current Float Balance</div>
-                    <div class="balance-amount-large" id="floatBalance">K0.00</div>
+                    <div class="balance-amount-medium" id="floatBalance">K0.00</div>
                     <div>Minimum K10.00 required to go online</div>
                 </div>
                 
@@ -2328,6 +2417,7 @@
         let earningsPeriod = 'today';
         let waypoints = [];
         let floatBalance = 0;
+        let walletBalance = 0;
         let commissionRate = 0.08; // 8% commission
         let trafficLayer = null;
         let trafficEnabled = false;
@@ -2336,11 +2426,15 @@
         let rideQueue = [];
         let floatHistory = [];
         let selectedVehicleType = '';
+        let soundEnabled = true;
+        let rideRequestSound = null;
+        let rideRequestSoundInterval = null;
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             initializeAuth();
             setupAuthEventListeners();
+            initializeSound();
         });
         
         // Authentication functions
@@ -2619,6 +2713,14 @@
             }
         }
         
+        // Initialize sound
+        function initializeSound() {
+            // Create audio element for ride request sound
+            rideRequestSound = new Audio();
+            rideRequestSound.src = 'order.mp3';
+            rideRequestSound.loop = false;
+        }
+        
         // Event listeners setup
         function setupEventListeners() {
             // Online toggle
@@ -2698,6 +2800,9 @@
             
             // Dark mode toggle
             document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
+            
+            // Sound control
+            document.getElementById('soundControl').addEventListener('click', toggleSound);
             
             // Panel collapse
             document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
@@ -2884,6 +2989,34 @@
             }
         }
         
+        // Toggle sound
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const soundControl = document.getElementById('soundControl');
+            
+            if (soundEnabled) {
+                soundControl.innerHTML = '<i class="fas fa-volume-up"></i>';
+                soundControl.style.background = '';
+                soundControl.style.color = '';
+                showNotification('Sound enabled');
+            } else {
+                soundControl.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                soundControl.style.background = '#333';
+                soundControl.style.color = '#ffcc00';
+                showNotification('Sound disabled');
+                
+                // Stop any currently playing sound
+                if (rideRequestSound && !rideRequestSound.paused) {
+                    rideRequestSound.pause();
+                    rideRequestSound.currentTime = 0;
+                }
+                if (rideRequestSoundInterval) {
+                    clearInterval(rideRequestSoundInterval);
+                    rideRequestSoundInterval = null;
+                }
+            }
+        }
+        
         // Switch between screens
         function switchScreen(screenId) {
             // Hide all screens
@@ -2899,6 +3032,21 @@
                 btn.classList.remove('active');
             });
             document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
+            
+            // Show/hide floating elements based on screen
+            const floatingElements = document.querySelectorAll('.floating-float, .online-toggle, .driver-status-indicator, .map-controls, .quick-actions, .dark-mode-toggle, .sound-control');
+            
+            if (screenId === 'home') {
+                // Show floating elements on home screen
+                floatingElements.forEach(el => {
+                    el.style.display = 'flex';
+                });
+            } else {
+                // Hide floating elements on other screens
+                floatingElements.forEach(el => {
+                    el.style.display = 'none';
+                });
+            }
             
             // Load data for specific screens
             if (screenId === 'history') {
@@ -3029,6 +3177,38 @@
             
             // Show popup
             document.getElementById('rideRequestPopup').style.display = 'flex';
+            
+            // Play sound continuously until driver responds
+            if (soundEnabled) {
+                playRideRequestSound();
+            }
+        }
+        
+        // Play ride request sound continuously
+        function playRideRequestSound() {
+            if (rideRequestSoundInterval) {
+                clearInterval(rideRequestSoundInterval);
+            }
+            
+            rideRequestSoundInterval = setInterval(() => {
+                if (soundEnabled && document.getElementById('rideRequestPopup').style.display === 'flex') {
+                    rideRequestSound.play().catch(e => {
+                        console.log('Audio play failed:', e);
+                    });
+                }
+            }, 3000); // Play every 3 seconds
+        }
+        
+        // Stop ride request sound
+        function stopRideRequestSound() {
+            if (rideRequestSound && !rideRequestSound.paused) {
+                rideRequestSound.pause();
+                rideRequestSound.currentTime = 0;
+            }
+            if (rideRequestSoundInterval) {
+                clearInterval(rideRequestSoundInterval);
+                rideRequestSoundInterval = null;
+            }
         }
         
         // Update ride request map
@@ -3138,6 +3318,9 @@
         // Accept a ride
         function acceptRide() {
             if (currentRideRequest && currentUser) {
+                // Stop the ride request sound
+                stopRideRequestSound();
+                
                 // Update ride with driver info
                 database.ref('rides/' + currentRideRequest.id).update({
                     driverId: currentUser.uid,
@@ -3173,6 +3356,9 @@
         // Reject a ride
         function rejectRide() {
             if (currentRideRequest) {
+                // Stop the ride request sound
+                stopRideRequestSound();
+                
                 // Hide ride request popup
                 document.getElementById('rideRequestPopup').style.display = 'none';
                 currentRideRequest = null;
@@ -3435,17 +3621,14 @@
                     completedAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
-                    // Calculate commission and update float balance
+                    // Calculate commission and update balances
                     const totalFare = calculateTotalFare(currentRide);
                     const commission = totalFare * commissionRate;
                     const driverEarnings = totalFare - commission;
                     
-                    // Update float balance
-                    const newFloatBalance = floatBalance + driverEarnings;
-                    updateFloatBalance(newFloatBalance);
-                    
-                    // Add float history entry
-                    addFloatHistoryEntry('earnings', driverEarnings, `Earnings from ride ${currentRide.id}`);
+                    // Update wallet balance (money earned from trip)
+                    const newWalletBalance = walletBalance + driverEarnings;
+                    updateWalletBalance(newWalletBalance);
                     
                     // Add to earnings
                     const earningsData = {
@@ -3459,7 +3642,7 @@
                     database.ref('earnings/' + currentUser.uid).push(earningsData)
                         .then(() => {
                             // Show commission deduction notification
-                            showNotification(`Ride completed! K${driverEarnings.toFixed(2)} added to your balance. New balance: K${newFloatBalance.toFixed(2)}`);
+                            showNotification(`Ride completed! K${driverEarnings.toFixed(2)} added to your wallet. New wallet balance: K${newWalletBalance.toFixed(2)}`);
                             
                             // Reset driver panel
                             currentRide = null;
@@ -3501,13 +3684,11 @@
             
             // Update UI
             document.getElementById('floatBalanceDisplay').textContent = `K${floatBalance.toFixed(2)}`;
-            document.getElementById('accountBalance').textContent = `K${floatBalance.toFixed(2)}`;
             document.getElementById('floatBalance').textContent = `K${floatBalance.toFixed(2)}`;
             
             // Save to Firebase
             if (currentUser) {
                 database.ref('users/' + currentUser.uid).update({
-                    walletBalance: floatBalance,
                     floatBalance: floatBalance
                 });
             }
@@ -3521,6 +3702,21 @@
                     document.getElementById('onlineToggleCheckbox').checked = false;
                     toggleOnlineStatus();
                 }
+            }
+        }
+        
+        // Update wallet balance
+        function updateWalletBalance(newBalance) {
+            walletBalance = newBalance;
+            
+            // Update UI
+            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+            
+            // Save to Firebase
+            if (currentUser) {
+                database.ref('users/' + currentUser.uid).update({
+                    walletBalance: walletBalance
+                });
             }
         }
         
@@ -3706,13 +3902,15 @@
                             document.getElementById('vehicleDetails').textContent = 
                                 `${userData.vehicle?.type || 'Vehicle'} - ${userData.vehicle?.licensePlate || 'ABC123'}`;
                             
-                            // Update wallet balance
+                            // Update wallet and float balances
+                            walletBalance = userData.walletBalance || 0;
                             floatBalance = userData.floatBalance || 0;
+                            
+                            document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
                             document.getElementById('floatBalanceDisplay').textContent = `K${floatBalance.toFixed(2)}`;
-                            document.getElementById('accountBalance').textContent = `K${floatBalance.toFixed(2)}`;
                             document.getElementById('floatBalance').textContent = `K${floatBalance.toFixed(2)}`;
                             
-                            // Show warning if balance is below minimum
+                            // Show warning if float balance is below minimum
                             if (floatBalance < 10) {
                                 showNoFloatWarning();
                             }
@@ -3753,23 +3951,12 @@
             const amount = prompt('Enter amount to add to your wallet (K):');
             if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
                 const addAmount = parseFloat(amount);
-                const newBalance = floatBalance + addAmount;
+                const newBalance = walletBalance + addAmount;
                 
                 // Update balance
-                updateFloatBalance(newBalance);
-                
-                // Add float history entry
-                addFloatHistoryEntry('deposit', addAmount, 'Wallet deposit');
+                updateWalletBalance(newBalance);
                 
                 showNotification(`Successfully added K${addAmount.toFixed(2)} to your wallet.`);
-                
-                // Remove warning if balance is now sufficient
-                if (newBalance >= 10) {
-                    const warning = document.querySelector('.no-float-warning');
-                    if (warning) {
-                        warning.remove();
-                    }
-                }
             } else if (amount) {
                 showNotification('Please enter a valid amount.');
             }
@@ -3777,25 +3964,22 @@
         
         // Withdraw funds from wallet
         function withdrawFunds() {
-            if (floatBalance <= 0) {
+            if (walletBalance <= 0) {
                 showNotification('Your wallet balance is zero.');
                 return;
             }
             
-            const amount = prompt(`Enter amount to withdraw (K). Available: K${floatBalance.toFixed(2)}:`);
+            const amount = prompt(`Enter amount to withdraw (K). Available: K${walletBalance.toFixed(2)}:`);
             if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
                 const withdrawAmount = parseFloat(amount);
                 
-                if (withdrawAmount > floatBalance) {
+                if (withdrawAmount > walletBalance) {
                     showNotification('Insufficient balance for this withdrawal.');
                     return;
                 }
                 
-                const newBalance = floatBalance - withdrawAmount;
-                updateFloatBalance(newBalance);
-                
-                // Add float history entry
-                addFloatHistoryEntry('withdrawal', -withdrawAmount, 'Wallet withdrawal');
+                const newBalance = walletBalance - withdrawAmount;
+                updateWalletBalance(newBalance);
                 
                 showNotification(`Withdrawal request submitted. K${withdrawAmount.toFixed(2)} will be processed within 24 hours.`);
             } else if (amount) {
@@ -3832,7 +4016,7 @@
                 });
         }
         
-        // Load ride history
+        // Load ride history with enhanced details
         function loadRideHistory() {
             if (currentUser) {
                 database.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value')
@@ -3865,9 +4049,26 @@
                                             <strong>To:</strong> ${ride.destination}
                                         </div>
                                     </div>
+                                    <div class="history-details-grid">
+                                        <div class="history-detail-item">
+                                            <span class="history-detail-label">Customer</span>
+                                            <span class="history-detail-value">${ride.passengerName || 'N/A'}</span>
+                                        </div>
+                                        <div class="history-detail-item">
+                                            <span class="history-detail-label">Phone</span>
+                                            <span class="history-detail-value">${ride.passengerPhone || 'N/A'}</span>
+                                        </div>
+                                        <div class="history-detail-item">
+                                            <span class="history-detail-label">Date</span>
+                                            <span class="history-detail-value">${formattedDate}</span>
+                                        </div>
+                                        <div class="history-detail-item">
+                                            <span class="history-detail-label">Time</span>
+                                            <span class="history-detail-value">${formattedTime}</span>
+                                        </div>
+                                    </div>
                                     <div class="history-info">
                                         <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
-                                        <div>${formattedDate} ${formattedTime}</div>
                                         <div class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">
                                             ${ride.status === 'completed' ? 'Completed' : 'Cancelled'}
                                         </div>
@@ -4117,9 +4318,13 @@
                     currentRide = null;
                     isOnline = false;
                     floatBalance = 0;
+                    walletBalance = 0;
                     
                     // Stop location tracking
                     stopLocationTracking();
+                    
+                    // Stop any playing sounds
+                    stopRideRequestSound();
                     
                     // Reset UI
                     document.getElementById('mainApp').style.display = 'none';
