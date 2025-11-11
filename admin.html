@@ -3,16 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jubel - Admin</title>
+    <title>Jubel - Manager</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --primary-orange: #FF6B35;
-            --secondary-red: #F94144;
-            --light-orange: #FFB88C;
-            --light-red: #FFA5A5;
+            --primary-red: #E74C3C;
+            --primary-gradient: linear-gradient(135deg, #FF6B35, #E74C3C);
+            --secondary-orange: #E55A28;
+            --secondary-red: #C0392B;
+            --light-orange: #FFE8E0;
+            --light-red: #FADBD8;
             --white: #FFFFFF;
             --light-gray: #F5F5F5;
             --dark-gray: #333333;
+            --medium-gray: #777777;
+            --success-green: #2ecc71;
+            --warning-yellow: #f39c12;
+            --info-blue: #3498db;
+            --error-red: #e74c3c;
+            --border-color: #E8E8E8;
+            --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.1);
+            --shadow-medium: 0 4px 15px rgba(0, 0, 0, 0.15);
+            --shadow-heavy: 0 6px 20px rgba(0, 0, 0, 0.2);
+            --app-padding: 12px;
+            --element-radius: 8px;
+            --transition-speed: 0.3s;
         }
         
         * {
@@ -27,23 +44,19 @@
             color: var(--dark-gray);
             max-width: 100%;
             overflow-x: hidden;
+            height: 100vh;
+            font-size: 14px;
         }
         
-        .container {
-            width: 100%;
-            max-width: 480px;
-            margin: 0 auto;
-            padding: 0 15px;
-        }
-        
-        header {
-            background: linear-gradient(135deg, var(--primary-orange), var(--secondary-red));
+        /* Header */
+        .header {
+            background: var(--primary-gradient);
             color: var(--white);
-            padding: 15px 0;
+            padding: 12px var(--app-padding);
             position: sticky;
             top: 0;
             z-index: 100;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--shadow-medium);
         }
         
         .header-content {
@@ -55,182 +68,133 @@
         .logo {
             display: flex;
             align-items: center;
+            gap: 8px;
         }
         
-        .logo img {
-            height: 40px;
-            margin-right: 10px;
-        }
-        
-        .logo h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
-        }
-        
-        .user-icon {
-            width: 40px;
-            height: 40px;
+        .logo-icon {
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            background-color: var(--light-orange);
+            background: var(--white);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: bold;
-            cursor: pointer;
+            color: var(--primary-orange);
+            font-weight: 700;
         }
         
+        .logo-text {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--white);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary-orange);
+            font-weight: 700;
+        }
+        
+        /* Main Content */
         .main-content {
-            padding: 20px 0;
+            padding: var(--app-padding);
+            padding-bottom: 70px;
+            overflow-y: auto;
+            height: calc(100vh - 60px);
         }
         
-        .card {
-            background-color: var(--white);
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .section-title {
-            font-size: 1.2rem;
-            margin-bottom: 15px;
-            color: var(--dark-gray);
-            font-weight: 600;
-        }
-        
-        .stats-grid {
+        /* Dashboard */
+        .dashboard-stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 20px;
+            gap: 10px;
+            margin-bottom: 15px;
         }
         
         .stat-card {
-            background: linear-gradient(135deg, var(--primary-orange), var(--secondary-red));
-            color: var(--white);
-            border-radius: 8px;
-            padding: 15px;
+            background: var(--white);
+            border-radius: var(--element-radius);
+            padding: 12px;
+            box-shadow: var(--shadow-light);
+            border: 1px solid var(--border-color);
             text-align: center;
         }
         
         .stat-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-            margin-bottom: 5px;
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: 4px;
         }
         
         .stat-label {
-            font-size: 0.9rem;
+            font-size: 0.75rem;
+            color: var(--medium-gray);
         }
         
-        .btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
-            margin-bottom: 10px;
-        }
-        
-        .btn-primary {
-            background-color: var(--primary-orange);
+        .stat-card.primary {
+            background: var(--primary-gradient);
             color: var(--white);
         }
         
-        .btn-primary:hover {
-            background-color: var(--secondary-red);
+        .section {
+            margin-bottom: 15px;
         }
         
-        .btn-secondary {
-            background-color: var(--light-gray);
-            color: var(--dark-gray);
-        }
-        
-        .btn-secondary:hover {
-            background-color: #e0e0e0;
-        }
-        
-        .table-container {
-            overflow-x: auto;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        th, td {
-            padding: 12px 15px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        
-        th {
-            background-color: var(--light-gray);
-            font-weight: 600;
-        }
-        
-        tr:hover {
-            background-color: #f9f9f9;
-        }
-        
-        .status-badge {
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 600;
-        }
-        
-        .status-requested {
-            background-color: #fff3e0;
-            color: #ef6c00;
-        }
-        
-        .status-accepted {
-            background-color: #e3f2fd;
-            color: #1565c0;
-        }
-        
-        .status-started {
-            background-color: #e8f5e8;
-            color: #2e7d32;
-        }
-        
-        .status-completed {
-            background-color: #e6f7e9;
-            color: #2e7d32;
-        }
-        
-        .status-cancelled {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-        
-        .tab-container {
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
             display: flex;
-            border-bottom: 1px solid #ddd;
-            margin-bottom: 20px;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .card {
+            background: var(--white);
+            border-radius: var(--element-radius);
+            padding: 12px;
+            box-shadow: var(--shadow-light);
+            border: 1px solid var(--border-color);
+            margin-bottom: 10px;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
             overflow-x: auto;
+            gap: 8px;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
         }
         
         .tab {
-            flex: 1;
-            text-align: center;
-            padding: 12px 0;
-            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: var(--element-radius);
+            background: var(--light-gray);
             font-weight: 600;
-            transition: all 0.3s ease;
-            min-width: 100px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all var(--transition-speed) ease;
         }
         
         .tab.active {
-            color: var(--primary-orange);
-            border-bottom: 3px solid var(--primary-orange);
+            background: var(--primary-gradient);
+            color: var(--white);
         }
         
+        /* Tab Content */
         .tab-content {
             display: none;
         }
@@ -239,274 +203,807 @@
             display: block;
         }
         
-        .input-group {
-            margin-bottom: 15px;
+        /* List Items */
+        .list-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
         }
         
-        .input-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
+        .list-item:last-child {
+            border-bottom: none;
         }
         
-        .input-field {
+        .list-item:hover {
+            background: var(--light-orange);
+        }
+        
+        .item-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .item-details {
+            font-size: 0.75rem;
+            color: var(--medium-gray);
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        /* Status Badges */
+        .status-badge {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+        
+        .status-online {
+            background: #e6f7e9;
+            color: #2e7d32;
+        }
+        
+        .status-offline {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .status-requested {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+        
+        .status-accepted {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        
+        .status-completed {
+            background: #e6f7e9;
+            color: #2e7d32;
+        }
+        
+        .status-cancelled {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        /* Map */
+        #map {
+            height: 200px;
             width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
+            border-radius: var(--element-radius);
+            margin-bottom: 10px;
         }
         
+        /* Forms */
+        .form-group {
+            margin-bottom: 10px;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+            background-color: var(--white);
+            cursor: pointer;
+        }
+        
+        .btn {
+            padding: 10px;
+            border: none;
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: var(--white);
+        }
+        
+        .btn-secondary {
+            background: var(--light-gray);
+            color: var(--dark-gray);
+        }
+        
+        .btn-danger {
+            background: var(--error-red);
+            color: var(--white);
+        }
+        
+        .btn-success {
+            background: var(--success-green);
+            color: var(--white);
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--app-padding);
+            display: none;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--white);
+            border-radius: var(--element-radius);
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-heavy);
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal-title {
+            font-size: 1rem;
+            font-weight: 700;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--medium-gray);
+        }
+        
+        .modal-content {
+            padding: 12px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 15px;
+        }
+        
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--white);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            padding: 8px var(--app-padding);
+            z-index: 100;
+        }
+        
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 0;
+            border-radius: var(--element-radius);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        .nav-item.active {
+            color: var(--primary-orange);
+        }
+        
+        .nav-icon {
+            font-size: 1.2rem;
+        }
+        
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+        
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        th {
+            font-weight: 700;
+            background: var(--light-gray);
+        }
+        
+        /* Search Bar */
         .search-bar {
             display: flex;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
         
         .search-input {
             flex: 1;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px 0 0 8px;
-            font-size: 1rem;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius) 0 0 var(--element-radius);
+            font-size: 0.8rem;
         }
         
         .search-btn {
-            padding: 12px 20px;
-            background-color: var(--primary-orange);
+            padding: 10px 12px;
+            background: var(--primary-orange);
             color: var(--white);
             border: none;
-            border-radius: 0 8px 8px 0;
+            border-radius: 0 var(--element-radius) var(--element-radius) 0;
             cursor: pointer;
         }
         
-        .user-item, .ride-item {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-        }
-        
-        .user-item:last-child, .ride-item:last-child {
-            border-bottom: none;
-        }
-        
-        .user-item:hover, .ride-item:hover {
-            background-color: #f9f9f9;
-        }
-        
-        .user-name {
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-        
-        .user-details {
-            font-size: 0.9rem;
-            color: #666;
-        }
-        
+        /* Notification */
         .notification {
             position: fixed;
-            bottom: 20px;
+            top: 15px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: var(--primary-orange);
+            background: var(--primary-gradient);
             color: var(--white);
-            padding: 12px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            z-index: 1000;
+            padding: 10px 16px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 300;
             display: none;
+            font-weight: 600;
+            text-align: center;
+            font-size: 0.8rem;
+            max-width: 80%;
+        }
+        
+        /* Filter */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .filter-select {
+            flex: 1;
+            padding: 8px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+            background-color: var(--white);
+        }
+        
+        /* Charts */
+        .chart-container {
+            height: 150px;
+            background: var(--light-gray);
+            border-radius: var(--element-radius);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--medium-gray);
+            font-size: 0.8rem;
+        }
+        
+        /* Detail View */
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: var(--medium-gray);
+        }
+        
+        .detail-value {
+            font-weight: 600;
+        }
+        
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .action-btn {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: var(--element-radius);
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
         }
         
         @media (max-width: 480px) {
-            .container {
-                padding: 0 10px;
-            }
-            
-            .logo h1 {
-                font-size: 1.3rem;
-            }
-            
-            .stats-grid {
+            .dashboard-stats {
                 grid-template-columns: 1fr;
+            }
+            
+            .modal {
+                max-width: 100%;
             }
         }
     </style>
 </head>
 <body>
-    <header>
-        <div class="container">
-            <div class="header-content">
-                <div class="logo">
-                    <img src="jubel.png" alt="Jubel Logo">
-                    <h1>Jubel Admin</h1>
-                </div>
-                <div class="user-icon" id="userIcon">A</div>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div class="logo-icon">J</div>
+                <div class="logo-text">Jubel Manager</div>
+            </div>
+            <div class="user-info">
+                <div class="user-avatar" id="userAvatar">A</div>
             </div>
         </div>
-    </header>
+    </div>
     
-    <div class="container">
-        <div class="main-content">
-            <!-- Dashboard Screen -->
-            <div id="dashboardScreen" class="tab-content active">
-                <div class="card">
-                    <h2 class="section-title">Dashboard Overview</h2>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-value" id="totalRides">0</div>
-                            <div class="stat-label">Total Rides</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="activeRides">0</div>
-                            <div class="stat-label">Active Rides</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="totalDrivers">0</div>
-                            <div class="stat-label">Total Drivers</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="onlineDrivers">0</div>
-                            <div class="stat-label">Online Drivers</div>
-                        </div>
-                    </div>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-value" id="totalEarnings">K0</div>
-                            <div class="stat-label">Total Earnings</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-value" id="todayEarnings">K0</div>
-                            <div class="stat-label">Today's Earnings</div>
-                        </div>
-                    </div>
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Tab -->
+        <div id="dashboardTab" class="tab-content active">
+            <div class="dashboard-stats">
+                <div class="stat-card primary">
+                    <div class="stat-value" id="totalRides">0</div>
+                    <div class="stat-label">Total Rides</div>
                 </div>
-                
+                <div class="stat-card">
+                    <div class="stat-value" id="activeRides">0</div>
+                    <div class="stat-label">Active Rides</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalDrivers">0</div>
+                    <div class="stat-label">Total Drivers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="onlineDrivers">0</div>
+                    <div class="stat-label">Online Drivers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalEarnings">K0</div>
+                    <div class="stat-label">Total Earnings</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="todayEarnings">K0</div>
+                    <div class="stat-label">Today's Earnings</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h3 class="section-title">
+                    <i class="fas fa-map-marker-alt"></i>
+                    Live Driver Locations
+                </h3>
+                <div id="map"></div>
+            </div>
+            
+            <div class="section">
+                <h3 class="section-title">
+                    <i class="fas fa-chart-line"></i>
+                    Analytics
+                </h3>
                 <div class="card">
-                    <h2 class="section-title">Recent Rides</h2>
-                    <div id="recentRidesList">
-                        <!-- Recent rides will be populated by JavaScript -->
+                    <div class="chart-container">
+                        Revenue Chart (Would display here)
+                    </div>
+                    <div class="chart-container">
+                        Ride Activity Chart (Would display here)
                     </div>
                 </div>
             </div>
             
-            <!-- Rides Management Screen -->
-            <div id="ridesScreen" class="tab-content hidden">
+            <div class="section">
+                <h3 class="section-title">
+                    <i class="fas fa-list"></i>
+                    Recent Activity
+                </h3>
+                <div id="recentActivityList">
+                    <!-- Recent activity will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Drivers Tab -->
+        <div id="driversTab" class="tab-content">
+            <div class="search-bar">
+                <input type="text" class="search-input" id="driverSearch" placeholder="Search drivers...">
+                <button class="search-btn" id="driverSearchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            
+            <div class="filter-bar">
+                <select class="filter-select" id="driverStatusFilter">
+                    <option value="all">All Drivers</option>
+                    <option value="online">Online</option>
+                    <option value="offline">Offline</option>
+                    <option value="suspended">Suspended</option>
+                </select>
+                <select class="filter-select" id="driverVehicleFilter">
+                    <option value="all">All Vehicles</option>
+                    <option value="car">Car</option>
+                    <option value="bike">Bike</option>
+                    <option value="bicycle">Bicycle</option>
+                </select>
+            </div>
+            
+            <div id="driversList">
+                <!-- Drivers will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Passengers Tab -->
+        <div id="passengersTab" class="tab-content">
+            <div class="search-bar">
+                <input type="text" class="search-input" id="passengerSearch" placeholder="Search passengers...">
+                <button class="search-btn" id="passengerSearchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            
+            <div class="filter-bar">
+                <select class="filter-select" id="passengerStatusFilter">
+                    <option value="all">All Passengers</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
+                </select>
+            </div>
+            
+            <div id="passengersList">
+                <!-- Passengers will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Rides Tab -->
+        <div id="ridesTab" class="tab-content">
+            <div class="search-bar">
+                <input type="text" class="search-input" id="rideSearch" placeholder="Search rides...">
+                <button class="search-btn" id="rideSearchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+            
+            <div class="filter-bar">
+                <select class="filter-select" id="rideStatusFilter">
+                    <option value="all">All Rides</option>
+                    <option value="requested">Requested</option>
+                    <option value="accepted">Accepted</option>
+                    <option value="started">Started</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <input type="date" class="filter-select" id="rideDateFilter">
+            </div>
+            
+            <div id="ridesList">
+                <!-- Rides will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Reports Tab -->
+        <div id="reportsTab" class="tab-content">
+            <div class="tabs">
+                <div class="tab active" data-report="revenue">Revenue</div>
+                <div class="tab" data-report="rides">Rides</div>
+                <div class="tab" data-report="drivers">Drivers</div>
+                <div class="tab" data-report="passengers">Passengers</div>
+            </div>
+            
+            <div class="filter-bar">
+                <select class="filter-select" id="reportPeriod">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="quarter">This Quarter</option>
+                    <option value="year">This Year</option>
+                </select>
+            </div>
+            
+            <div id="revenueReport" class="report-content active">
                 <div class="card">
-                    <h2 class="section-title">All Rides</h2>
-                    
-                    <div class="search-bar">
-                        <input type="text" class="search-input" id="rideSearch" placeholder="Search rides...">
-                        <button class="search-btn" id="rideSearchBtn">Search</button>
+                    <div class="chart-container">
+                        Revenue Report Chart
                     </div>
-                    
                     <div class="table-container">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Passenger</th>
-                                    <th>Driver</th>
-                                    <th>Status</th>
-                                    <th>Fare</th>
+                                    <th>Date</th>
+                                    <th>Rides</th>
+                                    <th>Revenue</th>
+                                    <th>Commission</th>
                                 </tr>
                             </thead>
-                            <tbody id="ridesTableBody">
-                                <!-- Rides will be populated by JavaScript -->
+                            <tbody id="revenueTable">
+                                <!-- Revenue data will be populated by JavaScript -->
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
             
-            <!-- Users Management Screen -->
-            <div id="usersScreen" class="tab-content hidden">
+            <div id="ridesReport" class="report-content">
                 <div class="card">
-                    <h2 class="section-title">Users Management</h2>
-                    
-                    <div class="search-bar">
-                        <input type="text" class="search-input" id="userSearch" placeholder="Search users...">
-                        <button class="search-btn" id="userSearchBtn">Search</button>
+                    <div class="chart-container">
+                        Rides Report Chart
                     </div>
-                    
-                    <div id="usersList">
-                        <!-- Users will be populated by JavaScript -->
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Total Rides</th>
+                                    <th>Completed</th>
+                                    <th>Cancelled</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ridesReportTable">
+                                <!-- Rides report data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
             
-            <!-- Drivers Management Screen -->
-            <div id="driversScreen" class="tab-content hidden">
+            <div id="driversReport" class="report-content">
                 <div class="card">
-                    <h2 class="section-title">Drivers Management</h2>
-                    
-                    <div class="search-bar">
-                        <input type="text" class="search-input" id="driverSearch" placeholder="Search drivers...">
-                        <button class="search-btn" id="driverSearchBtn">Search</button>
+                    <div class="chart-container">
+                        Drivers Report Chart
                     </div>
-                    
-                    <div id="driversList">
-                        <!-- Drivers will be populated by JavaScript -->
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Driver</th>
+                                    <th>Rides</th>
+                                    <th>Earnings</th>
+                                    <th>Rating</th>
+                                </tr>
+                            </thead>
+                            <tbody id="driversReportTable">
+                                <!-- Drivers report data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
             
-            <!-- Settings Screen -->
-            <div id="settingsScreen" class="tab-content hidden">
+            <div id="passengersReport" class="report-content">
                 <div class="card">
-                    <h2 class="section-title">System Settings</h2>
-                    
-                    <div class="input-group">
-                        <label for="fareRate">Fare Rate (K per 90 meters)</label>
-                        <input type="number" id="fareRate" class="input-field" value="1" step="0.1">
+                    <div class="chart-container">
+                        Passengers Report Chart
                     </div>
-                    
-                    <div class="input-group">
-                        <label for="commissionRate">Commission Rate (%)</label>
-                        <input type="number" id="commissionRate" class="input-field" value="20" step="1">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Passenger</th>
+                                    <th>Rides</th>
+                                    <th>Spent</th>
+                                    <th>Rating</th>
+                                </tr>
+                            </thead>
+                            <tbody id="passengersReportTable">
+                                <!-- Passengers report data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
                     </div>
-                    
-                    <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
                 </div>
-                
-                <div class="card">
-                    <h2 class="section-title">Admin Account</h2>
-                    
-                    <div class="input-group">
-                        <label for="adminName">Name</label>
-                        <input type="text" id="adminName" class="input-field" placeholder="Admin name">
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="adminEmail">Email</label>
-                        <input type="email" id="adminEmail" class="input-field" placeholder="Admin email">
-                    </div>
-                    
-                    <button class="btn btn-primary" id="saveAdminProfileBtn">Save Profile</button>
-                </div>
-                
-                <button class="btn btn-secondary" id="logoutBtn">Logout</button>
             </div>
         </div>
-        
-        <!-- Navigation Tabs -->
-        <div class="tab-container">
-            <div class="tab active" data-tab="dashboardScreen">Dashboard</div>
-            <div class="tab" data-tab="ridesScreen">Rides</div>
-            <div class="tab" data-tab="usersScreen">Users</div>
-            <div class="tab" data-tab="driversScreen">Drivers</div>
-            <div class="tab" data-tab="settingsScreen">Settings</div>
+    </div>
+    
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <div class="nav-item active" data-tab="dashboardTab">
+            <i class="fas fa-home nav-icon"></i>
+            <span>Dashboard</span>
+        </div>
+        <div class="nav-item" data-tab="driversTab">
+            <i class="fas fa-car nav-icon"></i>
+            <span>Drivers</span>
+        </div>
+        <div class="nav-item" data-tab="passengersTab">
+            <i class="fas fa-users nav-icon"></i>
+            <span>Passengers</span>
+        </div>
+        <div class="nav-item" data-tab="ridesTab">
+            <i class="fas fa-road nav-icon"></i>
+            <span>Rides</span>
+        </div>
+        <div class="nav-item" data-tab="reportsTab">
+            <i class="fas fa-chart-bar nav-icon"></i>
+            <span>Reports</span>
+        </div>
+    </div>
+    
+    <!-- Driver Detail Modal -->
+    <div class="modal-overlay" id="driverDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Driver Details</h3>
+                <button class="close-modal" id="closeDriverModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div id="driverDetailContent">
+                    <!-- Driver details will be populated by JavaScript -->
+                </div>
+                <div class="action-buttons">
+                    <button class="action-btn btn-secondary" id="editDriverBtn">
+                        <i class="fas fa-edit"></i>
+                        Edit
+                    </button>
+                    <button class="action-btn btn-danger" id="suspendDriverBtn">
+                        <i class="fas fa-ban"></i>
+                        Suspend
+                    </button>
+                    <button class="action-btn btn-primary" id="trackDriverBtn">
+                        <i class="fas fa-map-marker-alt"></i>
+                        Track
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Passenger Detail Modal -->
+    <div class="modal-overlay" id="passengerDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Passenger Details</h3>
+                <button class="close-modal" id="closePassengerModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div id="passengerDetailContent">
+                    <!-- Passenger details will be populated by JavaScript -->
+                </div>
+                <div class="action-buttons">
+                    <button class="action-btn btn-secondary" id="editPassengerBtn">
+                        <i class="fas fa-edit"></i>
+                        Edit
+                    </button>
+                    <button class="action-btn btn-danger" id="suspendPassengerBtn">
+                        <i class="fas fa-ban"></i>
+                        Suspend
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ride Detail Modal -->
+    <div class="modal-overlay" id="rideDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Ride Details</h3>
+                <button class="close-modal" id="closeRideModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div id="rideDetailContent">
+                    <!-- Ride details will be populated by JavaScript -->
+                </div>
+                <div class="action-buttons">
+                    <button class="action-btn btn-danger" id="cancelRideBtn">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                    <button class="action-btn btn-primary" id="reassignRideBtn">
+                        <i class="fas fa-sync-alt"></i>
+                        Reassign
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">System Settings</h3>
+                <button class="close-modal" id="closeSettingsModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="form-group">
+                    <label class="form-label">Fare Rate (K per 90 meters)</label>
+                    <input type="number" id="fareRate" class="form-input" value="1" step="0.1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Commission Rate (%)</label>
+                    <input type="number" id="commissionRate" class="form-input" value="8" step="1">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Minimum Float (K)</label>
+                    <input type="number" id="minFloat" class="form-input" value="10" step="1">
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+                    <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+                </div>
+            </div>
         </div>
     </div>
     
     <!-- Notification -->
     <div class="notification" id="notification"></div>
     
-    <!-- Firebase JS -->
+    <!-- Firebase and Leaflet JS -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
         // Firebase configuration
@@ -528,12 +1025,20 @@
         
         // App state
         let currentUser = null;
+        let managerMap;
+        let driverMarkers = {};
+        let selectedDriver = null;
+        let selectedPassenger = null;
+        let selectedRide = null;
+        let driversData = {};
+        let passengersData = {};
+        let ridesData = {};
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             initializeAuth();
             setupEventListeners();
-            loadDashboardData();
+            initializeMap();
         });
         
         // Authentication functions
@@ -541,8 +1046,12 @@
             auth.onAuthStateChanged(user => {
                 if (user) {
                     currentUser = user;
-                    document.getElementById('userIcon').textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'A';
-                    loadAdminData();
+                    document.getElementById('userAvatar').textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'A';
+                    loadDashboardData();
+                    loadDriversData();
+                    loadPassengersData();
+                    loadRidesData();
+                    loadSettings();
                 } else {
                     // Redirect to login if not authenticated
                     showLoginScreen();
@@ -555,36 +1064,116 @@
             // For demo purposes, we'll auto-login with a dummy user
             auth.signInAnonymously()
                 .then(() => {
-                    console.log('Admin signed in anonymously');
+                    console.log('Manager signed in anonymously');
                 })
                 .catch(error => {
                     console.error('Authentication error:', error);
                 });
         }
         
+        // Initialize map
+        function initializeMap() {
+            // Manager map
+            managerMap = L.map('map').setView([-15.4167, 28.2833], 13); // Default to Lusaka
+            
+            // Use a clean map style
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(managerMap);
+            
+            // Listen for driver location updates
+            database.ref('driverLocations').on('value', snapshot => {
+                const locations = snapshot.val();
+                updateDriverMarkers(locations);
+            });
+        }
+        
+        // Update driver markers on map
+        function updateDriverMarkers(locations) {
+            // Clear existing markers
+            Object.values(driverMarkers).forEach(marker => {
+                managerMap.removeLayer(marker);
+            });
+            driverMarkers = {};
+            
+            if (locations) {
+                Object.keys(locations).forEach(driverId => {
+                    const location = locations[driverId];
+                    const driver = driversData[driverId];
+                    
+                    if (driver && location.latitude && location.longitude) {
+                        // Create marker for driver
+                        const marker = L.marker([location.latitude, location.longitude], {
+                            icon: L.divIcon({
+                                className: 'driver-marker',
+                                html: `<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🚗</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">${driver.name || 'Driver'}</div>`,
+                                iconSize: [25, 40]
+                            })
+                        }).addTo(managerMap)
+                            .bindPopup(`<strong>${driver.name || 'Driver'}</strong><br>${driver.vehicleType || 'Vehicle'}<br>Status: ${driver.isOnline ? 'Online' : 'Offline'}`);
+                        
+                        driverMarkers[driverId] = marker;
+                    }
+                });
+                
+                // Fit map to show all drivers
+                if (Object.keys(driverMarkers).length > 0) {
+                    const group = new L.featureGroup(Object.values(driverMarkers));
+                    managerMap.fitBounds(group.getBounds(), { padding: [20, 20] });
+                }
+            }
+        }
+        
         // Event listeners setup
         function setupEventListeners() {
-            // Tab navigation
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', function() {
+            // Bottom navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
                     const tabId = this.getAttribute('data-tab');
                     switchTab(tabId);
                 });
             });
             
-            // Search buttons
-            document.getElementById('rideSearchBtn').addEventListener('click', searchRides);
-            document.getElementById('userSearchBtn').addEventListener('click', searchUsers);
-            document.getElementById('driverSearchBtn').addEventListener('click', searchDrivers);
+            // Report tabs
+            document.querySelectorAll('.tab[data-report]').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const reportId = this.getAttribute('data-report');
+                    switchReport(reportId);
+                });
+            });
             
-            // Save settings button
+            // Search buttons
+            document.getElementById('driverSearchBtn').addEventListener('click', searchDrivers);
+            document.getElementById('passengerSearchBtn').addEventListener('click', searchPassengers);
+            document.getElementById('rideSearchBtn').addEventListener('click', searchRides);
+            
+            // Filter changes
+            document.getElementById('driverStatusFilter').addEventListener('change', filterDrivers);
+            document.getElementById('driverVehicleFilter').addEventListener('change', filterDrivers);
+            document.getElementById('passengerStatusFilter').addEventListener('change', filterPassengers);
+            document.getElementById('rideStatusFilter').addEventListener('change', filterRides);
+            document.getElementById('rideDateFilter').addEventListener('change', filterRides);
+            document.getElementById('reportPeriod').addEventListener('change', loadReports);
+            
+            // Modal close buttons
+            document.getElementById('closeDriverModal').addEventListener('click', closeDriverModal);
+            document.getElementById('closePassengerModal').addEventListener('click', closePassengerModal);
+            document.getElementById('closeRideModal').addEventListener('click', closeRideModal);
+            document.getElementById('closeSettingsModal').addEventListener('click', closeSettingsModal);
+            document.getElementById('cancelSettingsBtn').addEventListener('click', closeSettingsModal);
+            
+            // Action buttons
+            document.getElementById('editDriverBtn').addEventListener('click', editDriver);
+            document.getElementById('suspendDriverBtn').addEventListener('click', suspendDriver);
+            document.getElementById('trackDriverBtn').addEventListener('click', trackDriver);
+            document.getElementById('editPassengerBtn').addEventListener('click', editPassenger);
+            document.getElementById('suspendPassengerBtn').addEventListener('click', suspendPassenger);
+            document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
+            document.getElementById('reassignRideBtn').addEventListener('click', reassignRide);
             document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
             
-            // Save admin profile button
-            document.getElementById('saveAdminProfileBtn').addEventListener('click', saveAdminProfile);
-            
-            // Logout button
-            document.getElementById('logoutBtn').addEventListener('click', logout);
+            // Settings button in header
+            document.getElementById('userAvatar').addEventListener('click', openSettings);
         }
         
         // Tab switching
@@ -597,22 +1186,41 @@
             // Show selected tab content
             document.getElementById(tabId).classList.add('active');
             
-            // Update active tab
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
+            // Update active nav item
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
             });
-            document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
+            document.querySelector(`.nav-item[data-tab="${tabId}"]`).classList.add('active');
             
             // Load data for specific tabs
-            if (tabId === 'ridesScreen') {
-                loadAllRides();
-            } else if (tabId === 'usersScreen') {
-                loadAllUsers();
-            } else if (tabId === 'driversScreen') {
-                loadAllDrivers();
-            } else if (tabId === 'dashboardScreen') {
+            if (tabId === 'driversTab') {
+                loadDriversData();
+            } else if (tabId === 'passengersTab') {
+                loadPassengersData();
+            } else if (tabId === 'ridesTab') {
+                loadRidesData();
+            } else if (tabId === 'reportsTab') {
+                loadReports();
+            } else if (tabId === 'dashboardTab') {
                 loadDashboardData();
             }
+        }
+        
+        // Report switching
+        function switchReport(reportId) {
+            // Hide all report contents
+            document.querySelectorAll('.report-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Show selected report content
+            document.getElementById(reportId + 'Report').classList.add('active');
+            
+            // Update active tab
+            document.querySelectorAll('.tab[data-report]').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelector(`.tab[data-report="${reportId}"]`).classList.add('active');
         }
         
         // Load dashboard data
@@ -656,8 +1264,8 @@
                     document.getElementById('totalEarnings').textContent = `K${totalEarnings.toFixed(2)}`;
                     document.getElementById('todayEarnings').textContent = `K${todayEarnings.toFixed(2)}`;
                     
-                    // Load recent rides
-                    loadRecentRides(rides);
+                    // Load recent activity
+                    loadRecentActivity(rides);
                 })
                 .catch(error => {
                     console.error('Error loading rides:', error);
@@ -688,10 +1296,10 @@
                 });
         }
         
-        // Load recent rides for dashboard
-        function loadRecentRides(rides) {
-            const recentRidesList = document.getElementById('recentRidesList');
-            recentRidesList.innerHTML = '';
+        // Load recent activity for dashboard
+        function loadRecentActivity(rides) {
+            const recentActivityList = document.getElementById('recentActivityList');
+            recentActivityList.innerHTML = '';
             
             if (rides) {
                 // Sort rides by timestamp (newest first) and take the first 5
@@ -701,239 +1309,694 @@
                     .slice(0, 5);
                 
                 sortedRides.forEach(ride => {
-                    const rideItem = document.createElement('div');
-                    rideItem.className = 'ride-item';
+                    const activityItem = document.createElement('div');
+                    activityItem.className = 'list-item';
                     
                     const date = new Date(ride.timestamp);
                     const formattedDate = date.toLocaleDateString();
                     const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     
-                    rideItem.innerHTML = `
-                        <div class="user-name">${ride.passengerName || 'Passenger'} → ${ride.destination || 'Destination'}</div>
-                        <div class="user-details">
+                    activityItem.innerHTML = `
+                        <div class="item-title">${ride.passengerName || 'Passenger'} → ${ride.destination || 'Destination'}</div>
+                        <div class="item-details">
                             <span>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</span> • 
                             <span>${formattedDate} ${formattedTime}</span> • 
                             <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
                         </div>
                     `;
                     
-                    recentRidesList.appendChild(rideItem);
+                    activityItem.addEventListener('click', function() {
+                        showRideDetails(ride.id);
+                    });
+                    
+                    recentActivityList.appendChild(activityItem);
                 });
             } else {
-                recentRidesList.innerHTML = '<p>No recent rides found.</p>';
+                recentActivityList.innerHTML = '<div class="card"><p>No recent activity found.</p></div>';
             }
         }
         
-        // Load all rides for management
-        function loadAllRides() {
-            database.ref('rides').once('value')
-                .then(snapshot => {
-                    const ridesTableBody = document.getElementById('ridesTableBody');
-                    ridesTableBody.innerHTML = '';
-                    
-                    const rides = snapshot.val();
-                    if (rides) {
-                        Object.keys(rides).forEach(rideId => {
-                            const ride = rides[rideId];
-                            const row = document.createElement('tr');
-                            
-                            const date = new Date(ride.timestamp);
-                            const formattedDate = date.toLocaleDateString();
-                            
-                            row.innerHTML = `
-                                <td>${rideId.substring(0, 8)}...</td>
-                                <td>${ride.passengerName || 'N/A'}</td>
-                                <td>${ride.driverId ? 'Assigned' : 'Not assigned'}</td>
-                                <td><span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span></td>
-                                <td>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</td>
-                            `;
-                            
-                            ridesTableBody.appendChild(row);
-                        });
-                    } else {
-                        ridesTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No rides found.</td></tr>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading rides:', error);
-                    document.getElementById('ridesTableBody').innerHTML = '<tr><td colspan="5" style="text-align: center;">Error loading rides.</td></tr>';
-                });
-        }
-        
-        // Load all users
-        function loadAllUsers() {
-            database.ref('users').orderByChild('userType').equalTo('passenger').once('value')
-                .then(snapshot => {
-                    const usersList = document.getElementById('usersList');
-                    usersList.innerHTML = '';
-                    
-                    const users = snapshot.val();
-                    if (users) {
-                        Object.keys(users).forEach(userId => {
-                            const user = users[userId];
-                            const userItem = document.createElement('div');
-                            userItem.className = 'user-item';
-                            
-                            userItem.innerHTML = `
-                                <div class="user-name">${user.name || 'Unknown User'}</div>
-                                <div class="user-details">
-                                    <div>Phone: ${user.phone || 'N/A'}</div>
-                                    <div>Email: ${user.email || 'N/A'}</div>
-                                </div>
-                            `;
-                            
-                            usersList.appendChild(userItem);
-                        });
-                    } else {
-                        usersList.innerHTML = '<p>No users found.</p>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading users:', error);
-                    document.getElementById('usersList').innerHTML = '<p>Error loading users.</p>';
-                });
-        }
-        
-        // Load all drivers
-        function loadAllDrivers() {
+        // Load drivers data
+        function loadDriversData() {
             database.ref('users').orderByChild('userType').equalTo('driver').once('value')
                 .then(snapshot => {
-                    const driversList = document.getElementById('driversList');
-                    driversList.innerHTML = '';
-                    
-                    const drivers = snapshot.val();
-                    if (drivers) {
-                        Object.keys(drivers).forEach(driverId => {
-                            const driver = drivers[driverId];
-                            const driverItem = document.createElement('div');
-                            driverItem.className = 'user-item';
-                            
-                            const status = driver.isOnline ? 'Online' : 'Offline';
-                            const statusClass = driver.isOnline ? 'status-started' : 'status-cancelled';
-                            
-                            driverItem.innerHTML = `
-                                <div class="user-name">${driver.name || 'Unknown Driver'}</div>
-                                <div class="user-details">
-                                    <div>Vehicle: ${driver.vehicleType || 'N/A'} (${driver.licensePlate || 'N/A'})</div>
-                                    <div>Phone: ${driver.phone || 'N/A'}</div>
-                                    <div>Status: <span class="status-badge ${statusClass}">${status}</span></div>
-                                </div>
-                            `;
-                            
-                            driversList.appendChild(driverItem);
-                        });
-                    } else {
-                        driversList.innerHTML = '<p>No drivers found.</p>';
-                    }
+                    driversData = snapshot.val() || {};
+                    displayDrivers(driversData);
                 })
                 .catch(error => {
                     console.error('Error loading drivers:', error);
-                    document.getElementById('driversList').innerHTML = '<p>Error loading drivers.</p>';
+                    showNotification('Error loading drivers data.', 'error');
                 });
         }
         
-        // Search functions (simplified for demo)
-        function searchRides() {
-            const query = document.getElementById('rideSearch').value.toLowerCase();
-            showNotification(`Searching for rides with: ${query}`);
-            // In a real app, this would filter the rides list
+        // Display drivers in the list
+        function displayDrivers(drivers) {
+            const driversList = document.getElementById('driversList');
+            driversList.innerHTML = '';
+            
+            if (drivers && Object.keys(drivers).length > 0) {
+                Object.keys(drivers).forEach(driverId => {
+                    const driver = drivers[driverId];
+                    const driverItem = document.createElement('div');
+                    driverItem.className = 'list-item';
+                    
+                    const status = driver.isOnline ? 'online' : 'offline';
+                    const statusClass = driver.isOnline ? 'status-online' : 'status-offline';
+                    
+                    driverItem.innerHTML = `
+                        <div class="item-title">${driver.name || 'Unknown Driver'}</div>
+                        <div class="item-details">
+                            <span>${driver.vehicleType || 'Vehicle'} • ${driver.phone || 'N/A'}</span>
+                            <span class="status-badge ${statusClass}">${status}</span>
+                        </div>
+                    `;
+                    
+                    driverItem.addEventListener('click', function() {
+                        showDriverDetails(driverId);
+                    });
+                    
+                    driversList.appendChild(driverItem);
+                });
+            } else {
+                driversList.innerHTML = '<div class="card"><p>No drivers found.</p></div>';
+            }
         }
         
-        function searchUsers() {
-            const query = document.getElementById('userSearch').value.toLowerCase();
-            showNotification(`Searching for users with: ${query}`);
-            // In a real app, this would filter the users list
+        // Load passengers data
+        function loadPassengersData() {
+            database.ref('users').orderByChild('userType').equalTo('passenger').once('value')
+                .then(snapshot => {
+                    passengersData = snapshot.val() || {};
+                    displayPassengers(passengersData);
+                })
+                .catch(error => {
+                    console.error('Error loading passengers:', error);
+                    showNotification('Error loading passengers data.', 'error');
+                });
         }
         
+        // Display passengers in the list
+        function displayPassengers(passengers) {
+            const passengersList = document.getElementById('passengersList');
+            passengersList.innerHTML = '';
+            
+            if (passengers && Object.keys(passengers).length > 0) {
+                Object.keys(passengers).forEach(passengerId => {
+                    const passenger = passengers[passengerId];
+                    const passengerItem = document.createElement('div');
+                    passengerItem.className = 'list-item';
+                    
+                    passengerItem.innerHTML = `
+                        <div class="item-title">${passenger.name || 'Unknown Passenger'}</div>
+                        <div class="item-details">
+                            <span>${passenger.phone || 'N/A'} • ${passenger.email || 'N/A'}</span>
+                            <span>Rides: ${passenger.totalRides || 0}</span>
+                        </div>
+                    `;
+                    
+                    passengerItem.addEventListener('click', function() {
+                        showPassengerDetails(passengerId);
+                    });
+                    
+                    passengersList.appendChild(passengerItem);
+                });
+            } else {
+                passengersList.innerHTML = '<div class="card"><p>No passengers found.</p></div>';
+            }
+        }
+        
+        // Load rides data
+        function loadRidesData() {
+            database.ref('rides').once('value')
+                .then(snapshot => {
+                    ridesData = snapshot.val() || {};
+                    displayRides(ridesData);
+                })
+                .catch(error => {
+                    console.error('Error loading rides:', error);
+                    showNotification('Error loading rides data.', 'error');
+                });
+        }
+        
+        // Display rides in the list
+        function displayRides(rides) {
+            const ridesList = document.getElementById('ridesList');
+            ridesList.innerHTML = '';
+            
+            if (rides && Object.keys(rides).length > 0) {
+                // Sort rides by timestamp (newest first)
+                const sortedRides = Object.keys(rides)
+                    .map(rideId => ({ id: rideId, ...rides[rideId] }))
+                    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                
+                sortedRides.forEach(ride => {
+                    const rideItem = document.createElement('div');
+                    rideItem.className = 'list-item';
+                    
+                    const date = new Date(ride.timestamp);
+                    const formattedDate = date.toLocaleDateString();
+                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    rideItem.innerHTML = `
+                        <div class="item-title">${ride.passengerName || 'Passenger'} → ${ride.destination || 'Destination'}</div>
+                        <div class="item-details">
+                            <span>K${ride.fare ? ride.fare.toFixed(2) : '0.00'} • ${formattedDate} ${formattedTime}</span>
+                            <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
+                        </div>
+                    `;
+                    
+                    rideItem.addEventListener('click', function() {
+                        showRideDetails(ride.id);
+                    });
+                    
+                    ridesList.appendChild(rideItem);
+                });
+            } else {
+                ridesList.innerHTML = '<div class="card"><p>No rides found.</p></div>';
+            }
+        }
+        
+        // Show driver details in modal
+        function showDriverDetails(driverId) {
+            const driver = driversData[driverId];
+            if (!driver) return;
+            
+            selectedDriver = driverId;
+            
+            const driverDetailContent = document.getElementById('driverDetailContent');
+            driverDetailContent.innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">Name:</span>
+                    <span class="detail-value">${driver.name || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Phone:</span>
+                    <span class="detail-value">${driver.phone || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Email:</span>
+                    <span class="detail-value">${driver.email || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Vehicle Type:</span>
+                    <span class="detail-value">${driver.vehicleType || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">License Plate:</span>
+                    <span class="detail-value">${driver.licensePlate || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value">
+                        <span class="status-badge ${driver.isOnline ? 'status-online' : 'status-offline'}">
+                            ${driver.isOnline ? 'Online' : 'Offline'}
+                        </span>
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Rating:</span>
+                    <span class="detail-value">${driver.rating || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Total Rides:</span>
+                    <span class="detail-value">${driver.totalRides || 0}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Total Earnings:</span>
+                    <span class="detail-value">K${driver.totalEarnings || 0}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Float Balance:</span>
+                    <span class="detail-value">K${driver.floatBalance || 0}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Wallet Balance:</span>
+                    <span class="detail-value">K${driver.walletBalance || 0}</span>
+                </div>
+            `;
+            
+            // Update suspend button text based on current status
+            const suspendBtn = document.getElementById('suspendDriverBtn');
+            if (driver.isSuspended) {
+                suspendBtn.innerHTML = '<i class="fas fa-check"></i> Activate';
+                suspendBtn.classList.remove('btn-danger');
+                suspendBtn.classList.add('btn-success');
+            } else {
+                suspendBtn.innerHTML = '<i class="fas fa-ban"></i> Suspend';
+                suspendBtn.classList.remove('btn-success');
+                suspendBtn.classList.add('btn-danger');
+            }
+            
+            document.getElementById('driverDetailModal').classList.add('active');
+        }
+        
+        // Show passenger details in modal
+        function showPassengerDetails(passengerId) {
+            const passenger = passengersData[passengerId];
+            if (!passenger) return;
+            
+            selectedPassenger = passengerId;
+            
+            const passengerDetailContent = document.getElementById('passengerDetailContent');
+            passengerDetailContent.innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">Name:</span>
+                    <span class="detail-value">${passenger.name || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Phone:</span>
+                    <span class="detail-value">${passenger.phone || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Email:</span>
+                    <span class="detail-value">${passenger.email || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value">
+                        <span class="status-badge ${passenger.isSuspended ? 'status-cancelled' : 'status-completed'}">
+                            ${passenger.isSuspended ? 'Suspended' : 'Active'}
+                        </span>
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Rating:</span>
+                    <span class="detail-value">${passenger.rating || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Total Rides:</span>
+                    <span class="detail-value">${passenger.totalRides || 0}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Total Spent:</span>
+                    <span class="detail-value">K${passenger.totalSpent || 0}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Wallet Balance:</span>
+                    <span class="detail-value">K${passenger.walletBalance || 0}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Referral Code:</span>
+                    <span class="detail-value">${passenger.referralCode || 'N/A'}</span>
+                </div>
+            `;
+            
+            // Update suspend button text based on current status
+            const suspendBtn = document.getElementById('suspendPassengerBtn');
+            if (passenger.isSuspended) {
+                suspendBtn.innerHTML = '<i class="fas fa-check"></i> Activate';
+                suspendBtn.classList.remove('btn-danger');
+                suspendBtn.classList.add('btn-success');
+            } else {
+                suspendBtn.innerHTML = '<i class="fas fa-ban"></i> Suspend';
+                suspendBtn.classList.remove('btn-success');
+                suspendBtn.classList.add('btn-danger');
+            }
+            
+            document.getElementById('passengerDetailModal').classList.add('active');
+        }
+        
+        // Show ride details in modal
+        function showRideDetails(rideId) {
+            const ride = ridesData[rideId];
+            if (!ride) return;
+            
+            selectedRide = rideId;
+            
+            const rideDetailContent = document.getElementById('rideDetailContent');
+            
+            const date = new Date(ride.timestamp);
+            const formattedDate = date.toLocaleDateString();
+            const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            rideDetailContent.innerHTML = `
+                <div class="detail-row">
+                    <span class="detail-label">Ride ID:</span>
+                    <span class="detail-value">${rideId.substring(0, 8)}...</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Passenger:</span>
+                    <span class="detail-value">${ride.passengerName || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Driver:</span>
+                    <span class="detail-value">${ride.driverId ? 'Assigned' : 'Not assigned'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Pickup:</span>
+                    <span class="detail-value">${ride.pickupLocation || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Destination:</span>
+                    <span class="detail-value">${ride.destination || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Fare:</span>
+                    <span class="detail-value">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value">
+                        <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
+                    </span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Date & Time:</span>
+                    <span class="detail-value">${formattedDate} ${formattedTime}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Distance:</span>
+                    <span class="detail-value">${ride.distance || 'N/A'}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Ride Type:</span>
+                    <span class="detail-value">${ride.rideType || 'Standard'}</span>
+                </div>
+            `;
+            
+            document.getElementById('rideDetailModal').classList.add('active');
+        }
+        
+        // Close modals
+        function closeDriverModal() {
+            document.getElementById('driverDetailModal').classList.remove('active');
+            selectedDriver = null;
+        }
+        
+        function closePassengerModal() {
+            document.getElementById('passengerDetailModal').classList.remove('active');
+            selectedPassenger = null;
+        }
+        
+        function closeRideModal() {
+            document.getElementById('rideDetailModal').classList.remove('active');
+            selectedRide = null;
+        }
+        
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+        
+        // Open settings modal
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('active');
+        }
+        
+        // Driver actions
+        function editDriver() {
+            if (!selectedDriver) return;
+            showNotification('Edit driver functionality would open here.');
+            // In a real app, this would open an edit form
+        }
+        
+        function suspendDriver() {
+            if (!selectedDriver) return;
+            
+            const driver = driversData[selectedDriver];
+            const newStatus = !driver.isSuspended;
+            
+            database.ref('users/' + selectedDriver).update({
+                isSuspended: newStatus
+            })
+            .then(() => {
+                showNotification(`Driver ${newStatus ? 'suspended' : 'activated'} successfully.`);
+                closeDriverModal();
+                loadDriversData();
+            })
+            .catch(error => {
+                console.error('Error updating driver status:', error);
+                showNotification('Error updating driver status.', 'error');
+            });
+        }
+        
+        function trackDriver() {
+            if (!selectedDriver) return;
+            
+            const driver = driversData[selectedDriver];
+            if (driverMarkers[selectedDriver]) {
+                managerMap.setView(driverMarkers[selectedDriver].getLatLng(), 15);
+                driverMarkers[selectedDriver].openPopup();
+            }
+            
+            closeDriverModal();
+            switchTab('dashboardTab');
+        }
+        
+        // Passenger actions
+        function editPassenger() {
+            if (!selectedPassenger) return;
+            showNotification('Edit passenger functionality would open here.');
+            // In a real app, this would open an edit form
+        }
+        
+        function suspendPassenger() {
+            if (!selectedPassenger) return;
+            
+            const passenger = passengersData[selectedPassenger];
+            const newStatus = !passenger.isSuspended;
+            
+            database.ref('users/' + selectedPassenger).update({
+                isSuspended: newStatus
+            })
+            .then(() => {
+                showNotification(`Passenger ${newStatus ? 'suspended' : 'activated'} successfully.`);
+                closePassengerModal();
+                loadPassengersData();
+            })
+            .catch(error => {
+                console.error('Error updating passenger status:', error);
+                showNotification('Error updating passenger status.', 'error');
+            });
+        }
+        
+        // Ride actions
+        function cancelRide() {
+            if (!selectedRide) return;
+            
+            if (confirm('Are you sure you want to cancel this ride?')) {
+                database.ref('rides/' + selectedRide).update({
+                    status: 'cancelled',
+                    cancelledBy: 'admin',
+                    cancelledAt: firebase.database.ServerValue.TIMESTAMP
+                })
+                .then(() => {
+                    showNotification('Ride cancelled successfully.');
+                    closeRideModal();
+                    loadRidesData();
+                    loadDashboardData();
+                })
+                .catch(error => {
+                    console.error('Error cancelling ride:', error);
+                    showNotification('Error cancelling ride.', 'error');
+                });
+            }
+        }
+        
+        function reassignRide() {
+            if (!selectedRide) return;
+            showNotification('Reassign ride functionality would open here.');
+            // In a real app, this would open a driver selection interface
+        }
+        
+        // Search functions
         function searchDrivers() {
             const query = document.getElementById('driverSearch').value.toLowerCase();
-            showNotification(`Searching for drivers with: ${query}`);
-            // In a real app, this would filter the drivers list
+            const filteredDrivers = {};
+            
+            Object.keys(driversData).forEach(driverId => {
+                const driver = driversData[driverId];
+                if (
+                    (driver.name && driver.name.toLowerCase().includes(query)) ||
+                    (driver.phone && driver.phone.includes(query)) ||
+                    (driver.email && driver.email.toLowerCase().includes(query)) ||
+                    (driver.licensePlate && driver.licensePlate.toLowerCase().includes(query))
+                ) {
+                    filteredDrivers[driverId] = driver;
+                }
+            });
+            
+            displayDrivers(filteredDrivers);
         }
         
-        // Load admin data
-        function loadAdminData() {
-            if (currentUser) {
-                database.ref('users/' + currentUser.uid).once('value')
-                    .then(snapshot => {
-                        const userData = snapshot.val();
-                        if (userData) {
-                            document.getElementById('adminName').value = userData.name || '';
-                            document.getElementById('adminEmail').value = userData.email || '';
-                        }
-                    });
+        function searchPassengers() {
+            const query = document.getElementById('passengerSearch').value.toLowerCase();
+            const filteredPassengers = {};
+            
+            Object.keys(passengersData).forEach(passengerId => {
+                const passenger = passengersData[passengerId];
+                if (
+                    (passenger.name && passenger.name.toLowerCase().includes(query)) ||
+                    (passenger.phone && passenger.phone.includes(query)) ||
+                    (passenger.email && passenger.email.toLowerCase().includes(query))
+                ) {
+                    filteredPassengers[passengerId] = passenger;
+                }
+            });
+            
+            displayPassengers(filteredPassengers);
+        }
+        
+        function searchRides() {
+            const query = document.getElementById('rideSearch').value.toLowerCase();
+            const filteredRides = {};
+            
+            Object.keys(ridesData).forEach(rideId => {
+                const ride = ridesData[rideId];
+                if (
+                    (ride.passengerName && ride.passengerName.toLowerCase().includes(query)) ||
+                    (ride.pickupLocation && ride.pickupLocation.toLowerCase().includes(query)) ||
+                    (ride.destination && ride.destination.toLowerCase().includes(query))
+                ) {
+                    filteredRides[rideId] = ride;
+                }
+            });
+            
+            displayRides(filteredRides);
+        }
+        
+        // Filter functions
+        function filterDrivers() {
+            const statusFilter = document.getElementById('driverStatusFilter').value;
+            const vehicleFilter = document.getElementById('driverVehicleFilter').value;
+            const filteredDrivers = {};
+            
+            Object.keys(driversData).forEach(driverId => {
+                const driver = driversData[driverId];
+                let statusMatch = true;
+                let vehicleMatch = true;
                 
-                // Load system settings
-                database.ref('settings').once('value')
-                    .then(snapshot => {
-                        const settings = snapshot.val();
-                        if (settings) {
-                            if (settings.fareRate) {
-                                document.getElementById('fareRate').value = settings.fareRate;
-                            }
-                            if (settings.commissionRate) {
-                                document.getElementById('commissionRate').value = settings.commissionRate;
-                            }
+                if (statusFilter === 'online') {
+                    statusMatch = driver.isOnline === true;
+                } else if (statusFilter === 'offline') {
+                    statusMatch = driver.isOnline === false;
+                } else if (statusFilter === 'suspended') {
+                    statusMatch = driver.isSuspended === true;
+                }
+                
+                if (vehicleFilter !== 'all') {
+                    vehicleMatch = driver.vehicleType === vehicleFilter;
+                }
+                
+                if (statusMatch && vehicleMatch) {
+                    filteredDrivers[driverId] = driver;
+                }
+            });
+            
+            displayDrivers(filteredDrivers);
+        }
+        
+        function filterPassengers() {
+            const statusFilter = document.getElementById('passengerStatusFilter').value;
+            const filteredPassengers = {};
+            
+            Object.keys(passengersData).forEach(passengerId => {
+                const passenger = passengersData[passengerId];
+                let statusMatch = true;
+                
+                if (statusFilter === 'active') {
+                    statusMatch = passenger.isSuspended !== true;
+                } else if (statusFilter === 'suspended') {
+                    statusMatch = passenger.isSuspended === true;
+                }
+                
+                if (statusMatch) {
+                    filteredPassengers[passengerId] = passenger;
+                }
+            });
+            
+            displayPassengers(filteredPassengers);
+        }
+        
+        function filterRides() {
+            const statusFilter = document.getElementById('rideStatusFilter').value;
+            const dateFilter = document.getElementById('rideDateFilter').value;
+            const filteredRides = {};
+            
+            Object.keys(ridesData).forEach(rideId => {
+                const ride = ridesData[rideId];
+                let statusMatch = true;
+                let dateMatch = true;
+                
+                if (statusFilter !== 'all') {
+                    statusMatch = ride.status === statusFilter;
+                }
+                
+                if (dateFilter) {
+                    const rideDate = new Date(ride.timestamp);
+                    const filterDate = new Date(dateFilter);
+                    dateMatch = rideDate.toDateString() === filterDate.toDateString();
+                }
+                
+                if (statusMatch && dateMatch) {
+                    filteredRides[rideId] = ride;
+                }
+            });
+            
+            displayRides(filteredRides);
+        }
+        
+        // Load reports
+        function loadReports() {
+            const period = document.getElementById('reportPeriod').value;
+            // In a real app, this would fetch and display report data based on the selected period
+            showNotification(`Loading ${period} reports...`);
+        }
+        
+        // Load settings
+        function loadSettings() {
+            database.ref('settings').once('value')
+                .then(snapshot => {
+                    const settings = snapshot.val();
+                    if (settings) {
+                        if (settings.fareRate) {
+                            document.getElementById('fareRate').value = settings.fareRate;
                         }
-                    });
-            }
+                        if (settings.commissionRate) {
+                            document.getElementById('commissionRate').value = settings.commissionRate;
+                        }
+                        if (settings.minFloat) {
+                            document.getElementById('minFloat').value = settings.minFloat;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading settings:', error);
+                });
         }
         
         // Save settings
         function saveSettings() {
             const fareRate = parseFloat(document.getElementById('fareRate').value);
             const commissionRate = parseFloat(document.getElementById('commissionRate').value);
+            const minFloat = parseFloat(document.getElementById('minFloat').value);
             
             database.ref('settings').set({
                 fareRate: fareRate,
-                commissionRate: commissionRate
+                commissionRate: commissionRate,
+                minFloat: minFloat
             })
             .then(() => {
                 showNotification('Settings saved successfully.');
+                closeSettingsModal();
             })
             .catch(error => {
                 console.error('Error saving settings:', error);
-                showNotification('Error saving settings. Please try again.');
+                showNotification('Error saving settings.', 'error');
             });
         }
         
-        // Save admin profile
-        function saveAdminProfile() {
-            const name = document.getElementById('adminName').value;
-            const email = document.getElementById('adminEmail').value;
-            
-            if (currentUser) {
-                database.ref('users/' + currentUser.uid).update({
-                    name: name,
-                    email: email,
-                    userType: 'admin'
-                })
-                .then(() => {
-                    showNotification('Profile saved successfully.');
-                })
-                .catch(error => {
-                    console.error('Error saving profile:', error);
-                    showNotification('Error saving profile. Please try again.');
-                });
-            }
-        }
-        
-        // Logout
-        function logout() {
-            auth.signOut()
-                .then(() => {
-                    currentUser = null;
-                    showLoginScreen();
-                })
-                .catch(error => {
-                    console.error('Error signing out:', error);
-                });
-        }
-        
         // Show notification
-        function showNotification(message) {
+        function showNotification(message, type = '') {
             const notification = document.getElementById('notification');
             notification.textContent = message;
+            notification.className = 'notification';
+            
+            if (type === 'error') {
+                notification.style.background = 'var(--error-red)';
+            } else {
+                notification.style.background = 'var(--primary-gradient)';
+            }
+            
             notification.style.display = 'block';
             
             setTimeout(() => {
