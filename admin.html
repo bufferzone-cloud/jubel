@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jubel - Admin Dashboard</title>
+    <title>Jubel - Manager</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -53,11 +53,9 @@
             background: var(--primary-gradient);
             color: var(--white);
             padding: 12px var(--app-padding);
-            position: fixed;
+            position: sticky;
             top: 0;
-            left: 0;
-            right: 0;
-            z-index: 1000;
+            z-index: 100;
             box-shadow: var(--shadow-medium);
             display: flex;
             justify-content: space-between;
@@ -90,7 +88,7 @@
         .header-controls {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 10px;
         }
         
         .user-info {
@@ -109,235 +107,163 @@
             justify-content: center;
             color: var(--primary-orange);
             font-weight: 700;
-        }
-        
-        .refresh-btn {
-            background: var(--white);
-            color: var(--primary-orange);
-            border: none;
-            border-radius: var(--element-radius);
-            padding: 8px 12px;
-            font-weight: 600;
             cursor: pointer;
+        }
+        
+        .stats-bar {
             display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 8px 0;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 5px;
-            transition: all var(--transition-speed) ease;
+            padding: 8px 12px;
+            background: var(--white);
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-light);
+            min-width: 100px;
         }
         
-        .refresh-btn:hover {
-            background: var(--light-orange);
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 800;
+            margin-bottom: 4px;
         }
         
-        /* Main Map */
-        #map {
-            position: fixed;
-            top: 60px;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 1;
+        .stat-label {
+            font-size: 0.7rem;
+            color: var(--medium-gray);
+        }
+        
+        /* Main Content */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 120px);
         }
         
         /* Sidebar */
         .sidebar {
-            position: fixed;
-            top: 60px;
-            right: 0;
-            width: 350px;
-            height: calc(100vh - 60px);
+            width: 280px;
             background: var(--white);
-            box-shadow: var(--shadow-heavy);
-            z-index: 900;
+            border-right: 1px solid var(--border-color);
             overflow-y: auto;
-            transform: translateX(100%);
-            transition: transform var(--transition-speed) ease;
-        }
-        
-        .sidebar.active {
-            transform: translateX(0);
+            display: flex;
+            flex-direction: column;
         }
         
         .sidebar-header {
             padding: 15px;
             border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
         
         .sidebar-title {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 700;
-        }
-        
-        .close-sidebar {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-            color: var(--medium-gray);
-        }
-        
-        .sidebar-content {
-            padding: 15px;
-        }
-        
-        /* Stats Panel */
-        .stats-panel {
-            position: fixed;
-            top: 70px;
-            left: 15px;
-            background: var(--white);
-            border-radius: var(--element-radius);
-            box-shadow: var(--shadow-heavy);
-            z-index: 800;
-            padding: 12px;
-            width: 200px;
-        }
-        
-        .stat-item {
+            margin-bottom: 10px;
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            padding-bottom: 8px;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .filter-section {
+            padding: 15px;
             border-bottom: 1px solid var(--border-color);
         }
         
-        .stat-item:last-child {
-            margin-bottom: 0;
-            padding-bottom: 0;
-            border-bottom: none;
-        }
-        
-        .stat-label {
-            font-weight: 600;
-            color: var(--medium-gray);
-            font-size: 0.8rem;
-        }
-        
-        .stat-value {
-            font-weight: 700;
+        .filter-title {
             font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 8px;
         }
         
-        /* Control Panel */
-        .control-panel {
-            position: fixed;
-            bottom: 15px;
-            left: 15px;
-            background: var(--white);
-            border-radius: var(--element-radius);
-            box-shadow: var(--shadow-heavy);
-            z-index: 800;
-            padding: 12px;
+        .filter-options {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
         
-        .control-btn {
-            background: var(--white);
-            border: 1px solid var(--border-color);
-            border-radius: var(--element-radius);
-            padding: 8px 12px;
-            cursor: pointer;
+        .filter-checkbox {
             display: flex;
             align-items: center;
             gap: 8px;
-            font-weight: 600;
             font-size: 0.8rem;
-            transition: all var(--transition-speed) ease;
         }
         
-        .control-btn:hover {
-            background: var(--light-orange);
-            border-color: var(--primary-orange);
+        .filter-checkbox input {
+            width: 16px;
+            height: 16px;
         }
         
-        .control-btn.active {
-            background: var(--primary-orange);
-            color: var(--white);
-            border-color: var(--primary-orange);
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
         }
         
-        /* Filter Panel */
-        .filter-panel {
-            position: fixed;
-            top: 70px;
-            right: 15px;
-            background: var(--white);
-            border-radius: var(--element-radius);
-            box-shadow: var(--shadow-heavy);
-            z-index: 800;
-            padding: 12px;
-            width: 200px;
-        }
-        
-        .filter-title {
-            font-weight: 700;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-        }
-        
-        .filter-group {
-            margin-bottom: 10px;
-        }
-        
-        .filter-label {
-            font-weight: 600;
-            font-size: 0.8rem;
-            margin-bottom: 5px;
-            display: block;
-        }
-        
-        .filter-select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid var(--border-color);
-            border-radius: var(--element-radius);
-            font-size: 0.8rem;
-            background-color: var(--white);
-        }
-        
-        /* Detail View */
-        .detail-section {
+        .tab-buttons {
+            display: flex;
             margin-bottom: 15px;
-        }
-        
-        .detail-title {
-            font-weight: 700;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .detail-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            padding-bottom: 8px;
             border-bottom: 1px solid var(--border-color);
         }
         
-        .detail-row:last-child {
-            margin-bottom: 0;
-            padding-bottom: 0;
+        .tab-button {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .tab-button.active {
+            color: var(--primary-orange);
+            border-bottom-color: var(--primary-orange);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .list-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .list-item {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .list-item:last-child {
             border-bottom: none;
         }
         
-        .detail-label {
-            font-weight: 600;
-            color: var(--medium-gray);
-            font-size: 0.8rem;
+        .list-item:hover {
+            background: var(--light-orange);
         }
         
-        .detail-value {
+        .item-title {
             font-weight: 600;
-            font-size: 0.8rem;
-            text-align: right;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+        }
+        
+        .item-details {
+            font-size: 0.75rem;
+            color: var(--medium-gray);
+            display: flex;
+            justify-content: space-between;
         }
         
         /* Status Badges */
@@ -368,11 +294,6 @@
             color: #1565c0;
         }
         
-        .status-started {
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
-        
         .status-completed {
             background: #e6f7e9;
             color: #2e7d32;
@@ -383,7 +304,162 @@
             color: #c62828;
         }
         
-        /* Action Buttons */
+        /* Map */
+        #map {
+            flex: 1;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        /* Map Controls */
+        .map-controls {
+            position: absolute;
+            top: 80px;
+            right: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+        }
+        
+        .map-control-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: var(--shadow-heavy);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--primary-orange);
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .map-control-btn:hover {
+            background: var(--primary-orange);
+            color: var(--white);
+        }
+        
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--app-padding);
+            display: none;
+        }
+        
+        .modal-overlay.active {
+            display: flex;
+        }
+        
+        .modal {
+            background: var(--white);
+            border-radius: var(--element-radius);
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-heavy);
+        }
+        
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--medium-gray);
+        }
+        
+        .modal-content {
+            padding: 15px;
+        }
+        
+        .modal-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 15px;
+        }
+        
+        .modal-tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all var(--transition-speed) ease;
+        }
+        
+        .modal-tab.active {
+            color: var(--primary-orange);
+            border-bottom-color: var(--primary-orange);
+        }
+        
+        .modal-section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            color: var(--medium-gray);
+            font-size: 0.85rem;
+        }
+        
+        .detail-value {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        
         .action-buttons {
             display: flex;
             gap: 8px;
@@ -391,7 +467,7 @@
         }
         
         .btn {
-            padding: 8px 12px;
+            padding: 10px;
             border: none;
             border-radius: var(--element-radius);
             font-size: 0.8rem;
@@ -402,7 +478,6 @@
             align-items: center;
             justify-content: center;
             gap: 5px;
-            flex: 1;
         }
         
         .btn-primary {
@@ -425,122 +500,51 @@
             color: var(--white);
         }
         
-        /* Notification */
-        .notification {
-            position: fixed;
-            top: 15px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--primary-gradient);
-            color: var(--white);
-            padding: 10px 16px;
-            border-radius: var(--element-radius);
-            box-shadow: var(--shadow-heavy);
-            z-index: 3000;
-            display: none;
-            font-weight: 600;
-            text-align: center;
-            font-size: 0.8rem;
-            max-width: 80%;
+        /* Forms */
+        .form-group {
+            margin-bottom: 10px;
         }
         
-        /* Map Markers */
-        .driver-marker {
-            background: var(--primary-orange);
-            color: white;
-            border-radius: 50%;
-            width: 35px;
-            height: 35px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .driver-marker-label {
-            background: white;
-            padding: 2px 5px;
-            border-radius: 8px;
-            margin-top: 4px;
-            font-size: 9px;
-            font-weight: bold;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-        }
-        
-        .passenger-marker {
-            background: var(--info-blue);
-            color: white;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .passenger-marker-label {
-            background: white;
-            padding: 2px 5px;
-            border-radius: 8px;
-            margin-top: 4px;
-            font-size: 9px;
-            font-weight: bold;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-        }
-        
-        .ride-marker {
-            background: var(--success-green);
-            color: white;
-            border-radius: 50%;
-            width: 25px;
-            height: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .ride-marker-label {
-            background: white;
-            padding: 2px 5px;
-            border-radius: 8px;
-            margin-top: 4px;
-            font-size: 9px;
-            font-weight: bold;
-            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
-        }
-        
-        /* Reports Section */
-        .reports-section {
-            padding: 15px;
-        }
-        
-        .report-tabs {
-            display: flex;
-            overflow-x: auto;
-            gap: 8px;
-            margin-bottom: 15px;
-            padding-bottom: 5px;
-        }
-        
-        .report-tab {
-            padding: 8px 12px;
-            border-radius: var(--element-radius);
-            background: var(--light-gray);
+        .form-label {
             font-weight: 600;
             font-size: 0.8rem;
-            cursor: pointer;
-            white-space: nowrap;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
             transition: all var(--transition-speed) ease;
         }
         
-        .report-tab.active {
-            background: var(--primary-gradient);
-            color: var(--white);
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius);
+            font-size: 0.8rem;
+            background-color: var(--white);
+            cursor: pointer;
+        }
+        
+        /* Reports */
+        .reports-container {
+            padding: 15px;
+        }
+        
+        .report-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
         }
         
         .report-content {
@@ -549,6 +553,18 @@
         
         .report-content.active {
             display: block;
+        }
+        
+        .chart-container {
+            height: 300px;
+            background: var(--light-gray);
+            border-radius: var(--element-radius);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--medium-gray);
+            font-size: 0.9rem;
         }
         
         .table-container {
@@ -562,7 +578,7 @@
         }
         
         th, td {
-            padding: 8px;
+            padding: 10px;
             text-align: left;
             border-bottom: 1px solid var(--border-color);
         }
@@ -572,34 +588,69 @@
             background: var(--light-gray);
         }
         
-        tr:hover {
-            background: var(--light-orange);
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-gradient);
+            color: var(--white);
+            padding: 10px 16px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-heavy);
+            z-index: 300;
+            display: none;
+            font-weight: 600;
+            text-align: center;
+            font-size: 0.8rem;
+            max-width: 80%;
         }
         
-        /* Responsive */
+        /* Search Bar */
+        .search-bar {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--element-radius) 0 0 var(--element-radius);
+            font-size: 0.8rem;
+        }
+        
+        .search-btn {
+            padding: 10px 12px;
+            background: var(--primary-orange);
+            color: var(--white);
+            border: none;
+            border-radius: 0 var(--element-radius) var(--element-radius) 0;
+            cursor: pointer;
+        }
+        
+        /* Settings */
+        .settings-container {
+            padding: 15px;
+        }
+        
+        .settings-section {
+            margin-bottom: 20px;
+        }
+        
         @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
             .sidebar {
                 width: 100%;
+                height: 300px;
             }
             
-            .stats-panel, .filter-panel {
-                width: 180px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .stats-panel, .filter-panel {
-                width: 160px;
-            }
-            
-            .control-panel {
-                flex-direction: row;
-                flex-wrap: wrap;
-            }
-            
-            .control-btn {
-                flex: 1;
-                min-width: 120px;
+            .detail-grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -609,106 +660,724 @@
     <div class="header">
         <div class="logo">
             <div class="logo-icon">J</div>
-            <div class="logo-text">Jubel Admin Dashboard</div>
+            <div class="logo-text">Jubel Manager</div>
         </div>
         <div class="header-controls">
-            <button class="refresh-btn" id="refreshData">
-                <i class="fas fa-sync-alt"></i>
-                Refresh
-            </button>
             <div class="user-info">
                 <div class="user-avatar" id="userAvatar">A</div>
             </div>
         </div>
     </div>
     
-    <!-- Main Map -->
-    <div id="map"></div>
-    
-    <!-- Stats Panel -->
-    <div class="stats-panel">
+    <!-- Stats Bar -->
+    <div class="stats-bar">
         <div class="stat-item">
-            <span class="stat-label">Total Rides:</span>
-            <span class="stat-value" id="totalRides">0</span>
+            <div class="stat-value" id="totalRides">0</div>
+            <div class="stat-label">Total Rides</div>
         </div>
         <div class="stat-item">
-            <span class="stat-label">Active Rides:</span>
-            <span class="stat-value" id="activeRides">0</span>
+            <div class="stat-value" id="activeRides">0</div>
+            <div class="stat-label">Active Rides</div>
         </div>
         <div class="stat-item">
-            <span class="stat-label">Online Drivers:</span>
-            <span class="stat-value" id="onlineDrivers">0</span>
+            <div class="stat-value" id="totalDrivers">0</div>
+            <div class="stat-label">Total Drivers</div>
         </div>
         <div class="stat-item">
-            <span class="stat-label">Active Passengers:</span>
-            <span class="stat-value" id="activePassengers">0</span>
+            <div class="stat-value" id="onlineDrivers">0</div>
+            <div class="stat-label">Online Drivers</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="totalEarnings">K0</div>
+            <div class="stat-label">Total Earnings</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="todayEarnings">K0</div>
+            <div class="stat-label">Today's Earnings</div>
         </div>
     </div>
     
-    <!-- Control Panel -->
-    <div class="control-panel">
-        <button class="control-btn" id="toggleDrivers">
-            <i class="fas fa-car"></i>
-            Show Drivers
-        </button>
-        <button class="control-btn" id="togglePassengers">
-            <i class="fas fa-user"></i>
-            Show Passengers
-        </button>
-        <button class="control-btn" id="toggleRides">
-            <i class="fas fa-road"></i>
-            Show Rides
-        </button>
-        <button class="control-btn" id="showReports">
-            <i class="fas fa-chart-bar"></i>
-            Reports
-        </button>
-        <button class="control-btn" id="showSettings">
-            <i class="fas fa-cog"></i>
-            Settings
-        </button>
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h3 class="sidebar-title">
+                    <i class="fas fa-filter"></i>
+                    Filters
+                </h3>
+                <div class="search-bar">
+                    <input type="text" class="search-input" id="globalSearch" placeholder="Search...">
+                    <button class="search-btn" id="globalSearchBtn">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="filter-section">
+                <h4 class="filter-title">Show on Map</h4>
+                <div class="filter-options">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showDrivers" checked>
+                        <span>Drivers</span>
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showPassengers" checked>
+                        <span>Passengers</span>
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showActiveRides" checked>
+                        <span>Active Rides</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="filter-section">
+                <h4 class="filter-title">Driver Status</h4>
+                <div class="filter-options">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showOnlineDrivers" checked>
+                        <span>Online</span>
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showOfflineDrivers" checked>
+                        <span>Offline</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="filter-section">
+                <h4 class="filter-title">Ride Status</h4>
+                <div class="filter-options">
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showRequestedRides" checked>
+                        <span>Requested</span>
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showAcceptedRides" checked>
+                        <span>Accepted</span>
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showStartedRides" checked>
+                        <span>Started</span>
+                    </label>
+                    <label class="filter-checkbox">
+                        <input type="checkbox" id="showCompletedRides">
+                        <span>Completed</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="tab-buttons">
+                    <div class="tab-button active" data-tab="driversTab">Drivers</div>
+                    <div class="tab-button" data-tab="passengersTab">Passengers</div>
+                    <div class="tab-button" data-tab="ridesTab">Rides</div>
+                </div>
+                
+                <div id="driversTab" class="tab-content active">
+                    <div class="list-container" id="driversList">
+                        <!-- Drivers will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <div id="passengersTab" class="tab-content">
+                    <div class="list-container" id="passengersList">
+                        <!-- Passengers will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <div id="ridesTab" class="tab-content">
+                    <div class="list-container" id="ridesList">
+                        <!-- Rides will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map -->
+        <div id="map"></div>
+        
+        <!-- Map Controls -->
+        <div class="map-controls">
+            <button class="map-control-btn" id="zoomInBtn" title="Zoom In">
+                <i class="fas fa-plus"></i>
+            </button>
+            <button class="map-control-btn" id="zoomOutBtn" title="Zoom Out">
+                <i class="fas fa-minus"></i>
+            </button>
+            <button class="map-control-btn" id="centerMapBtn" title="Center Map">
+                <i class="fas fa-crosshairs"></i>
+            </button>
+            <button class="map-control-btn" id="refreshDataBtn" title="Refresh Data">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
     </div>
     
-    <!-- Filter Panel -->
-    <div class="filter-panel">
-        <div class="filter-group">
-            <label class="filter-label">Driver Status</label>
-            <select class="filter-select" id="driverStatusFilter">
-                <option value="all">All Drivers</option>
-                <option value="online">Online</option>
-                <option value="offline">Offline</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <label class="filter-label">Vehicle Type</label>
-            <select class="filter-select" id="vehicleTypeFilter">
-                <option value="all">All Vehicles</option>
-                <option value="car">Car</option>
-                <option value="bike">Bike</option>
-                <option value="bicycle">Bicycle</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <label class="filter-label">Ride Status</label>
-            <select class="filter-select" id="rideStatusFilter">
-                <option value="all">All Rides</option>
-                <option value="requested">Requested</option>
-                <option value="accepted">Accepted</option>
-                <option value="started">Started</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-            </select>
+    <!-- Driver Detail Modal -->
+    <div class="modal-overlay" id="driverDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Driver Details</h3>
+                <button class="close-modal" id="closeDriverModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="modal-tabs">
+                    <div class="modal-tab active" data-tab="driverInfoTab">Driver Info</div>
+                    <div class="modal-tab" data-tab="driverVehicleTab">Vehicle Info</div>
+                    <div class="modal-tab" data-tab="driverRidesTab">Ride History</div>
+                </div>
+                
+                <div id="driverInfoTab" class="modal-tab-content active">
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-user"></i>
+                            Personal Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Name:</span>
+                                <span class="detail-value" id="driverName">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Phone:</span>
+                                <span class="detail-value" id="driverPhone">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Email:</span>
+                                <span class="detail-value" id="driverEmail">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">NRC:</span>
+                                <span class="detail-value" id="driverNRC">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value" id="driverStatus">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Rating:</span>
+                                <span class="detail-value" id="driverRating">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-wallet"></i>
+                            Financial Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Float Balance:</span>
+                                <span class="detail-value" id="driverFloatBalance">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Wallet Balance:</span>
+                                <span class="detail-value" id="driverWalletBalance">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Total Earnings:</span>
+                                <span class="detail-value" id="driverTotalEarnings">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Total Rides:</span>
+                                <span class="detail-value" id="driverTotalRides">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="editDriverBtn">
+                            <i class="fas fa-edit"></i>
+                            Edit Driver
+                        </button>
+                        <button class="btn btn-danger" id="suspendDriverBtn">
+                            <i class="fas fa-ban"></i>
+                            Suspend Driver
+                        </button>
+                        <button class="btn btn-primary" id="trackDriverBtn">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Track on Map
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="driverVehicleTab" class="modal-tab-content">
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-car"></i>
+                            Vehicle Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Vehicle Type:</span>
+                                <span class="detail-value" id="vehicleType">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Make:</span>
+                                <span class="detail-value" id="vehicleMake">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Model:</span>
+                                <span class="detail-value" id="vehicleModel">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Year:</span>
+                                <span class="detail-value" id="vehicleYear">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Color:</span>
+                                <span class="detail-value" id="vehicleColor">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">License Plate:</span>
+                                <span class="detail-value" id="vehicleLicensePlate">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">License Number:</span>
+                                <span class="detail-value" id="vehicleLicenseNumber">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="driverRidesTab" class="modal-tab-content">
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-history"></i>
+                            Recent Rides
+                        </h4>
+                        <div class="list-container" id="driverRidesList">
+                            <!-- Driver rides will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <h3 class="sidebar-title" id="sidebarTitle">Details</h3>
-            <button class="close-sidebar" id="closeSidebar">&times;</button>
+    <!-- Passenger Detail Modal -->
+    <div class="modal-overlay" id="passengerDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Passenger Details</h3>
+                <button class="close-modal" id="closePassengerModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="modal-tabs">
+                    <div class="modal-tab active" data-tab="passengerInfoTab">Passenger Info</div>
+                    <div class="modal-tab" data-tab="passengerRidesTab">Ride History</div>
+                </div>
+                
+                <div id="passengerInfoTab" class="modal-tab-content active">
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-user"></i>
+                            Personal Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Name:</span>
+                                <span class="detail-value" id="passengerName">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Phone:</span>
+                                <span class="detail-value" id="passengerPhone">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Email:</span>
+                                <span class="detail-value" id="passengerEmail">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value" id="passengerStatus">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Rating:</span>
+                                <span class="detail-value" id="passengerRating">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Referral Code:</span>
+                                <span class="detail-value" id="passengerReferralCode">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-wallet"></i>
+                            Financial Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Wallet Balance:</span>
+                                <span class="detail-value" id="passengerWalletBalance">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Total Spent:</span>
+                                <span class="detail-value" id="passengerTotalSpent">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Total Rides:</span>
+                                <span class="detail-value" id="passengerTotalRides">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="editPassengerBtn">
+                            <i class="fas fa-edit"></i>
+                            Edit Passenger
+                        </button>
+                        <button class="btn btn-danger" id="suspendPassengerBtn">
+                            <i class="fas fa-ban"></i>
+                            Suspend Passenger
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="passengerRidesTab" class="modal-tab-content">
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-history"></i>
+                            Ride History
+                        </h4>
+                        <div class="list-container" id="passengerRidesList">
+                            <!-- Passenger rides will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="sidebar-content" id="sidebarContent">
-            <!-- Content will be populated dynamically -->
+    </div>
+    
+    <!-- Ride Detail Modal -->
+    <div class="modal-overlay" id="rideDetailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Ride Details</h3>
+                <button class="close-modal" id="closeRideModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="modal-tabs">
+                    <div class="modal-tab active" data-tab="rideInfoTab">Ride Information</div>
+                    <div class="modal-tab" data-tab="rideMapTab">Route Map</div>
+                </div>
+                
+                <div id="rideInfoTab" class="modal-tab-content active">
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-info-circle"></i>
+                            Basic Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Ride ID:</span>
+                                <span class="detail-value" id="rideId">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Status:</span>
+                                <span class="detail-value" id="rideStatus">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Ride Type:</span>
+                                <span class="detail-value" id="rideType">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Fare:</span>
+                                <span class="detail-value" id="rideFare">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Distance:</span>
+                                <span class="detail-value" id="rideDistance">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Date & Time:</span>
+                                <span class="detail-value" id="rideDateTime">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-map-marker-alt"></i>
+                            Location Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Pickup Location:</span>
+                                <span class="detail-value" id="ridePickupLocation">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Destination:</span>
+                                <span class="detail-value" id="rideDestination">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Pickup Coordinates:</span>
+                                <span class="detail-value" id="ridePickupCoords">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Destination Coordinates:</span>
+                                <span class="detail-value" id="rideDestCoords">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-users"></i>
+                            User Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Passenger:</span>
+                                <span class="detail-value" id="ridePassenger">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Passenger Phone:</span>
+                                <span class="detail-value" id="ridePassengerPhone">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Driver:</span>
+                                <span class="detail-value" id="rideDriver">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Driver Phone:</span>
+                                <span class="detail-value" id="rideDriverPhone">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-receipt"></i>
+                            Payment Information
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-row">
+                                <span class="detail-label">Payment Method:</span>
+                                <span class="detail-value" id="ridePaymentMethod">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Promo Code:</span>
+                                <span class="detail-value" id="ridePromoCode">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Commission:</span>
+                                <span class="detail-value" id="rideCommission">Loading...</span>
+                            </div>
+                            <div class="detail-row">
+                                <span class="detail-label">Driver Earnings:</span>
+                                <span class="detail-value" id="rideDriverEarnings">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-danger" id="cancelRideBtn">
+                            <i class="fas fa-times"></i>
+                            Cancel Ride
+                        </button>
+                        <button class="btn btn-primary" id="reassignRideBtn">
+                            <i class="fas fa-sync-alt"></i>
+                            Reassign Driver
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="rideMapTab" class="modal-tab-content">
+                    <div class="modal-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-map"></i>
+                            Route Map
+                        </h4>
+                        <div id="rideMap" style="height: 400px; border-radius: var(--element-radius);"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Reports Modal -->
+    <div class="modal-overlay" id="reportsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Reports & Analytics</h3>
+                <button class="close-modal" id="closeReportsModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="modal-tabs">
+                    <div class="modal-tab active" data-tab="revenueReportTab">Revenue</div>
+                    <div class="modal-tab" data-tab="ridesReportTab">Rides</div>
+                    <div class="modal-tab" data-tab="driversReportTab">Drivers</div>
+                    <div class="modal-tab" data-tab="passengersReportTab">Passengers</div>
+                </div>
+                
+                <div class="report-filters">
+                    <select class="form-select" id="reportPeriod">
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                        <option value="quarter">This Quarter</option>
+                        <option value="year">This Year</option>
+                    </select>
+                    <input type="date" class="form-input" id="reportStartDate">
+                    <input type="date" class="form-input" id="reportEndDate">
+                    <button class="btn btn-primary" id="generateReportBtn">
+                        <i class="fas fa-chart-line"></i>
+                        Generate
+                    </button>
+                </div>
+                
+                <div id="revenueReportTab" class="report-content active">
+                    <div class="chart-container">
+                        Revenue Chart (Would display here)
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Rides</th>
+                                    <th>Revenue</th>
+                                    <th>Commission</th>
+                                    <th>Net Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody id="revenueTable">
+                                <!-- Revenue data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="ridesReportTab" class="report-content">
+                    <div class="chart-container">
+                        Rides Activity Chart (Would display here)
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Total Rides</th>
+                                    <th>Completed</th>
+                                    <th>Cancelled</th>
+                                    <th>Completion Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ridesReportTable">
+                                <!-- Rides report data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="driversReportTab" class="report-content">
+                    <div class="chart-container">
+                        Drivers Performance Chart (Would display here)
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Driver</th>
+                                    <th>Rides</th>
+                                    <th>Earnings</th>
+                                    <th>Rating</th>
+                                    <th>Acceptance Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody id="driversReportTable">
+                                <!-- Drivers report data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div id="passengersReportTab" class="report-content">
+                    <div class="chart-container">
+                        Passengers Activity Chart (Would display here)
+                    </div>
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Passenger</th>
+                                    <th>Rides</th>
+                                    <th>Spent</th>
+                                    <th>Rating</th>
+                                    <th>Last Ride</th>
+                                </tr>
+                            </thead>
+                            <tbody id="passengersReportTable">
+                                <!-- Passengers report data will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">System Settings</h3>
+                <button class="close-modal" id="closeSettingsModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="settings-container">
+                    <div class="settings-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-money-bill-wave"></i>
+                            Fare Settings
+                        </h4>
+                        <div class="form-group">
+                            <label class="form-label">Base Fare (K)</label>
+                            <input type="number" id="baseFare" class="form-input" value="15" step="1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fare Rate (K per 90 meters)</label>
+                            <input type="number" id="fareRate" class="form-input" value="1" step="0.1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Minimum Fare (K)</label>
+                            <input type="number" id="minFare" class="form-input" value="11" step="1">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-percentage"></i>
+                            Commission Settings
+                        </h4>
+                        <div class="form-group">
+                            <label class="form-label">Commission Rate (%)</label>
+                            <input type="number" id="commissionRate" class="form-input" value="8" step="1">
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h4 class="section-title">
+                            <i class="fas fa-coins"></i>
+                            Float Settings
+                        </h4>
+                        <div class="form-group">
+                            <label class="form-label">Minimum Float (K)</label>
+                            <input type="number" id="minFloat" class="form-input" value="10" step="1">
+                        </div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" id="cancelSettingsBtn">Cancel</button>
+                        <button class="btn btn-primary" id="saveSettingsBtn">Save Settings</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -741,24 +1410,26 @@
         
         // App state
         let currentUser = null;
-        let adminMap;
+        let managerMap;
+        let rideMap;
         let driverMarkers = {};
         let passengerMarkers = {};
         let rideMarkers = {};
+        let rideRoutes = {};
+        let selectedDriver = null;
+        let selectedPassenger = null;
+        let selectedRide = null;
         let driversData = {};
         let passengersData = {};
         let ridesData = {};
-        let showDrivers = true;
-        let showPassengers = true;
-        let showRides = true;
-        let selectedItem = null;
-        let selectedItemType = null;
+        let driverLocations = {};
+        let passengerLocations = {};
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
             initializeAuth();
-            initializeMap();
             setupEventListeners();
+            initializeMap();
         });
         
         // Authentication functions
@@ -771,6 +1442,10 @@
                     loadDriversData();
                     loadPassengersData();
                     loadRidesData();
+                    loadSettings();
+                    
+                    // Set up real-time listeners
+                    setupRealtimeListeners();
                 } else {
                     // Redirect to login if not authenticated
                     showLoginScreen();
@@ -783,185 +1458,572 @@
             // For demo purposes, we'll auto-login with a dummy user
             auth.signInAnonymously()
                 .then(() => {
-                    console.log('Admin signed in anonymously');
+                    console.log('Manager signed in anonymously');
                 })
                 .catch(error => {
                     console.error('Authentication error:', error);
                 });
         }
         
+        // Set up real-time listeners for live updates
+        function setupRealtimeListeners() {
+            // Listen for driver location updates
+            database.ref('driverLocations').on('value', snapshot => {
+                driverLocations = snapshot.val() || {};
+                updateDriverMarkers();
+            });
+            
+            // Listen for passenger location updates
+            database.ref('passengerLocations').on('value', snapshot => {
+                passengerLocations = snapshot.val() || {};
+                updatePassengerMarkers();
+            });
+            
+            // Listen for ride updates
+            database.ref('rides').on('value', snapshot => {
+                ridesData = snapshot.val() || {};
+                updateRideMarkers();
+                updateDashboardData();
+                updateSidebarLists();
+            });
+            
+            // Listen for driver updates
+            database.ref('users').orderByChild('userType').equalTo('driver').on('value', snapshot => {
+                driversData = snapshot.val() || {};
+                updateDriverMarkers();
+                updateDashboardData();
+                updateSidebarLists();
+            });
+            
+            // Listen for passenger updates
+            database.ref('users').orderByChild('userType').equalTo('passenger').on('value', snapshot => {
+                passengersData = snapshot.val() || {};
+                updatePassengerMarkers();
+                updateDashboardData();
+                updateSidebarLists();
+            });
+        }
+        
         // Initialize map
         function initializeMap() {
-            // Admin map
-            adminMap = L.map('map').setView([-15.4167, 28.2833], 13); // Default to Lusaka
+            // Manager map
+            managerMap = L.map('map').setView([-15.4167, 28.2833], 13); // Default to Lusaka
             
             // Use a clean map style
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
-            }).addTo(adminMap);
+            }).addTo(managerMap);
+            
+            // Ride detail map
+            rideMap = L.map('rideMap').setView([-15.4167, 28.2833], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(rideMap);
+        }
+        
+        // Update driver markers on map
+        function updateDriverMarkers() {
+            // Clear existing markers if filter is off
+            if (!document.getElementById('showDrivers').checked) {
+                Object.values(driverMarkers).forEach(marker => {
+                    managerMap.removeLayer(marker);
+                });
+                driverMarkers = {};
+                return;
+            }
+            
+            // Update or create markers for drivers
+            Object.keys(driversData).forEach(driverId => {
+                const driver = driversData[driverId];
+                const location = driverLocations[driverId];
+                
+                // Check if driver should be shown based on status filter
+                const showOnline = document.getElementById('showOnlineDrivers').checked;
+                const showOffline = document.getElementById('showOfflineDrivers').checked;
+                
+                if ((driver.isOnline && !showOnline) || (!driver.isOnline && !showOffline)) {
+                    // Remove marker if it exists
+                    if (driverMarkers[driverId]) {
+                        managerMap.removeLayer(driverMarkers[driverId]);
+                        delete driverMarkers[driverId];
+                    }
+                    return;
+                }
+                
+                if (location && location.latitude && location.longitude) {
+                    // Create or update marker for driver
+                    if (driverMarkers[driverId]) {
+                        // Update existing marker
+                        driverMarkers[driverId].setLatLng([location.latitude, location.longitude]);
+                    } else {
+                        // Create new marker
+                        const iconColor = driver.isOnline ? '#2ecc71' : '#e74c3c';
+                        const iconHtml = `
+                            <div style="background: ${iconColor}; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
+                                <i class="fas fa-car"></i>
+                            </div>
+                            <div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold; white-space: nowrap;">
+                                ${driver.name || 'Driver'}
+                            </div>
+                        `;
+                        
+                        driverMarkers[driverId] = L.marker([location.latitude, location.longitude], {
+                            icon: L.divIcon({
+                                className: 'driver-marker',
+                                html: iconHtml,
+                                iconSize: [25, 40]
+                            })
+                        }).addTo(managerMap)
+                            .bindPopup(`
+                                <strong>${driver.name || 'Driver'}</strong><br>
+                                ${driver.vehicle?.type || 'Vehicle'}<br>
+                                Status: ${driver.isOnline ? 'Online' : 'Offline'}<br>
+                                <button onclick="showDriverDetails('${driverId}')" style="margin-top: 5px; padding: 5px 10px; background: #FF6B35; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                    View Details
+                                </button>
+                            `);
+                    }
+                } else {
+                    // Remove marker if no location
+                    if (driverMarkers[driverId]) {
+                        managerMap.removeLayer(driverMarkers[driverId]);
+                        delete driverMarkers[driverId];
+                    }
+                }
+            });
+            
+            // Remove markers for drivers that no longer exist
+            Object.keys(driverMarkers).forEach(driverId => {
+                if (!driversData[driverId]) {
+                    managerMap.removeLayer(driverMarkers[driverId]);
+                    delete driverMarkers[driverId];
+                }
+            });
+        }
+        
+        // Update passenger markers on map
+        function updatePassengerMarkers() {
+            // Clear existing markers if filter is off
+            if (!document.getElementById('showPassengers').checked) {
+                Object.values(passengerMarkers).forEach(marker => {
+                    managerMap.removeLayer(marker);
+                });
+                passengerMarkers = {};
+                return;
+            }
+            
+            // Update or create markers for passengers
+            Object.keys(passengersData).forEach(passengerId => {
+                const passenger = passengersData[passengerId];
+                const location = passengerLocations[passengerId];
+                
+                if (location && location.latitude && location.longitude) {
+                    // Create or update marker for passenger
+                    if (passengerMarkers[passengerId]) {
+                        // Update existing marker
+                        passengerMarkers[passengerId].setLatLng([location.latitude, location.longitude]);
+                    } else {
+                        // Create new marker
+                        const iconHtml = `
+                            <div style="background: #3498db; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px;">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold; white-space: nowrap;">
+                                ${passenger.name || 'Passenger'}
+                            </div>
+                        `;
+                        
+                        passengerMarkers[passengerId] = L.marker([location.latitude, location.longitude], {
+                            icon: L.divIcon({
+                                className: 'passenger-marker',
+                                html: iconHtml,
+                                iconSize: [20, 35]
+                            })
+                        }).addTo(managerMap)
+                            .bindPopup(`
+                                <strong>${passenger.name || 'Passenger'}</strong><br>
+                                Status: Active<br>
+                                <button onclick="showPassengerDetails('${passengerId}')" style="margin-top: 5px; padding: 5px 10px; background: #FF6B35; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                    View Details
+                                </button>
+                            `);
+                    }
+                } else {
+                    // Remove marker if no location
+                    if (passengerMarkers[passengerId]) {
+                        managerMap.removeLayer(passengerMarkers[passengerId]);
+                        delete passengerMarkers[passengerId];
+                    }
+                }
+            });
+            
+            // Remove markers for passengers that no longer exist
+            Object.keys(passengerMarkers).forEach(passengerId => {
+                if (!passengersData[passengerId]) {
+                    managerMap.removeLayer(passengerMarkers[passengerId]);
+                    delete passengerMarkers[passengerId];
+                }
+            });
+        }
+        
+        // Update ride markers on map
+        function updateRideMarkers() {
+            // Clear existing markers if filter is off
+            if (!document.getElementById('showActiveRides').checked) {
+                Object.values(rideMarkers).forEach(marker => {
+                    managerMap.removeLayer(marker);
+                });
+                rideMarkers = {};
+                
+                Object.values(rideRoutes).forEach(route => {
+                    managerMap.removeLayer(route);
+                });
+                rideRoutes = {};
+                return;
+            }
+            
+            // Update or create markers for active rides
+            Object.keys(ridesData).forEach(rideId => {
+                const ride = ridesData[rideId];
+                
+                // Check if ride should be shown based on status filter
+                const showRequested = document.getElementById('showRequestedRides').checked;
+                const showAccepted = document.getElementById('showAcceptedRides').checked;
+                const showStarted = document.getElementById('showStartedRides').checked;
+                
+                let shouldShow = false;
+                if (ride.status === 'requested' && showRequested) shouldShow = true;
+                if (ride.status === 'accepted' && showAccepted) shouldShow = true;
+                if (ride.status === 'started' && showStarted) shouldShow = true;
+                
+                if (!shouldShow) {
+                    // Remove marker and route if they exist
+                    if (rideMarkers[rideId]) {
+                        managerMap.removeLayer(rideMarkers[rideId]);
+                        delete rideMarkers[rideId];
+                    }
+                    if (rideRoutes[rideId]) {
+                        managerMap.removeLayer(rideRoutes[rideId]);
+                        delete rideRoutes[rideId];
+                    }
+                    return;
+                }
+                
+                if (ride.pickupLat && ride.pickupLng) {
+                    // Create or update marker for ride pickup
+                    if (!rideMarkers[rideId]) {
+                        const iconHtml = `
+                            <div style="background: #f39c12; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold; white-space: nowrap;">
+                                Ride ${rideId.substring(0, 6)}
+                            </div>
+                        `;
+                        
+                        rideMarkers[rideId] = L.marker([ride.pickupLat, ride.pickupLng], {
+                            icon: L.divIcon({
+                                className: 'ride-marker',
+                                html: iconHtml,
+                                iconSize: [25, 40]
+                            })
+                        }).addTo(managerMap)
+                            .bindPopup(`
+                                <strong>Ride ${rideId.substring(0, 8)}</strong><br>
+                                Passenger: ${ride.passengerName || 'N/A'}<br>
+                                Status: ${ride.status || 'N/A'}<br>
+                                <button onclick="showRideDetails('${rideId}')" style="margin-top: 5px; padding: 5px 10px; background: #FF6B35; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                    View Details
+                                </button>
+                            `);
+                    }
+                    
+                    // Draw route if we have destination coordinates
+                    if (ride.destLat && ride.destLng && !rideRoutes[rideId]) {
+                        // Draw route from pickup to destination
+                        drawRouteOnManagerMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng, rideId);
+                    }
+                }
+            });
+            
+            // Remove markers and routes for rides that no longer exist or are completed
+            Object.keys(rideMarkers).forEach(rideId => {
+                if (!ridesData[rideId] || ridesData[rideId].status === 'completed' || ridesData[rideId].status === 'cancelled') {
+                    managerMap.removeLayer(rideMarkers[rideId]);
+                    delete rideMarkers[rideId];
+                    
+                    if (rideRoutes[rideId]) {
+                        managerMap.removeLayer(rideRoutes[rideId]);
+                        delete rideRoutes[rideId];
+                    }
+                }
+            });
+        }
+        
+        // Draw route on manager map
+        function drawRouteOnManagerMap(startLat, startLng, endLat, endLng, rideId) {
+            // Use OSRM API to get route
+            fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                        
+                        // Draw the route on the map
+                        rideRoutes[rideId] = L.polyline(routeCoordinates, {
+                            color: '#FF6B35',
+                            weight: 4,
+                            opacity: 0.7
+                        }).addTo(managerMap);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching route:', error);
+                    // Fallback: draw a straight line
+                    rideRoutes[rideId] = L.polyline([
+                        [startLat, startLng],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7
+                    }).addTo(managerMap);
+                });
         }
         
         // Event listeners setup
         function setupEventListeners() {
-            // Refresh button
-            document.getElementById('refreshData').addEventListener('click', refreshAllData);
+            // Tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
             
-            // Control buttons
-            document.getElementById('toggleDrivers').addEventListener('click', toggleDriversVisibility);
-            document.getElementById('togglePassengers').addEventListener('click', togglePassengersVisibility);
-            document.getElementById('toggleRides').addEventListener('click', toggleRidesVisibility);
-            document.getElementById('showReports').addEventListener('click', showReports);
-            document.getElementById('showSettings').addEventListener('click', showSettings);
+            // Modal tabs
+            document.querySelectorAll('.modal-tab').forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    switchModalTab(this.closest('.modal'), tabId);
+                });
+            });
             
-            // Filter changes
-            document.getElementById('driverStatusFilter').addEventListener('change', updateMapMarkers);
-            document.getElementById('vehicleTypeFilter').addEventListener('change', updateMapMarkers);
-            document.getElementById('rideStatusFilter').addEventListener('change', updateMapMarkers);
+            // Filter checkboxes
+            document.querySelectorAll('.filter-checkbox input').forEach(checkbox => {
+                checkbox.addEventListener('change', updateMapMarkers);
+            });
             
-            // Sidebar close
-            document.getElementById('closeSidebar').addEventListener('click', closeSidebar);
+            // Map controls
+            document.getElementById('zoomInBtn').addEventListener('click', () => managerMap.zoomIn());
+            document.getElementById('zoomOutBtn').addEventListener('click', () => managerMap.zoomOut());
+            document.getElementById('centerMapBtn').addEventListener('click', centerMap);
+            document.getElementById('refreshDataBtn').addEventListener('click', refreshData);
+            
+            // Search
+            document.getElementById('globalSearchBtn').addEventListener('click', performGlobalSearch);
+            document.getElementById('globalSearch').addEventListener('keyup', function(event) {
+                if (event.key === 'Enter') {
+                    performGlobalSearch();
+                }
+            });
+            
+            // Modal close buttons
+            document.getElementById('closeDriverModal').addEventListener('click', closeDriverModal);
+            document.getElementById('closePassengerModal').addEventListener('click', closePassengerModal);
+            document.getElementById('closeRideModal').addEventListener('click', closeRideModal);
+            document.getElementById('closeReportsModal').addEventListener('click', closeReportsModal);
+            document.getElementById('closeSettingsModal').addEventListener('click', closeSettingsModal);
+            document.getElementById('cancelSettingsBtn').addEventListener('click', closeSettingsModal);
+            
+            // Action buttons
+            document.getElementById('editDriverBtn').addEventListener('click', editDriver);
+            document.getElementById('suspendDriverBtn').addEventListener('click', suspendDriver);
+            document.getElementById('trackDriverBtn').addEventListener('click', trackDriver);
+            document.getElementById('editPassengerBtn').addEventListener('click', editPassenger);
+            document.getElementById('suspendPassengerBtn').addEventListener('click', suspendPassenger);
+            document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
+            document.getElementById('reassignRideBtn').addEventListener('click', reassignRide);
+            document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+            
+            // Reports
+            document.getElementById('generateReportBtn').addEventListener('click', generateReports);
+            
+            // Settings button in header
+            document.getElementById('userAvatar').addEventListener('click', openSettings);
+            
+            // Reports button (would be added to header in a real implementation)
+            // document.getElementById('reportsBtn').addEventListener('click', openReports);
+        }
+        
+        // Tab switching
+        function switchTab(tabId) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.add('active');
+            
+            // Update active tab button
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelector(`.tab-button[data-tab="${tabId}"]`).classList.add('active');
+        }
+        
+        // Modal tab switching
+        function switchModalTab(modal, tabId) {
+            // Hide all tab contents in this modal
+            modal.querySelectorAll('.modal-tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            modal.querySelector(`#${tabId}`).classList.add('active');
+            
+            // Update active tab
+            modal.querySelectorAll('.modal-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            modal.querySelector(`.modal-tab[data-tab="${tabId}"]`).classList.add('active');
+        }
+        
+        // Update map markers based on filters
+        function updateMapMarkers() {
+            updateDriverMarkers();
+            updatePassengerMarkers();
+            updateRideMarkers();
+        }
+        
+        // Center map on all visible markers
+        function centerMap() {
+            const allMarkers = [
+                ...Object.values(driverMarkers),
+                ...Object.values(passengerMarkers),
+                ...Object.values(rideMarkers)
+            ];
+            
+            if (allMarkers.length > 0) {
+                const group = new L.featureGroup(allMarkers);
+                managerMap.fitBounds(group.getBounds(), { padding: [20, 20] });
+            } else {
+                managerMap.setView([-15.4167, 28.2833], 13); // Default to Lusaka
+            }
         }
         
         // Refresh all data
-        function refreshAllData() {
+        function refreshData() {
             loadDashboardData();
             loadDriversData();
             loadPassengersData();
             loadRidesData();
-            showNotification('Data refreshed successfully');
+            showNotification('Data refreshed successfully.');
         }
         
-        // Toggle drivers visibility
-        function toggleDriversVisibility() {
-            showDrivers = !showDrivers;
-            const btn = document.getElementById('toggleDrivers');
-            
-            if (showDrivers) {
-                btn.classList.add('active');
-                btn.innerHTML = '<i class="fas fa-car"></i> Hide Drivers';
-            } else {
-                btn.classList.remove('active');
-                btn.innerHTML = '<i class="fas fa-car"></i> Show Drivers';
+        // Perform global search
+        function performGlobalSearch() {
+            const query = document.getElementById('globalSearch').value.toLowerCase();
+            if (!query) {
+                updateSidebarLists();
+                return;
             }
             
-            updateMapMarkers();
-        }
-        
-        // Toggle passengers visibility
-        function togglePassengersVisibility() {
-            showPassengers = !showPassengers;
-            const btn = document.getElementById('togglePassengers');
+            // Filter drivers
+            const filteredDrivers = {};
+            Object.keys(driversData).forEach(driverId => {
+                const driver = driversData[driverId];
+                if (
+                    (driver.name && driver.name.toLowerCase().includes(query)) ||
+                    (driver.phone && driver.phone.includes(query)) ||
+                    (driver.email && driver.email.toLowerCase().includes(query)) ||
+                    (driver.vehicle?.licensePlate && driver.vehicle.licensePlate.toLowerCase().includes(query))
+                ) {
+                    filteredDrivers[driverId] = driver;
+                }
+            });
             
-            if (showPassengers) {
-                btn.classList.add('active');
-                btn.innerHTML = '<i class="fas fa-user"></i> Hide Passengers';
-            } else {
-                btn.classList.remove('active');
-                btn.innerHTML = '<i class="fas fa-user"></i> Show Passengers';
-            }
+            // Filter passengers
+            const filteredPassengers = {};
+            Object.keys(passengersData).forEach(passengerId => {
+                const passenger = passengersData[passengerId];
+                if (
+                    (passenger.name && passenger.name.toLowerCase().includes(query)) ||
+                    (passenger.phone && passenger.phone.includes(query)) ||
+                    (passenger.email && passenger.email.toLowerCase().includes(query))
+                ) {
+                    filteredPassengers[passengerId] = passenger;
+                }
+            });
             
-            updateMapMarkers();
-        }
-        
-        // Toggle rides visibility
-        function toggleRidesVisibility() {
-            showRides = !showRides;
-            const btn = document.getElementById('toggleRides');
+            // Filter rides
+            const filteredRides = {};
+            Object.keys(ridesData).forEach(rideId => {
+                const ride = ridesData[rideId];
+                if (
+                    (ride.passengerName && ride.passengerName.toLowerCase().includes(query)) ||
+                    (ride.pickupLocation && ride.pickupLocation.toLowerCase().includes(query)) ||
+                    (ride.destination && ride.destination.toLowerCase().includes(query)) ||
+                    rideId.toLowerCase().includes(query)
+                ) {
+                    filteredRides[rideId] = ride;
+                }
+            });
             
-            if (showRides) {
-                btn.classList.add('active');
-                btn.innerHTML = '<i class="fas fa-road"></i> Hide Rides';
-            } else {
-                btn.classList.remove('active');
-                btn.innerHTML = '<i class="fas fa-road"></i> Show Rides';
-            }
-            
-            updateMapMarkers();
-        }
-        
-        // Show reports in sidebar
-        function showReports() {
-            openSidebar('Reports');
-            loadReports();
-        }
-        
-        // Show settings in sidebar
-        function showSettings() {
-            openSidebar('Settings');
-            loadSettings();
-        }
-        
-        // Open sidebar with specific content
-        function openSidebar(title) {
-            document.getElementById('sidebarTitle').textContent = title;
-            document.getElementById('sidebar').classList.add('active');
-        }
-        
-        // Close sidebar
-        function closeSidebar() {
-            document.getElementById('sidebar').classList.remove('active');
-            selectedItem = null;
-            selectedItemType = null;
+            // Update sidebar lists with filtered results
+            displayDriversInSidebar(filteredDrivers);
+            displayPassengersInSidebar(filteredPassengers);
+            displayRidesInSidebar(filteredRides);
         }
         
         // Load dashboard data
         function loadDashboardData() {
-            // Load total rides
-            database.ref('rides').once('value')
-                .then(snapshot => {
-                    const rides = snapshot.val();
-                    const totalRides = rides ? Object.keys(rides).length : 0;
-                    document.getElementById('totalRides').textContent = totalRides;
-                    
-                    // Calculate active rides
-                    let activeRides = 0;
-                    
-                    if (rides) {
-                        Object.keys(rides).forEach(rideId => {
-                            const ride = rides[rideId];
-                            if (ride.status === 'accepted' || ride.status === 'started') {
-                                activeRides++;
-                            }
-                        });
-                    }
-                    
-                    document.getElementById('activeRides').textContent = activeRides;
-                })
-                .catch(error => {
-                    console.error('Error loading rides:', error);
-                });
+            // Calculate stats from existing data
+            let totalRides = Object.keys(ridesData).length;
+            let activeRides = 0;
+            let totalEarnings = 0;
+            let todayEarnings = 0;
+            const today = new Date();
             
-            // Load drivers data
-            database.ref('users').orderByChild('userType').equalTo('driver').once('value')
-                .then(snapshot => {
-                    const drivers = snapshot.val();
-                    let onlineDrivers = 0;
+            Object.keys(ridesData).forEach(rideId => {
+                const ride = ridesData[rideId];
+                
+                if (ride.status === 'accepted' || ride.status === 'started') {
+                    activeRides++;
+                }
+                
+                if (ride.status === 'completed' && ride.fare) {
+                    totalEarnings += ride.fare;
                     
-                    if (drivers) {
-                        Object.keys(drivers).forEach(driverId => {
-                            const driver = drivers[driverId];
-                            if (driver.isOnline) {
-                                onlineDrivers++;
-                            }
-                        });
+                    // Check if completed today
+                    if (ride.completedAt) {
+                        const completedDate = new Date(ride.completedAt);
+                        if (completedDate.toDateString() === today.toDateString()) {
+                            todayEarnings += ride.fare;
+                        }
                     }
-                    
-                    document.getElementById('onlineDrivers').textContent = onlineDrivers;
-                })
-                .catch(error => {
-                    console.error('Error loading drivers:', error);
-                });
+                }
+            });
             
-            // Load passengers data
-            database.ref('users').orderByChild('userType').equalTo('passenger').once('value')
-                .then(snapshot => {
-                    const passengers = snapshot.val();
-                    const activePassengers = passengers ? Object.keys(passengers).length : 0;
-                    document.getElementById('activePassengers').textContent = activePassengers;
-                })
-                .catch(error => {
-                    console.error('Error loading passengers:', error);
-                });
+            let totalDrivers = Object.keys(driversData).length;
+            let onlineDrivers = 0;
+            
+            Object.keys(driversData).forEach(driverId => {
+                const driver = driversData[driverId];
+                if (driver.isOnline) {
+                    onlineDrivers++;
+                }
+            });
+            
+            // Update dashboard stats
+            document.getElementById('totalRides').textContent = totalRides;
+            document.getElementById('activeRides').textContent = activeRides;
+            document.getElementById('totalDrivers').textContent = totalDrivers;
+            document.getElementById('onlineDrivers').textContent = onlineDrivers;
+            document.getElementById('totalEarnings').textContent = `K${totalEarnings.toFixed(2)}`;
+            document.getElementById('todayEarnings').textContent = `K${todayEarnings.toFixed(2)}`;
         }
         
         // Load drivers data
@@ -970,6 +2032,8 @@
                 .then(snapshot => {
                     driversData = snapshot.val() || {};
                     updateDriverMarkers();
+                    updateDashboardData();
+                    updateSidebarLists();
                 })
                 .catch(error => {
                     console.error('Error loading drivers:', error);
@@ -983,6 +2047,8 @@
                 .then(snapshot => {
                     passengersData = snapshot.val() || {};
                     updatePassengerMarkers();
+                    updateDashboardData();
+                    updateSidebarLists();
                 })
                 .catch(error => {
                     console.error('Error loading passengers:', error);
@@ -996,6 +2062,8 @@
                 .then(snapshot => {
                     ridesData = snapshot.val() || {};
                     updateRideMarkers();
+                    updateDashboardData();
+                    updateSidebarLists();
                 })
                 .catch(error => {
                     console.error('Error loading rides:', error);
@@ -1003,570 +2071,506 @@
                 });
         }
         
-        // Update driver markers on map
-        function updateDriverMarkers() {
-            // Clear existing driver markers
-            Object.values(driverMarkers).forEach(marker => {
-                adminMap.removeLayer(marker);
-            });
-            driverMarkers = {};
+        // Update sidebar lists with current data
+        function updateSidebarLists() {
+            displayDriversInSidebar(driversData);
+            displayPassengersInSidebar(passengersData);
+            displayRidesInSidebar(ridesData);
+        }
+        
+        // Display drivers in sidebar
+        function displayDriversInSidebar(drivers) {
+            const driversList = document.getElementById('driversList');
+            driversList.innerHTML = '';
             
-            if (driversData && showDrivers) {
-                Object.keys(driversData).forEach(driverId => {
-                    const driver = driversData[driverId];
+            if (drivers && Object.keys(drivers).length > 0) {
+                // Sort drivers by online status and name
+                const sortedDrivers = Object.keys(drivers)
+                    .map(driverId => ({ id: driverId, ...drivers[driverId] }))
+                    .sort((a, b) => {
+                        // Online drivers first
+                        if (a.isOnline && !b.isOnline) return -1;
+                        if (!a.isOnline && b.isOnline) return 1;
+                        // Then sort by name
+                        return (a.name || '').localeCompare(b.name || '');
+                    });
+                
+                sortedDrivers.forEach(driver => {
+                    const driverItem = document.createElement('div');
+                    driverItem.className = 'list-item';
                     
-                    // Check if driver has location data
-                    if (driver.latitude && driver.longitude) {
-                        // Apply filters
-                        const driverStatus = document.getElementById('driverStatusFilter').value;
-                        const vehicleType = document.getElementById('vehicleTypeFilter').value;
-                        
-                        let statusMatch = true;
-                        let vehicleMatch = true;
-                        
-                        if (driverStatus === 'online') {
-                            statusMatch = driver.isOnline === true;
-                        } else if (driverStatus === 'offline') {
-                            statusMatch = driver.isOnline === false;
-                        }
-                        
-                        if (vehicleType !== 'all') {
-                            vehicleMatch = driver.vehicleType === vehicleType;
-                        }
-                        
-                        if (statusMatch && vehicleMatch) {
-                            // Create marker for driver
-                            const marker = L.marker([driver.latitude, driver.longitude], {
-                                icon: L.divIcon({
-                                    className: 'driver-marker',
-                                    html: `<div class="driver-marker">🚗</div><div class="driver-marker-label">${driver.name || 'Driver'}</div>`,
-                                    iconSize: [35, 50]
-                                })
-                            }).addTo(adminMap)
-                                .bindPopup(`
-                                    <strong>${driver.name || 'Driver'}</strong><br>
-                                    ${driver.vehicleType || 'Vehicle'}<br>
-                                    Status: ${driver.isOnline ? 'Online' : 'Offline'}<br>
-                                    <button onclick="showDriverDetails('${driverId}')">View Details</button>
-                                `);
-                            
-                            driverMarkers[driverId] = marker;
-                        }
-                    }
+                    const status = driver.isOnline ? 'online' : 'offline';
+                    const statusClass = driver.isOnline ? 'status-online' : 'status-offline';
+                    const vehicleInfo = driver.vehicle ? `${driver.vehicle.type} • ${driver.vehicle.licensePlate || 'N/A'}` : 'Vehicle info missing';
+                    
+                    driverItem.innerHTML = `
+                        <div class="item-title">${driver.name || 'Unknown Driver'}</div>
+                        <div class="item-details">
+                            <span>${vehicleInfo}</span>
+                            <span class="status-badge ${statusClass}">${status}</span>
+                        </div>
+                    `;
+                    
+                    driverItem.addEventListener('click', function() {
+                        showDriverDetails(driver.id);
+                    });
+                    
+                    driversList.appendChild(driverItem);
                 });
+            } else {
+                driversList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--medium-gray);">No drivers found.</div>';
             }
         }
         
-        // Update passenger markers on map
-        function updatePassengerMarkers() {
-            // Clear existing passenger markers
-            Object.values(passengerMarkers).forEach(marker => {
-                adminMap.removeLayer(marker);
-            });
-            passengerMarkers = {};
+        // Display passengers in sidebar
+        function displayPassengersInSidebar(passengers) {
+            const passengersList = document.getElementById('passengersList');
+            passengersList.innerHTML = '';
             
-            if (passengersData && showPassengers) {
-                Object.keys(passengersData).forEach(passengerId => {
-                    const passenger = passengersData[passengerId];
+            if (passengers && Object.keys(passengers).length > 0) {
+                // Sort passengers by name
+                const sortedPassengers = Object.keys(passengers)
+                    .map(passengerId => ({ id: passengerId, ...passengers[passengerId] }))
+                    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                
+                sortedPassengers.forEach(passenger => {
+                    const passengerItem = document.createElement('div');
+                    passengerItem.className = 'list-item';
                     
-                    // Check if passenger has location data
-                    if (passenger.latitude && passenger.longitude) {
-                        // Create marker for passenger
-                        const marker = L.marker([passenger.latitude, passenger.longitude], {
-                            icon: L.divIcon({
-                                className: 'passenger-marker',
-                                html: `<div class="passenger-marker">👤</div><div class="passenger-marker-label">${passenger.name || 'Passenger'}</div>`,
-                                iconSize: [30, 45]
-                            })
-                        }).addTo(adminMap)
-                            .bindPopup(`
-                                <strong>${passenger.name || 'Passenger'}</strong><br>
-                                Phone: ${passenger.phone || 'N/A'}<br>
-                                <button onclick="showPassengerDetails('${passengerId}')">View Details</button>
-                            `);
-                        
-                        passengerMarkers[passengerId] = marker;
-                    }
+                    passengerItem.innerHTML = `
+                        <div class="item-title">${passenger.name || 'Unknown Passenger'}</div>
+                        <div class="item-details">
+                            <span>${passenger.phone || 'N/A'}</span>
+                            <span>Rides: ${passenger.totalRides || 0}</span>
+                        </div>
+                    `;
+                    
+                    passengerItem.addEventListener('click', function() {
+                        showPassengerDetails(passenger.id);
+                    });
+                    
+                    passengersList.appendChild(passengerItem);
                 });
+            } else {
+                passengersList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--medium-gray);">No passengers found.</div>';
             }
         }
         
-        // Update ride markers on map
-        function updateRideMarkers() {
-            // Clear existing ride markers
-            Object.values(rideMarkers).forEach(marker => {
-                adminMap.removeLayer(marker);
-            });
-            rideMarkers = {};
+        // Display rides in sidebar
+        function displayRidesInSidebar(rides) {
+            const ridesList = document.getElementById('ridesList');
+            ridesList.innerHTML = '';
             
-            if (ridesData && showRides) {
-                Object.keys(ridesData).forEach(rideId => {
-                    const ride = ridesData[rideId];
+            if (rides && Object.keys(rides).length > 0) {
+                // Sort rides by timestamp (newest first)
+                const sortedRides = Object.keys(rides)
+                    .map(rideId => ({ id: rideId, ...rides[rideId] }))
+                    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                
+                sortedRides.forEach(ride => {
+                    const rideItem = document.createElement('div');
+                    rideItem.className = 'list-item';
                     
-                    // Apply ride status filter
-                    const rideStatus = document.getElementById('rideStatusFilter').value;
-                    let statusMatch = true;
+                    const date = new Date(ride.timestamp);
+                    const formattedDate = date.toLocaleDateString();
+                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     
-                    if (rideStatus !== 'all') {
-                        statusMatch = ride.status === rideStatus;
-                    }
+                    rideItem.innerHTML = `
+                        <div class="item-title">${ride.passengerName || 'Passenger'} → ${ride.destination || 'Destination'}</div>
+                        <div class="item-details">
+                            <span>K${ride.fare ? ride.fare.toFixed(2) : '0.00'} • ${formattedDate} ${formattedTime}</span>
+                            <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
+                        </div>
+                    `;
                     
-                    if (statusMatch && ride.pickupLat && ride.pickupLng) {
-                        // Create marker for ride
-                        const marker = L.marker([ride.pickupLat, ride.pickupLng], {
-                            icon: L.divIcon({
-                                className: 'ride-marker',
-                                html: `<div class="ride-marker">🚕</div><div class="ride-marker-label">Ride</div>`,
-                                iconSize: [25, 40]
-                            })
-                        }).addTo(adminMap)
-                            .bindPopup(`
-                                <strong>Ride #${rideId.substring(0, 8)}</strong><br>
-                                Passenger: ${ride.passengerName || 'N/A'}<br>
-                                Status: ${ride.status || 'N/A'}<br>
-                                <button onclick="showRideDetails('${rideId}')">View Details</button>
-                            `);
-                        
-                        rideMarkers[rideId] = marker;
-                    }
+                    rideItem.addEventListener('click', function() {
+                        showRideDetails(ride.id);
+                    });
+                    
+                    ridesList.appendChild(rideItem);
                 });
+            } else {
+                ridesList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--medium-gray);">No rides found.</div>';
             }
         }
         
-        // Update all map markers based on current filters and visibility settings
-        function updateMapMarkers() {
-            updateDriverMarkers();
-            updatePassengerMarkers();
-            updateRideMarkers();
-        }
-        
-        // Show driver details in sidebar
+        // Show driver details in modal
         function showDriverDetails(driverId) {
             const driver = driversData[driverId];
             if (!driver) return;
             
-            selectedItem = driverId;
-            selectedItemType = 'driver';
+            selectedDriver = driverId;
             
-            const sidebarContent = document.getElementById('sidebarContent');
-            sidebarContent.innerHTML = `
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-user"></i>
-                        Driver Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Name:</span>
-                        <span class="detail-value">${driver.name || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Phone:</span>
-                        <span class="detail-value">${driver.phone || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Email:</span>
-                        <span class="detail-value">${driver.email || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">NRC:</span>
-                        <span class="detail-value">${driver.nrc || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Status:</span>
-                        <span class="detail-value">
-                            <span class="status-badge ${driver.isOnline ? 'status-online' : 'status-offline'}">
-                                ${driver.isOnline ? 'Online' : 'Offline'}
-                            </span>
-                        </span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-car"></i>
-                        Vehicle Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Type:</span>
-                        <span class="detail-value">${driver.vehicleType || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Make:</span>
-                        <span class="detail-value">${driver.make || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Model:</span>
-                        <span class="detail-value">${driver.model || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Year:</span>
-                        <span class="detail-value">${driver.year || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Color:</span>
-                        <span class="detail-value">${driver.color || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">License Plate:</span>
-                        <span class="detail-value">${driver.licensePlate || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">License Number:</span>
-                        <span class="detail-value">${driver.licenseNumber || 'N/A'}</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-wallet"></i>
-                        Financial Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Float Balance:</span>
-                        <span class="detail-value">K${driver.floatBalance || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Wallet Balance:</span>
-                        <span class="detail-value">K${driver.walletBalance || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Total Earnings:</span>
-                        <span class="detail-value">K${driver.totalEarnings || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Total Rides:</span>
-                        <span class="detail-value">${driver.totalRides || '0'}</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-money-bill-wave"></i>
-                        Payment Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Method:</span>
-                        <span class="detail-value">${driver.paymentMethod || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Details:</span>
-                        <span class="detail-value">${driver.paymentDetails || 'N/A'}</span>
-                    </div>
-                </div>
-                
-                <div class="action-buttons">
-                    <button class="btn btn-secondary" onclick="editDriver('${driverId}')">
-                        <i class="fas fa-edit"></i>
-                        Edit
-                    </button>
-                    <button class="btn ${driver.isSuspended ? 'btn-success' : 'btn-danger'}" onclick="toggleDriverSuspension('${driverId}')">
-                        <i class="fas ${driver.isSuspended ? 'fa-check' : 'fa-ban'}"></i>
-                        ${driver.isSuspended ? 'Activate' : 'Suspend'}
-                    </button>
-                    <button class="btn btn-primary" onclick="trackOnMap('${driverId}', 'driver')">
-                        <i class="fas fa-map-marker-alt"></i>
-                        Track
-                    </button>
-                </div>
+            // Update driver info tab
+            document.getElementById('driverName').textContent = driver.name || 'N/A';
+            document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
+            document.getElementById('driverEmail').textContent = driver.email || 'N/A';
+            document.getElementById('driverNRC').textContent = driver.nrc || 'N/A';
+            document.getElementById('driverStatus').innerHTML = `
+                <span class="status-badge ${driver.isOnline ? 'status-online' : 'status-offline'}">
+                    ${driver.isOnline ? 'Online' : 'Offline'}
+                </span>
+                ${driver.isSuspended ? '<span class="status-badge status-cancelled" style="margin-left: 5px;">Suspended</span>' : ''}
             `;
+            document.getElementById('driverRating').textContent = driver.rating || 'N/A';
+            document.getElementById('driverFloatBalance').textContent = `K${(driver.floatBalance || 0).toFixed(2)}`;
+            document.getElementById('driverWalletBalance').textContent = `K${(driver.walletBalance || 0).toFixed(2)}`;
+            document.getElementById('driverTotalEarnings').textContent = `K${(driver.totalEarnings || 0).toFixed(2)}`;
+            document.getElementById('driverTotalRides').textContent = driver.totalRides || 0;
             
-            openSidebar('Driver Details');
+            // Update vehicle info tab
+            if (driver.vehicle) {
+                document.getElementById('vehicleType').textContent = driver.vehicle.type || 'N/A';
+                document.getElementById('vehicleMake').textContent = driver.vehicle.make || 'N/A';
+                document.getElementById('vehicleModel').textContent = driver.vehicle.model || 'N/A';
+                document.getElementById('vehicleYear').textContent = driver.vehicle.year || 'N/A';
+                document.getElementById('vehicleColor').textContent = driver.vehicle.color || 'N/A';
+                document.getElementById('vehicleLicensePlate').textContent = driver.vehicle.licensePlate || 'N/A';
+                document.getElementById('vehicleLicenseNumber').textContent = driver.vehicle.licenseNumber || 'N/A';
+            } else {
+                document.getElementById('vehicleType').textContent = 'N/A';
+                document.getElementById('vehicleMake').textContent = 'N/A';
+                document.getElementById('vehicleModel').textContent = 'N/A';
+                document.getElementById('vehicleYear').textContent = 'N/A';
+                document.getElementById('vehicleColor').textContent = 'N/A';
+                document.getElementById('vehicleLicensePlate').textContent = 'N/A';
+                document.getElementById('vehicleLicenseNumber').textContent = 'N/A';
+            }
             
-            // Center map on driver if they have location data
-            if (driver.latitude && driver.longitude) {
-                adminMap.setView([driver.latitude, driver.longitude], 15);
-                if (driverMarkers[driverId]) {
-                    driverMarkers[driverId].openPopup();
+            // Update driver rides tab
+            loadDriverRides(driverId);
+            
+            // Update suspend button text based on current status
+            const suspendBtn = document.getElementById('suspendDriverBtn');
+            if (driver.isSuspended) {
+                suspendBtn.innerHTML = '<i class="fas fa-check"></i> Activate Driver';
+                suspendBtn.classList.remove('btn-danger');
+                suspendBtn.classList.add('btn-success');
+            } else {
+                suspendBtn.innerHTML = '<i class="fas fa-ban"></i> Suspend Driver';
+                suspendBtn.classList.remove('btn-success');
+                suspendBtn.classList.add('btn-danger');
+            }
+            
+            document.getElementById('driverDetailModal').classList.add('active');
+        }
+        
+        // Load driver rides for the rides tab
+        function loadDriverRides(driverId) {
+            const driverRidesList = document.getElementById('driverRidesList');
+            driverRidesList.innerHTML = '';
+            
+            // Find rides for this driver
+            const driverRides = [];
+            Object.keys(ridesData).forEach(rideId => {
+                const ride = ridesData[rideId];
+                if (ride.driverId === driverId) {
+                    driverRides.push({ id: rideId, ...ride });
                 }
+            });
+            
+            // Sort by timestamp (newest first) and take first 10
+            driverRides.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            const recentRides = driverRides.slice(0, 10);
+            
+            if (recentRides.length > 0) {
+                recentRides.forEach(ride => {
+                    const rideItem = document.createElement('div');
+                    rideItem.className = 'list-item';
+                    
+                    const date = new Date(ride.timestamp);
+                    const formattedDate = date.toLocaleDateString();
+                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    rideItem.innerHTML = `
+                        <div class="item-title">${ride.passengerName || 'Passenger'} → ${ride.destination || 'Destination'}</div>
+                        <div class="item-details">
+                            <span>K${ride.fare ? ride.fare.toFixed(2) : '0.00'} • ${formattedDate} ${formattedTime}</span>
+                            <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
+                        </div>
+                    `;
+                    
+                    rideItem.addEventListener('click', function() {
+                        closeDriverModal();
+                        showRideDetails(ride.id);
+                    });
+                    
+                    driverRidesList.appendChild(rideItem);
+                });
+            } else {
+                driverRidesList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--medium-gray);">No rides found for this driver.</div>';
             }
         }
         
-        // Show passenger details in sidebar
+        // Show passenger details in modal
         function showPassengerDetails(passengerId) {
             const passenger = passengersData[passengerId];
             if (!passenger) return;
             
-            selectedItem = passengerId;
-            selectedItemType = 'passenger';
+            selectedPassenger = passengerId;
             
-            const sidebarContent = document.getElementById('sidebarContent');
-            sidebarContent.innerHTML = `
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-user"></i>
-                        Passenger Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Name:</span>
-                        <span class="detail-value">${passenger.name || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Phone:</span>
-                        <span class="detail-value">${passenger.phone || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Email:</span>
-                        <span class="detail-value">${passenger.email || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Status:</span>
-                        <span class="detail-value">
-                            <span class="status-badge ${passenger.isSuspended ? 'status-cancelled' : 'status-completed'}">
-                                ${passenger.isSuspended ? 'Suspended' : 'Active'}
-                            </span>
-                        </span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-road"></i>
-                        Ride Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Total Rides:</span>
-                        <span class="detail-value">${passenger.totalRides || '0'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Total Spent:</span>
-                        <span class="detail-value">K${passenger.totalSpent || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Rating:</span>
-                        <span class="detail-value">${passenger.rating || 'N/A'}</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-wallet"></i>
-                        Financial Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Wallet Balance:</span>
-                        <span class="detail-value">K${passenger.walletBalance || '0.00'}</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-gift"></i>
-                        Referral Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Referral Code:</span>
-                        <span class="detail-value">${passenger.referralCode || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Referrals Count:</span>
-                        <span class="detail-value">${passenger.referralsCount || '0'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Referral Bonus:</span>
-                        <span class="detail-value">K${passenger.referralBonus || '0.00'}</span>
-                    </div>
-                </div>
-                
-                <div class="action-buttons">
-                    <button class="btn btn-secondary" onclick="editPassenger('${passengerId}')">
-                        <i class="fas fa-edit"></i>
-                        Edit
-                    </button>
-                    <button class="btn ${passenger.isSuspended ? 'btn-success' : 'btn-danger'}" onclick="togglePassengerSuspension('${passengerId}')">
-                        <i class="fas ${passenger.isSuspended ? 'fa-check' : 'fa-ban'}"></i>
-                        ${passenger.isSuspended ? 'Activate' : 'Suspend'}
-                    </button>
-                    <button class="btn btn-primary" onclick="trackOnMap('${passengerId}', 'passenger')">
-                        <i class="fas fa-map-marker-alt"></i>
-                        Track
-                    </button>
-                </div>
+            // Update passenger info tab
+            document.getElementById('passengerName').textContent = passenger.name || 'N/A';
+            document.getElementById('passengerPhone').textContent = passenger.phone || 'N/A';
+            document.getElementById('passengerEmail').textContent = passenger.email || 'N/A';
+            document.getElementById('passengerStatus').innerHTML = `
+                <span class="status-badge ${passenger.isSuspended ? 'status-cancelled' : 'status-completed'}">
+                    ${passenger.isSuspended ? 'Suspended' : 'Active'}
+                </span>
             `;
+            document.getElementById('passengerRating').textContent = passenger.rating || 'N/A';
+            document.getElementById('passengerReferralCode').textContent = passenger.referralCode || 'N/A';
+            document.getElementById('passengerWalletBalance').textContent = `K${(passenger.walletBalance || 0).toFixed(2)}`;
+            document.getElementById('passengerTotalSpent').textContent = `K${(passenger.totalSpent || 0).toFixed(2)}`;
+            document.getElementById('passengerTotalRides').textContent = passenger.totalRides || 0;
             
-            openSidebar('Passenger Details');
+            // Update passenger rides tab
+            loadPassengerRides(passengerId);
             
-            // Center map on passenger if they have location data
-            if (passenger.latitude && passenger.longitude) {
-                adminMap.setView([passenger.latitude, passenger.longitude], 15);
-                if (passengerMarkers[passengerId]) {
-                    passengerMarkers[passengerId].openPopup();
+            // Update suspend button text based on current status
+            const suspendBtn = document.getElementById('suspendPassengerBtn');
+            if (passenger.isSuspended) {
+                suspendBtn.innerHTML = '<i class="fas fa-check"></i> Activate Passenger';
+                suspendBtn.classList.remove('btn-danger');
+                suspendBtn.classList.add('btn-success');
+            } else {
+                suspendBtn.innerHTML = '<i class="fas fa-ban"></i> Suspend Passenger';
+                suspendBtn.classList.remove('btn-success');
+                suspendBtn.classList.add('btn-danger');
+            }
+            
+            document.getElementById('passengerDetailModal').classList.add('active');
+        }
+        
+        // Load passenger rides for the rides tab
+        function loadPassengerRides(passengerId) {
+            const passengerRidesList = document.getElementById('passengerRidesList');
+            passengerRidesList.innerHTML = '';
+            
+            // Find rides for this passenger
+            const passengerRides = [];
+            Object.keys(ridesData).forEach(rideId => {
+                const ride = ridesData[rideId];
+                if (ride.passengerId === passengerId) {
+                    passengerRides.push({ id: rideId, ...ride });
                 }
+            });
+            
+            // Sort by timestamp (newest first) and take first 10
+            passengerRides.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            const recentRides = passengerRides.slice(0, 10);
+            
+            if (recentRides.length > 0) {
+                recentRides.forEach(ride => {
+                    const rideItem = document.createElement('div');
+                    rideItem.className = 'list-item';
+                    
+                    const date = new Date(ride.timestamp);
+                    const formattedDate = date.toLocaleDateString();
+                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    rideItem.innerHTML = `
+                        <div class="item-title">${ride.pickupLocation || 'Pickup'} → ${ride.destination || 'Destination'}</div>
+                        <div class="item-details">
+                            <span>K${ride.fare ? ride.fare.toFixed(2) : '0.00'} • ${formattedDate} ${formattedTime}</span>
+                            <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
+                        </div>
+                    `;
+                    
+                    rideItem.addEventListener('click', function() {
+                        closePassengerModal();
+                        showRideDetails(ride.id);
+                    });
+                    
+                    passengerRidesList.appendChild(rideItem);
+                });
+            } else {
+                passengerRidesList.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--medium-gray);">No rides found for this passenger.</div>';
             }
         }
         
-        // Show ride details in sidebar
+        // Show ride details in modal
         function showRideDetails(rideId) {
             const ride = ridesData[rideId];
             if (!ride) return;
             
-            selectedItem = rideId;
-            selectedItemType = 'ride';
+            selectedRide = rideId;
+            
+            // Update ride info tab
+            document.getElementById('rideId').textContent = rideId;
+            document.getElementById('rideStatus').innerHTML = `
+                <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
+            `;
+            document.getElementById('rideType').textContent = ride.rideType ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1) : 'Standard';
+            document.getElementById('rideFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+            document.getElementById('rideDistance').textContent = ride.distance || 'N/A';
             
             const date = new Date(ride.timestamp);
-            const formattedDate = date.toLocaleDateString();
-            const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            document.getElementById('rideDateTime').textContent = `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
             
-            const sidebarContent = document.getElementById('sidebarContent');
-            sidebarContent.innerHTML = `
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-road"></i>
-                        Ride Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Ride ID:</span>
-                        <span class="detail-value">${rideId}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Status:</span>
-                        <span class="detail-value">
-                            <span class="status-badge status-${ride.status || 'requested'}">${ride.status || 'requested'}</span>
-                        </span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Date & Time:</span>
-                        <span class="detail-value">${formattedDate} ${formattedTime}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Ride Type:</span>
-                        <span class="detail-value">${ride.rideType || 'Standard'}</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-user"></i>
-                        Passenger Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Name:</span>
-                        <span class="detail-value">${ride.passengerName || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Phone:</span>
-                        <span class="detail-value">${ride.passengerPhone || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Rating:</span>
-                        <span class="detail-value">${ride.passengerRating || 'N/A'}</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-car"></i>
-                        Driver Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Driver:</span>
-                        <span class="detail-value">${ride.driverId ? 'Assigned' : 'Not assigned'}</span>
-                    </div>
-                    ${ride.driverId ? `
-                    <div class="detail-row">
-                        <span class="detail-label">Driver Name:</span>
-                        <span class="detail-value">${ride.driverName || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Driver Phone:</span>
-                        <span class="detail-value">${ride.driverPhone || 'N/A'}</span>
-                    </div>
-                    ` : ''}
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-map-marker-alt"></i>
-                        Location Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Pickup Location:</span>
-                        <span class="detail-value">${ride.pickupLocation || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Destination:</span>
-                        <span class="detail-value">${ride.destination || 'N/A'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Distance:</span>
-                        <span class="detail-value">${ride.distance || 'N/A'} km</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Estimated Time:</span>
-                        <span class="detail-value">${ride.estimatedTime || 'N/A'} min</span>
-                    </div>
-                </div>
-                
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-money-bill-wave"></i>
-                        Fare Information
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Base Fare:</span>
-                        <span class="detail-value">K${ride.baseFare || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Distance Fare:</span>
-                        <span class="detail-value">K${ride.distanceFare || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Discount:</span>
-                        <span class="detail-value">K${ride.discount || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Total Fare:</span>
-                        <span class="detail-value">K${ride.totalFare || '0.00'}</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Payment Method:</span>
-                        <span class="detail-value">${ride.paymentMethod || 'N/A'}</span>
-                    </div>
-                </div>
-                
-                <div class="action-buttons">
-                    <button class="btn btn-danger" onclick="cancelRide('${rideId}')">
-                        <i class="fas fa-times"></i>
-                        Cancel
-                    </button>
-                    <button class="btn btn-primary" onclick="reassignRide('${rideId}')">
-                        <i class="fas fa-sync-alt"></i>
-                        Reassign
-                    </button>
-                    <button class="btn btn-secondary" onclick="trackOnMap('${rideId}', 'ride')">
-                        <i class="fas fa-map-marker-alt"></i>
-                        Track
-                    </button>
-                </div>
-            `;
+            document.getElementById('ridePickupLocation').textContent = ride.pickupLocation || 'N/A';
+            document.getElementById('rideDestination').textContent = ride.destination || 'N/A';
+            document.getElementById('ridePickupCoords').textContent = ride.pickupLat && ride.pickupLng ? `${ride.pickupLat.toFixed(6)}, ${ride.pickupLng.toFixed(6)}` : 'N/A';
+            document.getElementById('rideDestCoords').textContent = ride.destLat && ride.destLng ? `${ride.destLat.toFixed(6)}, ${ride.destLng.toFixed(6)}` : 'N/A';
             
-            openSidebar('Ride Details');
+            document.getElementById('ridePassenger').textContent = ride.passengerName || 'N/A';
+            document.getElementById('ridePassengerPhone').textContent = ride.passengerPhone || 'N/A';
             
-            // Center map on ride pickup location
+            if (ride.driverId && driversData[ride.driverId]) {
+                const driver = driversData[ride.driverId];
+                document.getElementById('rideDriver').textContent = driver.name || 'N/A';
+                document.getElementById('rideDriverPhone').textContent = driver.phone || 'N/A';
+            } else {
+                document.getElementById('rideDriver').textContent = 'Not assigned';
+                document.getElementById('rideDriverPhone').textContent = 'N/A';
+            }
+            
+            document.getElementById('ridePaymentMethod').textContent = ride.paymentMethod || 'N/A';
+            document.getElementById('ridePromoCode').textContent = ride.promoCode || 'None';
+            
+            // Calculate commission and driver earnings
+            const commissionRate = 0.08; // 8%
+            const commission = ride.fare ? ride.fare * commissionRate : 0;
+            const driverEarnings = ride.fare ? ride.fare - commission : 0;
+            
+            document.getElementById('rideCommission').textContent = `K${commission.toFixed(2)}`;
+            document.getElementById('rideDriverEarnings').textContent = `K${driverEarnings.toFixed(2)}`;
+            
+            // Update ride map tab
+            updateRideMap(ride);
+            
+            document.getElementById('rideDetailModal').classList.add('active');
+        }
+        
+        // Update ride map in modal
+        function updateRideMap(ride) {
+            // Clear existing map
+            rideMap.eachLayer(layer => {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                    rideMap.removeLayer(layer);
+                }
+            });
+            
             if (ride.pickupLat && ride.pickupLng) {
-                adminMap.setView([ride.pickupLat, ride.pickupLng], 15);
-                if (rideMarkers[rideId]) {
-                    rideMarkers[rideId].openPopup();
+                // Add pickup marker
+                L.marker([ride.pickupLat, ride.pickupLng], {
+                    icon: L.divIcon({
+                        className: 'pickup-marker',
+                        html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;"><i class="fas fa-map-marker-alt"></i></div>',
+                        iconSize: [25, 25]
+                    })
+                }).addTo(rideMap).bindPopup('Pickup Location');
+                
+                if (ride.destLat && ride.destLng) {
+                    // Add destination marker
+                    L.marker([ride.destLat, ride.destLng], {
+                        icon: L.divIcon({
+                            className: 'destination-marker',
+                            html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;"><i class="fas fa-flag"></i></div>',
+                            iconSize: [25, 25]
+                        })
+                    }).addTo(rideMap).bindPopup('Destination');
+                    
+                    // Draw route
+                    drawRouteOnRideMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+                    
+                    // Fit map to show both locations
+                    const bounds = L.latLngBounds(
+                        [ride.pickupLat, ride.pickupLng],
+                        [ride.destLat, ride.destLng]
+                    );
+                    rideMap.fitBounds(bounds, { padding: [15, 15] });
+                } else {
+                    rideMap.setView([ride.pickupLat, ride.pickupLng], 15);
                 }
             }
         }
         
-        // Edit driver
-        function editDriver(driverId) {
+        // Draw route on ride map
+        function drawRouteOnRideMap(startLat, startLng, endLat, endLng) {
+            // Use OSRM API to get route
+            fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                        
+                        // Draw the route on the map
+                        L.polyline(routeCoordinates, {
+                            color: '#FF6B35',
+                            weight: 4,
+                            opacity: 0.7
+                        }).addTo(rideMap);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching route:', error);
+                    // Fallback: draw a straight line
+                    L.polyline([
+                        [startLat, startLng],
+                        [endLat, endLng]
+                    ], {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7
+                    }).addTo(rideMap);
+                });
+        }
+        
+        // Close modals
+        function closeDriverModal() {
+            document.getElementById('driverDetailModal').classList.remove('active');
+            selectedDriver = null;
+        }
+        
+        function closePassengerModal() {
+            document.getElementById('passengerDetailModal').classList.remove('active');
+            selectedPassenger = null;
+        }
+        
+        function closeRideModal() {
+            document.getElementById('rideDetailModal').classList.remove('active');
+            selectedRide = null;
+        }
+        
+        function closeReportsModal() {
+            document.getElementById('reportsModal').classList.remove('active');
+        }
+        
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+        
+        // Open settings modal
+        function openSettings() {
+            document.getElementById('settingsModal').classList.add('active');
+        }
+        
+        // Open reports modal
+        function openReports() {
+            document.getElementById('reportsModal').classList.add('active');
+        }
+        
+        // Driver actions
+        function editDriver() {
+            if (!selectedDriver) return;
             showNotification('Edit driver functionality would open here.');
             // In a real app, this would open an edit form
         }
         
-        // Toggle driver suspension
-        function toggleDriverSuspension(driverId) {
-            const driver = driversData[driverId];
+        function suspendDriver() {
+            if (!selectedDriver) return;
+            
+            const driver = driversData[selectedDriver];
             const newStatus = !driver.isSuspended;
             
-            database.ref('users/' + driverId).update({
+            database.ref('users/' + selectedDriver).update({
                 isSuspended: newStatus
             })
             .then(() => {
                 showNotification(`Driver ${newStatus ? 'suspended' : 'activated'} successfully.`);
-                loadDriversData();
+                closeDriverModal();
             })
             .catch(error => {
                 console.error('Error updating driver status:', error);
@@ -1574,23 +2578,37 @@
             });
         }
         
-        // Edit passenger
-        function editPassenger(passengerId) {
+        function trackDriver() {
+            if (!selectedDriver) return;
+            
+            const driver = driversData[selectedDriver];
+            if (driverMarkers[selectedDriver]) {
+                managerMap.setView(driverMarkers[selectedDriver].getLatLng(), 15);
+                driverMarkers[selectedDriver].openPopup();
+            }
+            
+            closeDriverModal();
+        }
+        
+        // Passenger actions
+        function editPassenger() {
+            if (!selectedPassenger) return;
             showNotification('Edit passenger functionality would open here.');
             // In a real app, this would open an edit form
         }
         
-        // Toggle passenger suspension
-        function togglePassengerSuspension(passengerId) {
-            const passenger = passengersData[passengerId];
+        function suspendPassenger() {
+            if (!selectedPassenger) return;
+            
+            const passenger = passengersData[selectedPassenger];
             const newStatus = !passenger.isSuspended;
             
-            database.ref('users/' + passengerId).update({
+            database.ref('users/' + selectedPassenger).update({
                 isSuspended: newStatus
             })
             .then(() => {
                 showNotification(`Passenger ${newStatus ? 'suspended' : 'activated'} successfully.`);
-                loadPassengersData();
+                closePassengerModal();
             })
             .catch(error => {
                 console.error('Error updating passenger status:', error);
@@ -1598,18 +2616,19 @@
             });
         }
         
-        // Cancel ride
-        function cancelRide(rideId) {
+        // Ride actions
+        function cancelRide() {
+            if (!selectedRide) return;
+            
             if (confirm('Are you sure you want to cancel this ride?')) {
-                database.ref('rides/' + rideId).update({
+                database.ref('rides/' + selectedRide).update({
                     status: 'cancelled',
                     cancelledBy: 'admin',
                     cancelledAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
                     showNotification('Ride cancelled successfully.');
-                    loadRidesData();
-                    loadDashboardData();
+                    closeRideModal();
                 })
                 .catch(error => {
                     console.error('Error cancelling ride:', error);
@@ -1618,307 +2637,146 @@
             }
         }
         
-        // Reassign ride
-        function reassignRide(rideId) {
+        function reassignRide() {
+            if (!selectedRide) return;
             showNotification('Reassign ride functionality would open here.');
             // In a real app, this would open a driver selection interface
         }
         
-        // Track item on map
-        function trackOnMap(itemId, type) {
-            let lat, lng;
+        // Generate reports
+        function generateReports() {
+            const period = document.getElementById('reportPeriod').value;
+            const startDate = document.getElementById('reportStartDate').value;
+            const endDate = document.getElementById('reportEndDate').value;
             
-            if (type === 'driver') {
-                const driver = driversData[itemId];
-                if (driver && driver.latitude && driver.longitude) {
-                    lat = driver.latitude;
-                    lng = driver.longitude;
-                }
-            } else if (type === 'passenger') {
-                const passenger = passengersData[itemId];
-                if (passenger && passenger.latitude && passenger.longitude) {
-                    lat = passenger.latitude;
-                    lng = passenger.longitude;
-                }
-            } else if (type === 'ride') {
-                const ride = ridesData[itemId];
-                if (ride && ride.pickupLat && ride.pickupLng) {
-                    lat = ride.pickupLat;
-                    lng = ride.pickupLng;
-                }
-            }
+            // In a real app, this would fetch and display report data based on the selected period and dates
+            showNotification(`Generating ${period} reports...`);
             
-            if (lat && lng) {
-                adminMap.setView([lat, lng], 15);
-                closeSidebar();
-            }
+            // For demo purposes, we'll just show sample data
+            displaySampleReportData();
         }
         
-        // Load reports
-        function loadReports() {
-            const sidebarContent = document.getElementById('sidebarContent');
-            sidebarContent.innerHTML = `
-                <div class="reports-section">
-                    <div class="report-tabs">
-                        <div class="report-tab active" data-report="revenue">Revenue</div>
-                        <div class="report-tab" data-report="rides">Rides</div>
-                        <div class="report-tab" data-report="drivers">Drivers</div>
-                        <div class="report-tab" data-report="passengers">Passengers</div>
-                    </div>
-                    
-                    <div id="revenueReport" class="report-content active">
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Rides</th>
-                                        <th>Revenue</th>
-                                        <th>Commission</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="revenueTable">
-                                    <!-- Revenue data will be populated by JavaScript -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <div id="ridesReport" class="report-content">
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Total Rides</th>
-                                        <th>Completed</th>
-                                        <th>Cancelled</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="ridesReportTable">
-                                    <!-- Rides report data will be populated by JavaScript -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <div id="driversReport" class="report-content">
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Driver</th>
-                                        <th>Rides</th>
-                                        <th>Earnings</th>
-                                        <th>Rating</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="driversReportTable">
-                                    <!-- Drivers report data will be populated by JavaScript -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    <div id="passengersReport" class="report-content">
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Passenger</th>
-                                        <th>Rides</th>
-                                        <th>Spent</th>
-                                        <th>Rating</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="passengersReportTable">
-                                    <!-- Passengers report data will be populated by JavaScript -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+        // Display sample report data (for demo)
+        function displaySampleReportData() {
+            // Revenue report
+            const revenueTable = document.getElementById('revenueTable');
+            revenueTable.innerHTML = `
+                <tr>
+                    <td>2023-10-01</td>
+                    <td>15</td>
+                    <td>K245.00</td>
+                    <td>K19.60</td>
+                    <td>K225.40</td>
+                </tr>
+                <tr>
+                    <td>2023-10-02</td>
+                    <td>18</td>
+                    <td>K298.50</td>
+                    <td>K23.88</td>
+                    <td>K274.62</td>
+                </tr>
+                <tr>
+                    <td>2023-10-03</td>
+                    <td>22</td>
+                    <td>K367.80</td>
+                    <td>K29.42</td>
+                    <td>K338.38</td>
+                </tr>
             `;
             
-            // Add event listeners to report tabs
-            document.querySelectorAll('.report-tab').forEach(tab => {
-                tab.addEventListener('click', function() {
-                    const reportId = this.getAttribute('data-report');
-                    
-                    // Hide all report contents
-                    document.querySelectorAll('.report-content').forEach(content => {
-                        content.classList.remove('active');
-                    });
-                    
-                    // Show selected report content
-                    document.getElementById(reportId + 'Report').classList.add('active');
-                    
-                    // Update active tab
-                    document.querySelectorAll('.report-tab').forEach(tab => {
-                        tab.classList.remove('active');
-                    });
-                    this.classList.add('active');
-                    
-                    // Load report data
-                    loadReportData(reportId);
-                });
-            });
+            // Rides report
+            const ridesReportTable = document.getElementById('ridesReportTable');
+            ridesReportTable.innerHTML = `
+                <tr>
+                    <td>2023-10-01</td>
+                    <td>18</td>
+                    <td>15</td>
+                    <td>3</td>
+                    <td>83.3%</td>
+                </tr>
+                <tr>
+                    <td>2023-10-02</td>
+                    <td>22</td>
+                    <td>18</td>
+                    <td>4</td>
+                    <td>81.8%</td>
+                </tr>
+                <tr>
+                    <td>2023-10-03</td>
+                    <td>25</td>
+                    <td>22</td>
+                    <td>3</td>
+                    <td>88.0%</td>
+                </tr>
+            `;
             
-            // Load initial report data
-            loadReportData('revenue');
-        }
-        
-        // Load report data
-        function loadReportData(reportType) {
-            // In a real app, this would fetch actual report data from Firebase
-            // For demo purposes, we'll generate sample data
+            // Drivers report
+            const driversReportTable = document.getElementById('driversReportTable');
+            driversReportTable.innerHTML = `
+                <tr>
+                    <td>John Doe</td>
+                    <td>45</td>
+                    <td>K687.50</td>
+                    <td>4.8</td>
+                    <td>92%</td>
+                </tr>
+                <tr>
+                    <td>Jane Smith</td>
+                    <td>38</td>
+                    <td>K598.20</td>
+                    <td>4.6</td>
+                    <td>88%</td>
+                </tr>
+                <tr>
+                    <td>Mike Johnson</td>
+                    <td>32</td>
+                    <td>K512.80</td>
+                    <td>4.7</td>
+                    <td>90%</td>
+                </tr>
+            `;
             
-            let tableBody;
-            let rows = '';
-            
-            switch(reportType) {
-                case 'revenue':
-                    tableBody = document.getElementById('revenueTable');
-                    rows = `
-                        <tr>
-                            <td>${new Date().toLocaleDateString()}</td>
-                            <td>24</td>
-                            <td>K480.00</td>
-                            <td>K38.40</td>
-                        </tr>
-                        <tr>
-                            <td>${new Date(Date.now() - 86400000).toLocaleDateString()}</td>
-                            <td>31</td>
-                            <td>K620.00</td>
-                            <td>K49.60</td>
-                        </tr>
-                        <tr>
-                            <td>${new Date(Date.now() - 172800000).toLocaleDateString()}</td>
-                            <td>19</td>
-                            <td>K380.00</td>
-                            <td>K30.40</td>
-                        </tr>
-                    `;
-                    break;
-                    
-                case 'rides':
-                    tableBody = document.getElementById('ridesReportTable');
-                    rows = `
-                        <tr>
-                            <td>${new Date().toLocaleDateString()}</td>
-                            <td>24</td>
-                            <td>22</td>
-                            <td>2</td>
-                        </tr>
-                        <tr>
-                            <td>${new Date(Date.now() - 86400000).toLocaleDateString()}</td>
-                            <td>31</td>
-                            <td>29</td>
-                            <td>2</td>
-                        </tr>
-                        <tr>
-                            <td>${new Date(Date.now() - 172800000).toLocaleDateString()}</td>
-                            <td>19</td>
-                            <td>18</td>
-                            <td>1</td>
-                        </tr>
-                    `;
-                    break;
-                    
-                case 'drivers':
-                    tableBody = document.getElementById('driversReportTable');
-                    // Generate sample driver data
-                    if (driversData && Object.keys(driversData).length > 0) {
-                        Object.keys(driversData).slice(0, 5).forEach(driverId => {
-                            const driver = driversData[driverId];
-                            rows += `
-                                <tr>
-                                    <td>${driver.name || 'Unknown'}</td>
-                                    <td>${driver.totalRides || 0}</td>
-                                    <td>K${driver.totalEarnings || '0.00'}</td>
-                                    <td>${driver.rating || 'N/A'}</td>
-                                </tr>
-                            `;
-                        });
-                    } else {
-                        rows = '<tr><td colspan="4">No driver data available</td></tr>';
-                    }
-                    break;
-                    
-                case 'passengers':
-                    tableBody = document.getElementById('passengersReportTable');
-                    // Generate sample passenger data
-                    if (passengersData && Object.keys(passengersData).length > 0) {
-                        Object.keys(passengersData).slice(0, 5).forEach(passengerId => {
-                            const passenger = passengersData[passengerId];
-                            rows += `
-                                <tr>
-                                    <td>${passenger.name || 'Unknown'}</td>
-                                    <td>${passenger.totalRides || 0}</td>
-                                    <td>K${passenger.totalSpent || '0.00'}</td>
-                                    <td>${passenger.rating || 'N/A'}</td>
-                                </tr>
-                            `;
-                        });
-                    } else {
-                        rows = '<tr><td colspan="4">No passenger data available</td></tr>';
-                    }
-                    break;
-            }
-            
-            if (tableBody) {
-                tableBody.innerHTML = rows;
-            }
+            // Passengers report
+            const passengersReportTable = document.getElementById('passengersReportTable');
+            passengersReportTable.innerHTML = `
+                <tr>
+                    <td>Sarah Wilson</td>
+                    <td>12</td>
+                    <td>K198.50</td>
+                    <td>4.9</td>
+                    <td>2023-10-03</td>
+                </tr>
+                <tr>
+                    <td>Robert Brown</td>
+                    <td>8</td>
+                    <td>K145.20</td>
+                    <td>4.8</td>
+                    <td>2023-10-02</td>
+                </tr>
+                <tr>
+                    <td>Emily Davis</td>
+                    <td>15</td>
+                    <td>K234.80</td>
+                    <td>4.7</td>
+                    <td>2023-10-03</td>
+                </tr>
+            `;
         }
         
         // Load settings
         function loadSettings() {
-            const sidebarContent = document.getElementById('sidebarContent');
-            sidebarContent.innerHTML = `
-                <div class="detail-section">
-                    <h4 class="detail-title">
-                        <i class="fas fa-cog"></i>
-                        System Settings
-                    </h4>
-                    <div class="detail-row">
-                        <span class="detail-label">Fare Rate (K per 90 meters):</span>
-                        <span class="detail-value">
-                            <input type="number" id="fareRate" value="1" step="0.1" style="width: 60px; padding: 4px;">
-                        </span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Commission Rate (%):</span>
-                        <span class="detail-value">
-                            <input type="number" id="commissionRate" value="8" step="1" style="width: 60px; padding: 4px;">
-                        </span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="detail-label">Minimum Float (K):</span>
-                        <span class="detail-value">
-                            <input type="number" id="minFloat" value="10" step="1" style="width: 60px; padding: 4px;">
-                        </span>
-                    </div>
-                </div>
-                
-                <div class="action-buttons">
-                    <button class="btn btn-secondary" onclick="closeSidebar()">
-                        <i class="fas fa-times"></i>
-                        Cancel
-                    </button>
-                    <button class="btn btn-primary" onclick="saveSettings()">
-                        <i class="fas fa-save"></i>
-                        Save Settings
-                    </button>
-                </div>
-            `;
-            
-            // Load current settings
             database.ref('settings').once('value')
                 .then(snapshot => {
                     const settings = snapshot.val();
                     if (settings) {
+                        if (settings.baseFare) {
+                            document.getElementById('baseFare').value = settings.baseFare;
+                        }
                         if (settings.fareRate) {
                             document.getElementById('fareRate').value = settings.fareRate;
+                        }
+                        if (settings.minFare) {
+                            document.getElementById('minFare').value = settings.minFare;
                         }
                         if (settings.commissionRate) {
                             document.getElementById('commissionRate').value = settings.commissionRate;
@@ -1935,18 +2793,22 @@
         
         // Save settings
         function saveSettings() {
+            const baseFare = parseFloat(document.getElementById('baseFare').value);
             const fareRate = parseFloat(document.getElementById('fareRate').value);
+            const minFare = parseFloat(document.getElementById('minFare').value);
             const commissionRate = parseFloat(document.getElementById('commissionRate').value);
             const minFloat = parseFloat(document.getElementById('minFloat').value);
             
             database.ref('settings').set({
+                baseFare: baseFare,
                 fareRate: fareRate,
+                minFare: minFare,
                 commissionRate: commissionRate,
                 minFloat: minFloat
             })
             .then(() => {
                 showNotification('Settings saved successfully.');
-                closeSidebar();
+                closeSettingsModal();
             })
             .catch(error => {
                 console.error('Error saving settings:', error);
@@ -1972,33 +2834,6 @@
                 notification.style.display = 'none';
             }, 3000);
         }
-        
-        // Listen for real-time updates
-        database.ref('driverLocations').on('value', snapshot => {
-            const locations = snapshot.val();
-            if (locations) {
-                Object.keys(locations).forEach(driverId => {
-                    const location = locations[driverId];
-                    if (driversData[driverId]) {
-                        // Update driver location in data
-                        driversData[driverId].latitude = location.latitude;
-                        driversData[driverId].longitude = location.longitude;
-                        
-                        // Update marker if it exists
-                        if (driverMarkers[driverId]) {
-                            driverMarkers[driverId].setLatLng([location.latitude, location.longitude]);
-                        }
-                    }
-                });
-            }
-        });
-        
-        // Listen for ride updates
-        database.ref('rides').on('value', snapshot => {
-            ridesData = snapshot.val() || {};
-            updateRideMarkers();
-            loadDashboardData();
-        });
     </script>
 </body>
 </html>
