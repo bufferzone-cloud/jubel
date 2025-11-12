@@ -587,6 +587,7 @@
             left: 0;
         }
         
+        /* NEW: Compact Ride Request Popup */
         .ride-request-popup {
             position: fixed;
             top: 0;
@@ -605,8 +606,8 @@
             background: var(--white);
             border-radius: 15px;
             width: 100%;
-            max-width: 360px;
-            max-height: 85vh;
+            max-width: 400px;
+            max-height: 70vh;
             overflow: hidden;
             box-shadow: var(--shadow-heavy);
             display: flex;
@@ -622,13 +623,14 @@
         }
         
         .ride-request-map {
-            height: 180px;
+            height: 200px; /* 50% of the popup height */
             width: 100%;
         }
         
         .ride-request-details {
             padding: 12px;
             overflow-y: auto;
+            max-height: 200px; /* 50% of the popup height */
         }
         
         .customer-info {
@@ -1318,6 +1320,11 @@
             color: var(--white);
         }
         
+        /* NEW: Black icons for hold buttons */
+        .hold-button-content i {
+            color: #000000 !important; /* Black icons */
+        }
+        
         .advanced-features {
             display: flex;
             flex-direction: column;
@@ -1592,82 +1599,32 @@
             width: 100%;
         }
         
-        /* New styles for the modifications */
-        .hold-button-content span {
-            color: #000000 !important; /* Black text for hold buttons */
-        }
-        
-        .wallet-section {
-            margin-bottom: 20px;
-        }
-        
-        .wallet-balance-card {
-            background: var(--primary-gradient);
-            color: var(--white);
-            padding: 12px;
-            border-radius: var(--element-radius);
-            text-align: center;
-            margin-bottom: 12px;
-        }
-        
-        .float-balance-card {
-            background: var(--light-orange);
-            color: var(--dark-gray);
-            padding: 12px;
-            border-radius: var(--element-radius);
-            text-align: center;
-            margin-bottom: 12px;
-            border: 2px solid var(--primary-orange);
-        }
-        
-        .balance-amount-medium {
-            font-size: 1.5rem;
-            font-weight: 800;
-            margin-bottom: 6px;
-        }
-        
-        .history-details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 8px;
-            font-size: 0.7rem;
-        }
-        
-        .history-detail-item {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-        
-        .history-detail-label {
-            color: var(--medium-gray);
-            font-weight: 600;
-        }
-        
-        .history-detail-value {
-            font-weight: 600;
-        }
-        
-        .sound-control {
+        /* NEW: Vehicle Icon Display */
+        .vehicle-icon-display {
             position: fixed;
-            bottom: 130px;
-            left: 15px;
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
             background: var(--white);
+            padding: 8px 12px;
+            border-radius: var(--element-radius);
             box-shadow: var(--shadow-heavy);
+            z-index: 100;
             display: flex;
             align-items: center;
-            justify-content: center;
-            border: none;
-            cursor: pointer;
-            font-size: 1.1rem;
-            color: var(--primary-orange);
-            z-index: 100;
+            gap: 6px;
+            font-weight: 700;
+            color: var(--dark-gray);
+            border: 2px solid var(--primary-orange);
+            font-size: 0.8rem;
         }
         
+        .vehicle-icon-large {
+            font-size: 1.2rem;
+            color: var(--primary-orange);
+        }
+        
+        /* NEW: Package Delivery Details */
         .delivery-info-section {
             background: var(--light-gray);
             padding: 10px;
@@ -1707,6 +1664,36 @@
             border-left: 3px solid var(--primary-orange);
         }
         
+        /* NEW: Package details in history */
+        .package-details-history {
+            background: var(--light-gray);
+            padding: 8px;
+            border-radius: var(--element-radius);
+            margin-top: 8px;
+            font-size: 0.7rem;
+        }
+        
+        .package-details-title {
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: var(--primary-orange);
+        }
+        
+        .package-detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+        }
+        
+        .package-detail-label {
+            color: var(--medium-gray);
+            font-weight: 600;
+        }
+        
+        .package-detail-value {
+            font-weight: 600;
+        }
+        
         @media (max-width: 480px) {
             .floating-float, .online-toggle {
                 padding: 6px 8px;
@@ -1743,13 +1730,6 @@
             
             .dark-mode-toggle {
                 bottom: 65px;
-                left: 10px;
-                width: 40px;
-                height: 40px;
-            }
-            
-            .sound-control {
-                bottom: 120px;
                 left: 10px;
                 width: 40px;
                 height: 40px;
@@ -1960,6 +1940,12 @@
         <!-- Main Map -->
         <div id="map"></div>
         
+        <!-- NEW: Vehicle Icon Display -->
+        <div class="vehicle-icon-display" id="vehicleIconDisplay">
+            <i class="fas fa-car vehicle-icon-large" id="vehicleIcon"></i>
+            <span id="vehicleTypeText">Car</span>
+        </div>
+        
         <!-- Floating Float (Only on Home Screen) -->
         <div class="floating-float" id="floatingFloat">
             <i class="fas fa-wallet"></i>
@@ -2010,11 +1996,6 @@
         <!-- Dark Mode Toggle (Only on Home Screen) -->
         <button class="dark-mode-toggle" id="darkModeToggle" title="Toggle Dark Mode">
             <i class="fas fa-moon"></i>
-        </button>
-        
-        <!-- Sound Control (Only on Home Screen) -->
-        <button class="sound-control" id="soundControl" title="Toggle Sound">
-            <i class="fas fa-volume-up"></i>
         </button>
         
         <!-- Driver Panel -->
@@ -2113,7 +2094,7 @@
             </div>
         </div>
         
-        <!-- Ride Request Popup -->
+        <!-- NEW: Compact Ride Request Popup -->
         <div class="ride-request-popup" id="rideRequestPopup">
             <div class="ride-request-content">
                 <div class="ride-request-map" id="rideRequestMap"></div>
@@ -2153,7 +2134,7 @@
                         </div>
                     </div>
                     
-                    <!-- Delivery Information (For Bike/Bicycle) -->
+                    <!-- NEW: Delivery Information (For Bike/Bicycle) -->
                     <div class="delivery-info-section" id="deliveryInfoSection" style="display: none;">
                         <div class="delivery-info-title">
                             <i class="fas fa-box"></i> Delivery Information
@@ -2165,6 +2146,14 @@
                         <div class="delivery-info-row">
                             <span class="delivery-info-label">Receiver Phone:</span>
                             <span class="delivery-info-value" id="receiverPhone">N/A</span>
+                        </div>
+                        <div class="delivery-info-row">
+                            <span class="delivery-info-label">Package Description:</span>
+                            <span class="delivery-info-value" id="packageDescription">N/A</span>
+                        </div>
+                        <div class="delivery-info-row">
+                            <span class="delivery-info-label">Package Value:</span>
+                            <span class="delivery-info-value" id="packageValue">N/A</span>
                         </div>
                         <div class="special-instructions" id="specialInstructionsContainer" style="display: none;">
                             <strong>Special Instructions:</strong>
@@ -2664,7 +2653,7 @@
                                 method: paymentMethod,
                                 details: paymentDetails
                             },
-                            userType: 'driver', // NEW: Added user type
+                            userType: 'driver',
                             createdAt: firebase.database.ServerValue.TIMESTAMP,
                             isOnline: false,
                             walletBalance: 0,
@@ -3100,11 +3089,15 @@
                 floatingElements.forEach(el => {
                     el.style.display = 'flex';
                 });
+                // Show vehicle icon display
+                document.getElementById('vehicleIconDisplay').style.display = 'flex';
             } else {
                 // Hide floating elements on other screens
                 floatingElements.forEach(el => {
                     el.style.display = 'none';
                 });
+                // Hide vehicle icon display
+                document.getElementById('vehicleIconDisplay').style.display = 'none';
             }
             
             // Load data for specific screens
@@ -3228,18 +3221,20 @@
             document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
             document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
             
-            // Show delivery information for bike/bicycle rides
+            // NEW: Show delivery information for bike/bicycle rides
             const deliveryInfoSection = document.getElementById('deliveryInfoSection');
-            if (ride.rideType === 'bike' || ride.rideType === 'bicycle') {
+            if (ride.packageDetails) {
                 deliveryInfoSection.style.display = 'block';
-                document.getElementById('receiverName').textContent = ride.receiverName || 'N/A';
-                document.getElementById('receiverPhone').textContent = ride.receiverPhone || 'N/A';
+                document.getElementById('receiverName').textContent = ride.packageDetails.receiverName || 'N/A';
+                document.getElementById('receiverPhone').textContent = ride.packageDetails.receiverPhone || 'N/A';
+                document.getElementById('packageDescription').textContent = ride.packageDetails.packageDescription || 'N/A';
+                document.getElementById('packageValue').textContent = ride.packageDetails.packageValue ? `K${ride.packageDetails.packageValue}` : 'N/A';
                 
                 // Show special instructions if available
                 const specialInstructionsContainer = document.getElementById('specialInstructionsContainer');
-                if (ride.specialInstructions) {
+                if (ride.packageDetails.specialInstructions) {
                     specialInstructionsContainer.style.display = 'block';
-                    document.getElementById('specialInstructions').textContent = ride.specialInstructions;
+                    document.getElementById('specialInstructions').textContent = ride.packageDetails.specialInstructions;
                 } else {
                     specialInstructionsContainer.style.display = 'none';
                 }
@@ -3717,7 +3712,7 @@
                     const newWalletBalance = walletBalance + driverEarnings;
                     updateWalletBalance(newWalletBalance);
                     
-                    // Deduct commission from float balance
+                    // NEW: Deduct commission from float balance
                     const newFloatBalance = floatBalance - commission;
                     updateFloatBalance(newFloatBalance);
                     
@@ -3985,6 +3980,9 @@
                                 document.getElementById('vehicleModelInput').value = userData.vehicle.model || '';
                                 document.getElementById('licensePlateInput').value = userData.vehicle.licensePlate || '';
                                 document.getElementById('vehicleColorInput').value = userData.vehicle.color || '';
+                                
+                                // NEW: Update vehicle icon display
+                                updateVehicleIconDisplay(userData.vehicle.type);
                             }
                             
                             // Update display
@@ -4022,6 +4020,30 @@
                 
                 // Load float history
                 loadFloatHistory();
+            }
+        }
+        
+        // NEW: Update vehicle icon display based on driver's vehicle type
+        function updateVehicleIconDisplay(vehicleType) {
+            const vehicleIcon = document.getElementById('vehicleIcon');
+            const vehicleTypeText = document.getElementById('vehicleTypeText');
+            
+            switch(vehicleType) {
+                case 'car':
+                    vehicleIcon.className = 'fas fa-car vehicle-icon-large';
+                    vehicleTypeText.textContent = 'Car';
+                    break;
+                case 'bike':
+                    vehicleIcon.className = 'fas fa-motorcycle vehicle-icon-large';
+                    vehicleTypeText.textContent = 'Bike';
+                    break;
+                case 'bicycle':
+                    vehicleIcon.className = 'fas fa-bicycle vehicle-icon-large';
+                    vehicleTypeText.textContent = 'Bicycle';
+                    break;
+                default:
+                    vehicleIcon.className = 'fas fa-car vehicle-icon-large';
+                    vehicleTypeText.textContent = 'Vehicle';
             }
         }
         
@@ -4107,7 +4129,7 @@
                 });
         }
         
-        // Load ride history with enhanced details
+        // NEW: Load ride history with package delivery details
         function loadRideHistory() {
             if (currentUser) {
                 database.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value')
@@ -4130,6 +4152,10 @@
                                 const date = new Date(ride.timestamp);
                                 const formattedDate = date.toLocaleDateString();
                                 const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                                
+                                // NEW: Check if this is a delivery with package details
+                                const hasPackageDetails = ride.packageDetails && 
+                                    (ride.packageDetails.receiverName || ride.packageDetails.packageDescription);
                                 
                                 historyItem.innerHTML = `
                                     <div class="history-locations">
@@ -4158,6 +4184,31 @@
                                             <span class="history-detail-value">${formattedTime}</span>
                                         </div>
                                     </div>
+                                    ${hasPackageDetails ? `
+                                    <div class="package-details-history">
+                                        <div class="package-details-title">
+                                            <i class="fas fa-box"></i> Package Details
+                                        </div>
+                                        <div class="package-detail-row">
+                                            <span class="package-detail-label">Receiver:</span>
+                                            <span class="package-detail-value">${ride.packageDetails.receiverName || 'N/A'}</span>
+                                        </div>
+                                        <div class="package-detail-row">
+                                            <span class="package-detail-label">Phone:</span>
+                                            <span class="package-detail-value">${ride.packageDetails.receiverPhone || 'N/A'}</span>
+                                        </div>
+                                        <div class="package-detail-row">
+                                            <span class="package-detail-label">Description:</span>
+                                            <span class="package-detail-value">${ride.packageDetails.packageDescription || 'N/A'}</span>
+                                        </div>
+                                        ${ride.packageDetails.specialInstructions ? `
+                                        <div class="special-instructions">
+                                            <strong>Special Instructions:</strong>
+                                            <p>${ride.packageDetails.specialInstructions}</p>
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                    ` : ''}
                                     <div class="history-info">
                                         <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
                                         <div class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">
