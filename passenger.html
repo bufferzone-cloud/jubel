@@ -1422,6 +1422,91 @@
             font-weight: 600;
         }
         
+        /* Enhanced History Item Styles */
+        .history-item-type {
+            font-size: 0.7rem;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-bottom: 5px;
+            display: inline-block;
+        }
+        
+        .history-item-type.ride {
+            background: var(--light-orange);
+            color: var(--primary-orange);
+        }
+        
+        .history-item-type.delivery {
+            background: var(--light-red);
+            color: var(--primary-red);
+        }
+        
+        .history-package-details {
+            background: var(--light-gray);
+            padding: 8px;
+            border-radius: var(--element-radius);
+            margin: 8px 0;
+            font-size: 0.7rem;
+        }
+        
+        .package-detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        
+        .package-detail-label {
+            font-weight: 600;
+            color: var(--medium-gray);
+        }
+        
+        .package-detail-value {
+            color: var(--dark-gray);
+        }
+        
+        .history-driver-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--border-color);
+        }
+        
+        .history-driver-avatar {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            background: var(--primary-gradient);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            color: var(--white);
+            font-weight: 700;
+        }
+        
+        .history-driver-details {
+            flex: 1;
+        }
+        
+        .history-driver-name {
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        .history-driver-rating {
+            font-size: 0.6rem;
+            color: var(--medium-gray);
+        }
+        
+        .history-fare {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--primary-orange);
+        }
+        
         @media (max-width: 480px) {
             .floating-balance, .ride-status {
                 padding: 6px 8px;
@@ -3972,6 +4057,11 @@
                             const formattedDate = date.toLocaleDateString();
                             const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                             
+                            // Determine if this is a delivery or a ride
+                            const isDelivery = ride.rideType === 'bike' || ride.rideType === 'bicycle';
+                            const typeClass = isDelivery ? 'delivery' : 'ride';
+                            const typeText = isDelivery ? 'Delivery' : 'Ride';
+                            
                             // Determine status badge class
                             let statusClass = 'status-requested';
                             let statusText = getStatusText(ride.status);
@@ -3987,24 +4077,90 @@
                                 statusText = 'Pending';
                             }
                             
-                            historyItem.innerHTML = `
-                                <div class="history-locations">
-                                    <div>
-                                        <strong>From:</strong> ${ride.pickupLocation}
-                                    </div>
-                                    <div>
-                                        <strong>To:</strong> ${ride.destination}
-                                    </div>
-                                </div>
-                                <div class="history-info">
-                                    <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
-                                    <div>${formattedDate} ${formattedTime}</div>
-                                    <div class="status-badge ${statusClass}">
-                                        ${statusText}
-                                    </div>
-                                </div>
-                            `;
+                            // Create history item content based on type
+                            let historyContent = '';
                             
+                            if (isDelivery) {
+                                // Delivery history item
+                                historyContent = `
+                                    <div class="history-item-type ${typeClass}">${typeText}</div>
+                                    <div class="history-locations">
+                                        <div>
+                                            <strong>Pickup:</strong> ${ride.pickupLocation}
+                                        </div>
+                                        <div>
+                                            <strong>Delivery:</strong> ${ride.destination}
+                                        </div>
+                                    </div>
+                                    ${ride.packageDetails ? `
+                                    <div class="history-package-details">
+                                        <div class="package-detail-row">
+                                            <span class="package-detail-label">Receiver:</span>
+                                            <span class="package-detail-value">${ride.packageDetails.receiverName || 'N/A'}</span>
+                                        </div>
+                                        <div class="package-detail-row">
+                                            <span class="package-detail-label">Package:</span>
+                                            <span class="package-detail-value">${ride.packageDetails.packageDescription || 'N/A'}</span>
+                                        </div>
+                                        <div class="package-detail-row">
+                                            <span class="package-detail-label">Value:</span>
+                                            <span class="package-detail-value">K${ride.packageDetails.packageValue || '0.00'}</span>
+                                        </div>
+                                    </div>
+                                    ` : ''}
+                                    <div class="history-info">
+                                        <div class="history-fare">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                                        <div>${formattedDate} ${formattedTime}</div>
+                                        <div class="status-badge ${statusClass}">
+                                            ${statusText}
+                                        </div>
+                                    </div>
+                                `;
+                            } else {
+                                // Ride history item
+                                historyContent = `
+                                    <div class="history-item-type ${typeClass}">${typeText}</div>
+                                    <div class="history-locations">
+                                        <div>
+                                            <strong>From:</strong> ${ride.pickupLocation}
+                                        </div>
+                                        <div>
+                                            <strong>To:</strong> ${ride.destination}
+                                        </div>
+                                    </div>
+                                    <div class="history-info">
+                                        <div class="history-fare">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                                        <div>${formattedDate} ${formattedTime}</div>
+                                        <div class="status-badge ${statusClass}">
+                                            ${statusText}
+                                        </div>
+                                    </div>
+                                `;
+                            }
+                            
+                            // Add driver information if available
+                            if (ride.driverId) {
+                                database.ref('users/' + ride.driverId).once('value')
+                                    .then(driverSnapshot => {
+                                        const driver = driverSnapshot.val();
+                                        if (driver) {
+                                            const driverInfo = document.createElement('div');
+                                            driverInfo.className = 'history-driver-info';
+                                            driverInfo.innerHTML = `
+                                                <div class="history-driver-avatar">
+                                                    ${driver.name ? driver.name.charAt(0).toUpperCase() : 'D'}
+                                                </div>
+                                                <div class="history-driver-details">
+                                                    <div class="history-driver-name">${driver.name || 'Driver'}</div>
+                                                    <div class="history-driver-rating">${driver.rating || '4.5'} ★</div>
+                                                </div>
+                                            `;
+                                            historyItem.appendChild(driverInfo);
+                                        }
+                                    });
+                            }
+                            
+                            historyItem.innerHTML = historyContent;
                             historyList.appendChild(historyItem);
                         });
                     } else {
