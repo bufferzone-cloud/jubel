@@ -622,7 +622,7 @@
         }
         
         .ride-request-map {
-            height: 180px;
+            height: 200px;
             width: 100%;
         }
         
@@ -1707,6 +1707,72 @@
             border-left: 3px solid var(--primary-orange);
         }
         
+        /* Enhanced styles for the ride request map */
+        .ride-request-map-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+        
+        .ride-request-map-legend {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px 10px;
+            border-radius: var(--element-radius);
+            box-shadow: var(--shadow-light);
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+            font-size: 0.7rem;
+        }
+        
+        .map-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .map-legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .legend-pickup {
+            background: var(--primary-orange);
+        }
+        
+        .legend-destination {
+            background: var(--primary-red);
+        }
+        
+        .map-zoom-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10;
+        }
+        
+        .map-zoom-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--white);
+            box-shadow: var(--shadow-medium);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--primary-orange);
+        }
+        
         @media (max-width: 480px) {
             .floating-float, .online-toggle {
                 padding: 6px 8px;
@@ -2116,7 +2182,27 @@
         <!-- Ride Request Popup -->
         <div class="ride-request-popup" id="rideRequestPopup">
             <div class="ride-request-content">
-                <div class="ride-request-map" id="rideRequestMap"></div>
+                <div class="ride-request-map-container">
+                    <div class="ride-request-map" id="rideRequestMap"></div>
+                    <div class="ride-request-map-legend">
+                        <div class="map-legend-item">
+                            <div class="map-legend-color legend-pickup"></div>
+                            <span>Pickup</span>
+                        </div>
+                        <div class="map-legend-item">
+                            <div class="map-legend-color legend-destination"></div>
+                            <span>Destination</span>
+                        </div>
+                    </div>
+                    <div class="map-zoom-controls">
+                        <button class="map-zoom-btn" id="requestMapZoomIn">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="map-zoom-btn" id="requestMapZoomOut">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="ride-request-details">
                     <div class="customer-info">
                         <div class="customer-avatar">
@@ -2879,6 +2965,10 @@
             
             // Logout button
             document.getElementById('logoutBtn').addEventListener('click', logout);
+            
+            // Ride request map controls
+            document.getElementById('requestMapZoomIn').addEventListener('click', () => rideRequestMap.zoomIn());
+            document.getElementById('requestMapZoomOut').addEventListener('click', () => rideRequestMap.zoomOut());
         }
         
         // Initialize advanced features
@@ -3310,7 +3400,7 @@
             }
         }
         
-        // Update ride request map
+        // Update ride request map - ENHANCED FUNCTION
         function updateRideRequestMap(ride) {
             // Clear existing map
             rideRequestMap.eachLayer(layer => {
@@ -3320,7 +3410,7 @@
             });
             
             // Add pickup marker
-            L.marker([ride.pickupLat, ride.pickupLng], {
+            const pickupMarker = L.marker([ride.pickupLat, ride.pickupLng], {
                 icon: L.divIcon({
                     className: 'pickup-marker',
                     html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Pickup</div>',
@@ -3329,7 +3419,7 @@
             }).addTo(rideRequestMap).bindPopup('Pickup Location');
             
             // Add destination marker
-            L.marker([ride.destLat, ride.destLng], {
+            const destinationMarker = L.marker([ride.destLat, ride.destLng], {
                 icon: L.divIcon({
                     className: 'destination-marker',
                     html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Destination</div>',
@@ -3340,12 +3430,57 @@
             // Draw route
             drawRouteOnRequestMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
             
-            // Fit map to show both locations with padding
+            // Fit map to show both locations with appropriate zoom level
             const bounds = L.latLngBounds(
                 [ride.pickupLat, ride.pickupLng],
                 [ride.destLat, ride.destLng]
             );
-            rideRequestMap.fitBounds(bounds, { padding: [20, 20] });
+            
+            // Calculate distance between points to determine appropriate zoom level
+            const distance = calculateDistance(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+            
+            // Set appropriate zoom level based on distance
+            let zoomLevel = 13; // Default zoom
+            if (distance < 2) {
+                zoomLevel = 15; // Very close locations
+            } else if (distance < 5) {
+                zoomLevel = 14; // Close locations
+            } else if (distance < 10) {
+                zoomLevel = 13; // Medium distance
+            } else if (distance < 20) {
+                zoomLevel = 12; // Longer distance
+            } else {
+                zoomLevel = 11; // Very long distance
+            }
+            
+            // Fit bounds with padding and set appropriate zoom
+            rideRequestMap.fitBounds(bounds, { 
+                padding: [20, 20],
+                maxZoom: zoomLevel
+            });
+            
+            // Add a slight zoom out to ensure both points are clearly visible
+            setTimeout(() => {
+                rideRequestMap.setZoom(rideRequestMap.getZoom() - 0.5);
+            }, 100);
+        }
+        
+        // Calculate distance between two points in kilometers
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the earth in km
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            const distance = R * c; // Distance in km
+            return distance;
+        }
+        
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
         }
         
         // Draw route on ride request map
@@ -4185,12 +4320,20 @@
                                     packageDetailsHTML = `
                                         <div class="history-details-grid">
                                             <div class="history-detail-item">
-                                                <span class="history-detail-label">Receiver</span>
+                                                <span class="history-detail-label">Receiver Name</span>
                                                 <span class="history-detail-value">${ride.packageDetails.receiverName || 'N/A'}</span>
                                             </div>
                                             <div class="history-detail-item">
-                                                <span class="history-detail-label">Package</span>
+                                                <span class="history-detail-label">Receiver Phone</span>
+                                                <span class="history-detail-value">${ride.packageDetails.receiverPhone || 'N/A'}</span>
+                                            </div>
+                                            <div class="history-detail-item">
+                                                <span class="history-detail-label">Package Description</span>
                                                 <span class="history-detail-value">${ride.packageDetails.packageDescription || 'N/A'}</span>
+                                            </div>
+                                            <div class="history-detail-item">
+                                                <span class="history-detail-label">Package Value</span>
+                                                <span class="history-detail-value">${ride.packageDetails.packageValue ? 'K' + ride.packageDetails.packageValue : 'N/A'}</span>
                                             </div>
                                         </div>
                                     `;
