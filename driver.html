@@ -1707,55 +1707,6 @@
             border-left: 3px solid var(--primary-orange);
         }
         
-        /* Enhanced map markers */
-        .pickup-marker {
-            background: var(--primary-orange);
-            color: white;
-            border-radius: 50%;
-            width: 25px;
-            height: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .destination-marker {
-            background: var(--primary-red);
-            color: white;
-            border-radius: 50%;
-            width: 25px;
-            height: 25px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        }
-        
-        .pickup-circle {
-            background: rgba(255, 107, 53, 0.2);
-            border: 2px solid var(--primary-orange);
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .destination-circle {
-            background: rgba(231, 76, 60, 0.2);
-            border: 2px solid var(--primary-red);
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
         @media (max-width: 480px) {
             .floating-float, .online-toggle {
                 padding: 6px 8px;
@@ -2536,8 +2487,6 @@
         let soundEnabled = true;
         let rideRequestSound = null;
         let rideRequestSoundInterval = null;
-        let pickupCircle = null;
-        let destinationCircle = null;
         
         // Initialize the app
         document.addEventListener('DOMContentLoaded', function() {
@@ -3298,7 +3247,7 @@
                 deliveryInfoSection.style.display = 'none';
             }
             
-            // Update ride request map with enhanced markers
+            // Update ride request map
             updateRideRequestMap(ride);
             
             // Generate waypoints
@@ -3313,48 +3262,59 @@
             }
         }
         
-        // Enhanced ride request map with vivid markers and circles
+        // Play ride request sound continuously
+        function playRideRequestSound() {
+            if (rideRequestSoundInterval) {
+                clearInterval(rideRequestSoundInterval);
+            }
+            
+            rideRequestSoundInterval = setInterval(() => {
+                if (soundEnabled && document.getElementById('rideRequestPopup').style.display === 'flex') {
+                    rideRequestSound.play().catch(e => {
+                        console.log('Audio play failed:', e);
+                    });
+                }
+            }, 3000); // Play every 3 seconds
+        }
+        
+        // Stop ride request sound
+        function stopRideRequestSound() {
+            if (rideRequestSound && !rideRequestSound.paused) {
+                rideRequestSound.pause();
+                rideRequestSound.currentTime = 0;
+            }
+            if (rideRequestSoundInterval) {
+                clearInterval(rideRequestSoundInterval);
+                rideRequestSoundInterval = null;
+            }
+        }
+        
+        // Update ride request map
         function updateRideRequestMap(ride) {
             // Clear existing map
             rideRequestMap.eachLayer(layer => {
-                if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.Circle) {
+                if (layer instanceof L.Marker || layer instanceof L.Polyline) {
                     rideRequestMap.removeLayer(layer);
                 }
             });
             
-            // Add pickup marker with circle
-            const pickupMarker = L.marker([ride.pickupLat, ride.pickupLng], {
+            // Add pickup marker
+            L.marker([ride.pickupLat, ride.pickupLng], {
                 icon: L.divIcon({
                     className: 'pickup-marker',
-                    html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
-                    iconSize: [25, 25]
+                    html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Pickup</div>',
+                    iconSize: [25, 40]
                 })
             }).addTo(rideRequestMap).bindPopup('Pickup Location');
             
-            // Add pickup circle
-            pickupCircle = L.circle([ride.pickupLat, ride.pickupLng], {
-                color: '#FF6B35',
-                fillColor: '#FF6B35',
-                fillOpacity: 0.2,
-                radius: 100
-            }).addTo(rideRequestMap);
-            
-            // Add destination marker with circle
-            const destinationMarker = L.marker([ride.destLat, ride.destLng], {
+            // Add destination marker
+            L.marker([ride.destLat, ride.destLng], {
                 icon: L.divIcon({
                     className: 'destination-marker',
-                    html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
-                    iconSize: [25, 25]
+                    html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Destination</div>',
+                    iconSize: [25, 40]
                 })
             }).addTo(rideRequestMap).bindPopup('Destination');
-            
-            // Add destination circle
-            destinationCircle = L.circle([ride.destLat, ride.destLng], {
-                color: '#E74C3C',
-                fillColor: '#E74C3C',
-                fillOpacity: 0.2,
-                radius: 100
-            }).addTo(rideRequestMap);
             
             // Draw route
             drawRouteOnRequestMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
@@ -3431,33 +3391,6 @@
                 
                 waypointsContainer.appendChild(waypointItem);
             });
-        }
-        
-        // Play ride request sound continuously
-        function playRideRequestSound() {
-            if (rideRequestSoundInterval) {
-                clearInterval(rideRequestSoundInterval);
-            }
-            
-            rideRequestSoundInterval = setInterval(() => {
-                if (soundEnabled && document.getElementById('rideRequestPopup').style.display === 'flex') {
-                    rideRequestSound.play().catch(e => {
-                        console.log('Audio play failed:', e);
-                    });
-                }
-            }, 3000); // Play every 3 seconds
-        }
-        
-        // Stop ride request sound
-        function stopRideRequestSound() {
-            if (rideRequestSound && !rideRequestSound.paused) {
-                rideRequestSound.pause();
-                rideRequestSound.currentTime = 0;
-            }
-            if (rideRequestSoundInterval) {
-                clearInterval(rideRequestSoundInterval);
-                rideRequestSoundInterval = null;
-            }
         }
         
         // Accept a ride
@@ -3562,39 +3495,23 @@
                     routePolyline = null;
                 }
                 
-                // Add customer pickup marker with circle
+                // Add customer pickup marker
                 customerMarker = L.marker([currentRide.pickupLat, currentRide.pickupLng], {
                     icon: L.divIcon({
-                        className: 'pickup-marker',
-                        html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
-                        iconSize: [25, 25]
+                        className: 'customer-marker',
+                        html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Customer</div>',
+                        iconSize: [25, 40]
                     })
                 }).addTo(driverMap).bindPopup('Customer Pickup Location');
                 
-                // Add pickup circle
-                pickupCircle = L.circle([currentRide.pickupLat, currentRide.pickupLng], {
-                    color: '#FF6B35',
-                    fillColor: '#FF6B35',
-                    fillOpacity: 0.2,
-                    radius: 100
-                }).addTo(driverMap);
-                
-                // Add destination marker with circle
+                // Add destination marker
                 destinationMarker = L.marker([currentRide.destLat, currentRide.destLng], {
                     icon: L.divIcon({
                         className: 'destination-marker',
-                        html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
-                        iconSize: [25, 25]
+                        html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Destination</div>',
+                        iconSize: [25, 40]
                     })
                 }).addTo(driverMap).bindPopup('Destination');
-                
-                // Add destination circle
-                destinationCircle = L.circle([currentRide.destLat, currentRide.destLng], {
-                    color: '#E74C3C',
-                    fillColor: '#E74C3C',
-                    fillOpacity: 0.2,
-                    radius: 100
-                }).addTo(driverMap);
                 
                 // Draw route from driver to customer
                 if (driverMarker) {
