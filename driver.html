@@ -1668,6 +1668,45 @@
             z-index: 100;
         }
         
+        .delivery-info-section {
+            background: var(--light-gray);
+            padding: 10px;
+            border-radius: var(--element-radius);
+            margin-top: 10px;
+        }
+        
+        .delivery-info-title {
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--primary-orange);
+            font-size: 0.8rem;
+        }
+        
+        .delivery-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.75rem;
+        }
+        
+        .delivery-info-label {
+            color: var(--medium-gray);
+            font-weight: 600;
+        }
+        
+        .delivery-info-value {
+            font-weight: 600;
+        }
+        
+        .special-instructions {
+            background: var(--light-orange);
+            padding: 8px;
+            border-radius: var(--element-radius);
+            margin-top: 8px;
+            font-size: 0.75rem;
+            border-left: 3px solid var(--primary-orange);
+        }
+        
         @media (max-width: 480px) {
             .floating-float, .online-toggle {
                 padding: 6px 8px;
@@ -2111,6 +2150,25 @@
                                 <h4>Destination</h4>
                                 <p id="destinationLocation">456 Oak Avenue, City</p>
                             </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Delivery Information (For Bike/Bicycle) -->
+                    <div class="delivery-info-section" id="deliveryInfoSection" style="display: none;">
+                        <div class="delivery-info-title">
+                            <i class="fas fa-box"></i> Delivery Information
+                        </div>
+                        <div class="delivery-info-row">
+                            <span class="delivery-info-label">Receiver Name:</span>
+                            <span class="delivery-info-value" id="receiverName">N/A</span>
+                        </div>
+                        <div class="delivery-info-row">
+                            <span class="delivery-info-label">Receiver Phone:</span>
+                            <span class="delivery-info-value" id="receiverPhone">N/A</span>
+                        </div>
+                        <div class="special-instructions" id="specialInstructionsContainer" style="display: none;">
+                            <strong>Special Instructions:</strong>
+                            <p id="specialInstructions">No special instructions</p>
                         </div>
                     </div>
                     
@@ -2595,7 +2653,7 @@
                             };
                         }
                         
-                        // Save user data to Firebase
+                        // Save user data to Firebase with userType: driver
                         return database.ref('users/' + user.uid).set({
                             name: name,
                             email: email,
@@ -2606,6 +2664,7 @@
                                 method: paymentMethod,
                                 details: paymentDetails
                             },
+                            userType: 'driver', // NEW: Added user type
                             createdAt: firebase.database.ServerValue.TIMESTAMP,
                             isOnline: false,
                             walletBalance: 0,
@@ -3169,6 +3228,25 @@
             document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
             document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
             
+            // Show delivery information for bike/bicycle rides
+            const deliveryInfoSection = document.getElementById('deliveryInfoSection');
+            if (ride.rideType === 'bike' || ride.rideType === 'bicycle') {
+                deliveryInfoSection.style.display = 'block';
+                document.getElementById('receiverName').textContent = ride.receiverName || 'N/A';
+                document.getElementById('receiverPhone').textContent = ride.receiverPhone || 'N/A';
+                
+                // Show special instructions if available
+                const specialInstructionsContainer = document.getElementById('specialInstructionsContainer');
+                if (ride.specialInstructions) {
+                    specialInstructionsContainer.style.display = 'block';
+                    document.getElementById('specialInstructions').textContent = ride.specialInstructions;
+                } else {
+                    specialInstructionsContainer.style.display = 'none';
+                }
+            } else {
+                deliveryInfoSection.style.display = 'none';
+            }
+            
             // Update ride request map
             updateRideRequestMap(ride);
             
@@ -3321,35 +3399,44 @@
                 // Stop the ride request sound
                 stopRideRequestSound();
                 
-                // Update ride with driver info
-                database.ref('rides/' + currentRideRequest.id).update({
-                    driverId: currentUser.uid,
-                    status: 'accepted',
-                    acceptedAt: firebase.database.ServerValue.TIMESTAMP
-                })
-                .then(() => {
-                    currentRide = {
-                        id: currentRideRequest.id,
-                        ...currentRideRequest,
-                        driverId: currentUser.uid,
-                        status: 'accepted'
-                    };
-                    
-                    // Hide ride request popup
-                    document.getElementById('rideRequestPopup').style.display = 'none';
-                    
-                    // Update driver panel for active ride
-                    updateDriverPanelForActiveRide();
-                    
-                    // Update map for active ride
-                    updateMapForActiveRide();
-                    
-                    showNotification('Ride accepted successfully.');
-                })
-                .catch(error => {
-                    console.error('Error accepting ride:', error);
-                    showNotification('Error accepting ride. Please try again.');
-                });
+                // Get driver details from Firebase
+                database.ref('users/' + currentUser.uid).once('value')
+                    .then(snapshot => {
+                        const driverData = snapshot.val();
+                        
+                        // Update ride with complete driver info
+                        return database.ref('rides/' + currentRideRequest.id).update({
+                            driverId: currentUser.uid,
+                            driverName: driverData.name,
+                            driverPhone: driverData.phone,
+                            driverVehicle: driverData.vehicle, // Send all vehicle details
+                            status: 'accepted',
+                            acceptedAt: firebase.database.ServerValue.TIMESTAMP
+                        });
+                    })
+                    .then(() => {
+                        currentRide = {
+                            id: currentRideRequest.id,
+                            ...currentRideRequest,
+                            driverId: currentUser.uid,
+                            status: 'accepted'
+                        };
+                        
+                        // Hide ride request popup
+                        document.getElementById('rideRequestPopup').style.display = 'none';
+                        
+                        // Update driver panel for active ride
+                        updateDriverPanelForActiveRide();
+                        
+                        // Update map for active ride
+                        updateMapForActiveRide();
+                        
+                        showNotification('Ride accepted successfully.');
+                    })
+                    .catch(error => {
+                        console.error('Error accepting ride:', error);
+                        showNotification('Error accepting ride. Please try again.');
+                    });
             }
         }
         
