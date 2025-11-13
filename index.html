@@ -169,6 +169,12 @@
     </div>
 
     <script>
+        // Check if the app is already installed
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+            // App is already installed, redirect immediately
+            window.location.href = 'https://bufferzone-cloud.github.io/jubel/index.html';
+        }
+
         // Start the loading progress
         document.addEventListener('DOMContentLoaded', function() {
             const progressBar = document.getElementById('progressBar');
@@ -187,8 +193,12 @@
                 
                 if (count <= 0) {
                     clearInterval(countdown);
-                    // Redirect to driver.html after 5 seconds
-                    window.location.href = 'driver.html';
+                    // Check if app is installed before redirecting
+                    if (!window.matchMedia('(display-mode: standalone)').matches && window.navigator.standalone !== true) {
+                        // Show install button if not installed
+                        const installBtn = document.getElementById('installBtn');
+                        installBtn.classList.remove('hidden');
+                    }
                 }
             }, 1000);
         });
@@ -202,13 +212,15 @@
             e.preventDefault();
             // Stash the event so it can be triggered later
             deferredPrompt = e;
-            // Show the install button
-            installBtn.classList.remove('hidden');
+            // Show the install button after countdown
+            setTimeout(() => {
+                installBtn.classList.remove('hidden');
+            }, 5000);
             
             // Auto-hide the install button after 10 seconds
             setTimeout(() => {
                 installBtn.classList.add('hidden');
-            }, 10000);
+            }, 15000);
         });
         
         installBtn.addEventListener('click', async () => {
@@ -225,6 +237,11 @@
                 installBtn.textContent = 'App Installed!';
                 installBtn.style.backgroundColor = '#4CAF50';
                 installBtn.disabled = true;
+                
+                // Redirect after installation
+                setTimeout(() => {
+                    window.location.href = 'https://bufferzone-cloud.github.io/jubel/index.html';
+                }, 2000);
             } else {
                 console.log('User dismissed the install prompt');
             }
@@ -244,6 +261,11 @@
             // Hide the install button
             installBtn.classList.add('hidden');
             console.log('Jubel Driver was successfully installed');
+            
+            // Redirect to the main app after installation
+            setTimeout(() => {
+                window.location.href = 'https://bufferzone-cloud.github.io/jubel/index.html';
+            }, 1000);
         });
         
         // Register Service Worker for PWA functionality
