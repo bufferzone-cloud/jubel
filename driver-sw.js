@@ -100,11 +100,11 @@ self.addEventListener('push', function(event) {
   const title = 'Jubel Driver';
   const options = {
     body: 'New ride request available!',
-    icon: 'jubel-driver.png',
-    badge: 'jubel-driver.png',
+    icon: 'jubel.png',
+    badge: 'jubel.png',
     vibrate: [100, 50, 100],
     data: {
-      url: 'https://bufferzone-cloud.github.io/jubel-driver/driver-dashboard.html'
+      url: 'https://bufferzone-cloud.github.io/jubel/driver.html'
     },
     tag: 'ride-request',
     actions: [
@@ -146,7 +146,7 @@ self.addEventListener('notificationclick', function(event) {
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('https://bufferzone-cloud.github.io/jubel-driver/driver-dashboard.html');
+        return clients.openWindow('https://bufferzone-cloud.github.io/jubel/driver.html');
       }
     })
   );
