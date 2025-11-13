@@ -14,23 +14,19 @@
         }
         
         body {
-            background: linear-gradient(135deg, #ff6600, #ff8c42);
+            background: white;
             height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: white;
+            color: #333;
             overflow: hidden;
         }
         
         .container {
             text-align: center;
             padding: 2rem;
-            background-color: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             max-width: 90%;
             width: 400px;
         }
@@ -48,7 +44,8 @@
             justify-content: center;
             align-items: center;
             margin: 0 auto;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid #eee;
         }
         
         .logo img {
@@ -59,13 +56,13 @@
         h1 {
             font-size: 2.5rem;
             margin-bottom: 1rem;
-            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            color: #ff6600;
         }
         
         p {
             font-size: 1.2rem;
             margin-bottom: 2rem;
-            opacity: 0.9;
+            color: #666;
         }
         
         .loading-container {
@@ -74,7 +71,7 @@
         
         .loading-bar {
             height: 8px;
-            background-color: rgba(255, 255, 255, 0.3);
+            background-color: #f0f0f0;
             border-radius: 4px;
             overflow: hidden;
             margin-bottom: 10px;
@@ -83,26 +80,49 @@
         .loading-progress {
             height: 100%;
             width: 0%;
-            background-color: white;
+            background-color: #ff6600;
             border-radius: 4px;
             transition: width 5s linear;
         }
         
         .loading-text {
             font-size: 0.9rem;
-            opacity: 0.8;
+            color: #666;
         }
         
         .counter {
             font-size: 1.5rem;
             font-weight: bold;
             margin-top: 1rem;
+            color: #ff6600;
+        }
+        
+        .install-btn {
+            background-color: #ff6600;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background-color 0.3s;
+            box-shadow: 0 4px 12px rgba(255, 102, 0, 0.3);
+        }
+        
+        .install-btn:hover {
+            background-color: #e55a00;
+        }
+        
+        .install-btn.hidden {
+            display: none;
         }
         
         .footer {
             margin-top: 2rem;
             font-size: 0.8rem;
-            opacity: 0.7;
+            color: #999;
         }
         
         @media (max-width: 480px) {
@@ -125,10 +145,8 @@
     <div class="container">
         <div class="logo-container">
             <div class="logo">
-                <!-- In a real implementation, you would use your jubel.png file -->
-                <div style="width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; font-weight: bold; color: #ff6600; font-size: 1.5rem;">
-                    JUBEL
-                </div>
+                <!-- Replace with your actual jubel.png -->
+                <img src="jubel.png" alt="Jubel Driver Logo">
             </div>
         </div>
         
@@ -142,6 +160,8 @@
             <div class="loading-text">Loading driver application...</div>
             <div class="counter" id="counter">5</div>
         </div>
+        
+        <button class="install-btn hidden" id="installBtn">Install Jubel Driver App</button>
         
         <div class="footer">
             Preparing your driver experience
@@ -171,6 +191,59 @@
                     window.location.href = 'driver.html';
                 }
             }, 1000);
+        });
+        
+        // PWA Install Button Logic
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
+            e.preventDefault();
+            // Stash the event so it can be triggered later
+            deferredPrompt = e;
+            // Show the install button
+            installBtn.classList.remove('hidden');
+            
+            // Auto-hide the install button after 10 seconds
+            setTimeout(() => {
+                installBtn.classList.add('hidden');
+            }, 10000);
+        });
+        
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            
+            // Show the install prompt
+            deferredPrompt.prompt();
+            
+            // Wait for the user to respond to the prompt
+            const { outcome } = await deferredPrompt.userChoice;
+            
+            if (outcome === 'accepted') {
+                console.log('User accepted the install prompt');
+                installBtn.textContent = 'App Installed!';
+                installBtn.style.backgroundColor = '#4CAF50';
+                installBtn.disabled = true;
+            } else {
+                console.log('User dismissed the install prompt');
+            }
+            
+            // Clear the saved prompt since it can't be used again
+            deferredPrompt = null;
+            
+            // Hide the install button
+            setTimeout(() => {
+                installBtn.classList.add('hidden');
+            }, 3000);
+        });
+        
+        window.addEventListener('appinstalled', () => {
+            // Clear the deferredPrompt so it can be garbage collected
+            deferredPrompt = null;
+            // Hide the install button
+            installBtn.classList.add('hidden');
+            console.log('Jubel Driver was successfully installed');
         });
         
         // Register Service Worker for PWA functionality
