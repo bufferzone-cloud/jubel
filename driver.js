@@ -2,7 +2,6 @@ const CACHE_NAME = 'jubel-driver-v1.2';
 const urlsToCache = [
   '/jubel/',
   '/jubel/index.html',
-  '/jubel/driver.html',
   '/jubel/jubel.png',
   '/jubel/driver.js',
   '/jubel/driver.json',
