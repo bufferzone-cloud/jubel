@@ -55,14 +55,8 @@
         
         h1 {
             font-size: 2.5rem;
-            margin-bottom: 1rem;
-            color: #ff6600;
-        }
-        
-        p {
-            font-size: 1.2rem;
             margin-bottom: 2rem;
-            color: #666;
+            color: #ff6600;
         }
         
         .loading-container {
@@ -86,15 +80,8 @@
         }
         
         .loading-text {
-            font-size: 0.9rem;
+            font-size: 1rem;
             color: #666;
-        }
-        
-        .counter {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-top: 1rem;
-            color: #ff6600;
         }
         
         .install-btn {
@@ -106,7 +93,7 @@
             font-size: 1rem;
             font-weight: bold;
             cursor: pointer;
-            margin-top: 1rem;
+            margin-top: 2rem;
             transition: background-color 0.3s;
             box-shadow: 0 4px 12px rgba(255, 102, 0, 0.3);
         }
@@ -150,14 +137,12 @@
         </div>
         
         <h1>Jubel Driver</h1>
-        <p>Welcome to the Jubel Driver app</p>
         
         <div class="loading-container">
             <div class="loading-bar">
                 <div class="loading-progress" id="progressBar"></div>
             </div>
             <div class="loading-text">Loading driver application...</div>
-            <div class="counter" id="counter">5</div>
         </div>
         
         <button class="install-btn hidden" id="installBtn">Install Jubel Driver App</button>
@@ -170,36 +155,31 @@
     <script>
         // Check if the app is already installed
         if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
-            // App is already installed, redirect immediately
-            window.location.href = 'https://bufferzone-cloud.github.io/jubel/index.html';
+            // App is already installed, redirect immediately to driver.html
+            window.location.href = 'driver.html';
         }
 
         // Start the loading progress
         document.addEventListener('DOMContentLoaded', function() {
             const progressBar = document.getElementById('progressBar');
-            const counter = document.getElementById('counter');
+            const installBtn = document.getElementById('installBtn');
             
             // Start the progress animation
             setTimeout(() => {
                 progressBar.style.width = '100%';
             }, 100);
             
-            // Update counter
-            let count = 5;
-            const countdown = setInterval(() => {
-                count--;
-                counter.textContent = count;
-                
-                if (count <= 0) {
-                    clearInterval(countdown);
-                    // Check if app is installed before redirecting
-                    if (!window.matchMedia('(display-mode: standalone)').matches && window.navigator.standalone !== true) {
-                        // Show install button if not installed
-                        const installBtn = document.getElementById('installBtn');
-                        installBtn.classList.remove('hidden');
-                    }
+            // After 5 seconds, check if app is installed and redirect or show install button
+            setTimeout(() => {
+                // Check if app is installed
+                if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+                    // App is installed, redirect to driver.html
+                    window.location.href = 'driver.html';
+                } else {
+                    // App not installed, show install button
+                    installBtn.classList.remove('hidden');
                 }
-            }, 1000);
+            }, 5000);
         });
         
         // PWA Install Button Logic
@@ -211,15 +191,6 @@
             e.preventDefault();
             // Stash the event so it can be triggered later
             deferredPrompt = e;
-            // Show the install button after countdown
-            setTimeout(() => {
-                installBtn.classList.remove('hidden');
-            }, 5000);
-            
-            // Auto-hide the install button after 10 seconds
-            setTimeout(() => {
-                installBtn.classList.add('hidden');
-            }, 15000);
         });
         
         installBtn.addEventListener('click', async () => {
@@ -236,22 +207,12 @@
                 installBtn.textContent = 'App Installed!';
                 installBtn.style.backgroundColor = '#4CAF50';
                 installBtn.disabled = true;
-                
-                // Redirect after installation
-                setTimeout(() => {
-                    window.location.href = 'https://bufferzone-cloud.github.io/jubel/index.html';
-                }, 2000);
             } else {
                 console.log('User dismissed the install prompt');
             }
             
             // Clear the saved prompt since it can't be used again
             deferredPrompt = null;
-            
-            // Hide the install button
-            setTimeout(() => {
-                installBtn.classList.add('hidden');
-            }, 3000);
         });
         
         window.addEventListener('appinstalled', () => {
@@ -260,11 +221,6 @@
             // Hide the install button
             installBtn.classList.add('hidden');
             console.log('Jubel Driver was successfully installed');
-            
-            // Redirect to the main app after installation
-            setTimeout(() => {
-                window.location.href = 'https://bufferzone-cloud.github.io/jubel/index.html';
-            }, 1000);
         });
         
         // Register Service Worker for PWA functionality
