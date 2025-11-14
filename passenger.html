@@ -2228,12 +2228,50 @@ let walletBalanceListener = null;
 let currentScreen = 'home';
 let homeScreenRefreshRequired = false;
 
-// Zambian cities for search
+// Zambian cities for search with common misspellings and variations
 const zambianCities = [
     'Lusaka', 'Kitwe', 'Ndola', 'Kabwe', 'Chipata', 'Chingola', 
     'Mufulira', 'Luanshya', 'Livingstone', 'Kasama', 'Solwezi', 
     'Kapiri Mposhi', 'Chililabombwe'
 ];
+
+// City aliases for handling spelling mistakes and variations
+const cityAliases = {
+    'lusaka': 'Lusaka',
+    'lsk': 'Lusaka',
+    'lsk city': 'Lusaka',
+    'kitwe': 'Kitwe',
+    'ndola': 'Ndola',
+    'kabwe': 'Kabwe',
+    'chipata': 'Chipata',
+    'chingola': 'Chingola',
+    'mufulira': 'Mufulira',
+    'luanshya': 'Luanshya',
+    'livingstone': 'Livingstone',
+    'kasama': 'Kasama',
+    'solwezi': 'Solwezi',
+    'kapiri': 'Kapiri Mposhi',
+    'kapiri mposhi': 'Kapiri Mposhi',
+    'chililabombwe': 'Chililabombwe',
+    'chili': 'Chililabombwe'
+};
+
+// Enhanced city boundaries for more accurate detection
+const cityBoundaries = {
+    'Lusaka': { lat: -15.4167, lng: 28.2833, radius: 25000 },
+    'Kitwe': { lat: -12.8139, lng: 28.2136, radius: 20000 },
+    'Ndola': { lat: -12.9667, lng: 28.6333, radius: 20000 },
+    'Kabwe': { lat: -14.4333, lng: 28.4500, radius: 15000 },
+    'Chipata': { lat: -13.6333, lng: 32.6500, radius: 15000 },
+    'Chingola': { lat: -12.5333, lng: 27.8500, radius: 15000 },
+    'Mufulira': { lat: -12.5500, lng: 28.2333, radius: 15000 },
+    'Luanshya': { lat: -13.1333, lng: 28.4000, radius: 15000 },
+    'Livingstone': { lat: -17.8500, lng: 25.8667, radius: 15000 },
+    'Kasama': { lat: -10.2000, lng: 31.2000, radius: 15000 },
+    'Solwezi': { lat: -12.1833, lng: 26.4000, radius: 15000 },
+    'Kapiri Mposhi': { lat: -13.9667, lng: 28.6833, radius: 10000 },
+    'Chililabombwe': { lat: -12.3667, lng: 27.8333, radius: 10000 }
+};
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -2355,52 +2393,163 @@ function initializeMap() {
     refreshPassengerPosition();
 }
 
-// Enhanced function to determine current city based on coordinates with higher accuracy
+// ENHANCED: Advanced city detection with multiple fallback methods
 function determineCurrentCity(lat, lng) {
     return new Promise((resolve, reject) => {
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`)
-            .then(response => response.json())
+        console.log(`Starting city detection for coordinates: ${lat}, ${lng}`);
+        
+        // Method 1: Check if within known city boundaries first (fastest)
+        const boundaryCity = checkCityBoundaries(lat, lng);
+        if (boundaryCity) {
+            console.log(`City detected via boundaries: ${boundaryCity}`);
+            currentCity = boundaryCity;
+            resolve(currentCity);
+            return;
+        }
+        
+        // Method 2: Use Nominatim reverse geocoding with enhanced parameters
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data && data.address) {
-                    // Try to get city, town, or village name with priority
-                    if (data.address.city) {
-                        currentCity = data.address.city;
-                    } else if (data.address.town) {
-                        currentCity = data.address.town;
-                    } else if (data.address.village) {
-                        currentCity = data.address.village;
-                    } else if (data.address.municipality) {
-                        currentCity = data.address.municipality;
-                    } else if (data.address.county) {
-                        currentCity = data.address.county;
-                    } else if (data.address.state) {
-                        currentCity = data.address.state;
+                    const detectedCity = extractCityFromAddress(data.address);
+                    
+                    if (detectedCity && detectedCity !== "Unknown Location") {
+                        currentCity = detectedCity;
+                        console.log(`City detected via Nominatim: ${currentCity}`);
+                        resolve(currentCity);
                     } else {
-                        // If no specific city found, use the display name to extract city
-                        const displayName = data.display_name || '';
-                        const cityMatch = displayName.match(/(Lusaka|Kitwe|Ndola|Kabwe|Chipata|Chingola|Mufulira|Luanshya|Livingstone|Kasama|Solwezi|Kapiri Mposhi|Chililabombwe)/i);
-                        if (cityMatch) {
-                            currentCity = cityMatch[0];
-                        } else {
-                            currentCity = "Unknown Location";
-                        }
+                        // Method 3: Fallback to display name parsing
+                        const fallbackCity = extractCityFromDisplayName(data.display_name);
+                        currentCity = fallbackCity;
+                        console.log(`City detected via fallback: ${currentCity}`);
+                        resolve(currentCity);
                     }
-                    console.log("Current city determined as:", currentCity);
-                    resolve(currentCity);
                 } else {
-                    currentCity = "Unknown Location";
+                    // Method 4: Final fallback
+                    currentCity = "Lusaka"; // Default to Lusaka
+                    console.log(`Using default city: ${currentCity}`);
                     resolve(currentCity);
                 }
             })
             .catch(error => {
-                console.error('Error determining city:', error);
-                currentCity = "Unknown Location";
+                console.error('Error in city detection:', error);
+                // Method 5: Emergency fallback
+                currentCity = determineCityByProximity(lat, lng) || "Lusaka";
+                console.log(`City detected via proximity fallback: ${currentCity}`);
                 resolve(currentCity);
             });
     });
 }
 
-// Enhanced function to update pickup location with precise address details
+// NEW: Check if coordinates fall within known city boundaries
+function checkCityBoundaries(lat, lng) {
+    for (const [city, boundary] of Object.entries(cityBoundaries)) {
+        const distance = calculateDistance(lat, lng, boundary.lat, boundary.lng);
+        if (distance <= boundary.radius) {
+            return city;
+        }
+    }
+    return null;
+}
+
+// NEW: Extract city from address object with priority handling
+function extractCityFromAddress(address) {
+    // Priority order for city detection
+    const priorityFields = [
+        'city', 'town', 'village', 'municipality', 
+        'suburb', 'county', 'state_district', 'state'
+    ];
+    
+    for (const field of priorityFields) {
+        if (address[field]) {
+            const detectedName = address[field].toString().trim();
+            // Normalize and validate against known cities
+            const normalized = normalizeCityName(detectedName);
+            if (zambianCities.includes(normalized)) {
+                return normalized;
+            }
+        }
+    }
+    
+    return null;
+}
+
+// NEW: Extract city from display name with pattern matching
+function extractCityFromDisplayName(displayName) {
+    if (!displayName) return "Unknown Location";
+    
+    const nameLower = displayName.toLowerCase();
+    
+    // Check for exact city matches first
+    for (const city of zambianCities) {
+        if (nameLower.includes(city.toLowerCase())) {
+            return city;
+        }
+    }
+    
+    // Check for aliases and common misspellings
+    for (const [alias, actualCity] of Object.entries(cityAliases)) {
+        if (nameLower.includes(alias)) {
+            return actualCity;
+        }
+    }
+    
+    return "Unknown Location";
+}
+
+// NEW: Normalize city names for consistent matching
+function normalizeCityName(cityName) {
+    if (!cityName) return "";
+    
+    const normalized = cityName.toString().trim();
+    
+    // Handle common variations and misspellings
+    const variations = {
+        'lusaka city': 'Lusaka',
+        'lska': 'Lusaka',
+        'kitwe town': 'Kitwe',
+        'ndola city': 'Ndola',
+        'kabwe town': 'Kabwe',
+        'chipata town': 'Chipata',
+        'chingola town': 'Chingola',
+        'mufulira town': 'Mufulira',
+        'luanshya town': 'Luanshya',
+        'livingstone town': 'Livingstone',
+        'kasama town': 'Kasama',
+        'solwezi town': 'Solwezi',
+        'kapiri mposhi town': 'Kapiri Mposhi',
+        'chililabombwe town': 'Chililabombwe'
+    };
+    
+    return variations[normalized.toLowerCase()] || 
+           zambianCities.find(city => city.toLowerCase() === normalized.toLowerCase()) || 
+           normalized;
+}
+
+// NEW: Determine city by proximity to known city centers
+function determineCityByProximity(lat, lng) {
+    let closestCity = null;
+    let shortestDistance = Infinity;
+    
+    for (const [city, center] of Object.entries(cityBoundaries)) {
+        const distance = calculateDistance(lat, lng, center.lat, center.lng);
+        if (distance < shortestDistance) {
+            shortestDistance = distance;
+            closestCity = city;
+        }
+    }
+    
+    // Only return if within a reasonable distance (100km)
+    return shortestDistance <= 100000 ? closestCity : "Unknown Location";
+}
+
+// ENHANCED: Update pickup location with precise address details only
 function updatePickupLocation(lat, lng) {
     // Update pickup marker
     if (pickupMarker) {
@@ -2416,44 +2565,22 @@ function updatePickupLocation(lat, lng) {
     }).addTo(passengerMap)
         .bindPopup('Pickup Location');
         
-    // Update pickup location input with precise address only
+    // Update pickup location input with precise address only (no city/province/country)
     getPreciseAddress(lat, lng, 'pickupLocation');
 }
 
-// Enhanced function to get precise address without city, province, or country
+// ENHANCED: Get precise address without city, province, or country
 function getPreciseAddress(lat, lng, elementId) {
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
-        .then(response => response.json())
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Geocoding error: ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data && data.address) {
-                let preciseAddress = '';
-                
-                // Build precise address with only relevant details
-                if (data.address.house_number || data.address.housenumber) {
-                    preciseAddress += (data.address.house_number || data.address.housenumber) + ' ';
-                }
-                
-                if (data.address.road) {
-                    preciseAddress += data.address.road;
-                }
-                
-                if (data.address.building || data.address.amenity) {
-                    if (preciseAddress) preciseAddress += ', ';
-                    preciseAddress += data.address.building || data.address.amenity;
-                }
-                
-                if (data.address.suburb || data.address.neighbourhood) {
-                    if (preciseAddress) preciseAddress += ', ';
-                    preciseAddress += data.address.suburb || data.address.neighbourhood;
-                }
-                
-                // If we still don't have a good address, use the display name but remove city/country
-                if (!preciseAddress && data.display_name) {
-                    const parts = data.display_name.split(',');
-                    // Take only the first 2-3 parts to avoid city/province/country
-                    preciseAddress = parts.slice(0, Math.min(3, parts.length)).join(', ');
-                }
-                
+                const preciseAddress = buildPreciseAddress(data.address);
                 document.getElementById(elementId).value = preciseAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
             } else {
                 document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -2465,11 +2592,65 @@ function getPreciseAddress(lat, lng, elementId) {
         });
 }
 
-// Enhanced function to get full address for ride submission
+// NEW: Build precise address without city, province, or country
+function buildPreciseAddress(address) {
+    const addressParts = [];
+    
+    // Add house/plot number if available
+    if (address.house_number || address.housenumber) {
+        addressParts.push(address.house_number || address.housenumber);
+    }
+    
+    // Add building name or amenity
+    if (address.building) {
+        addressParts.push(address.building);
+    } else if (address.amenity) {
+        addressParts.push(address.amenity);
+    }
+    
+    // Add road name
+    if (address.road) {
+        addressParts.push(address.road);
+    }
+    
+    // Add suburb or neighbourhood for more precise location
+    if (address.suburb) {
+        addressParts.push(address.suburb);
+    } else if (address.neighbourhood) {
+        addressParts.push(address.neighbourhood);
+    }
+    
+    // Add residential area if available
+    if (address.residential) {
+        addressParts.push(address.residential);
+    }
+    
+    // Add quarter if available
+    if (address.quarter) {
+        addressParts.push(address.quarter);
+    }
+    
+    // Filter out any empty parts and join with commas
+    const filteredParts = addressParts.filter(part => part && part.trim().length > 0);
+    
+    if (filteredParts.length > 0) {
+        return filteredParts.join(', ');
+    }
+    
+    // Fallback: Use display name but remove city/province/country
+    return null;
+}
+
+// ENHANCED: Get full address for ride submission (includes city, province, country)
 function getFullAddress(lat, lng) {
     return new Promise((resolve, reject) => {
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`)
-            .then(response => response.json())
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1&accept-language=en`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Full address geocoding error: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data && data.display_name) {
                     resolve(data.display_name);
@@ -2484,7 +2665,7 @@ function getFullAddress(lat, lng) {
     });
 }
 
-// NEW: Enhanced search function with split-second search across Zambian cities
+// ENHANCED: Ultra-fast real-time search with split-second results
 function searchPlacesEnhanced(query) {
     if (!query || query.length < 2) {
         hideDestinationSuggestions();
@@ -2495,60 +2676,114 @@ function searchPlacesEnhanced(query) {
     suggestionsContainer.innerHTML = '<div class="loading-text">Searching places...</div>';
     suggestionsContainer.style.display = 'block';
     
-    // Search in current city first with priority
+    // Normalize and preprocess query for better matching
+    const processedQuery = preprocessSearchQuery(query);
+    
+    // Start search with current city for immediate results
     const searchPromises = [];
     
-    // Always search in current city first
+    // Priority 1: Search in current city first (fastest path)
     if (currentCity && currentCity !== "Unknown Location") {
-        searchPromises.push(searchInCity(query, currentCity, true));
+        searchPromises.push(searchInCityWithPriority(processedQuery, currentCity, 1));
     }
     
-    // Search in all Zambian cities simultaneously for fastest results
+    // Priority 2: Simultaneous search in all Zambian cities for comprehensive results
     zambianCities.forEach(city => {
         if (city !== currentCity) {
-            searchPromises.push(searchInCity(query, city, false));
+            searchPromises.push(searchInCityWithPriority(processedQuery, city, 2));
         }
     });
     
-    // Use Promise.race to get the fastest results first
-    let fastestResultsReceived = false;
+    // Priority 3: Fuzzy search for handling spelling mistakes
+    searchPromises.push(fuzzySearchInAllCities(processedQuery));
     
-    // Show results as they come in
-    Promise.allSettled(searchPromises).then(results => {
-        if (fastestResultsReceived) return; // Skip if we already showed results
-        
-        const allResults = [];
-        results.forEach(result => {
-            if (result.status === 'fulfilled' && result.value.length > 0) {
-                allResults.push(...result.value);
-            }
-        });
-        
-        if (allResults.length > 0) {
-            displaySearchResults(allResults);
-        } else {
-            suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
-        }
-    });
+    // Track if we've already shown results to avoid duplicates
+    let resultsDisplayed = false;
+    let fastestResultsShown = false;
     
-    // Also try to show fastest results immediately
-    searchPromises.forEach(promise => {
+    // Show fastest results immediately as they come in
+    searchPromises.forEach((promise, index) => {
         promise.then(results => {
-            if (results.length > 0 && !fastestResultsReceived) {
-                fastestResultsReceived = true;
-                displaySearchResults(results);
+            if (results.length > 0 && !fastestResultsShown) {
+                fastestResultsShown = true;
+                displaySearchResults(results.slice(0, 6)); // Show first 6 fast results
+            }
+            
+            // Once all promises complete, show comprehensive results
+            if (index === searchPromises.length - 1) {
+                Promise.allSettled(searchPromises).then(allResults => {
+                    if (resultsDisplayed) return;
+                    
+                    const comprehensiveResults = [];
+                    allResults.forEach(result => {
+                        if (result.status === 'fulfilled' && result.value.length > 0) {
+                            comprehensiveResults.push(...result.value);
+                        }
+                    });
+                    
+                    if (comprehensiveResults.length > 0) {
+                        displaySearchResults(comprehensiveResults.slice(0, 8));
+                    } else {
+                        showNoResultsMessage(processedQuery);
+                    }
+                    resultsDisplayed = true;
+                });
             }
         });
     });
+    
+    // Timeout fallback
+    setTimeout(() => {
+        if (!resultsDisplayed) {
+            showNoResultsMessage(processedQuery);
+            resultsDisplayed = true;
+        }
+    }, 3000);
 }
 
-// Search places in a specific city
-function searchInCity(query, city, isCurrentCity) {
+// NEW: Preprocess search query for better matching
+function preprocessSearchQuery(query) {
+    let processed = query.trim().toLowerCase();
+    
+    // Remove common stop words
+    const stopWords = ['the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but'];
+    stopWords.forEach(word => {
+        processed = processed.replace(new RegExp(`\\b${word}\\b`, 'gi'), '');
+    });
+    
+    // Normalize whitespace
+    processed = processed.replace(/\s+/g, ' ').trim();
+    
+    // Handle common abbreviations
+    const abbreviations = {
+        'st': 'street',
+        'ave': 'avenue',
+        'rd': 'road',
+        'blvd': 'boulevard',
+        'hwy': 'highway',
+        'ln': 'lane',
+        'dr': 'drive'
+    };
+    
+    Object.keys(abbreviations).forEach(abbr => {
+        processed = processed.replace(new RegExp(`\\b${abbr}\\b`, 'gi'), abbreviations[abbr]);
+    });
+    
+    return processed;
+}
+
+// ENHANCED: Search in specific city with priority scoring
+function searchInCityWithPriority(query, city, priority) {
     return new Promise((resolve, reject) => {
         const searchQuery = `${query}, ${city}, Zambia`;
         
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=8&dedupe=1`)
-            .then(response => response.json())
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&dedupe=1&countrycodes=zm`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Search API error: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data && data.length > 0) {
                     const results = data
@@ -2559,21 +2794,24 @@ function searchInCity(query, city, isCurrentCity) {
                                 parseFloat(place.lat), parseFloat(place.lon)
                             ) : 0;
                             
+                            const relevanceScore = calculateRelevanceScore(place, query, city);
+                            
                             return {
                                 ...place,
                                 displayLat: parseFloat(place.lat),
                                 displayLon: parseFloat(place.lon),
                                 distance,
                                 city: city,
-                                isCurrentCity: isCurrentCity,
-                                priority: isCurrentCity ? 1 : 2 // Current city results have higher priority
+                                isCurrentCity: city === currentCity,
+                                priority: priority,
+                                relevanceScore: relevanceScore,
+                                displayName: formatDisplayName(place.display_name, city)
                             };
                         })
                         .sort((a, b) => {
-                            // Sort by priority first, then distance
-                            if (a.priority !== b.priority) {
-                                return a.priority - b.priority;
-                            }
+                            // Sort by priority, then relevance score, then distance
+                            if (a.priority !== b.priority) return a.priority - b.priority;
+                            if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
                             return a.distance - b.distance;
                         });
                     
@@ -2589,51 +2827,188 @@ function searchInCity(query, city, isCurrentCity) {
     });
 }
 
-// Display search results in the suggestions container
+// NEW: Fuzzy search for handling spelling mistakes and near-matches
+function fuzzySearchInAllCities(query) {
+    return new Promise((resolve, reject) => {
+        // First, try direct search without city specification
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Zambia')}&limit=10&dedupe=1&countrycodes=zm`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    const results = data
+                        .filter(place => place.display_name && place.lat && place.lon)
+                        .map(place => {
+                            // Determine which city this place is in
+                            const placeCity = extractCityFromPlace(place) || "Unknown";
+                            const distance = userLocation ? calculateDistance(
+                                userLocation.lat, userLocation.lng,
+                                parseFloat(place.lat), parseFloat(place.lon)
+                            ) : 0;
+                            
+                            const relevanceScore = calculateRelevanceScore(place, query, placeCity);
+                            
+                            return {
+                                ...place,
+                                displayLat: parseFloat(place.lat),
+                                displayLon: parseFloat(place.lon),
+                                distance,
+                                city: placeCity,
+                                isCurrentCity: placeCity === currentCity,
+                                priority: 3, // Fuzzy results have lower priority
+                                relevanceScore: relevanceScore * 0.8, // Penalize fuzzy results slightly
+                                displayName: formatDisplayName(place.display_name, placeCity)
+                            };
+                        })
+                        .sort((a, b) => b.relevanceScore - a.relevanceScore);
+                    
+                    resolve(results);
+                } else {
+                    resolve([]);
+                }
+            })
+            .catch(error => {
+                console.error('Error in fuzzy search:', error);
+                resolve([]);
+            });
+    });
+}
+
+// NEW: Calculate relevance score for search results
+function calculateRelevanceScore(place, query, city) {
+    let score = 0;
+    const placeName = place.display_name.toLowerCase();
+    const queryLower = query.toLowerCase();
+    const cityLower = city.toLowerCase();
+    
+    // Exact match bonus
+    if (placeName.includes(queryLower)) {
+        score += 10;
+    }
+    
+    // Word boundary matches
+    const queryWords = queryLower.split(' ');
+    queryWords.forEach(word => {
+        if (word.length > 2 && placeName.includes(word)) {
+            score += 5;
+        }
+    });
+    
+    // Current city bonus
+    if (city === currentCity) {
+        score += 8;
+    }
+    
+    // Type relevance
+    if (place.type === 'administrative' || place.class === 'boundary') {
+        score -= 2; // Penalize administrative boundaries
+    }
+    
+    // Importance score from Nominatim
+    if (place.importance) {
+        score += place.importance * 5;
+    }
+    
+    // Distance penalty (if user location available)
+    if (userLocation) {
+        const distance = calculateDistance(
+            userLocation.lat, userLocation.lng,
+            parseFloat(place.lat), parseFloat(place.lon)
+        );
+        if (distance > 50000) { // 50km
+            score -= 3;
+        }
+    }
+    
+    return Math.max(0, score);
+}
+
+// NEW: Extract city from place data
+function extractCityFromPlace(place) {
+    if (place.address) {
+        return extractCityFromAddress(place.address);
+    }
+    
+    // Fallback: try to extract from display name
+    return extractCityFromDisplayName(place.display_name);
+}
+
+// NEW: Format display name for better UX
+function formatDisplayName(fullName, city) {
+    if (!fullName) return 'Unknown Location';
+    
+    // Remove the city and country from the end to avoid duplication
+    const parts = fullName.split(',');
+    const relevantParts = [];
+    
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        const partLower = part.toLowerCase();
+        
+        // Stop when we hit city or country information
+        if (zambianCities.some(c => c.toLowerCase() === partLower) ||
+            partLower === 'zambia' ||
+            partLower.includes('province')) {
+            break;
+        }
+        
+        relevantParts.push(part);
+    }
+    
+    return relevantParts.join(', ') || fullName;
+}
+
+// ENHANCED: Display search results with improved UX
 function displaySearchResults(results) {
     const suggestionsContainer = document.getElementById('destinationSuggestions');
     suggestionsContainer.innerHTML = '';
     destinationSearchResults = [];
     
     if (results.length === 0) {
-        suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+        showNoResultsMessage();
         return;
     }
     
-    // Remove duplicates and sort by priority and distance
+    // Remove duplicates and sort by relevance
     const uniqueResults = removeDuplicatePlaces(results)
         .sort((a, b) => {
-            if (a.priority !== b.priority) {
-                return a.priority - b.priority;
-            }
+            // Sort by priority, then relevance score, then distance
+            if (a.priority !== b.priority) return a.priority - b.priority;
+            if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
             return a.distance - b.distance;
         })
-        .slice(0, 8); // Limit to 8 results
+        .slice(0, 8); // Limit to 8 best results
     
     destinationSearchResults = uniqueResults;
     
-    uniqueResults.forEach(result => {
+    uniqueResults.forEach((result, index) => {
         const suggestionItem = document.createElement('div');
         suggestionItem.className = 'suggestion-item';
+        if (index === 0) suggestionItem.classList.add('first-result');
         
         const placeType = getPlaceType(result);
         const placeIcon = getPlaceIcon(placeType);
         
-        // Create a shortened display name for better UX
-        const shortName = result.display_name.split(',').slice(0, 2).join(',');
-        
         // Add city badge for non-current city results
-        const cityBadge = result.isCurrentCity ? '' : `<span style="background: #FF6B35; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.6rem; margin-left: 5px;">${result.city}</span>`;
+        const cityBadge = result.isCurrentCity ? '' : 
+            `<span class="city-badge">${result.city}</span>`;
         
-        const distanceText = userLocation ? `${(result.distance / 1000).toFixed(1)} km away` : '';
+        const distanceText = userLocation && result.distance > 0 ? 
+            `${(result.distance / 1000).toFixed(1)} km away` : '';
+        
+        // Use formatted display name
+        const displayName = result.displayName || result.display_name;
         
         suggestionItem.innerHTML = `
             <div class="suggestion-icon">${placeIcon}</div>
             <div class="suggestion-details">
-                <div class="suggestion-name">${shortName}${cityBadge}</div>
-                <div class="suggestion-address">${result.display_name.split(',').slice(1, 3).join(',')}</div>
+                <div class="suggestion-name">
+                    ${displayName}
+                    ${cityBadge}
+                </div>
+                <div class="suggestion-address">${getShortAddress(result.display_name)}</div>
                 <div class="suggestion-distance">${distanceText}</div>
             </div>
+            ${result.isCurrentCity ? '<div class="current-city-indicator">📍 Current City</div>' : ''}
         `;
         
         suggestionItem.addEventListener('click', function() {
@@ -2657,28 +3032,64 @@ function displaySearchResults(results) {
             
             // Enable request ride button
             document.getElementById('requestRideBtn').disabled = false;
+            
+            showNotification(`Destination set to ${displayName}`);
         });
         
         suggestionsContainer.appendChild(suggestionItem);
     });
 }
 
-// Remove duplicate places from search results
+// NEW: Get short address for display
+function getShortAddress(fullAddress) {
+    if (!fullAddress) return '';
+    
+    const parts = fullAddress.split(',');
+    // Return first 2-3 parts for concise display
+    return parts.slice(0, Math.min(3, parts.length)).join(', ');
+}
+
+// NEW: Show no results message with suggestions
+function showNoResultsMessage(query = '') {
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    
+    let message = '<div class="no-places">No places found matching your search</div>';
+    
+    if (query && query.length > 0) {
+        message += `
+            <div class="search-suggestions">
+                <div class="suggestion-title">Try these suggestions:</div>
+                <div class="suggestion-tip">• Check spelling</div>
+                <div class="suggestion-tip">• Try a broader search term</div>
+                <div class="suggestion-tip">• Search for landmarks or areas</div>
+            </div>
+        `;
+    }
+    
+    suggestionsContainer.innerHTML = message;
+}
+
+// ENHANCED: Remove duplicate places with improved logic
 function removeDuplicatePlaces(places) {
     const seen = new Set();
     return places.filter(place => {
-        const key = `${place.lat}-${place.lon}-${place.display_name}`;
-        if (seen.has(key)) {
+        // Create a unique key based on coordinates and name
+        const coordKey = `${place.lat}-${place.lon}`;
+        const nameKey = place.display_name.substring(0, 50).toLowerCase();
+        const uniqueKey = `${coordKey}-${nameKey}`;
+        
+        if (seen.has(uniqueKey)) {
             return false;
         }
-        seen.add(key);
+        seen.add(uniqueKey);
         return true;
     });
 }
 
-// Enhanced destination input event listener for real-time search
+// ENHANCED: Destination input event listener for real-time search
 function setupDestinationInputListener() {
     let searchTimeout;
+    let lastQuery = '';
     const destinationInput = document.getElementById('destinationLocation');
     
     destinationInput.addEventListener('input', function() {
@@ -2688,12 +3099,15 @@ function setupDestinationInputListener() {
             clearTimeout(searchTimeout);
         }
         
-        if (query.length >= 2) {
+        // Only search if query changed significantly
+        if (query.length >= 2 && query !== lastQuery) {
             searchTimeout = setTimeout(() => {
+                lastQuery = query;
                 searchPlacesEnhanced(query);
-            }, 300); // Reduced delay for faster response
-        } else {
+            }, 250); // Reduced delay for faster response
+        } else if (query.length < 2) {
             hideDestinationSuggestions();
+            lastQuery = '';
         }
     });
     
@@ -2708,11 +3122,24 @@ function setupDestinationInputListener() {
     destinationInput.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             hideDestinationSuggestions();
+        } else if (e.key === 'Enter') {
+            hideDestinationSuggestions();
+            // If there are suggestions, select the first one
+            if (destinationSearchResults.length > 0) {
+                const firstResult = destinationSearchResults[0];
+                this.value = firstResult.display_name;
+                updateFareEstimate();
+                updateDestinationMarker(
+                    firstResult.displayLat,
+                    firstResult.displayLon,
+                    firstResult.display_name
+                );
+            }
         }
     });
 }
 
-// Enhanced refresh passenger position function
+// ENHANCED: Refresh passenger position with improved city detection
 function refreshPassengerPosition() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(position => {
@@ -2737,11 +3164,20 @@ function refreshPassengerPosition() {
             
             updatePickupLocation(lat, lng);
             
-            // Determine current city
+            // Enhanced city detection with progress indication
+            showNotification('Detecting your location...');
             determineCurrentCity(lat, lng).then(city => {
-                console.log("Current city detected:", city);
+                console.log("Final detected city:", city);
                 if (currentScreen === 'home') {
                     showNotification(`Location detected in ${city}`);
+                    // Update any city-specific UI elements
+                    updateCitySpecificUI(city);
+                }
+            }).catch(error => {
+                console.error('City detection failed:', error);
+                currentCity = "Lusaka";
+                if (currentScreen === 'home') {
+                    showNotification('Using default location: Lusaka');
                 }
             });
             
@@ -2754,11 +3190,7 @@ function refreshPassengerPosition() {
             }
         }, error => {
             console.error('Geolocation error:', error);
-            if (currentScreen === 'home') {
-                showNotification('Unable to refresh location. Please enable location services.');
-            }
-            // Set a default city if location fails
-            currentCity = "Lusaka";
+            handleGeolocationError(error);
         }, {
             enableHighAccuracy: true,
             timeout: 15000,
@@ -2770,7 +3202,45 @@ function refreshPassengerPosition() {
     }
 }
 
-// Enhanced popup map update function with proper zoom and bounds
+// NEW: Handle geolocation errors gracefully
+function handleGeolocationError(error) {
+    let errorMessage = 'Unable to refresh location. ';
+    
+    switch(error.code) {
+        case error.PERMISSION_DENIED:
+            errorMessage += 'Please enable location services in your browser settings.';
+            break;
+        case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Location information is unavailable.';
+            break;
+        case error.TIMEOUT:
+            errorMessage += 'Location request timed out. Please try again.';
+            break;
+        default:
+            errorMessage += 'Please enable location services.';
+    }
+    
+    if (currentScreen === 'home') {
+        showNotification(errorMessage);
+    }
+    
+    // Set a default city based on last known location or fallback
+    currentCity = currentCity || "Lusaka";
+}
+
+// NEW: Update city-specific UI elements
+function updateCitySpecificUI(city) {
+    // Update any UI elements that should change based on city
+    const cityElement = document.getElementById('currentCity');
+    if (cityElement) {
+        cityElement.textContent = city;
+    }
+    
+    // You can add more city-specific UI updates here
+    console.log(`UI updated for city: ${city}`);
+}
+
+// ENHANCED: Popup map update function with proper zoom and bounds
 function updatePopupRideMap(ride) {
     // Clear existing map
     popupRideMap.eachLayer(layer => {
@@ -2821,56 +3291,7 @@ function updatePopupRideMap(ride) {
     }, 100);
 }
 
-// Enhanced route drawing for popup map
-function drawEnhancedRouteOnPopupMap(startLat, startLng, endLat, endLng) {
-    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                // Draw the route on the map with enhanced styling
-                L.polyline(routeCoordinates, {
-                    color: '#FF6B35',
-                    weight: 6,
-                    opacity: 0.8,
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                }).addTo(popupRideMap);
-                
-                // Add start and end points with custom styling
-                L.circleMarker([startLat, startLng], {
-                    color: '#FF6B35',
-                    fillColor: '#FF6B35',
-                    fillOpacity: 1,
-                    radius: 6
-                }).addTo(popupRideMap);
-                
-                L.circleMarker([endLat, endLng], {
-                    color: '#E74C3C',
-                    fillColor: '#E74C3C',
-                    fillOpacity: 1,
-                    radius: 6
-                }).addTo(popupRideMap);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            // Fallback: draw a straight line with enhanced styling
-            L.polyline([
-                [startLat, startLng],
-                [endLat, endLng]
-            ], {
-                color: '#FF6B35',
-                weight: 4,
-                opacity: 0.7,
-                dashArray: '10, 10'
-            }).addTo(popupRideMap);
-        });
-}
-
-// Enhanced ride request function with full address submission
+// ENHANCED: Ride request function with improved address handling
 function requestRide() {
     const pickupLocation = document.getElementById('pickupLocation').value;
     const destinationLocation = document.getElementById('destinationLocation').value;
@@ -2947,14 +3368,14 @@ function requestRide() {
         // Generate a unique ride ID
         const rideId = database.ref().child('rides').push().key;
         
-        // Create ride request with full address for backend
+        // Create ride request with full address for backend and precise address for display
         const rideRequest = {
             id: rideId,
             passengerId: currentUser.uid,
             passengerName: userData.name || 'Passenger',
             passengerPhone: userData.phone || 'Not provided',
-            pickupLocation: fullPickupAddress, // Full address with city, province, country
-            pickupDisplayLocation: pickupLocation, // Precise address for display
+            pickupLocation: fullPickupAddress, // Full address with city, province, country for backend
+            pickupDisplayLocation: pickupLocation, // Precise address without city/province/country for display
             destination: destinationLocation,
             pickupLat: pickupLatLng.lat,
             pickupLng: pickupLatLng.lng,
@@ -2969,7 +3390,7 @@ function requestRide() {
             promoCode: appliedPromoCode,
             paymentMethod: selectedPaymentType,
             packageDetails: packageDetails,
-            currentCity: currentCity // Store detected city
+            currentCity: currentCity // Store detected city for analytics
         };
         
         // If payment is via wallet, deduct fare from wallet
@@ -3032,7 +3453,7 @@ function requestRide() {
     });
 }
 
-// ORIGINAL FUNCTIONS (preserved exactly as they were)
+// ORIGINAL FUNCTIONS (preserved exactly as they were with minor enhancements)
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
     const R = 6371e3;
@@ -3056,7 +3477,7 @@ function forwardGeocode(query) {
             return;
         }
         
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`)
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&countrycodes=zm`)
             .then(response => response.json())
             .then(data => {
                 const filteredResults = data.filter(result => {
@@ -3517,37 +3938,37 @@ function applyReferralCode(referralCode) {
                 
                 appliedPromoCode = referralCode;
                 showNotification('Referral code applied! 50% discount will be applied to your ride.');
-                updateFareEstimate();
-                
-                document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
-                document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
-                document.getElementById('applyPromoBtn').classList.remove('btn-promo');
-                document.getElementById('applyPromoBtn').classList.add('btn-success');
-                
-                const newBalance = (referrer.walletBalance || 0) + 25;
-                database.ref('users/' + referrerId).update({
-                    walletBalance: newBalance
-                })
-                .then(() => {
-                    console.log(`Rewarded ${referrer.name} with K25 for referral`);
-                });
-                
-                database.ref('referrals').push().set({
-                    referrerId: referrerId,
-                    referredUserId: currentUser.uid,
-                    referralCode: referralCode,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    rewardAmount: 25
-                });
-            } else {
-                showNotification('Invalid referral code. Please check and try again.');
-                document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
-            }
-        })
-        .catch(error => {
-            console.error('Error applying referral code:', error);
-            showNotification('Error applying referral code. Please try again.');
-        });
+            updateFareEstimate();
+            
+            document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
+            document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
+            document.getElementById('applyPromoBtn').classList.remove('btn-promo');
+            document.getElementById('applyPromoBtn').classList.add('btn-success');
+            
+            const newBalance = (referrer.walletBalance || 0) + 25;
+            database.ref('users/' + referrerId).update({
+                walletBalance: newBalance
+            })
+            .then(() => {
+                console.log(`Rewarded ${referrer.name} with K25 for referral`);
+            });
+            
+            database.ref('referrals').push().set({
+                referrerId: referrerId,
+                referredUserId: currentUser.uid,
+                referralCode: referralCode,
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                rewardAmount: 25
+            });
+        } else {
+            showNotification('Invalid referral code. Please check and try again.');
+            document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
+        }
+    })
+    .catch(error => {
+        console.error('Error applying referral code:', error);
+        showNotification('Error applying referral code. Please try again.');
+    });
 }
 
 function resetUIAfterRide() {
@@ -4279,6 +4700,55 @@ function showNotification(message) {
     }, 4000);
 }
 
+// ENHANCED: Route drawing for popup map
+function drawEnhancedRouteOnPopupMap(startLat, startLng, endLat, endLng) {
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Draw the route on the map with enhanced styling
+                L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 6,
+                    opacity: 0.8,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                }).addTo(popupRideMap);
+                
+                // Add start and end points with custom styling
+                L.circleMarker([startLat, startLng], {
+                    color: '#FF6B35',
+                    fillColor: '#FF6B35',
+                    fillOpacity: 1,
+                    radius: 6
+                }).addTo(popupRideMap);
+                
+                L.circleMarker([endLat, endLng], {
+                    color: '#E74C3C',
+                    fillColor: '#E74C3C',
+                    fillOpacity: 1,
+                    radius: 6
+                }).addTo(popupRideMap);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            // Fallback: draw a straight line with enhanced styling
+            L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 4,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(popupRideMap);
+        });
+}
+
 // Event listeners setup
 function setupEventListeners() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -4525,22 +4995,40 @@ function refreshHomeScreen() {
 function initializeApp() {
     console.log("Jubel Passenger App Initialized with Enhanced Features");
     
+    // Periodic city detection updates
     setInterval(() => {
         if (userLocation && currentScreen === 'home') {
-            determineCurrentCity(userLocation.lat, userLocation.lng);
+            determineCurrentCity(userLocation.lat, userLocation.lng)
+                .then(city => {
+                    console.log("Periodic city update:", city);
+                })
+                .catch(error => {
+                    console.error("Periodic city detection failed:", error);
+                });
         }
-    }, 30000);
+    }, 60000); // Update every minute
     
+    // Handle app visibility changes
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden && currentScreen === 'home') {
             setTimeout(refreshHomeScreen, 1000);
         }
+    });
+    
+    // Handle page load completion
+    window.addEventListener('load', function() {
+        console.log("Jubel Passenger App fully loaded with enhanced city detection and search");
+        showNotification('Jubel Passenger App Ready');
     });
 }
 
 // Handle offline/online status
 window.addEventListener('online', function() {
     showNotification('Connection restored.');
+    // Refresh location and city detection when coming back online
+    if (currentScreen === 'home') {
+        setTimeout(refreshPassengerPosition, 1000);
+    }
 });
 
 window.addEventListener('offline', function() {
@@ -4552,6 +5040,7 @@ initializeApp();
 </script>
 </body>
 </html>
+
 
 
 
