@@ -2376,18 +2376,25 @@ function determineCurrentCity(lat, lng) {
                     } else if (data.address.state) {
                         currentCity = data.address.state;
                     } else {
-                        currentCity = "Lusaka";
+                        // If no specific city found, use the display name to extract city
+                        const displayName = data.display_name || '';
+                        const cityMatch = displayName.match(/(Lusaka|Kitwe|Ndola|Kabwe|Chipata|Chingola|Mufulira|Luanshya|Livingstone|Kasama|Solwezi|Kapiri Mposhi|Chililabombwe)/i);
+                        if (cityMatch) {
+                            currentCity = cityMatch[0];
+                        } else {
+                            currentCity = "Unknown Location";
+                        }
                     }
                     console.log("Current city determined as:", currentCity);
                     resolve(currentCity);
                 } else {
-                    currentCity = "Lusaka";
+                    currentCity = "Unknown Location";
                     resolve(currentCity);
                 }
             })
             .catch(error => {
                 console.error('Error determining city:', error);
-                currentCity = "Lusaka";
+                currentCity = "Unknown Location";
                 resolve(currentCity);
             });
     });
@@ -2442,10 +2449,9 @@ function getPreciseAddress(lat, lng, elementId) {
                 
                 // If we still don't have a good address, use the display name but remove city/country
                 if (!preciseAddress && data.display_name) {
-                    preciseAddress = data.display_name.split(',')[0];
-                    if (data.display_name.split(',')[1]) {
-                        preciseAddress += ', ' + data.display_name.split(',')[1].trim();
-                    }
+                    const parts = data.display_name.split(',');
+                    // Take only the first 2-3 parts to avoid city/province/country
+                    preciseAddress = parts.slice(0, Math.min(3, parts.length)).join(', ');
                 }
                 
                 document.getElementById(elementId).value = preciseAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
@@ -2478,210 +2484,290 @@ function getFullAddress(lat, lng) {
     });
 }
 
-// Enhanced search places function with real-time city detection and faster results
-function searchPlaces(query) {
-    if (!userLocation || !currentCity) {
-        console.log("Waiting for location data...");
+// NEW: Enhanced search function with split-second search across Zambian cities
+function searchPlacesEnhanced(query) {
+    if (!query || query.length < 2) {
+        hideDestinationSuggestions();
         return;
     }
     
     const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.innerHTML = '<div class="loading-text">Searching places in ' + currentCity + '...</div>';
+    suggestionsContainer.innerHTML = '<div class="loading-text">Searching places...</div>';
     suggestionsContainer.style.display = 'block';
     
-    // Use a more efficient search approach with bounding box
-    const bbox = calculateBoundingBox(userLocation.lat, userLocation.lng, 5000);
+    // Search in current city first with priority
+    const searchPromises = [];
     
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&bounded=1&viewbox=${bbox.join(',')}&limit=8&dedupe=1`)
-        .then(response => response.json())
-        .then(data => {
-            suggestionsContainer.innerHTML = '';
-            destinationSearchResults = [];
-            
-            if (data && data.length > 0) {
-                // Process and sort results by relevance and distance
-                const results = data
-                    .filter(place => place.display_name && place.lat && place.lon)
-                    .map(place => {
-                        const distance = calculateDistance(
-                            userLocation.lat, userLocation.lng,
-                            parseFloat(place.lat), parseFloat(place.lon)
-                        );
-                        
-                        return {
-                            ...place,
-                            displayLat: parseFloat(place.lat),
-                            displayLon: parseFloat(place.lon),
-                            distance
-                        };
-                    })
-                    .sort((a, b) => a.distance - b.distance)
-                    .slice(0, 8);
-                
-                if (results.length === 0) {
-                    suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + currentCity + '</div>';
-                    return;
-                }
-                
-                destinationSearchResults = results;
-                
-                results.forEach(result => {
-                    const suggestionItem = document.createElement('div');
-                    suggestionItem.className = 'suggestion-item';
-                    
-                    const placeType = getPlaceType(result);
-                    const placeIcon = getPlaceIcon(placeType);
-                    
-                    // Create a shortened display name for better UX
-                    const shortName = result.display_name.split(',').slice(0, 2).join(',');
-                    
-                    suggestionItem.innerHTML = `
-                        <div class="suggestion-icon">${placeIcon}</div>
-                        <div class="suggestion-details">
-                            <div class="suggestion-name">${shortName}</div>
-                            <div class="suggestion-address">${result.display_name.split(',').slice(1, 3).join(',')}</div>
-                            <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
-                        </div>
-                    `;
-                    
-                    suggestionItem.addEventListener('click', function() {
-                        document.getElementById('destinationLocation').value = result.display_name;
-                        suggestionsContainer.style.display = 'none';
-                        updateFareEstimate();
-                        
-                        // Update destination marker on map
-                        updateDestinationMarker(
-                            result.displayLat, 
-                            result.displayLon, 
-                            result.display_name
-                        );
-                        
-                        // Draw route from user location to destination
-                        drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
-                        
-                        selectedDestination = result;
-                        
-                        // Enable request ride button
-                        document.getElementById('requestRideBtn').disabled = false;
-                    });
-                    
-                    suggestionsContainer.appendChild(suggestionItem);
-                });
-            } else {
-                suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + currentCity + '</div>';
-            }
-        })
-        .catch(error => {
-            console.error('Error searching places:', error);
-            suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
-        });
-}
-
-// Calculate bounding box for search
-function calculateBoundingBox(lat, lng, radiusMeters) {
-    const earthRadius = 6371000;
-    const latDelta = (radiusMeters / earthRadius) * (180 / Math.PI);
-    const lngDelta = (radiusMeters / earthRadius) * (180 / Math.PI) / Math.cos(lat * Math.PI / 180);
+    // Always search in current city first
+    if (currentCity && currentCity !== "Unknown Location") {
+        searchPromises.push(searchInCity(query, currentCity, true));
+    }
     
-    return [
-        lng - lngDelta,
-        lat - latDelta,
-        lng + lngDelta,
-        lat + latDelta
-    ];
-}
-
-// Enhanced switch screen function with home screen refresh capability
-function switchScreen(screenId) {
-    // Store current screen for refresh logic
-    const previousScreen = currentScreen;
-    currentScreen = screenId;
-    
-    // Hide all screens
-    document.querySelectorAll('.screen-content').forEach(screen => {
-        screen.classList.remove('active');
-    });
-    
-    // Show selected screen
-    document.getElementById(screenId + 'Screen').classList.add('active');
-    
-    // Update active nav button
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
-    
-    // Show/hide floating elements based on screen
-    if (screenId === 'home') {
-        document.querySelectorAll('.home-only').forEach(el => {
-            el.style.display = 'flex';
-        });
-        
-        // Refresh home screen if coming from another screen
-        if (previousScreen !== 'home' && homeScreenRefreshRequired) {
-            refreshHomeScreen();
+    // Search in all Zambian cities simultaneously for fastest results
+    zambianCities.forEach(city => {
+        if (city !== currentCity) {
+            searchPromises.push(searchInCity(query, city, false));
         }
-    } else {
-        document.querySelectorAll('.home-only').forEach(el => {
-            el.style.display = 'none';
+    });
+    
+    // Use Promise.race to get the fastest results first
+    let fastestResultsReceived = false;
+    
+    // Show results as they come in
+    Promise.allSettled(searchPromises).then(results => {
+        if (fastestResultsReceived) return; // Skip if we already showed results
+        
+        const allResults = [];
+        results.forEach(result => {
+            if (result.status === 'fulfilled' && result.value.length > 0) {
+                allResults.push(...result.value);
+            }
         });
         
-        // Mark that home screen needs refresh when returning
-        homeScreenRefreshRequired = true;
-    }
+        if (allResults.length > 0) {
+            displaySearchResults(allResults);
+        } else {
+            suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+        }
+    });
     
-    // Load data for specific screens
-    if (screenId === 'history') {
-        loadRideHistory();
-    } else if (screenId === 'account') {
-        loadAccountData();
-    } else if (screenId === 'payments') {
-        // Payments screen data loading if needed
-    }
+    // Also try to show fastest results immediately
+    searchPromises.forEach(promise => {
+        promise.then(results => {
+            if (results.length > 0 && !fastestResultsReceived) {
+                fastestResultsReceived = true;
+                displaySearchResults(results);
+            }
+        });
+    });
 }
 
-// Enhanced home screen refresh function
-function refreshHomeScreen() {
-    console.log("Refreshing home screen...");
+// Search places in a specific city
+function searchInCity(query, city, isCurrentCity) {
+    return new Promise((resolve, reject) => {
+        const searchQuery = `${query}, ${city}, Zambia`;
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=8&dedupe=1`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    const results = data
+                        .filter(place => place.display_name && place.lat && place.lon)
+                        .map(place => {
+                            const distance = userLocation ? calculateDistance(
+                                userLocation.lat, userLocation.lng,
+                                parseFloat(place.lat), parseFloat(place.lon)
+                            ) : 0;
+                            
+                            return {
+                                ...place,
+                                displayLat: parseFloat(place.lat),
+                                displayLon: parseFloat(place.lon),
+                                distance,
+                                city: city,
+                                isCurrentCity: isCurrentCity,
+                                priority: isCurrentCity ? 1 : 2 // Current city results have higher priority
+                            };
+                        })
+                        .sort((a, b) => {
+                            // Sort by priority first, then distance
+                            if (a.priority !== b.priority) {
+                                return a.priority - b.priority;
+                            }
+                            return a.distance - b.distance;
+                        });
+                    
+                    resolve(results);
+                } else {
+                    resolve([]);
+                }
+            })
+            .catch(error => {
+                console.error(`Error searching in ${city}:`, error);
+                resolve([]);
+            });
+    });
+}
+
+// Display search results in the suggestions container
+function displaySearchResults(results) {
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    suggestionsContainer.innerHTML = '';
+    destinationSearchResults = [];
     
-    // Refresh passenger position and map
-    refreshPassengerPosition();
-    
-    // Clear any existing destination
-    document.getElementById('destinationLocation').value = '';
-    
-    // Clear any existing markers and routes
-    if (destinationMarker) {
-        passengerMap.removeLayer(destinationMarker);
-        destinationMarker = null;
+    if (results.length === 0) {
+        suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+        return;
     }
     
-    if (routePolyline) {
-        passengerMap.removeLayer(routePolyline);
-        routePolyline = null;
+    // Remove duplicates and sort by priority and distance
+    const uniqueResults = removeDuplicatePlaces(results)
+        .sort((a, b) => {
+            if (a.priority !== b.priority) {
+                return a.priority - b.priority;
+            }
+            return a.distance - b.distance;
+        })
+        .slice(0, 8); // Limit to 8 results
+    
+    destinationSearchResults = uniqueResults;
+    
+    uniqueResults.forEach(result => {
+        const suggestionItem = document.createElement('div');
+        suggestionItem.className = 'suggestion-item';
+        
+        const placeType = getPlaceType(result);
+        const placeIcon = getPlaceIcon(placeType);
+        
+        // Create a shortened display name for better UX
+        const shortName = result.display_name.split(',').slice(0, 2).join(',');
+        
+        // Add city badge for non-current city results
+        const cityBadge = result.isCurrentCity ? '' : `<span style="background: #FF6B35; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.6rem; margin-left: 5px;">${result.city}</span>`;
+        
+        const distanceText = userLocation ? `${(result.distance / 1000).toFixed(1)} km away` : '';
+        
+        suggestionItem.innerHTML = `
+            <div class="suggestion-icon">${placeIcon}</div>
+            <div class="suggestion-details">
+                <div class="suggestion-name">${shortName}${cityBadge}</div>
+                <div class="suggestion-address">${result.display_name.split(',').slice(1, 3).join(',')}</div>
+                <div class="suggestion-distance">${distanceText}</div>
+            </div>
+        `;
+        
+        suggestionItem.addEventListener('click', function() {
+            document.getElementById('destinationLocation').value = result.display_name;
+            suggestionsContainer.style.display = 'none';
+            updateFareEstimate();
+            
+            // Update destination marker on map
+            updateDestinationMarker(
+                result.displayLat, 
+                result.displayLon, 
+                result.display_name
+            );
+            
+            // Draw route from user location to destination
+            if (userLocation) {
+                drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
+            }
+            
+            selectedDestination = result;
+            
+            // Enable request ride button
+            document.getElementById('requestRideBtn').disabled = false;
+        });
+        
+        suggestionsContainer.appendChild(suggestionItem);
+    });
+}
+
+// Remove duplicate places from search results
+function removeDuplicatePlaces(places) {
+    const seen = new Set();
+    return places.filter(place => {
+        const key = `${place.lat}-${place.lon}-${place.display_name}`;
+        if (seen.has(key)) {
+            return false;
+        }
+        seen.add(key);
+        return true;
+    });
+}
+
+// Enhanced destination input event listener for real-time search
+function setupDestinationInputListener() {
+    let searchTimeout;
+    const destinationInput = document.getElementById('destinationLocation');
+    
+    destinationInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        if (searchTimeout) {
+            clearTimeout(searchTimeout);
+        }
+        
+        if (query.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                searchPlacesEnhanced(query);
+            }, 300); // Reduced delay for faster response
+        } else {
+            hideDestinationSuggestions();
+        }
+    });
+    
+    destinationInput.addEventListener('focus', function() {
+        const query = this.value.trim();
+        if (query.length >= 2) {
+            searchPlacesEnhanced(query);
+        }
+    });
+    
+    // Handle key events for better UX
+    destinationInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideDestinationSuggestions();
+        }
+    });
+}
+
+// Enhanced refresh passenger position function
+function refreshPassengerPosition() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(position => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            userLocation = { lat, lng };
+            
+            passengerMap.setView([lat, lng], 16);
+            
+            if (currentLocationMarker) {
+                currentLocationMarker.setLatLng([lat, lng]);
+            } else {
+                currentLocationMarker = L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'current-location-marker',
+                        html: '<div class="current-location-marker"><i class="fas fa-user"></i></div>',
+                        iconSize: [20, 20]
+                    })
+                }).addTo(passengerMap)
+                    .bindPopup('Your location');
+            }
+            
+            updatePickupLocation(lat, lng);
+            
+            // Determine current city
+            determineCurrentCity(lat, lng).then(city => {
+                console.log("Current city detected:", city);
+                if (currentScreen === 'home') {
+                    showNotification(`Location detected in ${city}`);
+                }
+            });
+            
+            if (!locationWatchId) {
+                startLocationTracking();
+            }
+            
+            if (currentScreen === 'home') {
+                showNotification('Location refreshed');
+            }
+        }, error => {
+            console.error('Geolocation error:', error);
+            if (currentScreen === 'home') {
+                showNotification('Unable to refresh location. Please enable location services.');
+            }
+            // Set a default city if location fails
+            currentCity = "Lusaka";
+        }, {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 30000
+        });
+    } else {
+        showNotification('Geolocation is not supported by this browser.');
+        currentCity = "Lusaka";
     }
-    
-    // Reset fare estimate
-    document.getElementById('estimatedFare').textContent = 'K0.00';
-    document.getElementById('etaDisplay').textContent = 'ETA: -- min';
-    document.getElementById('requestRideBtn').disabled = true;
-    
-    // Reset promo section
-    document.getElementById('promoSection').classList.remove('active');
-    document.getElementById('promoCode').value = '';
-    appliedPromoCode = null;
-    
-    // Reset package form
-    document.getElementById('packageForm').classList.remove('active');
-    document.getElementById('packageToggle').style.display = 'none';
-    
-    // Ensure ride request form is visible
-    document.getElementById('rideRequestForm').style.display = 'flex';
-    document.getElementById('rideInfoPanel').style.display = 'none';
-    
-    homeScreenRefreshRequired = false;
-    
-    showNotification('Home screen refreshed');
 }
 
 // Enhanced popup map update function with proper zoom and bounds
@@ -2946,402 +3032,6 @@ function requestRide() {
     });
 }
 
-// Enhanced destination input event listener for real-time search
-function setupDestinationInputListener() {
-    let searchTimeout;
-    const destinationInput = document.getElementById('destinationLocation');
-    
-    destinationInput.addEventListener('input', function() {
-        const query = this.value;
-        updateFareEstimate();
-        
-        if (searchTimeout) {
-            clearTimeout(searchTimeout);
-        }
-        
-        if (query.length >= 2) {
-            searchTimeout = setTimeout(() => {
-                searchPlacesEnhanced(query);
-            }, 300);
-        } else {
-            hideDestinationSuggestions();
-        }
-    });
-    
-    destinationInput.addEventListener('focus', function() {
-        const query = this.value;
-        if (query.length >= 2) {
-            searchPlacesEnhanced(query);
-        }
-    });
-}
-
-// Enhanced search function with split-second search across Zambian cities
-function searchPlacesEnhanced(query) {
-    if (!userLocation || !currentCity) {
-        console.log("Waiting for location data...");
-        return;
-    }
-    
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.innerHTML = '<div class="loading-text">Searching places in ' + currentCity + ' and nearby cities...</div>';
-    suggestionsContainer.style.display = 'block';
-    
-    // Search in current city first with priority
-    searchInCity(query, currentCity, true)
-        .then(currentCityResults => {
-            if (currentCityResults.length >= 5) {
-                // If we have enough results from current city, show them
-                displaySearchResults(currentCityResults, currentCity);
-            } else {
-                // If not enough results, search in other Zambian cities
-                const otherCities = zambianCities.filter(city => city !== currentCity);
-                const cityPromises = otherCities.map(city => searchInCity(query, city, false));
-                
-                Promise.all(cityPromises)
-                    .then(allResults => {
-                        // Combine all results and sort by relevance
-                        const combinedResults = [].concat(...allResults);
-                        const allResultsWithCurrent = [...currentCityResults, ...combinedResults];
-                        
-                        // Remove duplicates and sort by distance
-                        const uniqueResults = removeDuplicatePlaces(allResultsWithCurrent);
-                        const sortedResults = uniqueResults
-                            .sort((a, b) => a.distance - b.distance)
-                            .slice(0, 8);
-                        
-                        displaySearchResults(sortedResults, 'multiple cities');
-                    })
-                    .catch(error => {
-                        console.error('Error searching in other cities:', error);
-                        displaySearchResults(currentCityResults, currentCity);
-                    });
-            }
-        })
-        .catch(error => {
-            console.error('Error searching in current city:', error);
-            suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
-        });
-}
-
-// Search places in a specific city
-function searchInCity(query, city, isCurrentCity) {
-    return new Promise((resolve, reject) => {
-        const searchQuery = `${query}, ${city}, Zambia`;
-        
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&dedupe=1`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    const results = data
-                        .filter(place => place.display_name && place.lat && place.lon)
-                        .map(place => {
-                            const distance = calculateDistance(
-                                userLocation.lat, userLocation.lng,
-                                parseFloat(place.lat), parseFloat(place.lon)
-                            );
-                            
-                            return {
-                                ...place,
-                                displayLat: parseFloat(place.lat),
-                                displayLon: parseFloat(place.lon),
-                                distance,
-                                city: city,
-                                isCurrentCity: isCurrentCity,
-                                priority: isCurrentCity ? 1 : 2 // Current city results have higher priority
-                            };
-                        })
-                        .sort((a, b) => {
-                            // Sort by priority first, then distance
-                            if (a.priority !== b.priority) {
-                                return a.priority - b.priority;
-                            }
-                            return a.distance - b.distance;
-                        });
-                    
-                    resolve(results);
-                } else {
-                    resolve([]);
-                }
-            })
-            .catch(error => {
-                console.error(`Error searching in ${city}:`, error);
-                resolve([]);
-            });
-    });
-}
-
-// Remove duplicate places from search results
-function removeDuplicatePlaces(places) {
-    const seen = new Set();
-    return places.filter(place => {
-        const key = `${place.lat}-${place.lon}`;
-        if (seen.has(key)) {
-            return false;
-        }
-        seen.add(key);
-        return true;
-    });
-}
-
-// Display search results in the suggestions container
-function displaySearchResults(results, source) {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.innerHTML = '';
-    destinationSearchResults = [];
-    
-    if (results.length === 0) {
-        suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + source + '</div>';
-        return;
-    }
-    
-    destinationSearchResults = results;
-    
-    results.forEach(result => {
-        const suggestionItem = document.createElement('div');
-        suggestionItem.className = 'suggestion-item';
-        
-        const placeType = getPlaceType(result);
-        const placeIcon = getPlaceIcon(placeType);
-        
-        // Create a shortened display name for better UX
-        const shortName = result.display_name.split(',').slice(0, 2).join(',');
-        
-        // Add city badge for non-current city results
-        const cityBadge = result.isCurrentCity ? '' : `<span style="background: #FF6B35; color: white; padding: 2px 6px; border-radius: 10px; font-size: 0.6rem; margin-left: 5px;">${result.city}</span>`;
-        
-        suggestionItem.innerHTML = `
-            <div class="suggestion-icon">${placeIcon}</div>
-            <div class="suggestion-details">
-                <div class="suggestion-name">${shortName}${cityBadge}</div>
-                <div class="suggestion-address">${result.display_name.split(',').slice(1, 3).join(',')}</div>
-                <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
-            </div>
-        `;
-        
-        suggestionItem.addEventListener('click', function() {
-            document.getElementById('destinationLocation').value = result.display_name;
-            suggestionsContainer.style.display = 'none';
-            updateFareEstimate();
-            
-            // Update destination marker on map
-            updateDestinationMarker(
-                result.displayLat, 
-                result.displayLon, 
-                result.display_name
-            );
-            
-            // Draw route from user location to destination
-            drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
-            
-            selectedDestination = result;
-            
-            // Enable request ride button
-            document.getElementById('requestRideBtn').disabled = false;
-        });
-        
-        suggestionsContainer.appendChild(suggestionItem);
-    });
-}
-
-// Enhanced refresh passenger position function
-function refreshPassengerPosition() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(position => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            userLocation = { lat, lng };
-            
-            passengerMap.setView([lat, lng], 16);
-            
-            if (currentLocationMarker) {
-                currentLocationMarker.setLatLng([lat, lng]);
-            } else {
-                currentLocationMarker = L.marker([lat, lng], {
-                    icon: L.divIcon({
-                        className: 'current-location-marker',
-                        html: '<div class="current-location-marker"><i class="fas fa-user"></i></div>',
-                        iconSize: [20, 20]
-                    })
-                }).addTo(passengerMap)
-                    .bindPopup('Your location');
-            }
-            
-            updatePickupLocation(lat, lng);
-            
-            determineCurrentCity(lat, lng).then(city => {
-                console.log("Current city updated to:", city);
-            });
-            
-            if (!locationWatchId) {
-                startLocationTracking();
-            }
-            
-            if (currentScreen === 'home') {
-                showNotification('Location refreshed');
-            }
-        }, error => {
-            console.error('Geolocation error:', error);
-            if (currentScreen === 'home') {
-                showNotification('Unable to refresh location. Please enable location services.');
-            }
-        }, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 30000
-        });
-    }
-}
-
-// Event listeners setup
-function setupEventListeners() {
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const screen = this.getAttribute('data-screen');
-            switchScreen(screen);
-        });
-    });
-    
-    document.querySelectorAll('.back-button').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const screen = this.getAttribute('data-screen');
-            switchScreen(screen);
-        });
-    });
-    
-    document.querySelectorAll('.vehicle-option').forEach(option => {
-        option.addEventListener('click', function() {
-            document.querySelectorAll('.vehicle-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            
-            this.classList.add('selected');
-            
-            selectedVehicleType = this.getAttribute('data-type');
-            
-            if (selectedVehicleType === 'bike' || selectedVehicleType === 'bicycle') {
-                document.getElementById('packageToggle').style.display = 'flex';
-            } else {
-                document.getElementById('packageToggle').style.display = 'none';
-                document.getElementById('packageForm').classList.remove('active');
-            }
-            
-            updateFareEstimate();
-        });
-    });
-    
-    document.getElementById('packageToggle').addEventListener('click', function() {
-        document.getElementById('packageForm').classList.toggle('active');
-    });
-    
-    document.querySelectorAll('.payment-method').forEach(option => {
-        option.addEventListener('click', function() {
-            document.querySelectorAll('.payment-method').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            this.classList.add('selected');
-            paymentMethod = this.getAttribute('data-method');
-        });
-    });
-    
-    document.querySelectorAll('.payment-option').forEach(option => {
-        option.addEventListener('click', function() {
-            document.querySelectorAll('.payment-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            this.classList.add('selected');
-            selectedPaymentType = this.getAttribute('data-payment-type');
-            
-            if (selectedPaymentType === 'wallet') {
-                if (walletBalance < rideFare) {
-                    document.getElementById('insufficientBalance').style.display = 'block';
-                    document.getElementById('confirmPaymentBtn').disabled = true;
-                } else {
-                    document.getElementById('insufficientBalance').style.display = 'none';
-                    document.getElementById('confirmPaymentBtn').disabled = false;
-                }
-            } else {
-                document.getElementById('insufficientBalance').style.display = 'none';
-                document.getElementById('confirmPaymentBtn').disabled = false;
-            }
-        });
-    });
-    
-    document.getElementById('requestRideBtn').addEventListener('click', showPaymentSelection);
-    
-    document.getElementById('confirmPaymentBtn').addEventListener('click', requestRide);
-    
-    document.getElementById('closePaymentPopup').addEventListener('click', closePaymentSelection);
-    
-    document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
-    
-    document.getElementById('contactDriverBtn').addEventListener('click', contactDriver);
-    
-    document.getElementById('promoToggle').addEventListener('click', function() {
-        document.getElementById('promoSection').classList.toggle('active');
-    });
-    
-    document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
-    
-    document.getElementById('shareReferralBtn').addEventListener('click', shareReferralCode);
-    document.getElementById('depositBtn').addEventListener('click', depositToWallet);
-    document.getElementById('withdrawBtn').addEventListener('click', withdrawFromWallet);
-    document.getElementById('whatsappBtn').addEventListener('click', contactWhatsApp);
-    document.getElementById('callBtn').addEventListener('click', contactPhone);
-    
-    document.getElementById('addPaymentMethodBtn').addEventListener('click', addPaymentMethod);
-    
-    document.getElementById('centerMapBtn').addEventListener('click', centerMap);
-    document.getElementById('refreshLocationBtn').addEventListener('click', refreshPassengerPosition);
-    document.getElementById('toggleTrafficBtn').addEventListener('click', toggleTraffic);
-    
-    document.getElementById('zoomInBtn').addEventListener('click', () => passengerMap.zoomIn());
-    document.getElementById('zoomOutBtn').addEventListener('click', () => passengerMap.zoomOut());
-    document.getElementById('mapTypeBtn').addEventListener('click', toggleMapType);
-    
-    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
-    
-    document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
-    
-    setupDestinationInputListener();
-    
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
-            hideDestinationSuggestions();
-        }
-    });
-    
-    document.querySelectorAll('.saved-location-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const addressType = this.getAttribute('data-address');
-            useSavedLocation(addressType);
-        });
-    });
-    
-    document.getElementById('historyFilter').addEventListener('change', loadRideHistory);
-    document.getElementById('historyDate').addEventListener('change', loadRideHistory);
-    
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.history-item')) {
-            const historyItem = e.target.closest('.history-item');
-            const rideId = historyItem.getAttribute('data-ride-id');
-            if (rideId) {
-                showRideDetailsPopup(rideId);
-            }
-        }
-    });
-    
-    document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
-    document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
-    
-    document.querySelectorAll('.star').forEach(star => {
-        star.addEventListener('click', function() {
-            const rating = parseInt(this.getAttribute('data-rating'));
-            setRating(rating);
-        });
-    });
-}
-
 // ORIGINAL FUNCTIONS (preserved exactly as they were)
 
 function calculateDistance(lat1, lon1, lat2, lon2) {
@@ -3456,11 +3146,13 @@ function updateDestinationMarker(lat, lng, name) {
         .bindPopup(`<strong>${name}</strong><br>Your destination`)
         .openPopup();
     
-    const bounds = L.latLngBounds(
-        [userLocation.lat, userLocation.lng],
-        [lat, lng]
-    );
-    passengerMap.fitBounds(bounds, { padding: [15, 15] });
+    if (userLocation) {
+        const bounds = L.latLngBounds(
+            [userLocation.lat, userLocation.lng],
+            [lat, lng]
+        );
+        passengerMap.fitBounds(bounds, { padding: [15, 15] });
+    }
 }
 
 function drawRoute(startLat, startLng, endLat, endLng) {
@@ -4587,6 +4279,248 @@ function showNotification(message) {
     }, 4000);
 }
 
+// Event listeners setup
+function setupEventListeners() {
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const screen = this.getAttribute('data-screen');
+            switchScreen(screen);
+        });
+    });
+    
+    document.querySelectorAll('.back-button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const screen = this.getAttribute('data-screen');
+            switchScreen(screen);
+        });
+    });
+    
+    document.querySelectorAll('.vehicle-option').forEach(option => {
+        option.addEventListener('click', function() {
+            document.querySelectorAll('.vehicle-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            
+            this.classList.add('selected');
+            
+            selectedVehicleType = this.getAttribute('data-type');
+            
+            if (selectedVehicleType === 'bike' || selectedVehicleType === 'bicycle') {
+                document.getElementById('packageToggle').style.display = 'flex';
+            } else {
+                document.getElementById('packageToggle').style.display = 'none';
+                document.getElementById('packageForm').classList.remove('active');
+            }
+            
+            updateFareEstimate();
+        });
+    });
+    
+    document.getElementById('packageToggle').addEventListener('click', function() {
+        document.getElementById('packageForm').classList.toggle('active');
+    });
+    
+    document.querySelectorAll('.payment-method').forEach(option => {
+        option.addEventListener('click', function() {
+            document.querySelectorAll('.payment-method').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            this.classList.add('selected');
+            paymentMethod = this.getAttribute('data-method');
+        });
+    });
+    
+    document.querySelectorAll('.payment-option').forEach(option => {
+        option.addEventListener('click', function() {
+            document.querySelectorAll('.payment-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            this.classList.add('selected');
+            selectedPaymentType = this.getAttribute('data-payment-type');
+            
+            if (selectedPaymentType === 'wallet') {
+                if (walletBalance < rideFare) {
+                    document.getElementById('insufficientBalance').style.display = 'block';
+                    document.getElementById('confirmPaymentBtn').disabled = true;
+                } else {
+                    document.getElementById('insufficientBalance').style.display = 'none';
+                    document.getElementById('confirmPaymentBtn').disabled = false;
+                }
+            } else {
+                document.getElementById('insufficientBalance').style.display = 'none';
+                document.getElementById('confirmPaymentBtn').disabled = false;
+            }
+        });
+    });
+    
+    document.getElementById('requestRideBtn').addEventListener('click', showPaymentSelection);
+    
+    document.getElementById('confirmPaymentBtn').addEventListener('click', requestRide);
+    
+    document.getElementById('closePaymentPopup').addEventListener('click', closePaymentSelection);
+    
+    document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
+    
+    document.getElementById('contactDriverBtn').addEventListener('click', contactDriver);
+    
+    document.getElementById('promoToggle').addEventListener('click', function() {
+        document.getElementById('promoSection').classList.toggle('active');
+    });
+    
+    document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
+    
+    document.getElementById('shareReferralBtn').addEventListener('click', shareReferralCode);
+    document.getElementById('depositBtn').addEventListener('click', depositToWallet);
+    document.getElementById('withdrawBtn').addEventListener('click', withdrawFromWallet);
+    document.getElementById('whatsappBtn').addEventListener('click', contactWhatsApp);
+    document.getElementById('callBtn').addEventListener('click', contactPhone);
+    
+    document.getElementById('addPaymentMethodBtn').addEventListener('click', addPaymentMethod);
+    
+    document.getElementById('centerMapBtn').addEventListener('click', centerMap);
+    document.getElementById('refreshLocationBtn').addEventListener('click', refreshPassengerPosition);
+    document.getElementById('toggleTrafficBtn').addEventListener('click', toggleTraffic);
+    
+    document.getElementById('zoomInBtn').addEventListener('click', () => passengerMap.zoomIn());
+    document.getElementById('zoomOutBtn').addEventListener('click', () => passengerMap.zoomOut());
+    document.getElementById('mapTypeBtn').addEventListener('click', toggleMapType);
+    
+    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
+    
+    document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
+    
+    setupDestinationInputListener();
+    
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
+            hideDestinationSuggestions();
+        }
+    });
+    
+    document.querySelectorAll('.saved-location-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const addressType = this.getAttribute('data-address');
+            useSavedLocation(addressType);
+        });
+    });
+    
+    document.getElementById('historyFilter').addEventListener('change', loadRideHistory);
+    document.getElementById('historyDate').addEventListener('change', loadRideHistory);
+    
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.history-item')) {
+            const historyItem = e.target.closest('.history-item');
+            const rideId = historyItem.getAttribute('data-ride-id');
+            if (rideId) {
+                showRideDetailsPopup(rideId);
+            }
+        }
+    });
+    
+    document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
+    document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
+    
+    document.querySelectorAll('.star').forEach(star => {
+        star.addEventListener('click', function() {
+            const rating = parseInt(this.getAttribute('data-rating'));
+            setRating(rating);
+        });
+    });
+}
+
+// Enhanced switch screen function with home screen refresh capability
+function switchScreen(screenId) {
+    // Store current screen for refresh logic
+    const previousScreen = currentScreen;
+    currentScreen = screenId;
+    
+    // Hide all screens
+    document.querySelectorAll('.screen-content').forEach(screen => {
+        screen.classList.remove('active');
+    });
+    
+    // Show selected screen
+    document.getElementById(screenId + 'Screen').classList.add('active');
+    
+    // Update active nav button
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
+    
+    // Show/hide floating elements based on screen
+    if (screenId === 'home') {
+        document.querySelectorAll('.home-only').forEach(el => {
+            el.style.display = 'flex';
+        });
+        
+        // Refresh home screen if coming from another screen
+        if (previousScreen !== 'home' && homeScreenRefreshRequired) {
+            refreshHomeScreen();
+        }
+    } else {
+        document.querySelectorAll('.home-only').forEach(el => {
+            el.style.display = 'none';
+        });
+        
+        // Mark that home screen needs refresh when returning
+        homeScreenRefreshRequired = true;
+    }
+    
+    // Load data for specific screens
+    if (screenId === 'history') {
+        loadRideHistory();
+    } else if (screenId === 'account') {
+        loadAccountData();
+    } else if (screenId === 'payments') {
+        // Payments screen data loading if needed
+    }
+}
+
+// Enhanced home screen refresh function
+function refreshHomeScreen() {
+    console.log("Refreshing home screen...");
+    
+    // Refresh passenger position and map
+    refreshPassengerPosition();
+    
+    // Clear any existing destination
+    document.getElementById('destinationLocation').value = '';
+    
+    // Clear any existing markers and routes
+    if (destinationMarker) {
+        passengerMap.removeLayer(destinationMarker);
+        destinationMarker = null;
+    }
+    
+    if (routePolyline) {
+        passengerMap.removeLayer(routePolyline);
+        routePolyline = null;
+    }
+    
+    // Reset fare estimate
+    document.getElementById('estimatedFare').textContent = 'K0.00';
+    document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+    document.getElementById('requestRideBtn').disabled = true;
+    
+    // Reset promo section
+    document.getElementById('promoSection').classList.remove('active');
+    document.getElementById('promoCode').value = '';
+    appliedPromoCode = null;
+    
+    // Reset package form
+    document.getElementById('packageForm').classList.remove('active');
+    document.getElementById('packageToggle').style.display = 'none';
+    
+    // Ensure ride request form is visible
+    document.getElementById('rideRequestForm').style.display = 'flex';
+    document.getElementById('rideInfoPanel').style.display = 'none';
+    
+    homeScreenRefreshRequired = false;
+    
+    showNotification('Home screen refreshed');
+}
+
 // Enhanced initialization to ensure all functionality works together
 function initializeApp() {
     console.log("Jubel Passenger App Initialized with Enhanced Features");
@@ -4618,6 +4552,7 @@ initializeApp();
 </script>
 </body>
 </html>
+
 
 
 
