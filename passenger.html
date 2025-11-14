@@ -2665,7 +2665,7 @@ function getFullAddress(lat, lng) {
     });
 }
 
-// ENHANCED: Ultra-fast real-time search with split-second results
+// IMPROVED: Stable search function without flickering
 function searchPlacesEnhanced(query) {
     if (!query || query.length < 2) {
         hideDestinationSuggestions();
@@ -2673,72 +2673,278 @@ function searchPlacesEnhanced(query) {
     }
     
     const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.innerHTML = '<div class="loading-text">Searching places...</div>';
-    suggestionsContainer.style.display = 'block';
     
-    // Normalize and preprocess query for better matching
-    const processedQuery = preprocessSearchQuery(query);
-    
-    // Start search with current city for immediate results
-    const searchPromises = [];
-    
-    // Priority 1: Search in current city first (fastest path)
-    if (currentCity && currentCity !== "Unknown Location") {
-        searchPromises.push(searchInCityWithPriority(processedQuery, currentCity, 1));
+    // Clear any existing timeout to prevent multiple searches
+    if (window.searchTimeout) {
+        clearTimeout(window.searchTimeout);
     }
     
-    // Priority 2: Simultaneous search in all Zambian cities for comprehensive results
-    zambianCities.forEach(city => {
-        if (city !== currentCity) {
-            searchPromises.push(searchInCityWithPriority(processedQuery, city, 2));
+    // Show loading state immediately
+    suggestionsContainer.innerHTML = '<div class="loading-text">Searching...</div>';
+    suggestionsContainer.style.display = 'block';
+    
+    // Use a single timeout to prevent rapid firing
+    window.searchTimeout = setTimeout(() => {
+        const processedQuery = preprocessSearchQuery(query);
+        
+        // Track if we've found results to prevent empty states
+        let hasResults = false;
+        
+        // Single search approach instead of multiple promises
+        performUnifiedSearch(processedQuery)
+            .then(results => {
+                if (results.length > 0) {
+                    hasResults = true;
+                    displaySearchResults(results);
+                } else {
+                    showNoResultsMessage(processedQuery);
+                }
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                // Show cached results if available, otherwise show error
+                if (destinationSearchResults.length > 0) {
+                    displaySearchResults(destinationSearchResults);
+                } else {
+                    showNoResultsMessage(processedQuery);
+                }
+            });
+            
+        // Fallback timeout to ensure UI updates
+        setTimeout(() => {
+            if (!hasResults && destinationSearchResults.length === 0) {
+                showNoResultsMessage(processedQuery);
+            }
+        }, 2000);
+        
+    }, 300); // Slightly increased delay for better UX
+}
+
+// NEW: Unified search function to replace multiple promise approach
+function performUnifiedSearch(query) {
+    return new Promise((resolve, reject) => {
+        // Build search query with current city priority
+        let searchQuery = query;
+        if (currentCity && currentCity !== "Unknown Location") {
+            searchQuery = `${query}, ${currentCity}, Zambia`;
+        } else {
+            searchQuery = `${query}, Zambia`;
         }
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=10&dedupe=1&countrycodes=zm`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Search API error: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.length > 0) {
+                    const enhancedResults = data
+                        .filter(place => place.display_name && place.lat && place.lon)
+                        .map(place => {
+                            const distance = userLocation ? calculateDistance(
+                                userLocation.lat, userLocation.lng,
+                                parseFloat(place.lat), parseFloat(place.lon)
+                            ) : 0;
+                            
+                            // Determine city for this place
+                            const placeCity = extractCityFromPlace(place) || currentCity || "Unknown";
+                            
+                            return {
+                                ...place,
+                                displayLat: parseFloat(place.lat),
+                                displayLon: parseFloat(place.lon),
+                                distance,
+                                city: placeCity,
+                                isCurrentCity: placeCity === currentCity,
+                                priority: placeCity === currentCity ? 1 : 2,
+                                relevanceScore: calculateRelevanceScore(place, query, placeCity),
+                                displayName: formatDisplayName(place.display_name, placeCity)
+                            };
+                        })
+                        .sort((a, b) => {
+                            // Sort by relevance score first, then distance
+                            if (b.relevanceScore !== a.relevanceScore) {
+                                return b.relevanceScore - a.relevanceScore;
+                            }
+                            return a.distance - b.distance;
+                        });
+                    
+                    resolve(enhancedResults);
+                } else {
+                    resolve([]);
+                }
+            })
+            .catch(error => {
+                console.error('Unified search error:', error);
+                reject(error);
+            });
     });
+}
+
+// ENHANCED: Display search results with stable UI
+function displaySearchResults(results) {
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
     
-    // Priority 3: Fuzzy search for handling spelling mistakes
-    searchPromises.push(fuzzySearchInAllCities(processedQuery));
+    // Clear container
+    suggestionsContainer.innerHTML = '';
+    destinationSearchResults = [];
     
-    // Track if we've already shown results to avoid duplicates
-    let resultsDisplayed = false;
-    let fastestResultsShown = false;
+    if (results.length === 0) {
+        showNoResultsMessage();
+        return;
+    }
     
-    // Show fastest results immediately as they come in
-    searchPromises.forEach((promise, index) => {
-        promise.then(results => {
-            if (results.length > 0 && !fastestResultsShown) {
-                fastestResultsShown = true;
-                displaySearchResults(results.slice(0, 6)); // Show first 6 fast results
+    // Remove duplicates and limit results
+    const uniqueResults = removeDuplicatePlaces(results).slice(0, 8);
+    destinationSearchResults = uniqueResults;
+    
+    uniqueResults.forEach((result, index) => {
+        const suggestionItem = document.createElement('div');
+        suggestionItem.className = 'suggestion-item';
+        if (index === 0) suggestionItem.classList.add('first-result');
+        
+        const placeType = getPlaceType(result);
+        const placeIcon = getPlaceIcon(placeType);
+        
+        // Add city badge for non-current city results
+        const cityBadge = result.isCurrentCity ? '' : 
+            `<span class="city-badge">${result.city}</span>`;
+        
+        const distanceText = userLocation && result.distance > 0 ? 
+            `${(result.distance / 1000).toFixed(1)} km away` : '';
+        
+        // Use formatted display name
+        const displayName = result.displayName || result.display_name;
+        
+        suggestionItem.innerHTML = `
+            <div class="suggestion-icon">${placeIcon}</div>
+            <div class="suggestion-details">
+                <div class="suggestion-name">
+                    ${displayName}
+                    ${cityBadge}
+                </div>
+                <div class="suggestion-address">${getShortAddress(result.display_name)}</div>
+                <div class="suggestion-distance">${distanceText}</div>
+            </div>
+            ${result.isCurrentCity ? '<div class="current-city-indicator">📍 Current City</div>' : ''}
+        `;
+        
+        suggestionItem.addEventListener('click', function() {
+            document.getElementById('destinationLocation').value = result.display_name;
+            suggestionsContainer.style.display = 'none';
+            updateFareEstimate();
+            
+            // Update destination marker on map
+            updateDestinationMarker(
+                result.displayLat, 
+                result.displayLon, 
+                result.display_name
+            );
+            
+            // Draw route from user location to destination
+            if (userLocation) {
+                drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
             }
             
-            // Once all promises complete, show comprehensive results
-            if (index === searchPromises.length - 1) {
-                Promise.allSettled(searchPromises).then(allResults => {
-                    if (resultsDisplayed) return;
-                    
-                    const comprehensiveResults = [];
-                    allResults.forEach(result => {
-                        if (result.status === 'fulfilled' && result.value.length > 0) {
-                            comprehensiveResults.push(...result.value);
-                        }
-                    });
-                    
-                    if (comprehensiveResults.length > 0) {
-                        displaySearchResults(comprehensiveResults.slice(0, 8));
-                    } else {
-                        showNoResultsMessage(processedQuery);
-                    }
-                    resultsDisplayed = true;
-                });
-            }
+            selectedDestination = result;
+            
+            // Enable request ride button
+            document.getElementById('requestRideBtn').disabled = false;
+            
+            showNotification(`Destination set to ${displayName}`);
         });
+        
+        suggestionsContainer.appendChild(suggestionItem);
     });
     
-    // Timeout fallback
-    setTimeout(() => {
-        if (!resultsDisplayed) {
-            showNoResultsMessage(processedQuery);
-            resultsDisplayed = true;
+    // Ensure container stays visible
+    suggestionsContainer.style.display = 'block';
+}
+
+// ENHANCED: Setup destination input listener with better event handling
+function setupDestinationInputListener() {
+    let lastQuery = '';
+    const destinationInput = document.getElementById('destinationLocation');
+    
+    destinationInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        // Clear any existing timeout
+        if (window.searchTimeout) {
+            clearTimeout(window.searchTimeout);
         }
-    }, 3000);
+        
+        // Only search if query changed significantly
+        if (query.length >= 2 && query !== lastQuery) {
+            window.searchTimeout = setTimeout(() => {
+                lastQuery = query;
+                searchPlacesEnhanced(query);
+            }, 300);
+        } else if (query.length < 2) {
+            hideDestinationSuggestions();
+            lastQuery = '';
+        }
+    });
+    
+    destinationInput.addEventListener('focus', function() {
+        const query = this.value.trim();
+        if (query.length >= 2 && destinationSearchResults.length > 0) {
+            // Show previous results if available
+            displaySearchResults(destinationSearchResults);
+        } else if (query.length >= 2) {
+            searchPlacesEnhanced(query);
+        }
+    });
+    
+    // Handle key events for better UX
+    destinationInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideDestinationSuggestions();
+        } else if (e.key === 'Enter') {
+            hideDestinationSuggestions();
+            // If there are suggestions, select the first one
+            if (destinationSearchResults.length > 0) {
+                const firstResult = destinationSearchResults[0];
+                this.value = firstResult.display_name;
+                updateFareEstimate();
+                updateDestinationMarker(
+                    firstResult.displayLat,
+                    firstResult.displayLon,
+                    firstResult.display_name
+                );
+            }
+        }
+    });
+    
+    // Click outside to close suggestions
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#destinationLocation') && 
+            !e.target.closest('#destinationSuggestions')) {
+            hideDestinationSuggestions();
+        }
+    });
+}
+
+// IMPROVED: Hide suggestions function
+function hideDestinationSuggestions() {
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    suggestionsContainer.style.display = 'none';
+    
+    // Clear any pending search timeouts
+    if (window.searchTimeout) {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = null;
+    }
+}
+
+// ENHANCED: Show no results message (removed instructions)
+function showNoResultsMessage(query = '') {
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    
+    // Simple no results message without instructions
+    suggestionsContainer.innerHTML = '<div class="no-places">No places found</div>';
 }
 
 // NEW: Preprocess search query for better matching
@@ -2770,107 +2976,6 @@ function preprocessSearchQuery(query) {
     });
     
     return processed;
-}
-
-// ENHANCED: Search in specific city with priority scoring
-function searchInCityWithPriority(query, city, priority) {
-    return new Promise((resolve, reject) => {
-        const searchQuery = `${query}, ${city}, Zambia`;
-        
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&dedupe=1&countrycodes=zm`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Search API error: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.length > 0) {
-                    const results = data
-                        .filter(place => place.display_name && place.lat && place.lon)
-                        .map(place => {
-                            const distance = userLocation ? calculateDistance(
-                                userLocation.lat, userLocation.lng,
-                                parseFloat(place.lat), parseFloat(place.lon)
-                            ) : 0;
-                            
-                            const relevanceScore = calculateRelevanceScore(place, query, city);
-                            
-                            return {
-                                ...place,
-                                displayLat: parseFloat(place.lat),
-                                displayLon: parseFloat(place.lon),
-                                distance,
-                                city: city,
-                                isCurrentCity: city === currentCity,
-                                priority: priority,
-                                relevanceScore: relevanceScore,
-                                displayName: formatDisplayName(place.display_name, city)
-                            };
-                        })
-                        .sort((a, b) => {
-                            // Sort by priority, then relevance score, then distance
-                            if (a.priority !== b.priority) return a.priority - b.priority;
-                            if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
-                            return a.distance - b.distance;
-                        });
-                    
-                    resolve(results);
-                } else {
-                    resolve([]);
-                }
-            })
-            .catch(error => {
-                console.error(`Error searching in ${city}:`, error);
-                resolve([]);
-            });
-    });
-}
-
-// NEW: Fuzzy search for handling spelling mistakes and near-matches
-function fuzzySearchInAllCities(query) {
-    return new Promise((resolve, reject) => {
-        // First, try direct search without city specification
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Zambia')}&limit=10&dedupe=1&countrycodes=zm`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    const results = data
-                        .filter(place => place.display_name && place.lat && place.lon)
-                        .map(place => {
-                            // Determine which city this place is in
-                            const placeCity = extractCityFromPlace(place) || "Unknown";
-                            const distance = userLocation ? calculateDistance(
-                                userLocation.lat, userLocation.lng,
-                                parseFloat(place.lat), parseFloat(place.lon)
-                            ) : 0;
-                            
-                            const relevanceScore = calculateRelevanceScore(place, query, placeCity);
-                            
-                            return {
-                                ...place,
-                                displayLat: parseFloat(place.lat),
-                                displayLon: parseFloat(place.lon),
-                                distance,
-                                city: placeCity,
-                                isCurrentCity: placeCity === currentCity,
-                                priority: 3, // Fuzzy results have lower priority
-                                relevanceScore: relevanceScore * 0.8, // Penalize fuzzy results slightly
-                                displayName: formatDisplayName(place.display_name, placeCity)
-                            };
-                        })
-                        .sort((a, b) => b.relevanceScore - a.relevanceScore);
-                    
-                    resolve(results);
-                } else {
-                    resolve([]);
-                }
-            })
-            .catch(error => {
-                console.error('Error in fuzzy search:', error);
-                resolve([]);
-            });
-    });
 }
 
 // NEW: Calculate relevance score for search results
@@ -2957,89 +3062,6 @@ function formatDisplayName(fullName, city) {
     return relevantParts.join(', ') || fullName;
 }
 
-// ENHANCED: Display search results with improved UX
-function displaySearchResults(results) {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.innerHTML = '';
-    destinationSearchResults = [];
-    
-    if (results.length === 0) {
-        showNoResultsMessage();
-        return;
-    }
-    
-    // Remove duplicates and sort by relevance
-    const uniqueResults = removeDuplicatePlaces(results)
-        .sort((a, b) => {
-            // Sort by priority, then relevance score, then distance
-            if (a.priority !== b.priority) return a.priority - b.priority;
-            if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
-            return a.distance - b.distance;
-        })
-        .slice(0, 8); // Limit to 8 best results
-    
-    destinationSearchResults = uniqueResults;
-    
-    uniqueResults.forEach((result, index) => {
-        const suggestionItem = document.createElement('div');
-        suggestionItem.className = 'suggestion-item';
-        if (index === 0) suggestionItem.classList.add('first-result');
-        
-        const placeType = getPlaceType(result);
-        const placeIcon = getPlaceIcon(placeType);
-        
-        // Add city badge for non-current city results
-        const cityBadge = result.isCurrentCity ? '' : 
-            `<span class="city-badge">${result.city}</span>`;
-        
-        const distanceText = userLocation && result.distance > 0 ? 
-            `${(result.distance / 1000).toFixed(1)} km away` : '';
-        
-        // Use formatted display name
-        const displayName = result.displayName || result.display_name;
-        
-        suggestionItem.innerHTML = `
-            <div class="suggestion-icon">${placeIcon}</div>
-            <div class="suggestion-details">
-                <div class="suggestion-name">
-                    ${displayName}
-                    ${cityBadge}
-                </div>
-                <div class="suggestion-address">${getShortAddress(result.display_name)}</div>
-                <div class="suggestion-distance">${distanceText}</div>
-            </div>
-            ${result.isCurrentCity ? '<div class="current-city-indicator">📍 Current City</div>' : ''}
-        `;
-        
-        suggestionItem.addEventListener('click', function() {
-            document.getElementById('destinationLocation').value = result.display_name;
-            suggestionsContainer.style.display = 'none';
-            updateFareEstimate();
-            
-            // Update destination marker on map
-            updateDestinationMarker(
-                result.displayLat, 
-                result.displayLon, 
-                result.display_name
-            );
-            
-            // Draw route from user location to destination
-            if (userLocation) {
-                drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
-            }
-            
-            selectedDestination = result;
-            
-            // Enable request ride button
-            document.getElementById('requestRideBtn').disabled = false;
-            
-            showNotification(`Destination set to ${displayName}`);
-        });
-        
-        suggestionsContainer.appendChild(suggestionItem);
-    });
-}
-
 // NEW: Get short address for display
 function getShortAddress(fullAddress) {
     if (!fullAddress) return '';
@@ -3047,26 +3069,6 @@ function getShortAddress(fullAddress) {
     const parts = fullAddress.split(',');
     // Return first 2-3 parts for concise display
     return parts.slice(0, Math.min(3, parts.length)).join(', ');
-}
-
-// NEW: Show no results message with suggestions
-function showNoResultsMessage(query = '') {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    
-    let message = '<div class="no-places">No places found matching your search</div>';
-    
-    if (query && query.length > 0) {
-        message += `
-            <div class="search-suggestions">
-                <div class="suggestion-title">Try these suggestions:</div>
-                <div class="suggestion-tip">• Check spelling</div>
-                <div class="suggestion-tip">• Try a broader search term</div>
-                <div class="suggestion-tip">• Search for landmarks or areas</div>
-            </div>
-        `;
-    }
-    
-    suggestionsContainer.innerHTML = message;
 }
 
 // ENHANCED: Remove duplicate places with improved logic
@@ -3083,59 +3085,6 @@ function removeDuplicatePlaces(places) {
         }
         seen.add(uniqueKey);
         return true;
-    });
-}
-
-// ENHANCED: Destination input event listener for real-time search
-function setupDestinationInputListener() {
-    let searchTimeout;
-    let lastQuery = '';
-    const destinationInput = document.getElementById('destinationLocation');
-    
-    destinationInput.addEventListener('input', function() {
-        const query = this.value.trim();
-        
-        if (searchTimeout) {
-            clearTimeout(searchTimeout);
-        }
-        
-        // Only search if query changed significantly
-        if (query.length >= 2 && query !== lastQuery) {
-            searchTimeout = setTimeout(() => {
-                lastQuery = query;
-                searchPlacesEnhanced(query);
-            }, 250); // Reduced delay for faster response
-        } else if (query.length < 2) {
-            hideDestinationSuggestions();
-            lastQuery = '';
-        }
-    });
-    
-    destinationInput.addEventListener('focus', function() {
-        const query = this.value.trim();
-        if (query.length >= 2) {
-            searchPlacesEnhanced(query);
-        }
-    });
-    
-    // Handle key events for better UX
-    destinationInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            hideDestinationSuggestions();
-        } else if (e.key === 'Enter') {
-            hideDestinationSuggestions();
-            // If there are suggestions, select the first one
-            if (destinationSearchResults.length > 0) {
-                const firstResult = destinationSearchResults[0];
-                this.value = firstResult.display_name;
-                updateFareEstimate();
-                updateDestinationMarker(
-                    firstResult.displayLat,
-                    firstResult.displayLon,
-                    firstResult.display_name
-                );
-            }
-        }
     });
 }
 
@@ -3576,44 +3525,65 @@ function requestRide() {
         // Generate a unique ride ID
         const rideId = database.ref().child('rides').push().key;
         
-        // Create ride request with full address for backend and precise address for display
-        const rideRequest = {
-            id: rideId,
-            passengerId: currentUser.uid,
-            passengerName: userData.name || 'Passenger',
-            passengerPhone: userData.phone || 'Not provided',
-            pickupLocation: fullPickupAddress, // Full address with city, province, country for backend
-            pickupDisplayLocation: pickupLocation, // Precise address without city/province/country for display
-            destination: destinationLocation,
-            pickupLat: pickupLatLng.lat,
-            pickupLng: pickupLatLng.lng,
-            destLat: destLat,
-            destLng: destLng,
-            rideType: selectedVehicleType,
-            fare: baseFare,
-            distance: (distance / 1000).toFixed(2) + ' km',
-            status: 'requested',
-            timestamp: firebase.database.ServerValue.TIMESTAMP,
-            updatedAt: firebase.database.ServerValue.TIMESTAMP,
-            promoCode: appliedPromoCode,
-            paymentMethod: selectedPaymentType,
-            packageDetails: packageDetails,
-            currentCity: currentCity // Store detected city for analytics
-        };
+    // Create ride request with full address for backend and precise address for display
+    const rideRequest = {
+        id: rideId,
+        passengerId: currentUser.uid,
+        passengerName: userData.name || 'Passenger',
+        passengerPhone: userData.phone || 'Not provided',
+        pickupLocation: fullPickupAddress, // Full address with city, province, country for backend
+        pickupDisplayLocation: pickupLocation, // Precise address without city/province/country for display
+        destination: destinationLocation,
+        pickupLat: pickupLatLng.lat,
+        pickupLng: pickupLatLng.lng,
+        destLat: destLat,
+        destLng: destLng,
+        rideType: selectedVehicleType,
+        fare: baseFare,
+        distance: (distance / 1000).toFixed(2) + ' km',
+        status: 'requested',
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        updatedAt: firebase.database.ServerValue.TIMESTAMP,
+        promoCode: appliedPromoCode,
+        paymentMethod: selectedPaymentType,
+        packageDetails: packageDetails,
+        currentCity: currentCity // Store detected city for analytics
+    };
+    
+    // If payment is via wallet, deduct fare from wallet
+    if (selectedPaymentType === 'wallet') {
+        const newBalance = walletBalance - baseFare;
         
-        // If payment is via wallet, deduct fare from wallet
-        if (selectedPaymentType === 'wallet') {
-            const newBalance = walletBalance - baseFare;
+        database.ref('users/' + currentUser.uid).update({
+            walletBalance: newBalance
+        })
+        .then(() => {
+            walletBalance = newBalance;
+            updateWalletBalanceUI();
             
-            database.ref('users/' + currentUser.uid).update({
-                walletBalance: newBalance
-            })
-            .then(() => {
-                walletBalance = newBalance;
-                updateWalletBalanceUI();
-                
-                return database.ref('rides/' + rideId).set(rideRequest);
-            })
+            return database.ref('rides/' + rideId).set(rideRequest);
+        })
+        .then(() => {
+            currentRide = rideRequest;
+            
+            closePaymentSelection();
+            
+            updateUIForActiveRide();
+            
+            document.getElementById('rideStatus').style.display = 'flex';
+            document.getElementById('statusDot').className = 'status-dot searching';
+            document.getElementById('statusText').textContent = 'Searching for driver';
+            
+            showNotification('Ride requested. Searching for a driver...');
+            
+            listenForDriverAssignment(rideId);
+        })
+        .catch(error => {
+            console.error('Error requesting ride:', error);
+            showNotification('Error requesting ride. Please try again.');
+        });
+    } else {
+        database.ref('rides/' + rideId).set(rideRequest)
             .then(() => {
                 currentRide = rideRequest;
                 
@@ -3633,28 +3603,7 @@ function requestRide() {
                 console.error('Error requesting ride:', error);
                 showNotification('Error requesting ride. Please try again.');
             });
-        } else {
-            database.ref('rides/' + rideId).set(rideRequest)
-                .then(() => {
-                    currentRide = rideRequest;
-                    
-                    closePaymentSelection();
-                    
-                    updateUIForActiveRide();
-                    
-                    document.getElementById('rideStatus').style.display = 'flex';
-                    document.getElementById('statusDot').className = 'status-dot searching';
-                    document.getElementById('statusText').textContent = 'Searching for driver';
-                    
-                    showNotification('Ride requested. Searching for a driver...');
-                    
-                    listenForDriverAssignment(rideId);
-                })
-                .catch(error => {
-                    console.error('Error requesting ride:', error);
-                    showNotification('Error requesting ride. Please try again.');
-                });
-        }
+    }
     }).catch(error => {
         console.error('Error in ride request process:', error);
         showNotification('Error calculating route. Please try again.');
@@ -4598,6 +4547,12 @@ function useSavedLocation(addressType) {
 function hideDestinationSuggestions() {
     const suggestionsContainer = document.getElementById('destinationSuggestions');
     suggestionsContainer.style.display = 'none';
+    
+    // Clear any pending search timeouts
+    if (window.searchTimeout) {
+        clearTimeout(window.searchTimeout);
+        window.searchTimeout = null;
+    }
 }
 
 function getPlaceType(place) {
@@ -4955,7 +4910,8 @@ function setupEventListeners() {
     setupDestinationInputListener();
     
     document.addEventListener('click', function(e) {
-        if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
+        if (!e.target.closest('#destinationLocation') && 
+            !e.target.closest('#destinationSuggestions')) {
             hideDestinationSuggestions();
         }
     });
@@ -5040,6 +4996,7 @@ initializeApp();
 </script>
 </body>
 </html>
+
 
 
 
