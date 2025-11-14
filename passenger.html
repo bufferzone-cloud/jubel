@@ -3291,6 +3291,214 @@ function updatePopupRideMap(ride) {
     }, 100);
 }
 
+// ENHANCED: Route drawing for popup map
+function drawEnhancedRouteOnPopupMap(startLat, startLng, endLat, endLng) {
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Draw the route on the map with enhanced styling
+                L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 6,
+                    opacity: 0.8,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                }).addTo(popupRideMap);
+                
+                // Add start and end points with custom styling
+                L.circleMarker([startLat, startLng], {
+                    color: '#FF6B35',
+                    fillColor: '#FF6B35',
+                    fillOpacity: 1,
+                    radius: 6
+                }).addTo(popupRideMap);
+                
+                L.circleMarker([endLat, endLng], {
+                    color: '#E74C3C',
+                    fillColor: '#E74C3C',
+                    fillOpacity: 1,
+                    radius: 6
+                }).addTo(popupRideMap);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            // Fallback: draw a straight line with enhanced styling
+            L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 4,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(popupRideMap);
+        });
+}
+
+// ORIGINAL FUNCTIONS (preserved with minor enhancements)
+
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+}
+
+function forwardGeocode(query) {
+    return new Promise(resolve => {
+        if (!userLocation) {
+            resolve([]);
+            return;
+        }
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&countrycodes=zm`)
+            .then(response => response.json())
+            .then(data => {
+                const filteredResults = data.filter(result => {
+                    const distance = calculateDistance(
+                        userLocation.lat, userLocation.lng,
+                        parseFloat(result.lat), parseFloat(result.lon)
+                    );
+                    return distance <= 50000;
+                });
+                
+                resolve(filteredResults);
+            })
+            .catch(error => {
+                console.error('Forward geocoding error:', error);
+                resolve([]);
+            });
+    });
+}
+
+function updateFareEstimate() {
+    const destination = document.getElementById('destinationLocation').value;
+    
+    if (destination.length > 3 && userLocation) {
+        forwardGeocode(destination).then(results => {
+            if (results.length > 0) {
+                const destLat = parseFloat(results[0].lat);
+                const destLng = parseFloat(results[0].lon);
+                
+                const distance = calculateDistance(
+                    userLocation.lat, userLocation.lng,
+                    destLat, destLng
+                );
+                
+                // K23 base fare for all rides
+                let baseFare = 23;
+                
+                // Add distance-based fare (K1 per 90 meters after base fare)
+                if (distance > 0) {
+                    baseFare += Math.ceil(distance / 90);
+                }
+                
+                switch(selectedVehicleType) {
+                    case 'car':
+                        baseFare = baseFare;
+                        break;
+                    case 'bike':
+                        baseFare = baseFare * 0.7;
+                        break;
+                    case 'bicycle':
+                        baseFare = baseFare * 0.5;
+                        break;
+                }
+                
+                if (appliedPromoCode) {
+                    baseFare = baseFare * 0.8;
+                }
+                
+                document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
+                
+                const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
+                document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
+                
+                document.getElementById('requestRideBtn').disabled = false;
+                
+                rideFare = baseFare;
+            }
+        });
+    } else {
+        document.getElementById('estimatedFare').textContent = 'K0.00';
+        document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+        document.getElementById('requestRideBtn').disabled = true;
+    }
+}
+
+function updateDestinationMarker(lat, lng, name) {
+    if (destinationMarker) {
+        passengerMap.removeLayer(destinationMarker);
+    }
+    
+    destinationMarker = L.marker([lat, lng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
+            iconSize: [25, 25]
+        })
+    }).addTo(passengerMap)
+        .bindPopup(`<strong>${name}</strong><br>Your destination`)
+        .openPopup();
+    
+    if (userLocation) {
+        const bounds = L.latLngBounds(
+            [userLocation.lat, userLocation.lng],
+            [lat, lng]
+        );
+        passengerMap.fitBounds(bounds, { padding: [15, 15] });
+    }
+}
+
+function drawRoute(startLat, startLng, endLat, endLng) {
+    if (routePolyline) {
+        passengerMap.removeLayer(routePolyline);
+    }
+    
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                routePolyline = L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 4,
+                    opacity: 0.7,
+                    dashArray: '8, 8'
+                }).addTo(passengerMap);
+                
+                passengerMap.fitBounds(routePolyline.getBounds(), { padding: [15, 15] });
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            routePolyline = L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 4,
+                opacity: 0.7,
+                dashArray: '8, 8'
+            }).addTo(passengerMap);
+        });
+}
+
 // ENHANCED: Ride request function with improved address handling
 function requestRide() {
     const pickupLocation = document.getElementById('pickupLocation').value;
@@ -3451,165 +3659,6 @@ function requestRide() {
         console.error('Error in ride request process:', error);
         showNotification('Error calculating route. Please try again.');
     });
-}
-
-// ORIGINAL FUNCTIONS (preserved exactly as they were with minor enhancements)
-
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-}
-
-function forwardGeocode(query) {
-    return new Promise(resolve => {
-        if (!userLocation) {
-            resolve([]);
-            return;
-        }
-        
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&countrycodes=zm`)
-            .then(response => response.json())
-            .then(data => {
-                const filteredResults = data.filter(result => {
-                    const distance = calculateDistance(
-                        userLocation.lat, userLocation.lng,
-                        parseFloat(result.lat), parseFloat(result.lon)
-                    );
-                    return distance <= 50000;
-                });
-                
-                resolve(filteredResults);
-            })
-            .catch(error => {
-                console.error('Forward geocoding error:', error);
-                resolve([]);
-            });
-    });
-}
-
-function updateFareEstimate() {
-    const destination = document.getElementById('destinationLocation').value;
-    
-    if (destination.length > 3 && userLocation) {
-        forwardGeocode(destination).then(results => {
-            if (results.length > 0) {
-                const destLat = parseFloat(results[0].lat);
-                const destLng = parseFloat(results[0].lon);
-                
-                const distance = calculateDistance(
-                    userLocation.lat, userLocation.lng,
-                    destLat, destLng
-                );
-                
-                // K23 base fare for all rides
-                let baseFare = 23;
-                
-                // Add distance-based fare (K1 per 90 meters after base fare)
-                if (distance > 0) {
-                    baseFare += Math.ceil(distance / 90);
-                }
-                
-                switch(selectedVehicleType) {
-                    case 'car':
-                        baseFare = baseFare;
-                        break;
-                    case 'bike':
-                        baseFare = baseFare * 0.7;
-                        break;
-                    case 'bicycle':
-                        baseFare = baseFare * 0.5;
-                        break;
-                }
-                
-                if (appliedPromoCode) {
-                    baseFare = baseFare * 0.8;
-                }
-                
-                document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
-                
-                const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
-                document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
-                
-                document.getElementById('requestRideBtn').disabled = false;
-                
-                rideFare = baseFare;
-            }
-        });
-    } else {
-        document.getElementById('estimatedFare').textContent = 'K0.00';
-        document.getElementById('etaDisplay').textContent = 'ETA: -- min';
-        document.getElementById('requestRideBtn').disabled = true;
-    }
-}
-
-function updateDestinationMarker(lat, lng, name) {
-    if (destinationMarker) {
-        passengerMap.removeLayer(destinationMarker);
-    }
-    
-    destinationMarker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            className: 'destination-marker',
-            html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
-            iconSize: [25, 25]
-        })
-    }).addTo(passengerMap)
-        .bindPopup(`<strong>${name}</strong><br>Your destination`)
-        .openPopup();
-    
-    if (userLocation) {
-        const bounds = L.latLngBounds(
-            [userLocation.lat, userLocation.lng],
-            [lat, lng]
-        );
-        passengerMap.fitBounds(bounds, { padding: [15, 15] });
-    }
-}
-
-function drawRoute(startLat, startLng, endLat, endLng) {
-    if (routePolyline) {
-        passengerMap.removeLayer(routePolyline);
-    }
-    
-    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                routePolyline = L.polyline(routeCoordinates, {
-                    color: '#FF6B35',
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '8, 8'
-                }).addTo(passengerMap);
-                
-                passengerMap.fitBounds(routePolyline.getBounds(), { padding: [15, 15] });
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            routePolyline = L.polyline([
-                [startLat, startLng],
-                [endLat, endLng]
-            ], {
-                color: '#FF6B35',
-                weight: 4,
-                opacity: 0.7,
-                dashArray: '8, 8'
-            }).addTo(passengerMap);
-        });
 }
 
 function showPaymentSelection() {
@@ -4700,53 +4749,97 @@ function showNotification(message) {
     }, 4000);
 }
 
-// ENHANCED: Route drawing for popup map
-function drawEnhancedRouteOnPopupMap(startLat, startLng, endLat, endLng) {
-    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                // Draw the route on the map with enhanced styling
-                L.polyline(routeCoordinates, {
-                    color: '#FF6B35',
-                    weight: 6,
-                    opacity: 0.8,
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                }).addTo(popupRideMap);
-                
-                // Add start and end points with custom styling
-                L.circleMarker([startLat, startLng], {
-                    color: '#FF6B35',
-                    fillColor: '#FF6B35',
-                    fillOpacity: 1,
-                    radius: 6
-                }).addTo(popupRideMap);
-                
-                L.circleMarker([endLat, endLng], {
-                    color: '#E74C3C',
-                    fillColor: '#E74C3C',
-                    fillOpacity: 1,
-                    radius: 6
-                }).addTo(popupRideMap);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            // Fallback: draw a straight line with enhanced styling
-            L.polyline([
-                [startLat, startLng],
-                [endLat, endLng]
-            ], {
-                color: '#FF6B35',
-                weight: 4,
-                opacity: 0.7,
-                dashArray: '10, 10'
-            }).addTo(popupRideMap);
+// Enhanced switch screen function with home screen refresh capability
+function switchScreen(screenId) {
+    // Store current screen for refresh logic
+    const previousScreen = currentScreen;
+    currentScreen = screenId;
+    
+    // Hide all screens
+    document.querySelectorAll('.screen-content').forEach(screen => {
+        screen.classList.remove('active');
+    });
+    
+    // Show selected screen
+    document.getElementById(screenId + 'Screen').classList.add('active');
+    
+    // Update active nav button
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
+    
+    // Show/hide floating elements based on screen
+    if (screenId === 'home') {
+        document.querySelectorAll('.home-only').forEach(el => {
+            el.style.display = 'flex';
         });
+        
+        // Refresh home screen if coming from another screen
+        if (previousScreen !== 'home' && homeScreenRefreshRequired) {
+            refreshHomeScreen();
+        }
+    } else {
+        document.querySelectorAll('.home-only').forEach(el => {
+            el.style.display = 'none';
+        });
+        
+        // Mark that home screen needs refresh when returning
+        homeScreenRefreshRequired = true;
+    }
+    
+    // Load data for specific screens
+    if (screenId === 'history') {
+        loadRideHistory();
+    } else if (screenId === 'account') {
+        loadAccountData();
+    } else if (screenId === 'payments') {
+        // Payments screen data loading if needed
+    }
+}
+
+// Enhanced home screen refresh function
+function refreshHomeScreen() {
+    console.log("Refreshing home screen...");
+    
+    // Refresh passenger position and map
+    refreshPassengerPosition();
+    
+    // Clear any existing destination
+    document.getElementById('destinationLocation').value = '';
+    
+    // Clear any existing markers and routes
+    if (destinationMarker) {
+        passengerMap.removeLayer(destinationMarker);
+        destinationMarker = null;
+    }
+    
+    if (routePolyline) {
+        passengerMap.removeLayer(routePolyline);
+        routePolyline = null;
+    }
+    
+    // Reset fare estimate
+    document.getElementById('estimatedFare').textContent = 'K0.00';
+    document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+    document.getElementById('requestRideBtn').disabled = true;
+    
+    // Reset promo section
+    document.getElementById('promoSection').classList.remove('active');
+    document.getElementById('promoCode').value = '';
+    appliedPromoCode = null;
+    
+    // Reset package form
+    document.getElementById('packageForm').classList.remove('active');
+    document.getElementById('packageToggle').style.display = 'none';
+    
+    // Ensure ride request form is visible
+    document.getElementById('rideRequestForm').style.display = 'flex';
+    document.getElementById('rideInfoPanel').style.display = 'none';
+    
+    homeScreenRefreshRequired = false;
+    
+    showNotification('Home screen refreshed');
 }
 
 // Event listeners setup
@@ -4898,99 +4991,6 @@ function setupEventListeners() {
     });
 }
 
-// Enhanced switch screen function with home screen refresh capability
-function switchScreen(screenId) {
-    // Store current screen for refresh logic
-    const previousScreen = currentScreen;
-    currentScreen = screenId;
-    
-    // Hide all screens
-    document.querySelectorAll('.screen-content').forEach(screen => {
-        screen.classList.remove('active');
-    });
-    
-    // Show selected screen
-    document.getElementById(screenId + 'Screen').classList.add('active');
-    
-    // Update active nav button
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
-    
-    // Show/hide floating elements based on screen
-    if (screenId === 'home') {
-        document.querySelectorAll('.home-only').forEach(el => {
-            el.style.display = 'flex';
-        });
-        
-        // Refresh home screen if coming from another screen
-        if (previousScreen !== 'home' && homeScreenRefreshRequired) {
-            refreshHomeScreen();
-        }
-    } else {
-        document.querySelectorAll('.home-only').forEach(el => {
-            el.style.display = 'none';
-        });
-        
-        // Mark that home screen needs refresh when returning
-        homeScreenRefreshRequired = true;
-    }
-    
-    // Load data for specific screens
-    if (screenId === 'history') {
-        loadRideHistory();
-    } else if (screenId === 'account') {
-        loadAccountData();
-    } else if (screenId === 'payments') {
-        // Payments screen data loading if needed
-    }
-}
-
-// Enhanced home screen refresh function
-function refreshHomeScreen() {
-    console.log("Refreshing home screen...");
-    
-    // Refresh passenger position and map
-    refreshPassengerPosition();
-    
-    // Clear any existing destination
-    document.getElementById('destinationLocation').value = '';
-    
-    // Clear any existing markers and routes
-    if (destinationMarker) {
-        passengerMap.removeLayer(destinationMarker);
-        destinationMarker = null;
-    }
-    
-    if (routePolyline) {
-        passengerMap.removeLayer(routePolyline);
-        routePolyline = null;
-    }
-    
-    // Reset fare estimate
-    document.getElementById('estimatedFare').textContent = 'K0.00';
-    document.getElementById('etaDisplay').textContent = 'ETA: -- min';
-    document.getElementById('requestRideBtn').disabled = true;
-    
-    // Reset promo section
-    document.getElementById('promoSection').classList.remove('active');
-    document.getElementById('promoCode').value = '';
-    appliedPromoCode = null;
-    
-    // Reset package form
-    document.getElementById('packageForm').classList.remove('active');
-    document.getElementById('packageToggle').style.display = 'none';
-    
-    // Ensure ride request form is visible
-    document.getElementById('rideRequestForm').style.display = 'flex';
-    document.getElementById('rideInfoPanel').style.display = 'none';
-    
-    homeScreenRefreshRequired = false;
-    
-    showNotification('Home screen refreshed');
-}
-
 // Enhanced initialization to ensure all functionality works together
 function initializeApp() {
     console.log("Jubel Passenger App Initialized with Enhanced Features");
@@ -5040,6 +5040,7 @@ initializeApp();
 </script>
 </body>
 </html>
+
 
 
 
