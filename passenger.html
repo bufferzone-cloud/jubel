@@ -2431,31 +2431,75 @@ function getPreciseAddress(lat, lng, elementId) {
             if (data && data.address) {
                 let preciseAddress = '';
                 
-                const houseNumber = data.address.house_number || data.address.housenumber;
-                const road = data.address.road;
-                const suburb = data.address.suburb;
-                const neighbourhood = data.address.neighbourhood;
+                // Try multiple possible field names for house number/plot number
+                const houseNumber = data.address.house_number || 
+                                  data.address.housenumber || 
+                                  data.address['addr:housenumber'] ||
+                                  data.address.plot_number ||
+                                  data.address.plot_number ||
+                                  data.address.number;
                 
+                // Try multiple possible field names for road
+                const road = data.address.road || 
+                           data.address.street || 
+                           data.address.street_name ||
+                           data.address.residential ||
+                           data.address.footway;
+                
+                // Try multiple possible field names for area/suburb
+                const suburb = data.address.suburb || 
+                             data.address.neighbourhood || 
+                             data.address.residential ||
+                             data.address.quarter;
+                
+                // Try additional area identifiers
+                const cityBlock = data.address.city_block || 
+                                data.address.block ||
+                                data.address.place;
+                
+                // Build the address in the format: HouseNumber Road, Area
                 if (houseNumber && road) {
                     preciseAddress = `${houseNumber} ${road}`;
                 } else if (road) {
                     preciseAddress = road;
+                } else if (houseNumber) {
+                    preciseAddress = houseNumber;
                 }
                 
+                // Add area information
                 if (suburb) {
                     preciseAddress += preciseAddress ? `, ${suburb}` : suburb;
-                } else if (neighbourhood) {
-                    preciseAddress += preciseAddress ? `, ${neighbourhood}` : neighbourhood;
+                } else if (cityBlock) {
+                    preciseAddress += preciseAddress ? `, ${cityBlock}` : cityBlock;
                 }
                 
+                // Fallback: if we still don't have a good address, try to extract from display_name
                 if (!preciseAddress && data.display_name) {
-                    preciseAddress = data.display_name.split(',')[0];
-                    if (data.display_name.split(',')[1]) {
-                        preciseAddress += ', ' + data.display_name.split(',')[1].trim();
+                    const parts = data.display_name.split(',');
+                    // Take the first 2-3 parts which usually contain the most specific location
+                    preciseAddress = parts.slice(0, Math.min(3, parts.length)).join(', ');
+                }
+                
+                // Final fallback
+                if (!preciseAddress) {
+                    // Try to get any building or place name
+                    const building = data.address.building || 
+                                   data.address.place || 
+                                   data.address.amenity ||
+                                   data.address.shop;
+                    if (building) {
+                        preciseAddress = building;
                     }
                 }
                 
                 document.getElementById(elementId).value = preciseAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                
+                // Debug log to see what address components are available
+                console.log('Available address components:', data.address);
+                console.log('House number found:', houseNumber);
+                console.log('Road found:', road);
+                console.log('Suburb found:', suburb);
+                
             } else {
                 document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
             }
@@ -4327,5 +4371,6 @@ window.addEventListener('offline', function() {
     </script>
 </body>
 </html>
+
 
 
