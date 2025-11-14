@@ -2169,7 +2169,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-       // Firebase configuration
+      // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
     authDomain: "jubel-13e1a.firebaseapp.com",
@@ -2222,13 +2222,11 @@ let driverLocationListener = null;
 let userData = null;
 let selectedPaymentType = 'wallet';
 let rideFare = 0;
-let currentCity = "Lusaka";
+let currentCity = null;
 let packageDetails = null;
 let walletBalanceListener = null;
 let currentSearchTimeout = null;
-let cityDeterminationComplete = false;
-let cachedCitySearches = new Map();
-let rapidSearchController = null;
+let cityDeterminationPromise = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -2350,7 +2348,7 @@ function initializeMap() {
                 .openPopup();
                 
             updatePickupLocation(lat, lng);
-            determineCurrentCityWithPrecision(lat, lng);
+            determineCurrentCity(lat, lng);
             startLocationTracking();
         }, error => {
             console.error('Geolocation error:', error);
@@ -2359,149 +2357,76 @@ function initializeMap() {
     }
 }
 
-// Advanced city determination with multiple fallbacks and precision
-function determineCurrentCityWithPrecision(lat, lng) {
-    console.log("Starting precise city determination...");
+// Determine current city based on coordinates with enhanced accuracy and caching
+function determineCurrentCity(lat, lng) {
+    // If we already have a city determination in progress, return that promise
+    if (cityDeterminationPromise) {
+        return cityDeterminationPromise;
+    }
     
-    // Use multiple geocoding services for redundancy
-    const geocodingPromises = [
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`),
-        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
-    ];
-    
-    Promise.race(geocodingPromises.map(p => p.then(res => res.ok ? res : Promise.reject())))
-        .then(response => response.json())
-        .then(data => {
-            let detectedCity = extractCityFromGeocodingData(data, lat, lng);
-            
-            if (detectedCity) {
-                currentCity = detectedCity;
-                cityDeterminationComplete = true;
-                console.log("City determined as:", currentCity);
-                showNotification(`Location set to ${currentCity}`);
+    cityDeterminationPromise = new Promise((resolve, reject) => {
+        // Try multiple reverse geocoding services for better accuracy
+        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`;
+        
+        fetch(nominatimUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.address) {
+                    // Try multiple possible city/town field names with priority
+                    const city = data.address.city || 
+                                data.address.town || 
+                                data.address.municipality ||
+                                data.address.village || 
+                                data.address.county || 
+                                data.address.state_district ||
+                                data.address.region;
+                    
+                    if (city) {
+                        currentCity = city;
+                        console.log("Current city determined as:", currentCity);
+                        resolve(currentCity);
+                        return;
+                    }
+                }
                 
-                // Pre-cache popular searches for this city
-                preCachePopularSearches(currentCity);
-            } else {
-                // Fallback to coordinate-based city detection
-                determineCityByCoordinates(lat, lng);
-            }
-        })
-        .catch(error => {
-            console.error('Primary geocoding failed, using fallback:', error);
-            determineCityByCoordinates(lat, lng);
-        });
-}
-
-// Extract city from various geocoding service responses
-function extractCityFromGeocodingData(data, lat, lng) {
-    if (data.address) {
-        // OpenStreetMap format
-        return data.address.city || 
-               data.address.town || 
-               data.address.village || 
-               data.address.municipality ||
-               data.address.county ||
-               data.address.state_district ||
-               extractCityFromDisplayName(data.display_name);
-    } else if (data.city) {
-        // BigDataCloud format
-        return data.city;
-    } else if (data.locality) {
-        // Other services
-        return data.locality;
-    }
-    
-    return null;
-}
-
-// Extract city from display name with intelligent parsing
-function extractCityFromDisplayName(displayName) {
-    if (!displayName) return null;
-    
-    const parts = displayName.split(',');
-    if (parts.length >= 2) {
-        // Usually the city is in the first or second part
-        for (let i = 0; i < Math.min(3, parts.length); i++) {
-            const part = parts[i].trim();
-            // Filter out common non-city terms
-            if (part && 
-                !part.match(/^\d+$/) && // Not just numbers
-                !part.match(/^(road|street|avenue|drive|lane|way)$/i) && // Not road types
-                part.length > 2) { // Reasonable length for a city name
-                return part;
-            }
-        }
-    }
-    return null;
-}
-
-// Coordinate-based city determination as final fallback
-function determineCityByCoordinates(lat, lng) {
-    // Major Zambian cities coordinates and boundaries
-    const zambianCities = [
-        { name: "Lusaka", lat: -15.4167, lng: 28.2833, radius: 30000 },
-        { name: "Ndola", lat: -12.9667, lng: 28.6333, radius: 25000 },
-        { name: "Kitwe", lat: -12.8167, lng: 28.2000, radius: 25000 },
-        { name: "Kabwe", lat: -14.4333, lng: 28.4500, radius: 20000 },
-        { name: "Chingola", lat: -12.5333, lng: 27.8500, radius: 15000 },
-        { name: "Mufulira", lat: -12.5500, lng: 28.2333, radius: 15000 },
-        { name: "Livingstone", lat: -17.8500, lng: 25.8667, radius: 20000 },
-        { name: "Luanshya", lat: -13.1333, lng: 28.4000, radius: 15000 },
-        { name: "Chipata", lat: -13.6333, lng: 32.6500, radius: 15000 },
-        { name: "Kasama", lat: -10.2000, lng: 31.2000, radius: 15000 }
-    ];
-    
-    for (const city of zambianCities) {
-        const distance = calculateDistance(lat, lng, city.lat, city.lng);
-        if (distance <= city.radius) {
-            currentCity = city.name;
-            cityDeterminationComplete = true;
-            console.log("City determined by coordinates:", currentCity);
-            showNotification(`Location set to ${currentCity}`);
-            preCachePopularSearches(currentCity);
-            return;
-        }
-    }
-    
-    // Default to Lusaka if no city found
-    currentCity = "Lusaka";
-    cityDeterminationComplete = true;
-    console.log("Default city set to:", currentCity);
-}
-
-// Pre-cache popular searches for faster results
-function preCachePopularSearches(city) {
-    const popularSearches = [
-        "restaurant", "hotel", "mall", "supermarket", "hospital", 
-        "bank", "airport", "bus station", "pharmacy", "shopping"
-    ];
-    
-    popularSearches.forEach(term => {
-        const cacheKey = `${term.toLowerCase()}_${city.toLowerCase()}`;
-        if (!cachedCitySearches.has(cacheKey)) {
-            // Start caching in background
-            setTimeout(() => {
-                searchPlacesInCity(term, city, true).then(results => {
-                    cachedCitySearches.set(cacheKey, {
-                        results: results,
-                        timestamp: Date.now()
+                // Fallback to a second geocoding service if needed
+                const locationiqUrl = `https://us1.locationiq.com/v1/reverse.php?key=pk.test&format=json&lat=${lat}&lon=${lng}`;
+                fetch(locationiqUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data && data.address) {
+                            const city = data.address.city || 
+                                        data.address.town || 
+                                        data.address.village ||
+                                        data.address.county;
+                            
+                            if (city) {
+                                currentCity = city;
+                                console.log("Current city determined via fallback as:", currentCity);
+                                resolve(currentCity);
+                                return;
+                            }
+                        }
+                        
+                        // Final fallback
+                        currentCity = "Unknown Location";
+                        console.log("Could not determine city, using fallback");
+                        resolve(currentCity);
+                    })
+                    .catch(error => {
+                        console.error('Error with fallback geocoding:', error);
+                        currentCity = "Unknown Location";
+                        resolve(currentCity);
                     });
-                });
-            }, 1000);
-        }
+            })
+            .catch(error => {
+                console.error('Error determining city:', error);
+                currentCity = "Unknown Location";
+                resolve(currentCity);
+            });
     });
-}
-
-// Get cached search results
-function getCachedSearchResults(query, city) {
-    const cacheKey = `${query.toLowerCase()}_${city.toLowerCase()}`;
-    const cached = cachedCitySearches.get(cacheKey);
     
-    if (cached && (Date.now() - cached.timestamp) < 300000) { // 5 minute cache
-        return cached.results;
-    }
-    return null;
+    return cityDeterminationPromise;
 }
 
 // Start continuous location tracking
@@ -2538,7 +2463,7 @@ function startLocationTracking() {
     }
 }
 
-// Advanced address extraction with multiple fallbacks
+// Update pickup location with precise address (house number, road, area only)
 function updatePickupLocation(lat, lng) {
     if (pickupMarker) {
         passengerMap.removeLayer(pickupMarker);
@@ -2553,163 +2478,94 @@ function updatePickupLocation(lat, lng) {
     }).addTo(passengerMap)
         .bindPopup('Pickup Location');
         
-    getPreciseAddressWithMultipleFallbacks(lat, lng, 'pickupLocation');
+    getPreciseAddress(lat, lng, 'pickupLocation');
 }
 
-// Enhanced address extraction with multiple geocoding strategies
-function getPreciseAddressWithMultipleFallbacks(lat, lng, elementId) {
-    const geocodingStrategies = [
-        // Primary: High precision OSM with detailed address components
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`),
-        // Secondary: Alternative service
-        fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`)
-    ];
-    
-    Promise.any(geocodingStrategies.map(p => p.catch(e => null)))
-        .then(response => response ? response.json() : null)
+// Get precise address (house number, road, area only) for display
+function getPreciseAddress(lat, lng, elementId) {
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
+        .then(response => response.json())
         .then(data => {
-            let preciseAddress = extractOptimalAddress(data, lat, lng);
-            document.getElementById(elementId).value = preciseAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            if (data && data.address) {
+                let preciseAddress = '';
+                
+                // Try multiple possible field names for house number/plot number
+                const houseNumber = data.address.house_number || 
+                                  data.address.housenumber || 
+                                  data.address['addr:housenumber'] ||
+                                  data.address.plot_number ||
+                                  data.address.plot_number ||
+                                  data.address.number;
+                
+                // Try multiple possible field names for road
+                const road = data.address.road || 
+                           data.address.street || 
+                           data.address.street_name ||
+                           data.address.residential ||
+                           data.address.footway;
+                
+                // Try multiple possible field names for area/suburb
+                const suburb = data.address.suburb || 
+                             data.address.neighbourhood || 
+                             data.address.residential ||
+                             data.address.quarter;
+                
+                // Try additional area identifiers
+                const cityBlock = data.address.city_block || 
+                                data.address.block ||
+                                data.address.place;
+                
+                // Build the address in the format: HouseNumber Road, Area
+                if (houseNumber && road) {
+                    preciseAddress = `${houseNumber} ${road}`;
+                } else if (road) {
+                    preciseAddress = road;
+                } else if (houseNumber) {
+                    preciseAddress = houseNumber;
+                }
+                
+                // Add area information
+                if (suburb) {
+                    preciseAddress += preciseAddress ? `, ${suburb}` : suburb;
+                } else if (cityBlock) {
+                    preciseAddress += preciseAddress ? `, ${cityBlock}` : cityBlock;
+                }
+                
+                // Fallback: if we still don't have a good address, try to extract from display_name
+                if (!preciseAddress && data.display_name) {
+                    const parts = data.display_name.split(',');
+                    // Take the first 2-3 parts which usually contain the most specific location
+                    preciseAddress = parts.slice(0, Math.min(3, parts.length)).join(', ');
+                }
+                
+                // Final fallback
+                if (!preciseAddress) {
+                    // Try to get any building or place name
+                    const building = data.address.building || 
+                                   data.address.place || 
+                                   data.address.amenity ||
+                                   data.address.shop;
+                    if (building) {
+                        preciseAddress = building;
+                    }
+                }
+                
+                document.getElementById(elementId).value = preciseAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                
+                // Debug log to see what address components are available
+                console.log('Available address components:', data.address);
+                console.log('House number found:', houseNumber);
+                console.log('Road found:', road);
+                console.log('Suburb found:', suburb);
+                
+            } else {
+                document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            }
         })
         .catch(error => {
-            console.error('All geocoding strategies failed:', error);
+            console.error('Reverse geocoding error:', error);
             document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
         });
-}
-
-// Advanced address extraction algorithm
-function extractOptimalAddress(data, lat, lng) {
-    if (!data) return null;
-    
-    let addressComponents = {};
-    
-    // Extract from OpenStreetMap format
-    if (data.address) {
-        addressComponents = {
-            houseNumber: data.address.house_number || data.address.housenumber || data.address['addr:housenumber'],
-            plotNumber: data.address.plot_number || data.address.plot,
-            building: data.address.building || data.address.public_building,
-            road: data.address.road || data.address.street || data.address.street_name,
-            residential: data.address.residential,
-            suburb: data.address.suburb || data.address.neighbourhood,
-            quarter: data.address.quarter,
-            cityBlock: data.address.city_block || data.address.block,
-            houseName: data.address.house || data.address.house_name
-        };
-    }
-    // Extract from BigDataCloud format
-    else if (data.localityInfo && data.localityInfo.administrative) {
-        const adminInfo = data.localityInfo.administrative;
-        addressComponents = {
-            road: data.locality,
-            suburb: adminInfo.find(a => a.adminLevel === 10)?.name,
-            cityBlock: adminInfo.find(a => a.adminLevel === 9)?.name
-        };
-    }
-    
-    return constructOptimalAddressString(addressComponents, data.display_name);
-}
-
-// Construct the most optimal address string
-function constructOptimalAddressString(components, displayName) {
-    const addressParts = [];
-    
-    // Priority 1: House/Plot number with road
-    if (components.houseNumber && components.road) {
-        addressParts.push(`${components.houseNumber} ${components.road}`);
-    } 
-    // Priority 2: Plot number with road
-    else if (components.plotNumber && components.road) {
-        addressParts.push(`Plot ${components.plotNumber} ${components.road}`);
-    }
-    // Priority 3: Building name with road
-    else if (components.building && components.road) {
-        addressParts.push(`${components.building}, ${components.road}`);
-    }
-    // Priority 4: House name with road
-    else if (components.houseName && components.road) {
-        addressParts.push(`${components.houseName}, ${components.road}`);
-    }
-    // Priority 5: Just road
-    else if (components.road) {
-        addressParts.push(components.road);
-    }
-    // Priority 6: Just house number
-    else if (components.houseNumber) {
-        addressParts.push(components.houseNumber);
-    }
-    // Priority 7: Just plot number
-    else if (components.plotNumber) {
-        addressParts.push(`Plot ${components.plotNumber}`);
-    }
-    
-    // Add area information
-    if (components.suburb && !addressParts.includes(components.suburb)) {
-        addressParts.push(components.suburb);
-    } else if (components.quarter && !addressParts.includes(components.quarter)) {
-        addressParts.push(components.quarter);
-    } else if (components.cityBlock && !addressParts.includes(components.cityBlock)) {
-        addressParts.push(components.cityBlock);
-    } else if (components.residential && !addressParts.includes(components.residential)) {
-        addressParts.push(components.residential);
-    }
-    
-    // Final fallback: intelligent display name parsing
-    if (addressParts.length === 0 && displayName) {
-        return extractOptimalAddressFromDisplayName(displayName);
-    }
-    
-    return addressParts.length > 0 ? addressParts.join(', ') : null;
-}
-
-// Extract optimal address from display name
-function extractOptimalAddressFromDisplayName(displayName) {
-    if (!displayName) return null;
-    
-    const parts = displayName.split(',');
-    const optimalParts = [];
-    
-    for (let i = 0; i < Math.min(4, parts.length); i++) {
-        const part = parts[i].trim();
-        
-        // Skip obviously non-address parts
-        if (isOptimalAddressPart(part, i)) {
-            optimalParts.push(part);
-            
-            // Stop if we have a good address (house number + road or building + road)
-            if (optimalParts.length >= 2 && 
-                (part.match(/\d+/) || isBuildingType(part))) {
-                break;
-            }
-        }
-    }
-    
-    return optimalParts.length > 0 ? optimalParts.join(', ') : parts.slice(0, 3).join(', ');
-}
-
-// Check if a part is optimal for address display
-function isOptimalAddressPart(part, index) {
-    if (!part || part.length < 2) return false;
-    
-    // Skip country, postal codes, etc.
-    if (part.match(/^(zambia|zmb|\d{5,})$/i)) return false;
-    
-    // First part is almost always important
-    if (index === 0) return true;
-    
-    // Parts with numbers are important (house numbers)
-    if (part.match(/\d+/)) return true;
-    
-    // Common road/building indicators
-    if (part.match(/(road|street|avenue|drive|way|lane|plot|house|building|mall|center|complex)/i)) return true;
-    
-    // Reasonable length for place names
-    return part.length <= 30;
-}
-
-// Check if string represents a building type
-function isBuildingType(str) {
-    return str.match(/(mall|center|complex|building|plaza|station|terminal|airport|hospital|clinic|school|university|college)/i);
 }
 
 // Get full address including city, province, country for ride request
@@ -2789,7 +2645,6 @@ function setupEventListeners() {
             document.querySelectorAll('.payment-option').forEach(opt => {
                 opt.classList.remove('selected');
             });
-            this.classList.add('selected');
             selectedPaymentType = this.getAttribute('data-payment-type');
             
             if (selectedPaymentType === 'wallet') {
@@ -2835,7 +2690,6 @@ function setupEventListeners() {
     document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
     document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
     
-    // Enhanced destination search with rapid city-based searching
     document.getElementById('destinationLocation').addEventListener('input', function() {
         const query = this.value;
         updateFareEstimate();
@@ -2846,8 +2700,8 @@ function setupEventListeners() {
         
         if (query.length >= 2) {
             currentSearchTimeout = setTimeout(() => {
-                performRapidCityBasedSearch(query);
-            }, 150); // Reduced delay for faster response
+                searchPlacesInCurrentCity(query);
+            }, 300);
         } else {
             hideDestinationSuggestions();
         }
@@ -2856,7 +2710,7 @@ function setupEventListeners() {
     document.getElementById('destinationLocation').addEventListener('focus', function() {
         const query = this.value;
         if (query.length >= 2) {
-            performRapidCityBasedSearch(query);
+            searchPlacesInCurrentCity(query);
         }
     });
     
@@ -2897,312 +2751,6 @@ function setupEventListeners() {
     });
 }
 
-// Rapid city-based search with multiple optimization strategies
-function performRapidCityBasedSearch(query) {
-    if (!userLocation || !cityDeterminationComplete) {
-        const suggestionsContainer = document.getElementById('destinationSuggestions');
-        suggestionsContainer.innerHTML = '<div class="loading-text">Determining your location...</div>';
-        suggestionsContainer.style.display = 'block';
-        
-        // Wait for city determination
-        const checkCityInterval = setInterval(() => {
-            if (cityDeterminationComplete) {
-                clearInterval(checkCityInterval);
-                executeRapidSearch(query);
-            }
-        }, 100);
-        return;
-    }
-    
-    executeRapidSearch(query);
-}
-
-// Execute the actual rapid search with optimizations
-function executeRapidSearch(query) {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    
-    // Show immediate loading state
-    suggestionsContainer.innerHTML = '<div class="loading-text">Searching in ' + currentCity + '...</div>';
-    suggestionsContainer.style.display = 'block';
-    
-    // Check cache first for instant results
-    const cachedResults = getCachedSearchResults(query, currentCity);
-    if (cachedResults) {
-        displaySearchResults(cachedResults, query);
-        return;
-    }
-    
-    // Perform rapid search with multiple endpoints
-    performMultiEndpointSearch(query, currentCity)
-        .then(results => {
-            // Cache the results
-            const cacheKey = `${query.toLowerCase()}_${currentCity.toLowerCase()}`;
-            cachedCitySearches.set(cacheKey, {
-                results: results,
-                timestamp: Date.now()
-            });
-            
-            displaySearchResults(results, query);
-        })
-        .catch(error => {
-            console.error('Search error:', error);
-            suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
-        });
-}
-
-// Search across multiple endpoints for fastest results
-function performMultiEndpointSearch(query, city) {
-    const searchPromises = [
-        searchPlacesInCity(query, city, false),
-        searchPlacesFallback(query, city)
-    ];
-    
-    return Promise.race(searchPromises.map(p => p.then(res => res).catch(e => [])))
-        .then(results => {
-            return results.length > 0 ? results : Promise.reject('No results found');
-        });
-}
-
-// Primary search function with city constraint
-function searchPlacesInCity(query, city, isBackgroundCache = false) {
-    return new Promise((resolve) => {
-        if (rapidSearchController) {
-            rapidSearchController.abort();
-        }
-        rapidSearchController = new AbortController();
-        
-        const searchUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', ' + city)}&limit=10&addressdetails=1`;
-        
-        fetch(searchUrl, { 
-            signal: rapidSearchController.signal,
-            headers: {
-                'Accept': 'application/json',
-            }
-        })
-        .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
-            return response.json();
-        })
-        .then(data => {
-            if (data && data.length > 0) {
-                const processedResults = processSearchResults(data, query);
-                resolve(processedResults);
-            } else {
-                resolve([]);
-            }
-        })
-        .catch(error => {
-            if (error.name === 'AbortError') {
-                console.log('Search aborted for new query');
-            } else {
-                console.error('Search error:', error);
-            }
-            resolve([]);
-        });
-    });
-}
-
-// Fallback search method
-function searchPlacesFallback(query, city) {
-    return new Promise((resolve) => {
-        // Alternative search endpoint or method
-        const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=15&addressdetails=1`;
-        
-        fetch(fallbackUrl)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    // Filter results by city
-                    const cityFilteredResults = data.filter(place => {
-                        const placeCity = extractCityFromGeocodingData(place, place.lat, place.lon);
-                        return placeCity && placeCity.toLowerCase().includes(city.toLowerCase());
-                    });
-                    
-                    const processedResults = processSearchResults(cityFilteredResults.length > 0 ? cityFilteredResults : data.slice(0, 5), query);
-                    resolve(processedResults);
-                } else {
-                    resolve([]);
-                }
-            })
-            .catch(error => {
-                console.error('Fallback search error:', error);
-                resolve([]);
-            });
-    });
-}
-
-// Process and enhance search results
-function processSearchResults(data, query) {
-    return data
-        .filter(place => place.display_name && place.lat && place.lon)
-        .map(place => {
-            const distance = userLocation ? calculateDistance(
-                userLocation.lat, userLocation.lng,
-                parseFloat(place.lat), parseFloat(place.lon)
-            ) : 0;
-            
-            const enhancedPlace = enhancePlaceData(place, query);
-            
-            return {
-                ...enhancedPlace,
-                displayLat: parseFloat(place.lat),
-                displayLon: parseFloat(place.lon),
-                distance
-            };
-        })
-        .sort((a, b) => {
-            // Prioritize by relevance and distance
-            if (userLocation) {
-                return a.distance - b.distance;
-            }
-            return 0;
-        })
-        .slice(0, 8); // Limit results for performance
-}
-
-// Enhance place data with additional information
-function enhancePlaceData(place, query) {
-    const placeType = getPlaceType(place);
-    const relevanceScore = calculateRelevanceScore(place, query);
-    
-    return {
-        ...place,
-        enhancedType: placeType,
-        relevanceScore: relevanceScore,
-        optimizedName: optimizePlaceName(place.display_name, query)
-    };
-}
-
-// Calculate relevance score for search results
-function calculateRelevanceScore(place, query) {
-    let score = 0;
-    const queryLower = query.toLowerCase();
-    const placeNameLower = place.display_name.toLowerCase();
-    
-    // Exact match bonus
-    if (placeNameLower.includes(queryLower)) {
-        score += 10;
-    }
-    
-    // Type relevance
-    const placeType = getPlaceType(place);
-    if (placeType !== 'place') {
-        score += 5;
-    }
-    
-    // Address component matches
-    if (place.address) {
-        if (place.address.road && place.address.road.toLowerCase().includes(queryLower)) score += 3;
-        if (place.address.house_number && place.address.house_number.toLowerCase().includes(queryLower)) score += 4;
-        if (place.address.building && place.address.building.toLowerCase().includes(queryLower)) score += 3;
-    }
-    
-    return score;
-}
-
-// Optimize place name for display
-function optimizePlaceName(displayName, query) {
-    const parts = displayName.split(',');
-    const queryLower = query.toLowerCase();
-    
-    // Find the part that contains the query
-    const relevantPartIndex = parts.findIndex(part => 
-        part.toLowerCase().includes(queryLower)
-    );
-    
-    if (relevantPartIndex !== -1) {
-        // Return context around the relevant part
-        const start = Math.max(0, relevantPartIndex - 1);
-        const end = Math.min(parts.length, relevantPartIndex + 2);
-        return parts.slice(start, end).join(',');
-    }
-    
-    // Fallback: first 3 parts
-    return parts.slice(0, 3).join(',');
-}
-
-// Display search results in the UI
-function displaySearchResults(results, query) {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.innerHTML = '';
-    destinationSearchResults = [];
-    
-    if (results.length === 0) {
-        suggestionsContainer.innerHTML = '<div class="no-places">No places found matching "' + query + '" in ' + currentCity + '</div>';
-        return;
-    }
-    
-    destinationSearchResults = results;
-    
-    results.forEach(result => {
-        const suggestionItem = createSuggestionItem(result, query);
-        suggestionsContainer.appendChild(suggestionItem);
-    });
-}
-
-// Create individual suggestion item
-function createSuggestionItem(result, query) {
-    const suggestionItem = document.createElement('div');
-    suggestionItem.className = 'suggestion-item';
-    
-    const placeIcon = getPlaceIcon(result.enhancedType);
-    const distanceText = userLocation ? `${(result.distance / 1000).toFixed(1)} km away` : '';
-    
-    suggestionItem.innerHTML = `
-        <div class="suggestion-icon">${placeIcon}</div>
-        <div class="suggestion-details">
-            <div class="suggestion-name">${extractPrimaryName(result.optimizedName)}</div>
-            <div class="suggestion-address">${extractAddressContext(result.optimizedName)}</div>
-            ${distanceText ? `<div class="suggestion-distance">${distanceText}</div>` : ''}
-        </div>
-    `;
-    
-    suggestionItem.addEventListener('click', function() {
-        selectSearchResult(result);
-    });
-    
-    return suggestionItem;
-}
-
-// Extract primary name from optimized place name
-function extractPrimaryName(optimizedName) {
-    const parts = optimizedName.split(',');
-    return parts[0].trim();
-}
-
-// Extract address context from optimized place name
-function extractAddressContext(optimizedName) {
-    const parts = optimizedName.split(',');
-    return parts.slice(1).join(',').trim();
-}
-
-// Handle search result selection
-function selectSearchResult(result) {
-    document.getElementById('destinationLocation').value = result.optimizedName;
-    hideDestinationSuggestions();
-    updateFareEstimate();
-    
-    updateDestinationMarker(
-        result.displayLat, 
-        result.displayLon, 
-        result.optimizedName
-    );
-    
-    drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
-    selectedDestination = result;
-    document.getElementById('requestRideBtn').disabled = false;
-}
-
-// Hide destination suggestions
-function hideDestinationSuggestions() {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.style.display = 'none';
-    
-    if (rapidSearchController) {
-        rapidSearchController.abort();
-    }
-}
-
 // Refresh home screen when returning to it
 function refreshHomeScreen() {
     if (navigator.geolocation) {
@@ -3227,7 +2775,7 @@ function refreshHomeScreen() {
             }
             
             updatePickupLocation(lat, lng);
-            determineCurrentCityWithPrecision(lat, lng);
+            determineCurrentCity(lat, lng);
             
             const destination = document.getElementById('destinationLocation').value;
             if (destination) {
@@ -3349,6 +2897,137 @@ function useSavedLocation(addressType) {
     }
 }
 
+// Search places in current city only with enhanced performance
+function searchPlacesInCurrentCity(query) {
+    if (!userLocation) {
+        showNotification('Please wait while we determine your location...');
+        return;
+    }
+    
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    
+    // Wait for city determination if not yet available
+    if (!currentCity) {
+        suggestionsContainer.innerHTML = '<div class="loading-text">Determining your location...</div>';
+        suggestionsContainer.style.display = 'block';
+        
+        determineCurrentCity(userLocation.lat, userLocation.lng)
+            .then(city => {
+                if (city && city !== "Unknown Location") {
+                    performCitySearch(query, city, suggestionsContainer);
+                } else {
+                    suggestionsContainer.innerHTML = '<div class="no-places">Unable to determine your location. Please try again.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Error determining city:', error);
+                suggestionsContainer.innerHTML = '<div class="no-places">Location service unavailable. Please try again.</div>';
+            });
+    } else {
+        performCitySearch(query, currentCity, suggestionsContainer);
+    }
+}
+
+// Perform the actual search within the determined city
+function performCitySearch(query, city, suggestionsContainer) {
+    suggestionsContainer.innerHTML = '<div class="loading-text">Searching places in ' + city + '...</div>';
+    suggestionsContainer.style.display = 'block';
+    
+    // Use multiple search strategies for better results
+    const searchPromises = [
+        // Primary search: query + city
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', ' + city)}&limit=8&countrycodes=zm`),
+        
+        // Secondary search: query only (in case city is too restrictive)
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=zm`),
+        
+        // Tertiary search: broader search around user location
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${userLocation.lng-0.1},${userLocation.lat-0.1},${userLocation.lng+0.1},${userLocation.lat+0.1}&bounded=1`)
+    ];
+    
+    // Use Promise.race to get the fastest response
+    Promise.race(searchPromises)
+        .then(response => response.json())
+        .then(data => {
+            suggestionsContainer.innerHTML = '';
+            destinationSearchResults = [];
+            
+            if (data && data.length > 0) {
+                const results = data
+                    .filter(place => place.display_name && place.lat && place.lon)
+                    .map(place => {
+                        const distance = calculateDistance(
+                            userLocation.lat, userLocation.lng,
+                            parseFloat(place.lat), parseFloat(place.lon)
+                        );
+                        
+                        return {
+                            ...place,
+                            displayLat: parseFloat(place.lat),
+                            displayLon: parseFloat(place.lon),
+                            distance
+                        };
+                    })
+                    .sort((a, b) => a.distance - b.distance)
+                    .slice(0, 8);
+                
+                if (results.length === 0) {
+                    suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + city + '</div>';
+                    return;
+                }
+                
+                destinationSearchResults = results;
+                
+                results.forEach(result => {
+                    const suggestionItem = document.createElement('div');
+                    suggestionItem.className = 'suggestion-item';
+                    
+                    const placeType = getPlaceType(result);
+                    const placeIcon = getPlaceIcon(placeType);
+                    
+                    let displayName = result.display_name;
+                    const nameParts = displayName.split(',');
+                    if (nameParts.length > 2) {
+                        displayName = nameParts.slice(0, 3).join(',');
+                    }
+                    
+                    suggestionItem.innerHTML = `
+                        <div class="suggestion-icon">${placeIcon}</div>
+                        <div class="suggestion-details">
+                            <div class="suggestion-name">${nameParts[0]}</div>
+                            <div class="suggestion-address">${nameParts.slice(1, 3).join(',')}</div>
+                            <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
+                        </div>
+                    `;
+                    
+                    suggestionItem.addEventListener('click', function() {
+                        document.getElementById('destinationLocation').value = result.display_name;
+                        suggestionsContainer.style.display = 'none';
+                        updateFareEstimate();
+                        
+                        updateDestinationMarker(
+                            result.displayLat, 
+                            result.displayLon, 
+                            result.display_name
+                        );
+                        
+                        drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
+                        selectedDestination = result;
+                        document.getElementById('requestRideBtn').disabled = false;
+                    });
+                    
+                    suggestionsContainer.appendChild(suggestionItem);
+                });
+            } else {
+                suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + city + '</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error searching places:', error);
+            suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
+        });
+}
+
 // Get place type from search result
 function getPlaceType(place) {
     if (place.type === 'restaurant' || place.class === 'amenity' && place.type === 'restaurant') {
@@ -3455,6 +3134,12 @@ function getPlaceIcon(placeType) {
     };
     
     return icons[placeType] || '📍';
+}
+
+// Hide destination suggestions
+function hideDestinationSuggestions() {
+    const suggestionsContainer = document.getElementById('destinationSuggestions');
+    suggestionsContainer.style.display = 'none';
 }
 
 // Forward geocoding function
@@ -4735,7 +4420,7 @@ function refreshPassengerPosition() {
             }
             
             updatePickupLocation(lat, lng);
-            determineCurrentCityWithPrecision(lat, lng);
+            determineCurrentCity(lat, lng);
             showNotification('Location refreshed');
         }, error => {
             console.error('Geolocation error:', error);
@@ -4784,6 +4469,7 @@ window.addEventListener('offline', function() {
     </script>
 </body>
 </html>
+
 
 
 
