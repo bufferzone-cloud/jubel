@@ -2169,601 +2169,187 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-      // Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
-    authDomain: "jubel-13e1a.firebaseapp.com",
-    databaseURL: "https://jubel-13e1a-default-rtdb.firebaseio.com",
-    projectId: "jubel-13e1a",
-    storageBucket: "jubel-13e1a.firebasestorage.app",
-    messagingSenderId: "882241095445",
-    appId: "1:882241095445:web:ee9ca40fddd008ca910b1c",
-    measurementId: "G-J5JPKL6B5F"
-};
+    // Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
+        authDomain: "jubel-13e1a.firebaseapp.com",
+        databaseURL: "https://jubel-13e1a-default-rtdb.firebaseio.com",
+        projectId: "jubel-13e1a",
+        storageBucket: "jubel-13e1a.firebasestorage.app",
+        messagingSenderId: "882241095445",
+        appId: "1:882241095445:web:ee9ca40fddd008ca910b1c",
+        measurementId: "G-J5JPKL6B5F"
+    };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-const auth = firebase.auth();
-
-// App state
-let currentUser = null;
-let currentRide = null;
-let passengerMap;
-let popupRideMap;
-let locationWatchId = null;
-let currentLocationMarker = null;
-let pickupMarker = null;
-let destinationMarker = null;
-let driverMarker = null;
-let routePolyline = null;
-let selectedVehicleType = 'car';
-let walletBalance = 0;
-let isDarkMode = false;
-let trafficLayer = null;
-let trafficEnabled = false;
-let mapType = 'standard';
-let userFullName = "Passenger";
-let driverAssignmentListener = null;
-let rideHistoryListener = null;
-let activeRideListener = null;
-let appliedPromoCode = null;
-let userStats = {
-    completed: 0,
-    cancelled: 0,
-    pending: 0
-};
-let paymentMethod = 'airtel';
-let userRating = 0;
-let userLocation = null;
-let destinationSearchResults = [];
-let selectedDestination = null;
-let driverLocationListener = null;
-let userData = null;
-let selectedPaymentType = 'wallet';
-let rideFare = 0;
-let currentCity = null;
-let packageDetails = null;
-let walletBalanceListener = null;
-let currentSearchTimeout = null;
-let cityDeterminationPromise = null;
-
-// Initialize the app
-document.addEventListener('DOMContentLoaded', function() {
-    initializeAuth();
-});
-
-// Authentication functions
-function initializeAuth() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const email = urlParams.get('email');
-    const uid = urlParams.get('uid');
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const auth = firebase.auth();
     
-    if (email && uid) {
-        loadUserData(uid);
-    } else {
-        auth.onAuthStateChanged(user => {
-            if (user) {
-                currentUser = user;
-                loadUserData(user.uid);
-            } else {
-                window.location.href = 'signup.html';
-            }
-        });
-    }
-}
-
-// Load user data from Firebase
-function loadUserData(uid) {
-    database.ref('users/' + uid).once('value')
-        .then(snapshot => {
-            userData = snapshot.val();
-            if (userData) {
-                currentUser = {
-                    uid: uid,
-                    email: userData.email,
-                    displayName: userData.name
-                };
-                
-                initializeMap();
-                setupEventListeners();
-                loadPassengerData();
-                
-                document.getElementById('accountName').textContent = userData.name || 'Passenger';
-                document.getElementById('accountEmail').textContent = userData.email || 'Not set';
-                document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
-                document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
-                
-                walletBalance = userData.walletBalance || 0;
-                updateWalletBalanceUI();
-                
-                setupWalletBalanceListener(uid);
-                
-                showNotification('Welcome back to Jubel!');
-            } else {
-                showNotification('User data not found. Please sign up again.');
-                setTimeout(() => {
-                    window.location.href = 'signup.html';
-                }, 2000);
-            }
-        })
-        .catch(error => {
-            console.error('Error loading user data:', error);
-            showNotification('Error loading user data. Please try again.');
-        });
-}
-
-// Set up real-time wallet balance listener
-function setupWalletBalanceListener(uid) {
-    if (walletBalanceListener) {
-        walletBalanceListener();
-    }
+    // App state
+    let currentUser = null;
+    let currentRide = null;
+    let passengerMap;
+    let popupRideMap;
+    let locationWatchId = null;
+    let currentLocationMarker = null;
+    let pickupMarker = null;
+    let destinationMarker = null;
+    let driverMarker = null;
+    let routePolyline = null;
+    let selectedVehicleType = 'car';
+    let walletBalance = 0;
+    let isDarkMode = false;
+    let trafficLayer = null;
+    let trafficEnabled = false;
+    let mapType = 'standard';
+    let userFullName = "Passenger";
+    let driverAssignmentListener = null;
+    let rideHistoryListener = null;
+    let activeRideListener = null;
+    let appliedPromoCode = null;
+    let userStats = {
+        completed: 0,
+        cancelled: 0,
+        pending: 0
+    };
+    let paymentMethod = 'airtel';
+    let userRating = 0;
+    let userLocation = null;
+    let destinationSearchResults = [];
+    let selectedDestination = null;
+    let driverLocationListener = null;
+    let userData = null;
+    let selectedPaymentType = 'wallet';
+    let rideFare = 0;
+    let currentCity = "Lusaka";
+    let packageDetails = null;
+    let walletBalanceListener = null;
+    let currentCityData = null;
+    let cityDeterminationInProgress = false;
+    let reverseGeocodingCache = new Map();
+    let placeSearchCache = new Map();
+    let searchTimeout = null;
     
-    walletBalanceListener = database.ref('users/' + uid + '/walletBalance').on('value', snapshot => {
-        if (snapshot.exists()) {
-            walletBalance = snapshot.val() || 0;
-            updateWalletBalanceUI();
-            showNotification('Wallet balance updated!');
-        }
+    // Initialize the app
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeAuth();
     });
-}
-
-// Update wallet balance in all UI elements
-function updateWalletBalanceUI() {
-    document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
-    document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
-    document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
-}
-
-// Map initialization
-function initializeMap() {
-    passengerMap = L.map('map').setView([-15.4167, 28.2833], 13);
     
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(passengerMap);
-    
-    popupRideMap = L.map('popupRideMap').setView([-15.4167, 28.2833], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(popupRideMap);
-    
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(position => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            userLocation = { lat, lng };
-            
-            passengerMap.setView([lat, lng], 15);
-            popupRideMap.setView([lat, lng], 15);
-            
-            currentLocationMarker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: 'current-location-marker',
-                    html: '<div class="current-location-marker"><i class="fas fa-user"></i></div>',
-                    iconSize: [20, 20]
-                })
-            }).addTo(passengerMap)
-                .bindPopup('Your location')
-                .openPopup();
-                
-            updatePickupLocation(lat, lng);
-            determineCurrentCity(lat, lng);
-            startLocationTracking();
-        }, error => {
-            console.error('Geolocation error:', error);
-            showNotification('Unable to get your location. Please enable location services.');
-        });
-    }
-}
-
-// Determine current city based on coordinates with enhanced accuracy and caching
-function determineCurrentCity(lat, lng) {
-    // If we already have a city determination in progress, return that promise
-    if (cityDeterminationPromise) {
-        return cityDeterminationPromise;
-    }
-    
-    cityDeterminationPromise = new Promise((resolve, reject) => {
-        // Try multiple reverse geocoding services for better accuracy
-        const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`;
+    // Authentication functions
+    function initializeAuth() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email');
+        const uid = urlParams.get('uid');
         
-        fetch(nominatimUrl)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.address) {
-                    // Try multiple possible city/town field names with priority
-                    const city = data.address.city || 
-                                data.address.town || 
-                                data.address.municipality ||
-                                data.address.village || 
-                                data.address.county || 
-                                data.address.state_district ||
-                                data.address.region;
-                    
-                    if (city) {
-                        currentCity = city;
-                        console.log("Current city determined as:", currentCity);
-                        resolve(currentCity);
-                        return;
-                    }
-                }
-                
-                // Fallback to a second geocoding service if needed
-                const locationiqUrl = `https://us1.locationiq.com/v1/reverse.php?key=pk.test&format=json&lat=${lat}&lon=${lng}`;
-                fetch(locationiqUrl)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data && data.address) {
-                            const city = data.address.city || 
-                                        data.address.town || 
-                                        data.address.village ||
-                                        data.address.county;
-                            
-                            if (city) {
-                                currentCity = city;
-                                console.log("Current city determined via fallback as:", currentCity);
-                                resolve(currentCity);
-                                return;
-                            }
-                        }
-                        
-                        // Final fallback
-                        currentCity = "Unknown Location";
-                        console.log("Could not determine city, using fallback");
-                        resolve(currentCity);
-                    })
-                    .catch(error => {
-                        console.error('Error with fallback geocoding:', error);
-                        currentCity = "Unknown Location";
-                        resolve(currentCity);
-                    });
-            })
-            .catch(error => {
-                console.error('Error determining city:', error);
-                currentCity = "Unknown Location";
-                resolve(currentCity);
-            });
-    });
-    
-    return cityDeterminationPromise;
-}
-
-// Start continuous location tracking
-function startLocationTracking() {
-    if (navigator.geolocation && currentUser) {
-        navigator.geolocation.watchPosition(position => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            userLocation = { lat, lng };
-            
-            database.ref('passengerLocations/' + currentUser.uid).set({
-                latitude: lat,
-                longitude: lng,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
-            });
-            
-            if (currentLocationMarker) {
-                currentLocationMarker.setLatLng([lat, lng]);
-            }
-            
-            if (destinationMarker) {
-                const destination = document.getElementById('destinationLocation').value;
-                if (destination) {
-                    updateFareEstimate();
-                }
-            }
-        }, error => {
-            console.error('Location tracking error:', error);
-        }, {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 30000
-        });
-    }
-}
-
-// Update pickup location with precise address (house number, road, area only)
-function updatePickupLocation(lat, lng) {
-    if (pickupMarker) {
-        passengerMap.removeLayer(pickupMarker);
-    }
-    
-    pickupMarker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            className: 'pickup-marker',
-            html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
-            iconSize: [25, 25]
-        })
-    }).addTo(passengerMap)
-        .bindPopup('Pickup Location');
-        
-    getPreciseAddress(lat, lng, 'pickupLocation');
-}
-
-// Get precise address (house number, road, area only) for display
-function getPreciseAddress(lat, lng, elementId) {
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
-        .then(response => response.json())
-        .then(data => {
-            if (data && data.address) {
-                let preciseAddress = '';
-                
-                // Try multiple possible field names for house number/plot number
-                const houseNumber = data.address.house_number || 
-                                  data.address.housenumber || 
-                                  data.address['addr:housenumber'] ||
-                                  data.address.plot_number ||
-                                  data.address.plot_number ||
-                                  data.address.number;
-                
-                // Try multiple possible field names for road
-                const road = data.address.road || 
-                           data.address.street || 
-                           data.address.street_name ||
-                           data.address.residential ||
-                           data.address.footway;
-                
-                // Try multiple possible field names for area/suburb
-                const suburb = data.address.suburb || 
-                             data.address.neighbourhood || 
-                             data.address.residential ||
-                             data.address.quarter;
-                
-                // Try additional area identifiers
-                const cityBlock = data.address.city_block || 
-                                data.address.block ||
-                                data.address.place;
-                
-                // Build the address in the format: HouseNumber Road, Area
-                if (houseNumber && road) {
-                    preciseAddress = `${houseNumber} ${road}`;
-                } else if (road) {
-                    preciseAddress = road;
-                } else if (houseNumber) {
-                    preciseAddress = houseNumber;
-                }
-                
-                // Add area information
-                if (suburb) {
-                    preciseAddress += preciseAddress ? `, ${suburb}` : suburb;
-                } else if (cityBlock) {
-                    preciseAddress += preciseAddress ? `, ${cityBlock}` : cityBlock;
-                }
-                
-                // Fallback: if we still don't have a good address, try to extract from display_name
-                if (!preciseAddress && data.display_name) {
-                    const parts = data.display_name.split(',');
-                    // Take the first 2-3 parts which usually contain the most specific location
-                    preciseAddress = parts.slice(0, Math.min(3, parts.length)).join(', ');
-                }
-                
-                // Final fallback
-                if (!preciseAddress) {
-                    // Try to get any building or place name
-                    const building = data.address.building || 
-                                   data.address.place || 
-                                   data.address.amenity ||
-                                   data.address.shop;
-                    if (building) {
-                        preciseAddress = building;
-                    }
-                }
-                
-                document.getElementById(elementId).value = preciseAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-                
-                // Debug log to see what address components are available
-                console.log('Available address components:', data.address);
-                console.log('House number found:', houseNumber);
-                console.log('Road found:', road);
-                console.log('Suburb found:', suburb);
-                
-            } else {
-                document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-            }
-        })
-        .catch(error => {
-            console.error('Reverse geocoding error:', error);
-            document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        });
-}
-
-// Get full address including city, province, country for ride request
-function getFullAddress(lat, lng) {
-    return new Promise((resolve) => {
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`)
-            .then(response => response.json())
-            .then(data => {
-                if (data && data.display_name) {
-                    resolve(data.display_name);
-                } else {
-                    resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-                }
-            })
-            .catch(error => {
-                console.error('Full address geocoding error:', error);
-                resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-            });
-    });
-}
-
-// Event listeners setup
-function setupEventListeners() {
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const screen = this.getAttribute('data-screen');
-            switchScreen(screen);
-        });
-    });
-    
-    document.querySelectorAll('.back-button').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const screen = this.getAttribute('data-screen');
-            switchScreen(screen);
-            if (screen === 'home') {
-                refreshHomeScreen();
-            }
-        });
-    });
-    
-    document.querySelectorAll('.vehicle-option').forEach(option => {
-        option.addEventListener('click', function() {
-            document.querySelectorAll('.vehicle-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            
-            this.classList.add('selected');
-            selectedVehicleType = this.getAttribute('data-type');
-            
-            if (selectedVehicleType === 'bike' || selectedVehicleType === 'bicycle') {
-                document.getElementById('packageToggle').style.display = 'flex';
-            } else {
-                document.getElementById('packageToggle').style.display = 'none';
-                document.getElementById('packageForm').classList.remove('active');
-            }
-            
-            updateFareEstimate();
-        });
-    });
-    
-    document.getElementById('packageToggle').addEventListener('click', function() {
-        document.getElementById('packageForm').classList.toggle('active');
-    });
-    
-    document.querySelectorAll('.payment-method').forEach(option => {
-        option.addEventListener('click', function() {
-            document.querySelectorAll('.payment-method').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            this.classList.add('selected');
-            paymentMethod = this.getAttribute('data-method');
-        });
-    });
-    
-    document.querySelectorAll('.payment-option').forEach(option => {
-        option.addEventListener('click', function() {
-            document.querySelectorAll('.payment-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            selectedPaymentType = this.getAttribute('data-payment-type');
-            
-            if (selectedPaymentType === 'wallet') {
-                if (walletBalance < rideFare) {
-                    document.getElementById('insufficientBalance').style.display = 'block';
-                    document.getElementById('confirmPaymentBtn').disabled = true;
-                } else {
-                    document.getElementById('insufficientBalance').style.display = 'none';
-                    document.getElementById('confirmPaymentBtn').disabled = false;
-                }
-            } else {
-                document.getElementById('insufficientBalance').style.display = 'none';
-                document.getElementById('confirmPaymentBtn').disabled = false;
-            }
-        });
-    });
-    
-    document.getElementById('requestRideBtn').addEventListener('click', showPaymentSelection);
-    document.getElementById('confirmPaymentBtn').addEventListener('click', requestRide);
-    document.getElementById('closePaymentPopup').addEventListener('click', closePaymentSelection);
-    document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
-    document.getElementById('contactDriverBtn').addEventListener('click', contactDriver);
-    
-    document.getElementById('promoToggle').addEventListener('click', function() {
-        document.getElementById('promoSection').classList.toggle('active');
-    });
-    
-    document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
-    document.getElementById('shareReferralBtn').addEventListener('click', shareReferralCode);
-    document.getElementById('depositBtn').addEventListener('click', depositToWallet);
-    document.getElementById('withdrawBtn').addEventListener('click', withdrawFromWallet);
-    document.getElementById('whatsappBtn').addEventListener('click', contactWhatsApp);
-    document.getElementById('callBtn').addEventListener('click', contactPhone);
-    document.getElementById('addPaymentMethodBtn').addEventListener('click', addPaymentMethod);
-    
-    document.getElementById('centerMapBtn').addEventListener('click', centerMap);
-    document.getElementById('refreshLocationBtn').addEventListener('click', refreshPassengerPosition);
-    document.getElementById('toggleTrafficBtn').addEventListener('click', toggleTraffic);
-    
-    document.getElementById('zoomInBtn').addEventListener('click', () => passengerMap.zoomIn());
-    document.getElementById('zoomOutBtn').addEventListener('click', () => passengerMap.zoomOut());
-    document.getElementById('mapTypeBtn').addEventListener('click', toggleMapType);
-    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
-    document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
-    
-    document.getElementById('destinationLocation').addEventListener('input', function() {
-        const query = this.value;
-        updateFareEstimate();
-        
-        if (currentSearchTimeout) {
-            clearTimeout(currentSearchTimeout);
-        }
-        
-        if (query.length >= 2) {
-            currentSearchTimeout = setTimeout(() => {
-                searchPlacesInCurrentCity(query);
-            }, 300);
+        if (email && uid) {
+            loadUserData(uid);
         } else {
-            hideDestinationSuggestions();
+            auth.onAuthStateChanged(user => {
+                if (user) {
+                    currentUser = user;
+                    loadUserData(user.uid);
+                } else {
+                    window.location.href = 'signup.html';
+                }
+            });
         }
-    });
+    }
     
-    document.getElementById('destinationLocation').addEventListener('focus', function() {
-        const query = this.value;
-        if (query.length >= 2) {
-            searchPlacesInCurrentCity(query);
+    // Load user data from Firebase
+    function loadUserData(uid) {
+        database.ref('users/' + uid).once('value')
+            .then(snapshot => {
+                userData = snapshot.val();
+                if (userData) {
+                    currentUser = {
+                        uid: uid,
+                        email: userData.email,
+                        displayName: userData.name
+                    };
+                    
+                    initializeMap();
+                    setupEventListeners();
+                    loadPassengerData();
+                    
+                    document.getElementById('accountName').textContent = userData.name || 'Passenger';
+                    document.getElementById('accountEmail').textContent = userData.email || 'Not set';
+                    document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
+                    document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
+                    
+                    walletBalance = userData.walletBalance || 0;
+                    updateWalletBalanceUI();
+                    
+                    setupWalletBalanceListener(uid);
+                    
+                    showNotification('Welcome back to Jubel!');
+                } else {
+                    showNotification('User data not found. Please sign up again.');
+                    setTimeout(() => {
+                        window.location.href = 'signup.html';
+                    }, 2000);
+                }
+            })
+            .catch(error => {
+                console.error('Error loading user data:', error);
+                showNotification('Error loading user data. Please try again.');
+            });
+    }
+    
+    // Set up real-time wallet balance listener
+    function setupWalletBalanceListener(uid) {
+        if (walletBalanceListener) {
+            walletBalanceListener();
         }
-    });
-    
-    document.addEventListener('click', function(e) {
-        if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
-            hideDestinationSuggestions();
-        }
-    });
-    
-    document.querySelectorAll('.saved-location-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const addressType = this.getAttribute('data-address');
-            useSavedLocation(addressType);
-        });
-    });
-    
-    document.getElementById('historyFilter').addEventListener('change', loadRideHistory);
-    document.getElementById('historyDate').addEventListener('change', loadRideHistory);
-    
-    document.addEventListener('click', function(e) {
-        if (e.target.closest('.history-item')) {
-            const historyItem = e.target.closest('.history-item');
-            const rideId = historyItem.getAttribute('data-ride-id');
-            if (rideId) {
-                showRideDetailsPopup(rideId);
+        
+        walletBalanceListener = database.ref('users/' + uid + '/walletBalance').on('value', snapshot => {
+            if (snapshot.exists()) {
+                const newBalance = snapshot.val() || 0;
+                if (newBalance !== walletBalance) {
+                    const oldBalance = walletBalance;
+                    walletBalance = newBalance;
+                    updateWalletBalanceUI();
+                    console.log('Wallet balance updated in real-time: K' + walletBalance.toFixed(2));
+                    
+                    if (newBalance > oldBalance) {
+                        showNotification('Wallet balance updated! New balance: K' + newBalance.toFixed(2));
+                    }
+                }
             }
-        }
-    });
-    
-    document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
-    document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
-    
-    document.querySelectorAll('.star').forEach(star => {
-        star.addEventListener('click', function() {
-            const rating = parseInt(this.getAttribute('data-rating'));
-            setRating(rating);
+        }, error => {
+            console.error('Error listening to wallet balance:', error);
         });
-    });
-}
-
-// Refresh home screen when returning to it
-function refreshHomeScreen() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(position => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            userLocation = { lat, lng };
-            
-            passengerMap.setView([lat, lng], 15);
-            
-            if (currentLocationMarker) {
-                currentLocationMarker.setLatLng([lat, lng]);
-            } else {
+    }
+    
+    // Update wallet balance in all UI elements
+    function updateWalletBalanceUI() {
+        document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
+        document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+        document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
+    }
+    
+    // Map initialization
+    function initializeMap() {
+        passengerMap = L.map('map').setView([-15.4167, 28.2833], 13);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(passengerMap);
+        
+        popupRideMap = L.map('popupRideMap').setView([-15.4167, 28.2833], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(popupRideMap);
+        
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                userLocation = { lat, lng };
+                
+                passengerMap.setView([lat, lng], 15);
+                popupRideMap.setView([lat, lng], 15);
+                
                 currentLocationMarker = L.marker([lat, lng], {
                     icon: L.divIcon({
                         className: 'current-location-marker',
@@ -2771,428 +2357,653 @@ function refreshHomeScreen() {
                         iconSize: [20, 20]
                     })
                 }).addTo(passengerMap)
-                    .bindPopup('Your location');
-            }
-            
-            updatePickupLocation(lat, lng);
-            determineCurrentCity(lat, lng);
-            
-            const destination = document.getElementById('destinationLocation').value;
-            if (destination) {
-                updateFareEstimate();
-            }
-        }, error => {
-            console.error('Geolocation error:', error);
-        });
-    }
-}
-
-// Switch between screens
-function switchScreen(screenId) {
-    document.querySelectorAll('.screen-content').forEach(screen => {
-        screen.classList.remove('active');
-    });
-    
-    document.getElementById(screenId + 'Screen').classList.add('active');
-    
-    document.querySelectorAll('.nav-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
-    
-    if (screenId === 'home') {
-        document.querySelectorAll('.home-only').forEach(el => {
-            el.style.display = 'flex';
-        });
-    } else {
-        document.querySelectorAll('.home-only').forEach(el => {
-            el.style.display = 'none';
-        });
-    }
-    
-    if (screenId === 'history') {
-        loadRideHistory();
-    } else if (screenId === 'account') {
-        loadAccountData();
-    }
-}
-
-// Toggle panel collapse
-function togglePanelCollapse() {
-    const panel = document.getElementById('passengerPanel');
-    panel.classList.toggle('collapsed');
-}
-
-// Toggle map type
-function toggleMapType() {
-    passengerMap.eachLayer(layer => {
-        if (layer instanceof L.TileLayer) {
-            passengerMap.removeLayer(layer);
-        }
-    });
-    
-    if (mapType === 'standard') {
-        L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenTopoMap contributors'
-        }).addTo(passengerMap);
-        mapType = 'satellite';
-        showNotification('Switched to satellite view');
-    } else {
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(passengerMap);
-        mapType = 'standard';
-        showNotification('Switched to standard view');
-    }
-}
-
-// Toggle dark mode
-function toggleDarkMode() {
-    isDarkMode = !isDarkMode;
-    const body = document.body;
-    const darkModeToggle = document.getElementById('darkModeToggle');
-    
-    if (isDarkMode) {
-        body.style.backgroundColor = '#1a1a1a';
-        body.style.color = '#ffffff';
-        darkModeToggle.innerHTML = '<i class="fas fa-sun"></i>';
-        darkModeToggle.style.background = '#333';
-        darkModeToggle.style.color = '#ffcc00';
-        showNotification('Dark mode enabled');
-    } else {
-        body.style.backgroundColor = '';
-        body.style.color = '';
-        darkModeToggle.innerHTML = '<i class="fas fa-moon"></i>';
-        darkModeToggle.style.background = '';
-        darkModeToggle.style.color = '';
-        showNotification('Dark mode disabled');
-    }
-}
-
-// Use saved location
-function useSavedLocation(addressType) {
-    if (userData) {
-        const address = userData[addressType + 'Address'];
-        
-        if (address) {
-            document.getElementById('destinationLocation').value = address;
-            updateFareEstimate();
-            showNotification(`${addressType.charAt(0).toUpperCase() + addressType.slice(1)} address set as destination.`);
-            
-            forwardGeocode(address).then(results => {
-                if (results.length > 0) {
-                    updateDestinationMarker(
-                        parseFloat(results[0].lat),
-                        parseFloat(results[0].lon),
-                        address
-                    );
+                    .bindPopup('Your location')
+                    .openPopup();
                     
-                    drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
-                    document.getElementById('requestRideBtn').disabled = false;
-                }
+                updatePickupLocation(lat, lng);
+                determineCurrentCityWithPrecision(lat, lng);
+                startLocationTracking();
+            }, error => {
+                console.error('Geolocation error:', error);
+                showNotification('Unable to get your location. Please enable location services.');
             });
-        } else {
-            showNotification(`No ${addressType} address saved. Please add it in settings.`);
         }
     }
-}
-
-// Search places in current city only with enhanced performance
-function searchPlacesInCurrentCity(query) {
-    if (!userLocation) {
-        showNotification('Please wait while we determine your location...');
-        return;
+    
+    // Refresh map and location when returning to home screen
+    function refreshHomeScreen() {
+        console.log('Refreshing home screen...');
+        
+        refreshPassengerPosition();
+        
+        document.getElementById('destinationLocation').value = '';
+        if (destinationMarker) {
+            passengerMap.removeLayer(destinationMarker);
+            destinationMarker = null;
+        }
+        if (routePolyline) {
+            passengerMap.removeLayer(routePolyline);
+            routePolyline = null;
+        }
+        
+        document.getElementById('estimatedFare').textContent = 'K0.00';
+        document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+        document.getElementById('requestRideBtn').disabled = true;
+        
+        document.getElementById('rideRequestForm').style.display = 'flex';
+        document.getElementById('rideInfoPanel').style.display = 'none';
+        document.getElementById('driverDetailsCard').style.display = 'none';
+        
+        document.getElementById('rideStatus').style.display = 'none';
+        document.getElementById('estimatedTime').style.display = 'none';
+        
+        if (driverMarker) {
+            passengerMap.removeLayer(driverMarker);
+            driverMarker = null;
+        }
+        
+        if (currentLocationMarker) {
+            const passengerLatLng = currentLocationMarker.getLatLng();
+            passengerMap.setView(passengerLatLng, 15);
+        }
+        
+        appliedPromoCode = null;
+        document.getElementById('promoCode').value = '';
+        document.getElementById('promoCode').style.borderColor = '';
+        document.getElementById('applyPromoBtn').innerHTML = 'Apply';
+        document.getElementById('applyPromoBtn').classList.remove('btn-success');
+        document.getElementById('applyPromoBtn').classList.add('btn-promo');
+        document.getElementById('promoSection').classList.remove('active');
+        
+        document.getElementById('packageForm').classList.remove('active');
+        document.getElementById('packageToggle').style.display = 'none';
+        
+        console.log('Home screen refreshed successfully');
     }
     
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    
-    // Wait for city determination if not yet available
-    if (!currentCity) {
-        suggestionsContainer.innerHTML = '<div class="loading-text">Determining your location...</div>';
-        suggestionsContainer.style.display = 'block';
+    // Determine current city based on coordinates with high precision
+    function determineCurrentCityWithPrecision(lat, lng) {
+        if (cityDeterminationInProgress) return;
         
-        determineCurrentCity(userLocation.lat, userLocation.lng)
-            .then(city => {
-                if (city && city !== "Unknown Location") {
-                    performCitySearch(query, city, suggestionsContainer);
+        cityDeterminationInProgress = true;
+        console.log('Determining current city with precision...');
+        
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.address) {
+                    const locality = data.address.city || 
+                                   data.address.town || 
+                                   data.address.village || 
+                                   data.address.municipality || 
+                                   data.address.county ||
+                                   data.address.state_district ||
+                                   "Lusaka";
+                    
+                    currentCity = locality;
+                    currentCityData = data.address;
+                    
+                    console.log("Current city determined as:", currentCity);
+                    console.log("Full address data:", data.address);
+                    
+                    updatePickupLocationWithPrecision(lat, lng, data);
                 } else {
-                    suggestionsContainer.innerHTML = '<div class="no-places">Unable to determine your location. Please try again.</div>';
+                    console.warn('Could not determine city from location data');
+                    currentCity = "Lusaka";
                 }
+                cityDeterminationInProgress = false;
             })
             .catch(error => {
-                console.error('Error determining city:', error);
-                suggestionsContainer.innerHTML = '<div class="no-places">Location service unavailable. Please try again.</div>';
+                console.error('Error determining city with precision:', error);
+                currentCity = "Lusaka";
+                cityDeterminationInProgress = false;
+                determineCurrentCity(lat, lng);
             });
-    } else {
-        performCitySearch(query, currentCity, suggestionsContainer);
     }
-}
-
-// Perform the actual search within the determined city
-function performCitySearch(query, city, suggestionsContainer) {
-    suggestionsContainer.innerHTML = '<div class="loading-text">Searching places in ' + city + '...</div>';
-    suggestionsContainer.style.display = 'block';
     
-    // Use multiple search strategies for better results
-    const searchPromises = [
-        // Primary search: query + city
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', ' + city)}&limit=8&countrycodes=zm`),
+    // Update pickup location with precise address information
+    function updatePickupLocationWithPrecision(lat, lng, geocodeData) {
+        const address = geocodeData.address;
+        let preciseAddress = '';
         
-        // Secondary search: query only (in case city is too restrictive)
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=zm`),
+        if (address.house_number || address.housenumber) {
+            preciseAddress += (address.house_number || address.housenumber) + ' ';
+        }
+        if (address.road) {
+            preciseAddress += address.road;
+        }
+        if (address.suburb || address.neighbourhood) {
+            if (preciseAddress) preciseAddress += ', ';
+            preciseAddress += address.suburb || address.neighbourhood;
+        }
+        if (address.quarter) {
+            if (preciseAddress) preciseAddress += ', ';
+            preciseAddress += address.quarter;
+        }
         
-        // Tertiary search: broader search around user location
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${userLocation.lng-0.1},${userLocation.lat-0.1},${userLocation.lng+0.1},${userLocation.lat+0.1}&bounded=1`)
-    ];
-    
-    // Use Promise.race to get the fastest response
-    Promise.race(searchPromises)
-        .then(response => response.json())
-        .then(data => {
-            suggestionsContainer.innerHTML = '';
-            destinationSearchResults = [];
-            
-            if (data && data.length > 0) {
-                const results = data
-                    .filter(place => place.display_name && place.lat && place.lon)
-                    .map(place => {
-                        const distance = calculateDistance(
-                            userLocation.lat, userLocation.lng,
-                            parseFloat(place.lat), parseFloat(place.lon)
-                        );
-                        
-                        return {
-                            ...place,
-                            displayLat: parseFloat(place.lat),
-                            displayLon: parseFloat(place.lon),
-                            distance
-                        };
-                    })
-                    .sort((a, b) => a.distance - b.distance)
-                    .slice(0, 8);
-                
-                if (results.length === 0) {
-                    suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + city + '</div>';
-                    return;
-                }
-                
-                destinationSearchResults = results;
-                
-                results.forEach(result => {
-                    const suggestionItem = document.createElement('div');
-                    suggestionItem.className = 'suggestion-item';
-                    
-                    const placeType = getPlaceType(result);
-                    const placeIcon = getPlaceIcon(placeType);
-                    
-                    let displayName = result.display_name;
-                    const nameParts = displayName.split(',');
-                    if (nameParts.length > 2) {
-                        displayName = nameParts.slice(0, 3).join(',');
-                    }
-                    
-                    suggestionItem.innerHTML = `
-                        <div class="suggestion-icon">${placeIcon}</div>
-                        <div class="suggestion-details">
-                            <div class="suggestion-name">${nameParts[0]}</div>
-                            <div class="suggestion-address">${nameParts.slice(1, 3).join(',')}</div>
-                            <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
-                        </div>
-                    `;
-                    
-                    suggestionItem.addEventListener('click', function() {
-                        document.getElementById('destinationLocation').value = result.display_name;
-                        suggestionsContainer.style.display = 'none';
-                        updateFareEstimate();
-                        
-                        updateDestinationMarker(
-                            result.displayLat, 
-                            result.displayLon, 
-                            result.display_name
-                        );
-                        
-                        drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
-                        selectedDestination = result;
-                        document.getElementById('requestRideBtn').disabled = false;
-                    });
-                    
-                    suggestionsContainer.appendChild(suggestionItem);
-                });
-            } else {
-                suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search in ' + city + '</div>';
-            }
-        })
-        .catch(error => {
-            console.error('Error searching places:', error);
-            suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
-        });
-}
-
-// Get place type from search result
-function getPlaceType(place) {
-    if (place.type === 'restaurant' || place.class === 'amenity' && place.type === 'restaurant') {
-        return 'restaurant';
-    } else if (place.type === 'cafe' || place.class === 'amenity' && place.type === 'cafe') {
-        return 'cafe';
-    } else if (place.type === 'bar' || place.class === 'amenity' && place.type === 'bar') {
-        return 'bar';
-    } else if (place.type === 'pub' || place.class === 'amenity' && place.type === 'pub') {
-        return 'pub';
-    } else if (place.type === 'fast_food' || place.class === 'amenity' && place.type === 'fast_food') {
-        return 'fast_food';
-    } else if (place.type === 'bank' || place.class === 'amenity' && place.type === 'bank') {
-        return 'bank';
-    } else if (place.type === 'atm' || place.class === 'amenity' && place.type === 'atm') {
-        return 'atm';
-    } else if (place.type === 'hospital' || place.class === 'amenity' && place.type === 'hospital') {
-        return 'hospital';
-    } else if (place.type === 'pharmacy' || place.class === 'amenity' && place.type === 'pharmacy') {
-        return 'pharmacy';
-    } else if (place.type === 'school' || place.class === 'amenity' && place.type === 'school') {
-        return 'school';
-    } else if (place.type === 'university' || place.class === 'amenity' && place.type === 'university') {
-        return 'university';
-    } else if (place.type === 'library' || place.class === 'amenity' && place.type === 'library') {
-        return 'library';
-    } else if (place.type === 'cinema' || place.class === 'amenity' && place.type === 'cinema') {
-        return 'cinema';
-    } else if (place.type === 'theatre' || place.class === 'amenity' && place.type === 'theatre') {
-        return 'theatre';
-    } else if (place.type === 'museum' || place.class === 'amenity' && place.type === 'museum') {
-        return 'museum';
-    } else if (place.type === 'hotel' || place.class === 'tourism' && place.type === 'hotel') {
-        return 'hotel';
-    } else if (place.type === 'supermarket' || place.class === 'shop' && place.type === 'supermarket') {
-        return 'supermarket';
-    } else if (place.type === 'mall' || place.class === 'shop' && place.type === 'mall') {
-        return 'mall';
-    } else if (place.type === 'clothes' || place.class === 'shop' && place.type === 'clothes') {
-        return 'clothes';
-    } else if (place.type === 'fuel' || place.class === 'amenity' && place.type === 'fuel') {
-        return 'fuel';
-    } else if (place.type === 'parking' || place.class === 'amenity' && place.type === 'parking') {
-        return 'parking';
-    } else if (place.type === 'bus_station' || place.class === 'amenity' && place.type === 'bus_station') {
-        return 'bus_station';
-    } else if (place.type === 'taxi' || place.class === 'amenity' && place.type === 'taxi') {
-        return 'taxi';
-    } else if (place.type === 'police' || place.class === 'amenity' && place.type === 'police') {
-        return 'police';
-    } else if (place.type === 'market' || place.class === 'amenity' && place.type === 'marketplace') {
-        return 'market';
-    } else if (place.type === 'post_office' || place.class === 'amenity' && place.type === 'post_office') {
-        return 'post_office';
-    } else if (place.type === 'place_of_worship' || place.class === 'amenity' && place.type === 'place_of_worship') {
-        return 'place_of_worship';
-    } else if (place.type === 'stadium' || place.class === 'leisure' && place.type === 'stadium') {
-        return 'stadium';
-    } else if (place.type === 'park' || place.class === 'leisure' && place.type === 'park') {
-        return 'park';
-    } else if (place.type === 'monument' || place.class === 'historic' && place.type === 'monument') {
-        return 'monument';
-    } else if (place.type === 'castle' || place.class === 'historic' && place.type === 'castle') {
-        return 'castle';
-    } else {
-        return 'place';
+        if (!preciseAddress && geocodeData.display_name) {
+            preciseAddress = geocodeData.display_name
+                .split(',')
+                .slice(0, -2)
+                .join(',')
+                .trim();
+        }
+        
+        if (!preciseAddress) {
+            preciseAddress = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        }
+        
+        document.getElementById('pickupLocation').value = preciseAddress;
+        console.log('Precise pickup location set:', preciseAddress);
     }
-}
-
-// Get icon for place type
-function getPlaceIcon(placeType) {
-    const icons = {
-        'restaurant': '🍽️',
-        'cafe': '☕',
-        'bar': '🍺',
-        'pub': '🍻',
-        'fast_food': '🍔',
-        'bank': '🏦',
-        'atm': '💳',
-        'hospital': '🏥',
-        'pharmacy': '💊',
-        'school': '🏫',
-        'university': '🎓',
-        'library': '📚',
-        'cinema': '🎬',
-        'theatre': '🎭',
-        'museum': '🏛️',
-        'hotel': '🏨',
-        'supermarket': '🛒',
-        'mall': '🏪',
-        'clothes': '👕',
-        'fuel': '⛽',
-        'parking': '🅿️',
-        'bus_station': '🚌',
-        'taxi': '🚕',
-        'police': '👮',
-        'market': '🛍️',
-        'post_office': '📮',
-        'place_of_worship': '🛐',
-        'stadium': '🏟️',
-        'park': '🏞️',
-        'monument': '🗽',
-        'castle': '🏰'
-    };
     
-    return icons[placeType] || '📍';
-}
-
-// Hide destination suggestions
-function hideDestinationSuggestions() {
-    const suggestionsContainer = document.getElementById('destinationSuggestions');
-    suggestionsContainer.style.display = 'none';
-}
-
-// Forward geocoding function
-function forwardGeocode(query) {
-    return new Promise(resolve => {
-        if (!userLocation) {
-            resolve([]);
+    // Enhanced reverse geocoding for precise pickup location
+    function updatePickupLocation(lat, lng) {
+        const cacheKey = `${lat.toFixed(6)},${lng.toFixed(6)}`;
+        if (reverseGeocodingCache.has(cacheKey)) {
+            const cachedAddress = reverseGeocodingCache.get(cacheKey);
+            document.getElementById('pickupLocation').value = cachedAddress;
             return;
         }
         
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`)
+        if (pickupMarker) {
+            passengerMap.removeLayer(pickupMarker);
+        }
+        
+        pickupMarker = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'pickup-marker',
+                html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
+                iconSize: [25, 25]
+            })
+        }).addTo(passengerMap)
+            .bindPopup('Pickup Location');
+            
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`)
             .then(response => response.json())
             .then(data => {
-                const filteredResults = data.filter(result => {
-                    const distance = calculateDistance(
-                        userLocation.lat, userLocation.lng,
-                        parseFloat(result.lat), parseFloat(result.lon)
-                    );
-                    return distance <= 50000;
-                });
-                
-                resolve(filteredResults);
+                if (data && data.address) {
+                    let preciseAddress = '';
+                    const address = data.address;
+                    
+                    if (address.house_number || address.housenumber) {
+                        preciseAddress += (address.house_number || address.housenumber) + ' ';
+                    }
+                    if (address.road) {
+                        preciseAddress += address.road;
+                    }
+                    if (address.suburb || address.neighbourhood) {
+                        if (preciseAddress) preciseAddress += ', ';
+                        preciseAddress += address.suburb || address.neighbourhood;
+                    }
+                    if (address.quarter) {
+                        if (preciseAddress) preciseAddress += ', ';
+                        preciseAddress += address.quarter;
+                    }
+                    
+                    if (!preciseAddress) {
+                        preciseAddress = data.display_name ? 
+                            data.display_name.split(',').slice(0, -2).join(',').trim() : 
+                            `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    }
+                    
+                    document.getElementById('pickupLocation').value = preciseAddress;
+                    reverseGeocodingCache.set(cacheKey, preciseAddress);
+                } else {
+                    document.getElementById('pickupLocation').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                }
             })
             .catch(error => {
-                console.error('Forward geocoding error:', error);
-                resolve([]);
+                console.error('Reverse geocoding error:', error);
+                document.getElementById('pickupLocation').value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
             });
-    });
-}
-
-// Calculate distance between two coordinates using Haversine formula
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3;
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-}
-
-// Fare estimation based on distance (K11 minimum, then K1 per 90 meters)
-function updateFareEstimate() {
-    const destination = document.getElementById('destinationLocation').value;
+    }
     
-    if (destination.length > 3 && userLocation) {
-        forwardGeocode(destination).then(results => {
-            if (results.length > 0) {
+    // Start continuous location tracking
+    function startLocationTracking() {
+        if (navigator.geolocation && currentUser) {
+            navigator.geolocation.watchPosition(position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                userLocation = { lat, lng };
+                
+                database.ref('passengerLocations/' + currentUser.uid).set({
+                    latitude: lat,
+                    longitude: lng,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+                
+                if (currentLocationMarker) {
+                    currentLocationMarker.setLatLng([lat, lng]);
+                }
+                
+                if (destinationMarker) {
+                    const destination = document.getElementById('destinationLocation').value;
+                    if (destination) {
+                        updateFareEstimate();
+                    }
+                }
+            }, error => {
+                console.error('Location tracking error:', error);
+            }, {
+                enableHighAccuracy: true,
+                timeout: 5000,
+                maximumAge: 30000
+            });
+        }
+    }
+    
+    // Event listeners setup
+    function setupEventListeners() {
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const screen = this.getAttribute('data-screen');
+                switchScreen(screen);
+            });
+        });
+        
+        document.querySelectorAll('.back-button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const screen = this.getAttribute('data-screen');
+                switchScreen(screen);
+            });
+        });
+        
+        document.querySelectorAll('.vehicle-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.vehicle-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                
+                this.classList.add('selected');
+                selectedVehicleType = this.getAttribute('data-type');
+                
+                if (selectedVehicleType === 'bike' || selectedVehicleType === 'bicycle') {
+                    document.getElementById('packageToggle').style.display = 'flex';
+                } else {
+                    document.getElementById('packageToggle').style.display = 'none';
+                    document.getElementById('packageForm').classList.remove('active');
+                }
+                
+                updateFareEstimate();
+            });
+        });
+        
+        document.getElementById('packageToggle').addEventListener('click', function() {
+            document.getElementById('packageForm').classList.toggle('active');
+        });
+        
+        document.querySelectorAll('.payment-method').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.payment-method').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                paymentMethod = this.getAttribute('data-method');
+            });
+        });
+        
+        document.querySelectorAll('.payment-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.payment-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                selectedPaymentType = this.getAttribute('data-payment-type');
+                
+                if (selectedPaymentType === 'wallet') {
+                    if (walletBalance < rideFare) {
+                        document.getElementById('insufficientBalance').style.display = 'block';
+                        document.getElementById('confirmPaymentBtn').disabled = true;
+                    } else {
+                        document.getElementById('insufficientBalance').style.display = 'none';
+                        document.getElementById('confirmPaymentBtn').disabled = false;
+                    }
+                } else {
+                    document.getElementById('insufficientBalance').style.display = 'none';
+                    document.getElementById('confirmPaymentBtn').disabled = false;
+                }
+            });
+        });
+        
+        document.getElementById('requestRideBtn').addEventListener('click', showPaymentSelection);
+        document.getElementById('confirmPaymentBtn').addEventListener('click', requestRide);
+        document.getElementById('closePaymentPopup').addEventListener('click', closePaymentSelection);
+        document.getElementById('cancelRideBtn').addEventListener('click', cancelRide);
+        document.getElementById('contactDriverBtn').addEventListener('click', contactDriver);
+        
+        document.getElementById('promoToggle').addEventListener('click', function() {
+            document.getElementById('promoSection').classList.toggle('active');
+        });
+        
+        document.getElementById('applyPromoBtn').addEventListener('click', applyPromoCode);
+        document.getElementById('shareReferralBtn').addEventListener('click', shareReferralCode);
+        document.getElementById('depositBtn').addEventListener('click', depositToWallet);
+        document.getElementById('withdrawBtn').addEventListener('click', withdrawFromWallet);
+        document.getElementById('whatsappBtn').addEventListener('click', contactWhatsApp);
+        document.getElementById('callBtn').addEventListener('click', contactPhone);
+        document.getElementById('addPaymentMethodBtn').addEventListener('click', addPaymentMethod);
+        
+        document.getElementById('centerMapBtn').addEventListener('click', centerMap);
+        document.getElementById('refreshLocationBtn').addEventListener('click', refreshPassengerPosition);
+        document.getElementById('toggleTrafficBtn').addEventListener('click', toggleTraffic);
+        
+        document.getElementById('zoomInBtn').addEventListener('click', () => passengerMap.zoomIn());
+        document.getElementById('zoomOutBtn').addEventListener('click', () => passengerMap.zoomOut());
+        document.getElementById('mapTypeBtn').addEventListener('click', toggleMapType);
+        document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
+        document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
+        
+        document.getElementById('destinationLocation').addEventListener('input', function() {
+            const query = this.value;
+            updateFareEstimate();
+            
+            clearTimeout(searchTimeout);
+            if (query.length >= 2) {
+                searchTimeout = setTimeout(() => {
+                    searchPlacesInCurrentCity(query);
+                }, 300);
+            } else {
+                hideDestinationSuggestions();
+            }
+        });
+        
+        document.getElementById('destinationLocation').addEventListener('focus', function() {
+            const query = this.value;
+            if (query.length >= 2) {
+                searchPlacesInCurrentCity(query);
+            }
+        });
+        
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
+                hideDestinationSuggestions();
+            }
+        });
+        
+        document.querySelectorAll('.saved-location-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const addressType = this.getAttribute('data-address');
+                useSavedLocation(addressType);
+            });
+        });
+        
+        document.getElementById('historyFilter').addEventListener('change', loadRideHistory);
+        document.getElementById('historyDate').addEventListener('change', loadRideHistory);
+        
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.history-item')) {
+                const historyItem = e.target.closest('.history-item');
+                const rideId = historyItem.getAttribute('data-ride-id');
+                if (rideId) {
+                    showRideDetailsPopup(rideId);
+                }
+            }
+        });
+        
+        document.getElementById('closeRidePopup').addEventListener('click', closeRideDetailsPopup);
+        document.getElementById('closeRidePopupTop').addEventListener('click', closeRideDetailsPopup);
+        
+        document.querySelectorAll('.star').forEach(star => {
+            star.addEventListener('click', function() {
+                const rating = parseInt(this.getAttribute('data-rating'));
+                setRating(rating);
+            });
+        });
+    }
+    
+    // Switch between screens with enhanced home screen refresh
+    function switchScreen(screenId) {
+        document.querySelectorAll('.screen-content').forEach(screen => {
+            screen.classList.remove('active');
+        });
+        
+        document.getElementById(screenId + 'Screen').classList.add('active');
+        
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
+        
+        if (screenId === 'home') {
+            document.querySelectorAll('.home-only').forEach(el => {
+                el.style.display = 'flex';
+            });
+            
+            setTimeout(() => {
+                refreshHomeScreen();
+            }, 100);
+        } else {
+            document.querySelectorAll('.home-only').forEach(el => {
+                el.style.display = 'none';
+            });
+        }
+        
+        if (screenId === 'history') {
+            loadRideHistory();
+        } else if (screenId === 'account') {
+            loadAccountData();
+        }
+        
+        console.log('Switched to screen:', screenId);
+    }
+    
+    // Enhanced place search within current city with caching
+    function searchPlacesInCurrentCity(query) {
+        if (!userLocation || !currentCity) {
+            console.log('Waiting for location data...');
+            return;
+        }
+        
+        const suggestionsContainer = document.getElementById('destinationSuggestions');
+        const cacheKey = `${currentCity}_${query.toLowerCase()}`;
+        
+        if (placeSearchCache.has(cacheKey)) {
+            displaySearchResults(placeSearchCache.get(cacheKey), suggestionsContainer);
+            return;
+        }
+        
+        suggestionsContainer.innerHTML = '<div class="loading-text">Searching places in ' + currentCity + '...</div>';
+        suggestionsContainer.style.display = 'block';
+        
+        console.log('Searching for:', query, 'in city:', currentCity);
+        
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&city=${encodeURIComponent(currentCity)}&country=Zambia&limit=10&dedupe=1`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.length > 0) {
+                    const results = data
+                        .filter(place => place.display_name && place.lat && place.lon)
+                        .map(place => {
+                            const distance = calculateDistance(
+                                userLocation.lat, userLocation.lng,
+                                parseFloat(place.lat), parseFloat(place.lon)
+                            );
+                            
+                            return {
+                                ...place,
+                                displayLat: parseFloat(place.lat),
+                                displayLon: parseFloat(place.lon),
+                                distance
+                            };
+                        })
+                        .sort((a, b) => a.distance - b.distance)
+                        .slice(0, 8);
+                    
+                    placeSearchCache.set(cacheKey, results);
+                    displaySearchResults(results, suggestionsContainer);
+                } else {
+                    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&country=Zambia&limit=8`)
+                        .then(response => response.json())
+                        .then(broadData => {
+                            if (broadData && broadData.length > 0) {
+                                const broadResults = broadData
+                                    .filter(place => place.display_name && place.lat && place.lon)
+                                    .map(place => {
+                                        const distance = calculateDistance(
+                                            userLocation.lat, userLocation.lng,
+                                            parseFloat(place.lat), parseFloat(place.lon)
+                                        );
+                                        
+                                        return {
+                                            ...place,
+                                            displayLat: parseFloat(place.lat),
+                                            displayLon: parseFloat(place.lon),
+                                            distance
+                                        };
+                                    })
+                                    .sort((a, b) => a.distance - b.distance)
+                                    .slice(0, 6);
+                                
+                                placeSearchCache.set(cacheKey, broadResults);
+                                displaySearchResults(broadResults, suggestionsContainer);
+                            } else {
+                                suggestionsContainer.innerHTML = '<div class="no-places">No places found matching your search</div>';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error in broad search:', error);
+                            suggestionsContainer.innerHTML = '<div class="no-places">Error searching places</div>';
+                        });
+                }
+            })
+            .catch(error => {
+                console.error('Error searching places:', error);
+                suggestionsContainer.innerHTML = '<div class="no-places">Error searching places. Please try again.</div>';
+            });
+    }
+    
+    // Display search results in suggestions
+    function displaySearchResults(results, container) {
+        container.innerHTML = '';
+        destinationSearchResults = [];
+        
+        if (results.length === 0) {
+            container.innerHTML = '<div class="no-places">No places found matching your search</div>';
+            return;
+        }
+        
+        destinationSearchResults = results;
+        
+        results.forEach(result => {
+            const suggestionItem = document.createElement('div');
+            suggestionItem.className = 'suggestion-item';
+            
+            const placeType = getPlaceType(result);
+            const placeIcon = getPlaceIcon(placeType);
+            
+            const displayParts = result.display_name.split(',');
+            const primaryName = displayParts[0];
+            const context = displayParts.slice(1, 3).join(',');
+            
+            suggestionItem.innerHTML = `
+                <div class="suggestion-icon">${placeIcon}</div>
+                <div class="suggestion-details">
+                    <div class="suggestion-name">${primaryName}</div>
+                    <div class="suggestion-address">${context}</div>
+                    <div class="suggestion-distance">${(result.distance / 1000).toFixed(1)} km away</div>
+                </div>
+            `;
+            
+            suggestionItem.addEventListener('click', function() {
+                document.getElementById('destinationLocation').value = result.display_name;
+                container.style.display = 'none';
+                updateFareEstimate();
+                
+                updateDestinationMarker(
+                    result.displayLat, 
+                    result.displayLon, 
+                    result.display_name
+                );
+                
+                drawRoute(userLocation.lat, userLocation.lng, result.displayLat, result.displayLon);
+                
+                selectedDestination = result;
+                document.getElementById('requestRideBtn').disabled = false;
+            });
+            
+            container.appendChild(suggestionItem);
+        });
+    }
+    
+    // Enhanced popup map display with proper zoom
+    function updatePopupRideMap(ride) {
+        popupRideMap.eachLayer(layer => {
+            if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                popupRideMap.removeLayer(layer);
+            }
+        });
+        
+        const pickupMarker = L.marker([ride.pickupLat, ride.pickupLng], {
+            icon: L.divIcon({
+                className: 'pickup-marker',
+                html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
+                iconSize: [25, 25]
+            })
+        }).addTo(popupRideMap).bindPopup('Pickup Location');
+        
+        const destMarker = L.marker([ride.destLat, ride.destLng], {
+            icon: L.divIcon({
+                className: 'destination-marker',
+                html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
+                iconSize: [25, 25]
+            })
+        }).addTo(popupRideMap).bindPopup('Destination');
+        
+        drawRouteOnPopupMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+        
+        const bounds = L.latLngBounds([
+            [ride.pickupLat, ride.pickupLng],
+            [ride.destLat, ride.destLng]
+        ]);
+        
+        const expandedBounds = bounds.pad(0.1);
+        
+        popupRideMap.fitBounds(expandedBounds, {
+            padding: [20, 20],
+            animate: true,
+            duration: 1
+        });
+        
+        console.log('Popup map updated with optimal zoom for ride:', ride.id);
+    }
+    
+    // Enhanced ride request with full address details
+    function requestRide() {
+        const pickupLocation = document.getElementById('pickupLocation').value;
+        const destinationLocation = document.getElementById('destinationLocation').value;
+        
+        if (!destinationLocation) {
+            showNotification('Please enter a destination');
+            return;
+        }
+        
+        if (!currentLocationMarker) {
+            showNotification('Unable to determine your location. Please try again.');
+            return;
+        }
+        
+        const pickupLatLng = currentLocationMarker.getLatLng();
+        
+        getFullAddressDetails(pickupLatLng.lat, pickupLatLng.lng).then(fullPickupAddress => {
+            if (document.getElementById('packageForm').classList.contains('active')) {
+                packageDetails = {
+                    receiverName: document.getElementById('receiverName').value,
+                    receiverPhone: document.getElementById('receiverPhone').value,
+                    packageDescription: document.getElementById('packageDescription').value,
+                    specialInstructions: document.getElementById('specialInstructions').value,
+                    packageValue: document.getElementById('packageValue').value
+                };
+            } else {
+                packageDetails = null;
+            }
+            
+            forwardGeocode(destinationLocation).then(results => {
+                if (results.length === 0) {
+                    showNotification('Invalid destination address. Please select a valid destination.');
+                    return;
+                }
+                
                 const destLat = parseFloat(results[0].lat);
                 const destLng = parseFloat(results[0].lon);
                 
@@ -3201,123 +3012,307 @@ function updateFareEstimate() {
                     destLat, destLng
                 );
                 
-                let baseFare;
-                if (distance < 90) {
-                    baseFare = 11;
-                } else {
-                    baseFare = Math.max(11, Math.ceil(distance / 90));
-                }
-                
-                switch(selectedVehicleType) {
-                    case 'car':
-                        baseFare = baseFare;
-                        break;
-                    case 'bike':
-                        baseFare = baseFare * 0.7;
-                        break;
-                    case 'bicycle':
-                        baseFare = baseFare * 0.5;
-                        break;
-                }
-                
-                if (appliedPromoCode) {
-                    baseFare = baseFare * 0.8;
-                }
-                
-                document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
-                
-                const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
-                document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
-                
-                document.getElementById('requestRideBtn').disabled = false;
-                rideFare = baseFare;
-            }
+                getFullAddressDetails(destLat, destLng).then(fullDestAddress => {
+                    let fare;
+                    if (distance < 90) {
+                        fare = 11;
+                    } else {
+                        fare = Math.max(11, Math.ceil(distance / 90));
+                    }
+                    
+                    switch(selectedVehicleType) {
+                        case 'car':
+                            fare = fare;
+                            break;
+                        case 'bike':
+                            fare = fare * 0.7;
+                            break;
+                        case 'bicycle':
+                            fare = fare * 0.5;
+                            break;
+                    }
+                    
+                    if (appliedPromoCode) {
+                        fare = fare * 0.8;
+                    }
+                    
+                    const rideId = database.ref().child('rides').push().key;
+                    
+                    const rideRequest = {
+                        id: rideId,
+                        passengerId: currentUser.uid,
+                        passengerName: userData.name || 'Passenger',
+                        passengerPhone: userData.phone || 'Not provided',
+                        pickupLocation: pickupLocation,
+                        pickupLocationFull: fullPickupAddress,
+                        destination: destinationLocation,
+                        destinationFull: fullDestAddress,
+                        pickupLat: pickupLatLng.lat,
+                        pickupLng: pickupLatLng.lng,
+                        destLat: destLat,
+                        destLng: destLng,
+                        rideType: selectedVehicleType,
+                        fare: fare,
+                        distance: (distance / 1000).toFixed(2) + ' km',
+                        status: 'requested',
+                        timestamp: firebase.database.ServerValue.TIMESTAMP,
+                        updatedAt: firebase.database.ServerValue.TIMESTAMP,
+                        promoCode: appliedPromoCode,
+                        paymentMethod: selectedPaymentType,
+                        packageDetails: packageDetails
+                    };
+                    
+                    if (selectedPaymentType === 'wallet') {
+                        const newBalance = walletBalance - fare;
+                        
+                        database.ref('users/' + currentUser.uid).update({
+                            walletBalance: newBalance
+                        })
+                        .then(() => {
+                            walletBalance = newBalance;
+                            updateWalletBalanceUI();
+                            
+                            return database.ref('rides/' + rideId).set(rideRequest);
+                        })
+                        .then(() => {
+                            currentRide = rideRequest;
+                            
+                            closePaymentSelection();
+                            updateUIForActiveRide();
+                            
+                            document.getElementById('rideStatus').style.display = 'flex';
+                            document.getElementById('statusDot').className = 'status-dot searching';
+                            document.getElementById('statusText').textContent = 'Searching for driver';
+                            
+                            showNotification('Ride requested. Searching for a driver...');
+                            listenForDriverAssignment(rideId);
+                        })
+                        .catch(error => {
+                            console.error('Error requesting ride:', error);
+                            showNotification('Error requesting ride. Please try again.');
+                        });
+                    } else {
+                        database.ref('rides/' + rideId).set(rideRequest)
+                            .then(() => {
+                                currentRide = rideRequest;
+                                
+                                closePaymentSelection();
+                                updateUIForActiveRide();
+                                
+                                document.getElementById('rideStatus').style.display = 'flex';
+                                document.getElementById('statusDot').className = 'status-dot searching';
+                                document.getElementById('statusText').textContent = 'Searching for driver';
+                                
+                                showNotification('Ride requested. Searching for a driver...');
+                                listenForDriverAssignment(rideId);
+                            })
+                            .catch(error => {
+                                console.error('Error requesting ride:', error);
+                                showNotification('Error requesting ride. Please try again.');
+                            });
+                    }
+                });
+            }).catch(error => {
+                console.error('Error geocoding destination:', error);
+                showNotification('Error calculating route. Please try again.');
+            });
         });
-    } else {
-        document.getElementById('estimatedFare').textContent = 'K0.00';
-        document.getElementById('etaDisplay').textContent = 'ETA: -- min';
-        document.getElementById('requestRideBtn').disabled = true;
     }
-}
+    
+    // Get full address details including city, province, and country
+    function getFullAddressDetails(lat, lng) {
+        return new Promise((resolve, reject) => {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.display_name) {
+                        resolve(data.display_name);
+                    } else {
+                        resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error getting full address:', error);
+                    resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                });
+        });
+    }
+    
+    // Calculate distance between two coordinates using Haversine formula
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371e3;
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lon2 - lon1) * Math.PI / 180;
 
-// Update destination marker on map
-function updateDestinationMarker(lat, lng, name) {
-    if (destinationMarker) {
-        passengerMap.removeLayer(destinationMarker);
-    }
-    
-    destinationMarker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            className: 'destination-marker',
-            html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
-            iconSize: [25, 25]
-        })
-    }).addTo(passengerMap)
-        .bindPopup(`<strong>${name}</strong><br>Your destination`)
-        .openPopup();
-    
-    const bounds = L.latLngBounds(
-        [userLocation.lat, userLocation.lng],
-        [lat, lng]
-    );
-    passengerMap.fitBounds(bounds, { padding: [15, 15] });
-}
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
-// Draw route from user location to destination
-function drawRoute(startLat, startLng, endLat, endLng) {
-    if (routePolyline) {
-        passengerMap.removeLayer(routePolyline);
+        return R * c;
     }
     
-    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                routePolyline = L.polyline(routeCoordinates, {
+    // Forward geocoding function
+    function forwardGeocode(query) {
+        return new Promise(resolve => {
+            if (!userLocation) {
+                resolve([]);
+                return;
+            }
+            
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10`)
+                .then(response => response.json())
+                .then(data => {
+                    const filteredResults = data.filter(result => {
+                        const distance = calculateDistance(
+                            userLocation.lat, userLocation.lng,
+                            parseFloat(result.lat), parseFloat(result.lon)
+                        );
+                        return distance <= 50000;
+                    });
+                    
+                    resolve(filteredResults);
+                })
+                .catch(error => {
+                    console.error('Forward geocoding error:', error);
+                    resolve([]);
+                });
+        });
+    }
+    
+    // Fare estimation based on distance
+    function updateFareEstimate() {
+        const destination = document.getElementById('destinationLocation').value;
+        
+        if (destination.length > 3 && userLocation) {
+            forwardGeocode(destination).then(results => {
+                if (results.length > 0) {
+                    const destLat = parseFloat(results[0].lat);
+                    const destLng = parseFloat(results[0].lon);
+                    
+                    const distance = calculateDistance(
+                        userLocation.lat, userLocation.lng,
+                        destLat, destLng
+                    );
+                    
+                    let baseFare;
+                    if (distance < 90) {
+                        baseFare = 11;
+                    } else {
+                        baseFare = Math.max(11, Math.ceil(distance / 90));
+                    }
+                    
+                    switch(selectedVehicleType) {
+                        case 'car':
+                            baseFare = baseFare;
+                            break;
+                        case 'bike':
+                            baseFare = baseFare * 0.7;
+                            break;
+                        case 'bicycle':
+                            baseFare = baseFare * 0.5;
+                            break;
+                    }
+                    
+                    if (appliedPromoCode) {
+                        baseFare = baseFare * 0.8;
+                    }
+                    
+                    document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
+                    
+                    const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
+                    document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
+                    
+                    document.getElementById('requestRideBtn').disabled = false;
+                    rideFare = baseFare;
+                }
+            });
+        } else {
+            document.getElementById('estimatedFare').textContent = 'K0.00';
+            document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+            document.getElementById('requestRideBtn').disabled = true;
+        }
+    }
+    
+    // Update destination marker on map
+    function updateDestinationMarker(lat, lng, name) {
+        if (destinationMarker) {
+            passengerMap.removeLayer(destinationMarker);
+        }
+        
+        destinationMarker = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'destination-marker',
+                html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
+                iconSize: [25, 25]
+            })
+        }).addTo(passengerMap)
+            .bindPopup(`<strong>${name}</strong><br>Your destination`)
+            .openPopup();
+        
+        const bounds = L.latLngBounds(
+            [userLocation.lat, userLocation.lng],
+            [lat, lng]
+        );
+        passengerMap.fitBounds(bounds, { padding: [15, 15] });
+    }
+    
+    // Draw route from user location to destination
+    function drawRoute(startLat, startLng, endLat, endLng) {
+        if (routePolyline) {
+            passengerMap.removeLayer(routePolyline);
+        }
+        
+        fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.routes && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    
+                    routePolyline = L.polyline(routeCoordinates, {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7,
+                        dashArray: '8, 8'
+                    }).addTo(passengerMap);
+                    
+                    passengerMap.fitBounds(routePolyline.getBounds(), { padding: [15, 15] });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching route:', error);
+                routePolyline = L.polyline([
+                    [startLat, startLng],
+                    [endLat, endLng]
+                ], {
                     color: '#FF6B35',
                     weight: 4,
                     opacity: 0.7,
                     dashArray: '8, 8'
                 }).addTo(passengerMap);
-                
-                passengerMap.fitBounds(routePolyline.getBounds(), { padding: [15, 15] });
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            routePolyline = L.polyline([
-                [startLat, startLng],
-                [endLat, endLng]
-            ], {
-                color: '#FF6B35',
-                weight: 4,
-                opacity: 0.7,
-                dashArray: '8, 8'
-            }).addTo(passengerMap);
-        });
-}
-
-// Show payment selection popup
-function showPaymentSelection() {
-    const pickupLocation = document.getElementById('pickupLocation').value;
-    const destinationLocation = document.getElementById('destinationLocation').value;
-    
-    if (!destinationLocation) {
-        showNotification('Please enter a destination');
-        return;
+            });
     }
     
-    if (!currentLocationMarker) {
-        showNotification('Unable to determine your location. Please try again.');
-        return;
-    }
-    
-    document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
-    
-    if (selectedPaymentType === 'wallet') {
+    // Show payment selection popup
+    function showPaymentSelection() {
+        const pickupLocation = document.getElementById('pickupLocation').value;
+        const destinationLocation = document.getElementById('destinationLocation').value;
+        
+        if (!destinationLocation) {
+            showNotification('Please enter a destination');
+            return;
+        }
+        
+        if (!currentLocationMarker) {
+            showNotification('Unable to determine your location. Please try again.');
+            return;
+        }
+        
+        document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
+        
         if (walletBalance < rideFare) {
             document.getElementById('insufficientBalance').style.display = 'block';
             document.getElementById('confirmPaymentBtn').disabled = true;
@@ -3325,1150 +3320,1168 @@ function showPaymentSelection() {
             document.getElementById('insufficientBalance').style.display = 'none';
             document.getElementById('confirmPaymentBtn').disabled = false;
         }
+        
+        document.getElementById('paymentSelectionPopup').classList.remove('hidden');
     }
     
-    document.getElementById('paymentSelectionPopup').classList.remove('hidden');
-}
-
-// Close payment selection popup
-function closePaymentSelection() {
-    document.getElementById('paymentSelectionPopup').classList.add('hidden');
-}
-
-// Request a ride with full address
-function requestRide() {
-    const pickupLocation = document.getElementById('pickupLocation').value;
-    const destinationLocation = document.getElementById('destinationLocation').value;
-    
-    if (!destinationLocation) {
-        showNotification('Please enter a destination');
-        return;
+    // Close payment selection popup
+    function closePaymentSelection() {
+        document.getElementById('paymentSelectionPopup').classList.add('hidden');
     }
     
-    if (!currentLocationMarker) {
-        showNotification('Unable to determine your location. Please try again.');
-        return;
+    // Update UI for active ride
+    function updateUIForActiveRide() {
+        document.getElementById('rideRequestForm').style.display = 'none';
+        document.getElementById('rideInfoPanel').style.display = 'block';
+        
+        document.getElementById('currentPickupLocation').textContent = currentRide.pickupLocation;
+        document.getElementById('currentDestinationLocation').textContent = currentRide.destination;
+        
+        const baseFare = currentRide.fare;
+        const discount = appliedPromoCode ? baseFare * 0.2 : 0;
+        const totalFare = baseFare - discount;
+        
+        document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
+        document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
+        document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
     }
     
-    const pickupLatLng = currentLocationMarker.getLatLng();
-    
-    if (document.getElementById('packageForm').classList.contains('active')) {
-        packageDetails = {
-            receiverName: document.getElementById('receiverName').value,
-            receiverPhone: document.getElementById('receiverPhone').value,
-            packageDescription: document.getElementById('packageDescription').value,
-            specialInstructions: document.getElementById('specialInstructions').value,
-            packageValue: document.getElementById('packageValue').value
-        };
-    } else {
-        packageDetails = null;
-    }
-    
-    Promise.all([
-        getFullAddress(pickupLatLng.lat, pickupLatLng.lng),
-        forwardGeocode(destinationLocation).then(results => {
-            if (results.length > 0) {
-                return getFullAddress(parseFloat(results[0].lat), parseFloat(results[0].lon));
-            }
-            return destinationLocation;
-        })
-    ]).then(([fullPickupAddress, fullDestinationAddress]) => {
-        forwardGeocode(destinationLocation).then(results => {
-            if (results.length === 0) {
-                showNotification('Invalid destination address. Please select a valid destination.');
+    // Listen for driver assignment
+    function listenForDriverAssignment(rideId) {
+        if (driverAssignmentListener) {
+            driverAssignmentListener();
+        }
+        
+        driverAssignmentListener = database.ref('rides/' + rideId).on('value', snapshot => {
+            const ride = snapshot.val();
+            if (!ride) {
+                showNotification('Ride not found. Please try again.');
                 return;
             }
             
-            const destLat = parseFloat(results[0].lat);
-            const destLng = parseFloat(results[0].lon);
+            console.log('Ride status update:', ride.status, ride.driverId);
             
-            const distance = calculateDistance(
-                userLocation.lat, userLocation.lng,
-                destLat, destLng
-            );
-            
-            let fare;
-            if (distance < 90) {
-                fare = 11;
-            } else {
-                fare = Math.max(11, Math.ceil(distance / 90));
+            if (ride.driverId && ride.status === 'accepted') {
+                handleDriverAssignment(ride);
+            } else if (ride.status === 'completed') {
+                showRideCompletion(ride);
+            } else if (ride.status === 'cancelled') {
+                handleRideCancellation(ride);
+            } else if (ride.status === 'arrived') {
+                showNotification('Your driver has arrived at the pickup location.');
+            } else if (ride.status === 'picked_up') {
+                showNotification('You have been picked up. Enjoy your ride!');
+            } else if (ride.status === 'started') {
+                showNotification('Your trip has started.');
             }
-            
-            switch(selectedVehicleType) {
-                case 'car':
-                    fare = fare;
-                    break;
-                case 'bike':
-                    fare = fare * 0.7;
-                    break;
-                case 'bicycle':
-                    fare = fare * 0.5;
-                    break;
-            }
-            
-            if (appliedPromoCode) {
-                fare = fare * 0.8;
-            }
-            
-            const rideId = database.ref().child('rides').push().key;
-            
-            const rideRequest = {
-                id: rideId,
-                passengerId: currentUser.uid,
-                passengerName: userData.name || 'Passenger',
-                passengerPhone: userData.phone || 'Not provided',
-                pickupLocation: fullPickupAddress,
-                destination: fullDestinationAddress,
-                pickupDisplayLocation: pickupLocation,
-                destinationDisplayLocation: destinationLocation,
-                pickupLat: pickupLatLng.lat,
-                pickupLng: pickupLatLng.lng,
-                destLat: destLat,
-                destLng: destLng,
-                rideType: selectedVehicleType,
-                fare: fare,
-                distance: (distance / 1000).toFixed(2) + ' km',
-                status: 'requested',
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                updatedAt: firebase.database.ServerValue.TIMESTAMP,
-                promoCode: appliedPromoCode,
-                paymentMethod: selectedPaymentType,
-                packageDetails: packageDetails
-            };
-            
-            if (selectedPaymentType === 'wallet') {
-                const newBalance = walletBalance - fare;
-                
-                database.ref('users/' + currentUser.uid).update({
-                    walletBalance: newBalance
-                })
-                .then(() => {
-                    walletBalance = newBalance;
-                    updateWalletBalanceUI();
-                    return database.ref('rides/' + rideId).set(rideRequest);
-                })
-                .then(() => {
-                    currentRide = rideRequest;
-                    closePaymentSelection();
-                    updateUIForActiveRide();
-                    document.getElementById('rideStatus').style.display = 'flex';
-                    document.getElementById('statusDot').className = 'status-dot searching';
-                    document.getElementById('statusText').textContent = 'Searching for driver';
-                    showNotification('Ride requested. Searching for a driver...');
-                    listenForDriverAssignment(rideId);
-                })
-                .catch(error => {
-                    console.error('Error requesting ride:', error);
-                    showNotification('Error requesting ride. Please try again.');
-                });
-            } else {
-                database.ref('rides/' + rideId).set(rideRequest)
-                    .then(() => {
-                        currentRide = rideRequest;
-                        closePaymentSelection();
-                        updateUIForActiveRide();
-                        document.getElementById('rideStatus').style.display = 'flex';
-                        document.getElementById('statusDot').className = 'status-dot searching';
-                        document.getElementById('statusText').textContent = 'Searching for driver';
-                        showNotification('Ride requested. Searching for a driver...');
-                        listenForDriverAssignment(rideId);
-                    })
-                    .catch(error => {
-                        console.error('Error requesting ride:', error);
-                        showNotification('Error requesting ride. Please try again.');
-                    });
-            }
-        }).catch(error => {
-            console.error('Error geocoding destination:', error);
-            showNotification('Error calculating route. Please try again.');
+        }, error => {
+            console.error('Error listening for driver assignment:', error);
+            showNotification('Connection error. Please check your internet connection.');
         });
-    }).catch(error => {
-        console.error('Error getting full addresses:', error);
-        showNotification('Error processing addresses. Please try again.');
-    });
-}
-
-// Update UI for active ride
-function updateUIForActiveRide() {
-    document.getElementById('rideRequestForm').style.display = 'none';
-    document.getElementById('rideInfoPanel').style.display = 'block';
-    document.getElementById('currentPickupLocation').textContent = currentRide.pickupDisplayLocation;
-    document.getElementById('currentDestinationLocation').textContent = currentRide.destinationDisplayLocation;
-    
-    const baseFare = currentRide.fare;
-    const discount = appliedPromoCode ? baseFare * 0.2 : 0;
-    const totalFare = baseFare - discount;
-    
-    document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
-    document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
-    document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
-}
-
-// Listen for driver assignment
-function listenForDriverAssignment(rideId) {
-    if (driverAssignmentListener) {
-        driverAssignmentListener();
     }
     
-    driverAssignmentListener = database.ref('rides/' + rideId).on('value', snapshot => {
-        const ride = snapshot.val();
-        if (!ride) {
-            showNotification('Ride not found. Please try again.');
+    // Handle driver assignment
+    function handleDriverAssignment(ride) {
+        document.getElementById('statusDot').className = 'status-dot arriving';
+        document.getElementById('statusText').textContent = 'Driver arriving';
+        
+        document.getElementById('estimatedTime').style.display = 'flex';
+        document.getElementById('timeText').textContent = '5 min';
+        
+        database.ref('users/' + ride.driverId).once('value')
+            .then(driverSnapshot => {
+                const driver = driverSnapshot.val();
+                if (driver) {
+                    document.getElementById('driverName').textContent = driver.name || 'Driver';
+                    document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
+                    document.getElementById('driverRating').textContent = driver.rating || '4.5';
+                    
+                    if (driver.vehicle) {
+                        document.getElementById('vehicleDetails').textContent = 
+                            `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
+                    }
+                    
+                    const driverAvatar = document.getElementById('driverAvatar');
+                    if (driver.name) {
+                        driverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
+                    }
+                    
+                    updateDriverDetailsCard(driver);
+                    
+                    addDriverMarker(ride.driverLat, ride.driverLng);
+                    
+                    drawRoute(ride.driverLat, ride.driverLng, ride.pickupLat, ride.pickupLng);
+                    
+                    trackDriverLocation(ride.driverId);
+                    
+                    showNotification(`Driver ${driver.name} is on the way!`);
+                }
+            });
+        
+        listenForRideStatusUpdates(ride.id);
+    }
+    
+    // Update driver details card with comprehensive information
+    function updateDriverDetailsCard(driver) {
+        const driverDetailsCard = document.getElementById('driverDetailsCard');
+        driverDetailsCard.style.display = 'block';
+        
+        document.getElementById('driverFullName').textContent = driver.name || 'Driver';
+        document.getElementById('driverContactPhone').textContent = driver.phone || 'Not available';
+        document.getElementById('driverRatingValue').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
+        document.getElementById('driverExperience').textContent = driver.experience || '2 years';
+        
+        if (driver.vehicle) {
+            document.getElementById('vehicleType').textContent = driver.vehicle.type || 'Car';
+            document.getElementById('vehicleModel').textContent = driver.vehicle.model || 'Not specified';
+            document.getElementById('vehicleLicense').textContent = driver.vehicle.licensePlate || 'Not available';
+            document.getElementById('vehicleColor').textContent = driver.vehicle.color || 'Not specified';
+        }
+    }
+    
+    // Track driver location in real-time
+    function trackDriverLocation(driverId) {
+        if (driverLocationListener) {
+            driverLocationListener();
+        }
+        
+        driverLocationListener = database.ref('driverLocations/' + driverId).on('value', snapshot => {
+            const location = snapshot.val();
+            if (location && driverMarker) {
+                driverMarker.setLatLng([location.latitude, location.longitude]);
+                updateDriverETA(location.latitude, location.longitude);
+            }
+        });
+    }
+    
+    // Update ETA based on driver's current position
+    function updateDriverETA(driverLat, driverLng) {
+        if (userLocation) {
+            const distance = calculateDistance(
+                driverLat, driverLng,
+                userLocation.lat, userLocation.lng
+            );
+            
+            const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
+            document.getElementById('timeText').textContent = `${etaMinutes} min`;
+        }
+    }
+    
+    // Listen for ride status updates
+    function listenForRideStatusUpdates(rideId) {
+        database.ref('rides/' + rideId).on('value', snapshot => {
+            const ride = snapshot.val();
+            if (ride) {
+                currentRide = ride;
+                
+                switch(ride.status) {
+                    case 'accepted':
+                        document.getElementById('statusText').textContent = 'Driver on the way';
+                        break;
+                    case 'arrived':
+                        document.getElementById('statusText').textContent = 'Driver arrived';
+                        document.getElementById('statusDot').className = 'status-dot riding';
+                        showNotification('Your driver has arrived!');
+                        break;
+                    case 'started':
+                        document.getElementById('statusText').textContent = 'Trip in progress';
+                        addDestinationMarker(ride.destLat, ride.destLng);
+                        drawRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+                        break;
+                    case 'completed':
+                        document.getElementById('statusText').textContent = 'Trip completed';
+                        document.getElementById('rideStatus').style.display = 'none';
+                        document.getElementById('estimatedTime').style.display = 'none';
+                        resetUIAfterRide();
+                        showNotification('Trip completed. Thank you for using Jubel!');
+                        break;
+                    case 'cancelled':
+                        document.getElementById('rideStatus').style.display = 'none';
+                        document.getElementById('estimatedTime').style.display = 'none';
+                        resetUIAfterRide();
+                        showNotification('Ride cancelled');
+                        break;
+                }
+            }
+        });
+    }
+    
+    // Add driver marker to map
+    function addDriverMarker(lat, lng) {
+        if (driverMarker) {
+            passengerMap.removeLayer(driverMarker);
+        }
+        
+        driverMarker = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'driver-marker',
+                html: '<div class="driver-marker">🚗</div><div class="driver-marker-label">Driver</div>',
+                iconSize: [35, 50]
+            })
+        }).addTo(passengerMap)
+            .bindPopup('Your driver');
+    }
+    
+    // Add destination marker to map
+    function addDestinationMarker(lat, lng) {
+        if (destinationMarker) {
+            passengerMap.removeLayer(destinationMarker);
+        }
+        
+        destinationMarker = L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'destination-marker',
+                html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
+                iconSize: [25, 25]
+            })
+        }).addTo(passengerMap)
+            .bindPopup('Destination');
+    }
+    
+    // Handle ride cancellation
+    function handleRideCancellation(ride) {
+        showNotification('Ride has been cancelled.');
+        resetUIAfterRide();
+        currentRide = null;
+        
+        if (driverMarker) {
+            passengerMap.removeLayer(driverMarker);
+            driverMarker = null;
+        }
+        
+        if (driverAssignmentListener) {
+            driverAssignmentListener();
+            driverAssignmentListener = null;
+        }
+        
+        if (driverLocationListener) {
+            driverLocationListener();
+            driverLocationListener = null;
+        }
+    }
+    
+    // Cancel ride
+    function cancelRide() {
+        if (currentRide) {
+            if (confirm('Are you sure you want to cancel this ride?')) {
+                database.ref('rides/' + currentRide.id).update({
+                    status: 'cancelled',
+                    cancelledAt: firebase.database.ServerValue.TIMESTAMP,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                })
+                .then(() => {
+                    resetUIAfterRide();
+                    showNotification('Ride cancelled');
+                })
+                .catch(error => {
+                    console.error('Error cancelling ride:', error);
+                    showNotification('Error cancelling ride. Please try again.');
+                });
+            }
+        }
+    }
+    
+    // Contact driver
+    function contactDriver() {
+        if (currentRide && currentRide.driverId) {
+            database.ref('users/' + currentRide.driverId).once('value')
+                .then(snapshot => {
+                    const driver = snapshot.val();
+                    if (driver && driver.phone) {
+                        showNotification(`Calling driver: ${driver.phone}`);
+                        window.open(`tel:${driver.phone}`, '_self');
+                    } else {
+                        showNotification('Driver phone number not available.');
+                    }
+                });
+        }
+    }
+    
+    // Apply promo code
+    function applyPromoCode() {
+        const promoCode = document.getElementById('promoCode').value.trim();
+        
+        if (!promoCode) {
+            showNotification('Please enter a promo code.');
             return;
         }
         
-        console.log('Ride status update:', ride.status, ride.driverId);
-        
-        if (ride.driverId && ride.status === 'accepted') {
-            handleDriverAssignment(ride);
-        } else if (ride.status === 'completed') {
-            showRideCompletion(ride);
-        } else if (ride.status === 'cancelled') {
-            handleRideCancellation(ride);
-        } else if (ride.status === 'arrived') {
-            showNotification('Your driver has arrived at the pickup location.');
-        } else if (ride.status === 'picked_up') {
-            showNotification('You have been picked up. Enjoy your ride!');
-        } else if (ride.status === 'started') {
-            showNotification('Your trip has started.');
-        }
-    }, error => {
-        console.error('Error listening for driver assignment:', error);
-        showNotification('Connection error. Please check your internet connection.');
-    });
-}
-
-// Handle driver assignment
-function handleDriverAssignment(ride) {
-    document.getElementById('statusDot').className = 'status-dot arriving';
-    document.getElementById('statusText').textContent = 'Driver arriving';
-    document.getElementById('estimatedTime').style.display = 'flex';
-    document.getElementById('timeText').textContent = '5 min';
-    
-    database.ref('users/' + ride.driverId).once('value')
-        .then(driverSnapshot => {
-            const driver = driverSnapshot.val();
-            if (driver) {
-                document.getElementById('driverName').textContent = driver.name || 'Driver';
-                document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
-                document.getElementById('driverRating').textContent = driver.rating || '4.5';
-                
-                if (driver.vehicle) {
-                    document.getElementById('vehicleDetails').textContent = 
-                        `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
-                }
-                
-                const driverAvatar = document.getElementById('driverAvatar');
-                if (driver.name) {
-                    driverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
-                }
-                
-                updateDriverDetailsCard(driver);
-                addDriverMarker(ride.driverLat, ride.driverLng);
-                drawRoute(ride.driverLat, ride.driverLng, ride.pickupLat, ride.pickupLng);
-                trackDriverLocation(ride.driverId);
-                showNotification(`Driver ${driver.name} is on the way!`);
-            }
-        });
-    
-    listenForRideStatusUpdates(ride.id);
-}
-
-// Update driver details card with comprehensive information
-function updateDriverDetailsCard(driver) {
-    const driverDetailsCard = document.getElementById('driverDetailsCard');
-    driverDetailsCard.style.display = 'block';
-    
-    document.getElementById('driverFullName').textContent = driver.name || 'Driver';
-    document.getElementById('driverContactPhone').textContent = driver.phone || 'Not available';
-    document.getElementById('driverRatingValue').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
-    document.getElementById('driverExperience').textContent = driver.experience || '2 years';
-    
-    if (driver.vehicle) {
-        document.getElementById('vehicleType').textContent = driver.vehicle.type || 'Car';
-        document.getElementById('vehicleModel').textContent = driver.vehicle.model || 'Not specified';
-        document.getElementById('vehicleLicense').textContent = driver.vehicle.licensePlate || 'Not available';
-        document.getElementById('vehicleColor').textContent = driver.vehicle.color || 'Not specified';
-    }
-}
-
-// Track driver location in real-time
-function trackDriverLocation(driverId) {
-    if (driverLocationListener) {
-        driverLocationListener();
-    }
-    
-    driverLocationListener = database.ref('driverLocations/' + driverId).on('value', snapshot => {
-        const location = snapshot.val();
-        if (location && driverMarker) {
-            driverMarker.setLatLng([location.latitude, location.longitude]);
-            updateDriverETA(location.latitude, location.longitude);
-        }
-    });
-}
-
-// Update ETA based on driver's current position
-function updateDriverETA(driverLat, driverLng) {
-    if (userLocation) {
-        const distance = calculateDistance(
-            driverLat, driverLng,
-            userLocation.lat, userLocation.lng
-        );
-        
-        const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
-        document.getElementById('timeText').textContent = `${etaMinutes} min`;
-    }
-}
-
-// Listen for ride status updates
-function listenForRideStatusUpdates(rideId) {
-    database.ref('rides/' + rideId).on('value', snapshot => {
-        const ride = snapshot.val();
-        if (ride) {
-            currentRide = ride;
-            
-            switch(ride.status) {
-                case 'accepted':
-                    document.getElementById('statusText').textContent = 'Driver on the way';
-                    break;
-                case 'arrived':
-                    document.getElementById('statusText').textContent = 'Driver arrived';
-                    document.getElementById('statusDot').className = 'status-dot riding';
-                    showNotification('Your driver has arrived!');
-                    break;
-                case 'started':
-                    document.getElementById('statusText').textContent = 'Trip in progress';
-                    addDestinationMarker(ride.destLat, ride.destLng);
-                    drawRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-                    break;
-                case 'completed':
-                    document.getElementById('statusText').textContent = 'Trip completed';
-                    document.getElementById('rideStatus').style.display = 'none';
-                    document.getElementById('estimatedTime').style.display = 'none';
-                    resetUIAfterRide();
-                    showNotification('Trip completed. Thank you for using Jubel!');
-                    break;
-                case 'cancelled':
-                    document.getElementById('rideStatus').style.display = 'none';
-                    document.getElementById('estimatedTime').style.display = 'none';
-                    resetUIAfterRide();
-                    showNotification('Ride cancelled');
-                    break;
-            }
-        }
-    });
-}
-
-// Add driver marker to map
-function addDriverMarker(lat, lng) {
-    if (driverMarker) {
-        passengerMap.removeLayer(driverMarker);
-    }
-    
-    driverMarker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            className: 'driver-marker',
-            html: '<div class="driver-marker">🚗</div><div class="driver-marker-label">Driver</div>',
-            iconSize: [35, 50]
-        })
-    }).addTo(passengerMap)
-        .bindPopup('Your driver');
-}
-
-// Add destination marker to map
-function addDestinationMarker(lat, lng) {
-    if (destinationMarker) {
-        passengerMap.removeLayer(destinationMarker);
-    }
-    
-    destinationMarker = L.marker([lat, lng], {
-        icon: L.divIcon({
-            className: 'destination-marker',
-            html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
-            iconSize: [25, 25]
-        })
-    }).addTo(passengerMap)
-        .bindPopup('Destination');
-}
-
-// Handle ride cancellation
-function handleRideCancellation(ride) {
-    showNotification('Ride has been cancelled.');
-    resetUIAfterRide();
-    currentRide = null;
-    
-    if (driverMarker) {
-        passengerMap.removeLayer(driverMarker);
-        driverMarker = null;
-    }
-    
-    if (driverAssignmentListener) {
-        driverAssignmentListener();
-        driverAssignmentListener = null;
-    }
-    
-    if (driverLocationListener) {
-        driverLocationListener();
-        driverLocationListener = null;
-    }
-}
-
-// Cancel ride
-function cancelRide() {
-    if (currentRide) {
-        if (confirm('Are you sure you want to cancel this ride?')) {
-            database.ref('rides/' + currentRide.id).update({
-                status: 'cancelled',
-                cancelledAt: firebase.database.ServerValue.TIMESTAMP,
-                updatedAt: firebase.database.ServerValue.TIMESTAMP
-            })
-            .then(() => {
-                resetUIAfterRide();
-                showNotification('Ride cancelled');
-            })
-            .catch(error => {
-                console.error('Error cancelling ride:', error);
-                showNotification('Error cancelling ride. Please try again.');
-            });
-        }
-    }
-}
-
-// Contact driver
-function contactDriver() {
-    if (currentRide && currentRide.driverId) {
-        database.ref('users/' + currentRide.driverId).once('value')
-            .then(snapshot => {
-                const driver = snapshot.val();
-                if (driver && driver.phone) {
-                    showNotification(`Calling driver: ${driver.phone}`);
-                    window.open(`tel:${driver.phone}`, '_self');
-                } else {
-                    showNotification('Driver phone number not available.');
-                }
-            });
-    }
-}
-
-// Apply promo code
-function applyPromoCode() {
-    const promoCode = document.getElementById('promoCode').value.trim();
-    
-    if (!promoCode) {
-        showNotification('Please enter a promo code.');
-        return;
-    }
-    
-    if (promoCode.startsWith('JUBEL')) {
-        applyReferralCode(promoCode);
-    } else {
-        if (promoCode.startsWith('JUBEL-')) {
-            appliedPromoCode = promoCode;
-            showNotification('Promo code applied! 20% discount will be applied to your ride.');
-            updateFareEstimate();
-            
-            document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
-            document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
-            document.getElementById('applyPromoBtn').classList.remove('btn-promo');
-            document.getElementById('applyPromoBtn').classList.add('btn-success');
+        if (promoCode.startsWith('JUBEL')) {
+            applyReferralCode(promoCode);
         } else {
-            showNotification('Invalid promo code. Please check and try again.');
-            document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
-        }
-    }
-}
-
-// Apply referral code
-function applyReferralCode(referralCode) {
-    database.ref('users').orderByChild('referralCode').equalTo(referralCode).once('value')
-        .then(snapshot => {
-            if (snapshot.exists()) {
-                const referrerData = snapshot.val();
-                const referrerId = Object.keys(referrerData)[0];
-                const referrer = referrerData[referrerId];
-                
-                appliedPromoCode = referralCode;
-                showNotification('Referral code applied! 50% discount will be applied to your ride.');
+            if (promoCode.startsWith('JUBEL-')) {
+                appliedPromoCode = promoCode;
+                showNotification('Promo code applied! 20% discount will be applied to your ride.');
                 updateFareEstimate();
                 
                 document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
                 document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
                 document.getElementById('applyPromoBtn').classList.remove('btn-promo');
                 document.getElementById('applyPromoBtn').classList.add('btn-success');
-                
-                const newBalance = (referrer.walletBalance || 0) + 25;
-                database.ref('users/' + referrerId).update({
-                    walletBalance: newBalance
-                })
-                .then(() => {
-                    console.log(`Rewarded ${referrer.name} with K25 for referral`);
-                });
-                
-                database.ref('referrals').push().set({
-                    referrerId: referrerId,
-                    referredUserId: currentUser.uid,
-                    referralCode: referralCode,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP,
-                    rewardAmount: 25
-                });
             } else {
-                showNotification('Invalid referral code. Please check and try again.');
+                showNotification('Invalid promo code. Please check and try again.');
                 document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
             }
-        })
-        .catch(error => {
-            console.error('Error applying referral code:', error);
-            showNotification('Error applying referral code. Please try again.');
-        });
-}
-
-// Reset UI after ride completion or cancellation
-function resetUIAfterRide() {
-    document.getElementById('rideRequestForm').style.display = 'flex';
-    document.getElementById('rideInfoPanel').style.display = 'none';
-    document.getElementById('driverDetailsCard').style.display = 'none';
-    document.getElementById('destinationLocation').value = '';
-    document.getElementById('packageForm').classList.remove('active');
-    document.getElementById('receiverName').value = '';
-    document.getElementById('receiverPhone').value = '';
-    document.getElementById('packageDescription').value = '';
-    document.getElementById('specialInstructions').value = '';
-    document.getElementById('packageValue').value = '';
-    document.getElementById('promoCode').value = '';
-    appliedPromoCode = null;
-    document.getElementById('promoCode').style.borderColor = '';
-    document.getElementById('applyPromoBtn').innerHTML = 'Apply';
-    document.getElementById('applyPromoBtn').classList.remove('btn-success');
-    document.getElementById('applyPromoBtn').classList.add('btn-promo');
-    document.getElementById('promoSection').classList.remove('active');
-    
-    if (driverMarker) {
-        passengerMap.removeLayer(driverMarker);
-        driverMarker = null;
+        }
     }
     
-    if (destinationMarker) {
-        passengerMap.removeLayer(destinationMarker);
-        destinationMarker = null;
+    // Apply referral code
+    function applyReferralCode(referralCode) {
+        database.ref('users').orderByChild('referralCode').equalTo(referralCode).once('value')
+            .then(snapshot => {
+                if (snapshot.exists()) {
+                    const referrerData = snapshot.val();
+                    const referrerId = Object.keys(referrerData)[0];
+                    const referrer = referrerData[referrerId];
+                    
+                    appliedPromoCode = referralCode;
+                    showNotification('Referral code applied! 50% discount will be applied to your ride.');
+                    updateFareEstimate();
+                    
+                    document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
+                    document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
+                    document.getElementById('applyPromoBtn').classList.remove('btn-promo');
+                    document.getElementById('applyPromoBtn').classList.add('btn-success');
+                    
+                    const newBalance = (referrer.walletBalance || 0) + 25;
+                    database.ref('users/' + referrerId).update({
+                        walletBalance: newBalance
+                    })
+                    .then(() => {
+                        console.log(`Rewarded ${referrer.name} with K25 for referral`);
+                    });
+                    
+                    database.ref('referrals').push().set({
+                        referrerId: referrerId,
+                        referredUserId: currentUser.uid,
+                        referralCode: referralCode,
+                        timestamp: firebase.database.ServerValue.TIMESTAMP,
+                        rewardAmount: 25
+                    });
+                } else {
+                    showNotification('Invalid referral code. Please check and try again.');
+                    document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
+                }
+            })
+            .catch(error => {
+                console.error('Error applying referral code:', error);
+                showNotification('Error applying referral code. Please try again.');
+            });
     }
     
-    if (routePolyline) {
-        passengerMap.removeLayer(routePolyline);
-        routePolyline = null;
-    }
-    
-    if (driverLocationListener) {
-        driverLocationListener();
-        driverLocationListener = null;
-    }
-    
-    currentRide = null;
-}
-
-// Load passenger data
-function loadPassengerData() {
-    if (currentUser) {
-        updateUserStats();
-    }
-}
-
-// Load account data
-function loadAccountData() {
-    if (currentUser && userData) {
-        document.getElementById('accountName').textContent = userData.name || 'Passenger';
-        document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
-        document.getElementById('accountEmail').textContent = userData.email || 'Not set';
-        document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
+    // Reset UI after ride completion or cancellation
+    function resetUIAfterRide() {
+        document.getElementById('rideRequestForm').style.display = 'flex';
+        document.getElementById('rideInfoPanel').style.display = 'none';
+        document.getElementById('driverDetailsCard').style.display = 'none';
         
-        walletBalance = userData.walletBalance || 0;
-        document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+        document.getElementById('destinationLocation').value = '';
         
-        const accountAvatar = document.getElementById('accountAvatar');
-        if (userData.name) {
-            accountAvatar.textContent = userData.name.charAt(0).toUpperCase();
-        } else {
-            accountAvatar.innerHTML = '<i class="fas fa-user"></i>';
+        document.getElementById('packageForm').classList.remove('active');
+        document.getElementById('receiverName').value = '';
+        document.getElementById('receiverPhone').value = '';
+        document.getElementById('packageDescription').value = '';
+        document.getElementById('specialInstructions').value = '';
+        document.getElementById('packageValue').value = '';
+        
+        document.getElementById('promoCode').value = '';
+        appliedPromoCode = null;
+        document.getElementById('promoCode').style.borderColor = '';
+        document.getElementById('applyPromoBtn').innerHTML = 'Apply';
+        document.getElementById('applyPromoBtn').classList.remove('btn-success');
+        document.getElementById('applyPromoBtn').classList.add('btn-promo');
+        document.getElementById('promoSection').classList.remove('active');
+        
+        if (driverMarker) {
+            passengerMap.removeLayer(driverMarker);
+            driverMarker = null;
         }
         
-        updateUserStats();
+        if (destinationMarker) {
+            passengerMap.removeLayer(destinationMarker);
+            destinationMarker = null;
+        }
+        
+        if (routePolyline) {
+            passengerMap.removeLayer(routePolyline);
+            routePolyline = null;
+        }
+        
+        if (driverLocationListener) {
+            driverLocationListener();
+            driverLocationListener = null;
+        }
+        
+        currentRide = null;
     }
-}
-
-// Update user statistics
-function updateUserStats() {
-    if (!currentUser) return;
     
-    database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).once('value')
-        .then(snapshot => {
-            const rides = snapshot.val();
-            if (rides) {
-                const ridesArray = Object.values(rides);
-                
-                userStats = {
-                    completed: ridesArray.filter(ride => ride.status === 'completed' || ride.status === 'paid').length,
-                    cancelled: ridesArray.filter(ride => ride.status === 'cancelled').length,
-                    pending: ridesArray.filter(ride => ride.status === 'requested' || ride.status === 'accepted').length
-                };
-                
-                document.getElementById('ridesCompleted').textContent = userStats.completed;
-                document.getElementById('ridesCancelled').textContent = userStats.cancelled;
-                document.getElementById('ridesPending').textContent = userStats.pending;
+    // Load passenger data
+    function loadPassengerData() {
+        if (currentUser) {
+            updateUserStats();
+        }
+    }
+    
+    // Load account data
+    function loadAccountData() {
+        if (currentUser && userData) {
+            document.getElementById('accountName').textContent = userData.name || 'Passenger';
+            document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
+            document.getElementById('accountEmail').textContent = userData.email || 'Not set';
+            document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-XXXX';
+            
+            walletBalance = userData.walletBalance || 0;
+            document.getElementById('accountBalance').textContent = `K${walletBalance.toFixed(2)}`;
+            
+            const accountAvatar = document.getElementById('accountAvatar');
+            if (userData.name) {
+                accountAvatar.textContent = userData.name.charAt(0).toUpperCase();
+            } else {
+                accountAvatar.innerHTML = '<i class="fas fa-user"></i>';
             }
-        });
-}
-
-// Share referral code
-function shareReferralCode() {
-    const referralCode = document.getElementById('referralCode').textContent;
-    const shareText = `Join me on Jubel! Use my referral code ${referralCode} for 50% off your first ride. Download the app now!`;
-    
-    if (navigator.share) {
-        navigator.share({
-            title: 'Jubel Referral',
-            text: shareText,
-            url: window.location.href
-        })
-        .then(() => showNotification('Referral code shared successfully!'))
-        .catch(error => console.error('Error sharing:', error));
-    } else {
-        navigator.clipboard.writeText(shareText)
-            .then(() => showNotification('Referral code copied to clipboard!'));
-    }
-}
-
-// Deposit to wallet
-function depositToWallet() {
-    const amount = prompt('Enter deposit amount (K):');
-    if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
-        const depositAmount = parseFloat(amount);
-        const newBalance = walletBalance + depositAmount;
-        
-        database.ref('users/' + currentUser.uid).update({
-            walletBalance: newBalance
-        })
-        .then(() => {
-            walletBalance = newBalance;
-            updateWalletBalanceUI();
-            showNotification(`Successfully deposited K${depositAmount.toFixed(2)} to your wallet.`);
-        })
-        .catch(error => {
-            console.error('Error depositing to wallet:', error);
-            showNotification('Error processing deposit. Please try again.');
-        });
-    } else if (amount) {
-        showNotification('Please enter a valid amount.');
-    }
-}
-
-// Withdraw from wallet
-function withdrawFromWallet() {
-    if (walletBalance <= 0) {
-        showNotification('Your wallet balance is zero.');
-        return;
+            
+            updateUserStats();
+        }
     }
     
-    const amount = prompt(`Enter withdrawal amount (K). Available: K${walletBalance.toFixed(2)}:`);
-    if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
-        const withdrawalAmount = parseFloat(amount);
+    // Update user statistics
+    function updateUserStats() {
+        if (!currentUser) return;
         
-        if (withdrawalAmount > walletBalance) {
-            showNotification('Insufficient balance for this withdrawal.');
+        database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).once('value')
+            .then(snapshot => {
+                const rides = snapshot.val();
+                if (rides) {
+                    const ridesArray = Object.values(rides);
+                    
+                    userStats = {
+                        completed: ridesArray.filter(ride => ride.status === 'completed' || ride.status === 'paid').length,
+                        cancelled: ridesArray.filter(ride => ride.status === 'cancelled').length,
+                        pending: ridesArray.filter(ride => ride.status === 'requested' || ride.status === 'accepted').length
+                    };
+                    
+                    document.getElementById('ridesCompleted').textContent = userStats.completed;
+                    document.getElementById('ridesCancelled').textContent = userStats.cancelled;
+                    document.getElementById('ridesPending').textContent = userStats.pending;
+                }
+            });
+    }
+    
+    // Share referral code
+    function shareReferralCode() {
+        const referralCode = document.getElementById('referralCode').textContent;
+        const shareText = `Join me on Jubel! Use my referral code ${referralCode} for 50% off your first ride. Download the app now!`;
+        
+        if (navigator.share) {
+            navigator.share({
+                title: 'Jubel Referral',
+                text: shareText,
+                url: window.location.href
+            })
+            .then(() => showNotification('Referral code shared successfully!'))
+            .catch(error => console.error('Error sharing:', error));
+        } else {
+            navigator.clipboard.writeText(shareText)
+                .then(() => showNotification('Referral code copied to clipboard!'));
+        }
+    }
+    
+    // Deposit to wallet
+    function depositToWallet() {
+        const amount = prompt('Enter deposit amount (K):');
+        if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+            const depositAmount = parseFloat(amount);
+            const newBalance = walletBalance + depositAmount;
+            
+            database.ref('users/' + currentUser.uid).update({
+                walletBalance: newBalance
+            })
+            .then(() => {
+                walletBalance = newBalance;
+                updateWalletBalanceUI();
+                showNotification(`Successfully deposited K${depositAmount.toFixed(2)} to your wallet.`);
+            })
+            .catch(error => {
+                console.error('Error depositing to wallet:', error);
+                showNotification('Error processing deposit. Please try again.');
+            });
+        } else if (amount) {
+            showNotification('Please enter a valid amount.');
+        }
+    }
+    
+    // Withdraw from wallet
+    function withdrawFromWallet() {
+        if (walletBalance <= 0) {
+            showNotification('Your wallet balance is zero.');
             return;
         }
         
-        const newBalance = walletBalance - withdrawalAmount;
-        
-        database.ref('users/' + currentUser.uid).update({
-            walletBalance: newBalance
-        })
-        .then(() => {
-            walletBalance = newBalance;
-            updateWalletBalanceUI();
-            showNotification(`Successfully withdrew K${withdrawalAmount.toFixed(2)} from your wallet.`);
-        })
-        .catch(error => {
-            console.error('Error withdrawing from wallet:', error);
-            showNotification('Error processing withdrawal. Please try again.');
-        });
-    } else if (amount) {
-        showNotification('Please enter a valid amount.');
-    }
-}
-
-// Contact via WhatsApp
-function contactWhatsApp() {
-    const phoneNumber = '0768658484';
-    const message = 'Hello, I need assistance with Jubel rides.';
-    const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
-}
-
-// Contact via phone call
-function contactPhone() {
-    const phoneNumber = '0768658484';
-    window.open(`tel:${phoneNumber}`, '_self');
-}
-
-// Add payment method
-function addPaymentMethod() {
-    showNotification('Payment method feature coming soon!');
-}
-
-// Load ride history with all statuses including pending orders
-function loadRideHistory() {
-    if (currentUser) {
-        const filter = document.getElementById('historyFilter').value;
-        const dateFilter = document.getElementById('historyDate').value;
-        
-        if (rideHistoryListener) {
-            rideHistoryListener();
-        }
-        
-        rideHistoryListener = database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).on('value', snapshot => {
-            const historyList = document.getElementById('historyList');
-            historyList.innerHTML = '';
+        const amount = prompt(`Enter withdrawal amount (K). Available: K${walletBalance.toFixed(2)}:`);
+        if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
+            const withdrawalAmount = parseFloat(amount);
             
-            const rides = snapshot.val();
-            if (rides) {
-                let ridesArray = Object.keys(rides).map(rideId => ({
-                    id: rideId,
-                    ...rides[rideId]
-                }));
+            if (withdrawalAmount > walletBalance) {
+                showNotification('Insufficient balance for this withdrawal.');
+                return;
+            }
+            
+            const newBalance = walletBalance - withdrawalAmount;
+            
+            database.ref('users/' + currentUser.uid).update({
+                walletBalance: newBalance
+            })
+            .then(() => {
+                walletBalance = newBalance;
+                updateWalletBalanceUI();
+                showNotification(`Successfully withdrew K${withdrawalAmount.toFixed(2)} from your wallet.`);
+            })
+            .catch(error => {
+                console.error('Error withdrawing from wallet:', error);
+                showNotification('Error processing withdrawal. Please try again.');
+            });
+        } else if (amount) {
+            showNotification('Please enter a valid amount.');
+        }
+    }
+    
+    // Contact via WhatsApp
+    function contactWhatsApp() {
+        const phoneNumber = '0768658484';
+        const message = 'Hello, I need assistance with Jubel rides.';
+        const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
+    }
+    
+    // Contact via phone call
+    function contactPhone() {
+        const phoneNumber = '0768658484';
+        window.open(`tel:${phoneNumber}`, '_self');
+    }
+    
+    // Add payment method
+    function addPaymentMethod() {
+        showNotification('Payment method feature coming soon!');
+    }
+    
+    // Load ride history with all statuses including pending orders
+    function loadRideHistory() {
+        if (currentUser) {
+            const filter = document.getElementById('historyFilter').value;
+            const dateFilter = document.getElementById('historyDate').value;
+            
+            if (rideHistoryListener) {
+                rideHistoryListener();
+            }
+            
+            rideHistoryListener = database.ref('rides').orderByChild('passengerId').equalTo(currentUser.uid).on('value', snapshot => {
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = '';
                 
-                if (filter !== 'all') {
-                    ridesArray = ridesArray.filter(ride => ride.status === filter);
-                }
-                
-                if (dateFilter) {
-                    const filterDate = new Date(dateFilter);
-                    ridesArray = ridesArray.filter(ride => {
-                        const rideDate = new Date(ride.timestamp);
-                        return rideDate.toDateString() === filterDate.toDateString();
+                const rides = snapshot.val();
+                if (rides) {
+                    let ridesArray = Object.keys(rides).map(rideId => ({
+                        id: rideId,
+                        ...rides[rideId]
+                    }));
+                    
+                    if (filter !== 'all') {
+                        ridesArray = ridesArray.filter(ride => ride.status === filter);
+                    }
+                    
+                    if (dateFilter) {
+                        const filterDate = new Date(dateFilter);
+                        ridesArray = ridesArray.filter(ride => {
+                            const rideDate = new Date(ride.timestamp);
+                            return rideDate.toDateString() === filterDate.toDateString();
+                        });
+                    }
+                    
+                    ridesArray.sort((a, b) => b.timestamp - a.timestamp);
+                    
+                    if (ridesArray.length === 0) {
+                        historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No rides found matching your criteria.</p>';
+                        return;
+                    }
+                    
+                    ridesArray.forEach(ride => {
+                        const historyItem = document.createElement('div');
+                        historyItem.className = 'history-item';
+                        historyItem.setAttribute('data-ride-id', ride.id);
+                        
+                        const date = new Date(ride.timestamp);
+                        const formattedDate = date.toLocaleDateString();
+                        const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        
+                        const isDelivery = ride.rideType === 'bike' || ride.rideType === 'bicycle';
+                        const typeClass = isDelivery ? 'delivery' : 'ride';
+                        const typeText = isDelivery ? 'Delivery' : 'Ride';
+                        
+                        let statusClass = 'status-requested';
+                        let statusText = getStatusText(ride.status);
+                        
+                        if (ride.status === 'accepted') {
+                            statusClass = 'status-accepted';
+                        } else if (ride.status === 'completed' || ride.status === 'paid') {
+                            statusClass = 'status-completed';
+                        } else if (ride.status === 'cancelled') {
+                            statusClass = 'status-cancelled';
+                        } else if (ride.status === 'requested') {
+                            statusClass = 'status-pending';
+                            statusText = 'Pending';
+                        }
+                        
+                        let historyContent = '';
+                        
+                        if (isDelivery) {
+                            historyContent = `
+                                <div class="history-item-type ${typeClass}">${typeText}</div>
+                                <div class="history-locations">
+                                    <div>
+                                        <strong>Pickup:</strong> ${ride.pickupLocation}
+                                    </div>
+                                    <div>
+                                        <strong>Delivery:</strong> ${ride.destination}
+                                    </div>
+                                </div>
+                                ${ride.packageDetails ? `
+                                <div class="history-package-details">
+                                    <div class="package-detail-row">
+                                        <span class="package-detail-label">Receiver:</span>
+                                        <span class="package-detail-value">${ride.packageDetails.receiverName || 'N/A'}</span>
+                                    </div>
+                                    <div class="package-detail-row">
+                                        <span class="package-detail-label">Package:</span>
+                                        <span class="package-detail-value">${ride.packageDetails.packageDescription || 'N/A'}</span>
+                                    </div>
+                                    <div class="package-detail-row">
+                                        <span class="package-detail-label">Value:</span>
+                                        <span class="package-detail-value">K${ride.packageDetails.packageValue || '0.00'}</span>
+                                    </div>
+                                </div>
+                                ` : ''}
+                                <div class="history-info">
+                                    <div class="history-fare">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                                    <div>${formattedDate} ${formattedTime}</div>
+                                    <div class="status-badge ${statusClass}">
+                                        ${statusText}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            historyContent = `
+                                <div class="history-item-type ${typeClass}">${typeText}</div>
+                                <div class="history-locations">
+                                    <div>
+                                        <strong>From:</strong> ${ride.pickupLocation}
+                                    </div>
+                                    <div>
+                                        <strong>To:</strong> ${ride.destination}
+                                    </div>
+                                </div>
+                                <div class="history-info">
+                                    <div class="history-fare">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                                    <div>${formattedDate} ${formattedTime}</div>
+                                    <div class="status-badge ${statusClass}">
+                                        ${statusText}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        if (ride.driverId) {
+                            database.ref('users/' + ride.driverId).once('value')
+                                .then(driverSnapshot => {
+                                    const driver = driverSnapshot.val();
+                                    if (driver) {
+                                        const driverInfo = document.createElement('div');
+                                        driverInfo.className = 'history-driver-info';
+                                        driverInfo.innerHTML = `
+                                            <div class="history-driver-avatar">
+                                                ${driver.name ? driver.name.charAt(0).toUpperCase() : 'D'}
+                                            </div>
+                                            <div class="history-driver-details">
+                                                <div class="history-driver-name">${driver.name || 'Driver'}</div>
+                                                <div class="history-driver-rating">${driver.rating || '4.5'} ★</div>
+                                            </div>
+                                        `;
+                                        historyItem.appendChild(driverInfo);
+                                    }
+                                });
+                        }
+                        
+                        historyItem.innerHTML = historyContent;
+                        historyList.appendChild(historyItem);
                     });
+                } else {
+                    historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No ride history found.</p>';
                 }
-                
-                ridesArray.sort((a, b) => b.timestamp - a.timestamp);
-                
-                if (ridesArray.length === 0) {
-                    historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No rides found matching your criteria.</p>';
-                    return;
-                }
-                
-                ridesArray.forEach(ride => {
-                    const historyItem = document.createElement('div');
-                    historyItem.className = 'history-item';
-                    historyItem.setAttribute('data-ride-id', ride.id);
+            }, error => {
+                console.error('Error loading ride history:', error);
+                historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--error-red);">Error loading ride history.</p>';
+            });
+        }
+    }
+    
+    // Get display text for ride status
+    function getStatusText(status) {
+        const statusMap = {
+            'requested': 'Awaiting Driver',
+            'accepted': 'In Progress',
+            'completed': 'Completed',
+            'paid': 'Completed',
+            'cancelled': 'Cancelled',
+            'arrived': 'Driver Arrived',
+            'picked_up': 'Picked Up',
+            'started': 'Trip Started'
+        };
+        
+        return statusMap[status] || status;
+    }
+    
+    // Show ride details popup
+    function showRideDetailsPopup(rideId) {
+        database.ref('rides/' + rideId).once('value')
+            .then(snapshot => {
+                const ride = snapshot.val();
+                if (ride) {
+                    document.getElementById('popupRidePickup').textContent = ride.pickupLocation;
+                    document.getElementById('popupRideDestination').textContent = ride.destination;
+                    document.getElementById('popupRideFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
+                    document.getElementById('popupRideDistance').textContent = ride.distance || 'Calculating...';
+                    document.getElementById('popupRideStatus').textContent = getStatusText(ride.status);
+                    document.getElementById('popupRideType').textContent = ride.rideType ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1) : 'Standard';
                     
                     const date = new Date(ride.timestamp);
-                    const formattedDate = date.toLocaleDateString();
-                    const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    document.getElementById('popupRideDate').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                     
-                    const isDelivery = ride.rideType === 'bike' || ride.rideType === 'bicycle';
-                    const typeClass = isDelivery ? 'delivery' : 'ride';
-                    const typeText = isDelivery ? 'Delivery' : 'Ride';
-                    
-                    let statusClass = 'status-requested';
-                    let statusText = getStatusText(ride.status);
-                    
-                    if (ride.status === 'accepted') {
-                        statusClass = 'status-accepted';
-                    } else if (ride.status === 'completed' || ride.status === 'paid') {
-                        statusClass = 'status-completed';
-                    } else if (ride.status === 'cancelled') {
-                        statusClass = 'status-cancelled';
-                    } else if (ride.status === 'requested') {
-                        statusClass = 'status-pending';
-                        statusText = 'Pending';
-                    }
-                    
-                    let historyContent = '';
-                    
-                    if (isDelivery) {
-                        historyContent = `
-                            <div class="history-item-type ${typeClass}">${typeText}</div>
-                            <div class="history-locations">
-                                <div>
-                                    <strong>Pickup:</strong> ${ride.pickupDisplayLocation}
-                                </div>
-                                <div>
-                                    <strong>Delivery:</strong> ${ride.destinationDisplayLocation}
-                                </div>
-                            </div>
-                            ${ride.packageDetails ? `
-                            <div class="history-package-details">
-                                <div class="package-detail-row">
-                                    <span class="package-detail-label">Receiver:</span>
-                                    <span class="package-detail-value">${ride.packageDetails.receiverName || 'N/A'}</span>
-                                </div>
-                                <div class="package-detail-row">
-                                    <span class="package-detail-label">Package:</span>
-                                    <span class="package-detail-value">${ride.packageDetails.packageDescription || 'N/A'}</span>
-                                </div>
-                                <div class="package-detail-row">
-                                    <span class="package-detail-label">Value:</span>
-                                    <span class="package-detail-value">K${ride.packageDetails.packageValue || '0.00'}</span>
-                                </div>
-                            </div>
-                            ` : ''}
-                            <div class="history-info">
-                                <div class="history-fare">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
-                                <div>${formattedDate} ${formattedTime}</div>
-                                <div class="status-badge ${statusClass}">
-                                    ${statusText}
-                                </div>
-                            </div>
-                        `;
-                    } else {
-                        historyContent = `
-                            <div class="history-item-type ${typeClass}">${typeText}</div>
-                            <div class="history-locations">
-                                <div>
-                                    <strong>From:</strong> ${ride.pickupDisplayLocation}
-                                </div>
-                                <div>
-                                    <strong>To:</strong> ${ride.destinationDisplayLocation}
-                                </div>
-                            </div>
-                            <div class="history-info">
-                                <div class="history-fare">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
-                                <div>${formattedDate} ${formattedTime}</div>
-                                <div class="status-badge ${statusClass}">
-                                    ${statusText}
-                                </div>
-                            </div>
-                        `;
-                    }
+                    updatePopupRideMap(ride);
                     
                     if (ride.driverId) {
                         database.ref('users/' + ride.driverId).once('value')
                             .then(driverSnapshot => {
                                 const driver = driverSnapshot.val();
                                 if (driver) {
-                                    const driverInfo = document.createElement('div');
-                                    driverInfo.className = 'history-driver-info';
-                                    driverInfo.innerHTML = `
-                                        <div class="history-driver-avatar">
-                                            ${driver.name ? driver.name.charAt(0).toUpperCase() : 'D'}
-                                        </div>
-                                        <div class="history-driver-details">
-                                            <div class="history-driver-name">${driver.name || 'Driver'}</div>
-                                            <div class="history-driver-rating">${driver.rating || '4.5'} ★</div>
-                                        </div>
-                                    `;
-                                    historyItem.appendChild(driverInfo);
+                                    document.getElementById('popupDriverName').textContent = driver.name || 'Driver';
+                                    document.getElementById('popupDriverPhone').textContent = driver.phone || 'N/A';
+                                    document.getElementById('popupDriverVehicle').textContent = `${driver.vehicleType || 'Car'} (${driver.licensePlate || 'N/A'})`;
+                                    document.getElementById('popupDriverRating').textContent = driver.rating || '4.5';
+                                    
+                                    updateDriverProgress(ride.status);
+                                    
+                                    document.getElementById('popupDriverDetails').classList.remove('hidden');
                                 }
                             });
+                    } else {
+                        document.getElementById('popupDriverDetails').classList.add('hidden');
                     }
                     
-                    historyItem.innerHTML = historyContent;
-                    historyList.appendChild(historyItem);
-                });
-            } else {
-                historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No ride history found.</p>';
-            }
-        }, error => {
-            console.error('Error loading ride history:', error);
-            historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--error-red);">Error loading ride history.</p>';
-        });
-    }
-}
-
-// Get display text for ride status
-function getStatusText(status) {
-    const statusMap = {
-        'requested': 'Awaiting Driver',
-        'accepted': 'In Progress',
-        'completed': 'Completed',
-        'paid': 'Completed',
-        'cancelled': 'Cancelled',
-        'arrived': 'Driver Arrived',
-        'picked_up': 'Picked Up',
-        'started': 'Trip Started'
-    };
-    
-    return statusMap[status] || status;
-}
-
-// Show ride details popup
-function showRideDetailsPopup(rideId) {
-    database.ref('rides/' + rideId).once('value')
-        .then(snapshot => {
-            const ride = snapshot.val();
-            if (ride) {
-                document.getElementById('popupRidePickup').textContent = ride.pickupDisplayLocation;
-                document.getElementById('popupRideDestination').textContent = ride.destinationDisplayLocation;
-                document.getElementById('popupRideFare').textContent = `K${ride.fare ? ride.fare.toFixed(2) : '0.00'}`;
-                document.getElementById('popupRideDistance').textContent = ride.distance || 'Calculating...';
-                document.getElementById('popupRideStatus').textContent = getStatusText(ride.status);
-                document.getElementById('popupRideType').textContent = ride.rideType ? ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1) : 'Standard';
-                
-                const date = new Date(ride.timestamp);
-                document.getElementById('popupRideDate').textContent = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                
-                updatePopupRideMap(ride);
-                
-                if (ride.driverId) {
-                    database.ref('users/' + ride.driverId).once('value')
-                        .then(driverSnapshot => {
-                            const driver = driverSnapshot.val();
-                            if (driver) {
-                                document.getElementById('popupDriverName').textContent = driver.name || 'Driver';
-                                document.getElementById('popupDriverPhone').textContent = driver.phone || 'N/A';
-                                document.getElementById('popupDriverVehicle').textContent = `${driver.vehicleType || 'Car'} (${driver.licensePlate || 'N/A'})`;
-                                document.getElementById('popupDriverRating').textContent = driver.rating || '4.5';
-                                
-                                updateDriverProgress(ride.status);
-                                
-                                document.getElementById('popupDriverDetails').classList.remove('hidden');
-                            }
-                        });
-                } else {
-                    document.getElementById('popupDriverDetails').classList.add('hidden');
+                    document.getElementById('rideDetailsPopup').classList.remove('hidden');
                 }
-                
-                document.getElementById('rideDetailsPopup').classList.remove('hidden');
-            }
-        })
-        .catch(error => {
-            console.error('Error loading ride details:', error);
-            showNotification('Error loading ride details.');
-        });
-}
-
-// Update driver progress in popup
-function updateDriverProgress(status) {
-    const progressElement = document.getElementById('popupDriverProgress');
-    
-    switch(status) {
-        case 'requested':
-            progressElement.textContent = 'Waiting for driver to accept';
-            break;
-        case 'accepted':
-            progressElement.textContent = 'Driver on the way to pickup';
-            break;
-        case 'arrived':
-            progressElement.textContent = 'Driver arrived at pickup location';
-            break;
-        case 'picked_up':
-            progressElement.textContent = 'Passenger picked up';
-            break;
-        case 'started':
-            progressElement.textContent = 'Trip in progress';
-            break;
-        case 'completed':
-            progressElement.textContent = 'Trip completed';
-            break;
-        case 'paid':
-            progressElement.textContent = 'Payment completed';
-            break;
-        default:
-            progressElement.textContent = 'Status: ' + status;
+            })
+            .catch(error => {
+                console.error('Error loading ride details:', error);
+                showNotification('Error loading ride details.');
+            });
     }
-}
-
-// Update popup ride map with proper zoom to show both pickup and destination
-function updatePopupRideMap(ride) {
-    popupRideMap.eachLayer(layer => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-            popupRideMap.removeLayer(layer);
+    
+    // Update driver progress in popup
+    function updateDriverProgress(status) {
+        const progressElement = document.getElementById('popupDriverProgress');
+        
+        switch(status) {
+            case 'requested':
+                progressElement.textContent = 'Waiting for driver to accept';
+                break;
+            case 'accepted':
+                progressElement.textContent = 'Driver on the way to pickup';
+                break;
+            case 'arrived':
+                progressElement.textContent = 'Driver arrived at pickup location';
+                break;
+            case 'picked_up':
+                progressElement.textContent = 'Passenger picked up';
+                break;
+            case 'started':
+                progressElement.textContent = 'Trip in progress';
+                break;
+            case 'completed':
+                progressElement.textContent = 'Trip completed';
+                break;
+            case 'paid':
+                progressElement.textContent = 'Payment completed';
+                break;
+            default:
+                progressElement.textContent = 'Status: ' + status;
         }
-    });
-    
-    L.marker([ride.pickupLat, ride.pickupLng], {
-        icon: L.divIcon({
-            className: 'pickup-marker',
-            html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
-            iconSize: [25, 25]
-        })
-    }).addTo(popupRideMap).bindPopup('Pickup Location');
-    
-    L.marker([ride.destLat, ride.destLng], {
-        icon: L.divIcon({
-            className: 'destination-marker',
-            html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
-            iconSize: [25, 25]
-        })
-    }).addTo(popupRideMap).bindPopup('Destination');
-    
-    drawRouteOnPopupMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-    
-    const bounds = L.latLngBounds(
-        [ride.pickupLat, ride.pickupLng],
-        [ride.destLat, ride.destLng]
-    );
-    
-    const distance = calculateDistance(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-    let zoomLevel = 13;
-    
-    if (distance < 1000) {
-        zoomLevel = 15;
-    } else if (distance < 5000) {
-        zoomLevel = 14;
-    } else if (distance < 20000) {
-        zoomLevel = 12;
-    } else {
-        zoomLevel = 10;
     }
     
-    popupRideMap.fitBounds(bounds, { 
-        padding: [20, 20],
-        maxZoom: zoomLevel
-    });
-}
-
-// Draw route on popup map
-function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
-    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                L.polyline(routeCoordinates, {
+    // Draw route on popup map
+    function drawRouteOnPopupMap(startLat, startLng, endLat, endLng) {
+        fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.routes && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    
+                    L.polyline(routeCoordinates, {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7
+                    }).addTo(popupRideMap);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching route:', error);
+                L.polyline([
+                    [startLat, startLng],
+                    [endLat, endLng]
+                ], {
                     color: '#FF6B35',
                     weight: 4,
                     opacity: 0.7
                 }).addTo(popupRideMap);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            L.polyline([
-                [startLat, startLng],
-                [endLat, endLng]
-            ], {
-                color: '#FF6B35',
-                weight: 4,
-                opacity: 0.7
-            }).addTo(popupRideMap);
-        });
-}
-
-// Close ride details popup
-function closeRideDetailsPopup() {
-    document.getElementById('rideDetailsPopup').classList.add('hidden');
-}
-
-// Set rating stars
-function setRating(rating) {
-    userRating = rating;
-    document.querySelectorAll('.star').forEach(star => {
-        const starRating = parseInt(star.getAttribute('data-rating'));
-        if (starRating <= rating) {
-            star.classList.add('active');
-        } else {
-            star.classList.remove('active');
-        }
-    });
-}
-
-// Show ride completion
-function showRideCompletion(ride) {
-    document.getElementById('finalFare').textContent = `K${ride.fare.toFixed(2)}`;
-    switchScreen('rideCompletionScreen');
-    showNotification('Ride completed. Please complete payment and rating.');
-    
-    if (driverMarker) {
-        passengerMap.removeLayer(driverMarker);
-        driverMarker = null;
+            });
     }
     
-    if (driverAssignmentListener) {
-        driverAssignmentListener();
-        driverAssignmentListener = null;
+    // Close ride details popup
+    function closeRideDetailsPopup() {
+        document.getElementById('rideDetailsPopup').classList.add('hidden');
     }
     
-    if (driverLocationListener) {
-        driverLocationListener();
-        driverLocationListener = null;
-    }
-}
-
-// Quick actions
-
-// Center map on passenger location
-function centerMap() {
-    if (currentLocationMarker) {
-        const passengerLatLng = currentLocationMarker.getLatLng();
-        passengerMap.setView(passengerLatLng, 16);
-        showNotification('Map centered on your location');
-    }
-}
-
-// Refresh passenger position
-function refreshPassengerPosition() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(position => {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            userLocation = { lat, lng };
-            
-            passengerMap.setView([lat, lng], 16);
-            
-            if (currentLocationMarker) {
-                currentLocationMarker.setLatLng([lat, lng]);
+    // Set rating stars
+    function setRating(rating) {
+        userRating = rating;
+        document.querySelectorAll('.star').forEach(star => {
+            const starRating = parseInt(star.getAttribute('data-rating'));
+            if (starRating <= rating) {
+                star.classList.add('active');
             } else {
-                currentLocationMarker = L.marker([lat, lng], {
-                    icon: L.divIcon({
-                        className: 'current-location-marker',
-                        html: '<div class="current-location-marker"><i class="fas fa-user"></i></div>',
-                        iconSize: [20, 20]
-                    })
-                }).addTo(passengerMap)
-                    .bindPopup('Your location');
+                star.classList.remove('active');
             }
-            
-            updatePickupLocation(lat, lng);
-            determineCurrentCity(lat, lng);
-            showNotification('Location refreshed');
-        }, error => {
-            console.error('Geolocation error:', error);
-            showNotification('Unable to refresh location. Please enable location services.');
         });
     }
-}
-
-// Toggle traffic layer
-function toggleTraffic() {
-    if (trafficEnabled) {
-        if (trafficLayer) {
-            passengerMap.removeLayer(trafficLayer);
-            trafficLayer = null;
-        }
-        trafficEnabled = false;
-        showNotification('Traffic layer disabled');
-    } else {
-        trafficLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(passengerMap);
-        trafficEnabled = true;
-        showNotification('Traffic layer enabled');
-    }
-}
-
-// Show notification
-function showNotification(message) {
-    const notification = document.getElementById('notification');
-    notification.textContent = message;
-    notification.style.display = 'block';
     
-    setTimeout(() => {
-        notification.style.display = 'none';
-    }, 4000);
-}
+    // Show ride completion
+    function showRideCompletion(ride) {
+        document.getElementById('finalFare').textContent = `K${ride.fare.toFixed(2)}`;
+        
+        switchScreen('rideCompletionScreen');
+        showNotification('Ride completed. Please complete payment and rating.');
+        
+        if (driverMarker) {
+            passengerMap.removeLayer(driverMarker);
+            driverMarker = null;
+        }
+        
+        if (driverAssignmentListener) {
+            driverAssignmentListener();
+            driverAssignmentListener = null;
+        }
+        
+        if (driverLocationListener) {
+            driverLocationListener();
+            driverLocationListener = null;
+        }
+    }
+    
+    // Quick actions
+    
+    // Center map on passenger location
+    function centerMap() {
+        if (currentLocationMarker) {
+            const passengerLatLng = currentLocationMarker.getLatLng();
+            passengerMap.setView(passengerLatLng, 16);
+            showNotification('Map centered on your location');
+        }
+    }
+    
+    // Refresh passenger position
+    function refreshPassengerPosition() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                userLocation = { lat, lng };
+                
+                passengerMap.setView([lat, lng], 16);
+                
+                if (currentLocationMarker) {
+                    currentLocationMarker.setLatLng([lat, lng]);
+                } else {
+                    currentLocationMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'current-location-marker',
+                            html: '<div class="current-location-marker"><i class="fas fa-user"></i></div>',
+                            iconSize: [20, 20]
+                        })
+                    }).addTo(passengerMap)
+                        .bindPopup('Your location');
+                }
+                
+                updatePickupLocation(lat, lng);
+                determineCurrentCityWithPrecision(lat, lng);
+                
+                showNotification('Location refreshed');
+            }, error => {
+                console.error('Geolocation error:', error);
+                showNotification('Unable to refresh location. Please enable location services.');
+            });
+        }
+    }
+    
+    // Toggle traffic layer
+    function toggleTraffic() {
+        if (trafficEnabled) {
+            if (trafficLayer) {
+                passengerMap.removeLayer(trafficLayer);
+                trafficLayer = null;
+            }
+            trafficEnabled = false;
+            showNotification('Traffic layer disabled');
+        } else {
+            trafficLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(passengerMap);
+            trafficEnabled = true;
+            showNotification('Traffic layer enabled');
+        }
+    }
+    
+    // Show notification
+    function showNotification(message) {
+        const notification = document.getElementById('notification');
+        notification.textContent = message;
+        notification.style.display = 'block';
+        
+        setTimeout(() => {
+            notification.style.display = 'none';
+        }, 4000);
+    }
+    
+    // Toggle panel collapse
+    function togglePanelCollapse() {
+        const panel = document.getElementById('passengerPanel');
+        panel.classList.toggle('collapsed');
+    }
+    
+    // Toggle map type
+    function toggleMapType() {
+        passengerMap.eachLayer(layer => {
+            if (layer instanceof L.TileLayer) {
+                passengerMap.removeLayer(layer);
+            }
+        });
+        
+        if (mapType === 'standard') {
+            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap contributors'
+            }).addTo(passengerMap);
+            mapType = 'satellite';
+            showNotification('Switched to satellite view');
+        } else {
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(passengerMap);
+            mapType = 'standard';
+            showNotification('Switched to standard view');
+        }
+    }
+    
+    // Toggle dark mode
+    function toggleDarkMode() {
+        isDarkMode = !isDarkMode;
+        const body = document.body;
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        
+        if (isDarkMode) {
+            body.style.backgroundColor = '#1a1a1a';
+            body.style.color = '#ffffff';
+            darkModeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            darkModeToggle.style.background = '#333';
+            darkModeToggle.style.color = '#ffcc00';
+            showNotification('Dark mode enabled');
+        } else {
+            body.style.backgroundColor = '';
+            body.style.color = '';
+            darkModeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            darkModeToggle.style.background = '';
+            darkModeToggle.style.color = '';
+            showNotification('Dark mode disabled');
+        }
+    }
+    
+    // Use saved location
+    function useSavedLocation(addressType) {
+        if (userData) {
+            const address = userData[addressType + 'Address'];
+            
+            if (address) {
+                document.getElementById('destinationLocation').value = address;
+                updateFareEstimate();
+                showNotification(`${addressType.charAt(0).toUpperCase() + addressType.slice(1)} address set as destination.`);
+                
+                forwardGeocode(address).then(results => {
+                    if (results.length > 0) {
+                        updateDestinationMarker(
+                            parseFloat(results[0].lat),
+                            parseFloat(results[0].lon),
+                            address
+                        );
+                        
+                        drawRoute(userLocation.lat, userLocation.lng, parseFloat(results[0].lat), parseFloat(results[0].lon));
+                        
+                        document.getElementById('requestRideBtn').disabled = false;
+                    }
+                });
+            } else {
+                showNotification(`No ${addressType} address saved. Please add it in settings.`);
+            }
+        }
+    }
+    
+    // Get place type from search result
+    function getPlaceType(place) {
+        if (place.type === 'restaurant' || place.class === 'amenity' && place.type === 'restaurant') {
+            return 'restaurant';
+        } else if (place.type === 'cafe' || place.class === 'amenity' && place.type === 'cafe') {
+            return 'cafe';
+        } else if (place.type === 'bar' || place.class === 'amenity' && place.type === 'bar') {
+            return 'bar';
+        } else if (place.type === 'pub' || place.class === 'amenity' && place.type === 'pub') {
+            return 'pub';
+        } else if (place.type === 'fast_food' || place.class === 'amenity' && place.type === 'fast_food') {
+            return 'fast_food';
+        } else if (place.type === 'bank' || place.class === 'amenity' && place.type === 'bank') {
+            return 'bank';
+        } else if (place.type === 'atm' || place.class === 'amenity' && place.type === 'atm') {
+            return 'atm';
+        } else if (place.type === 'hospital' || place.class === 'amenity' && place.type === 'hospital') {
+            return 'hospital';
+        } else if (place.type === 'pharmacy' || place.class === 'amenity' && place.type === 'pharmacy') {
+            return 'pharmacy';
+        } else if (place.type === 'school' || place.class === 'amenity' && place.type === 'school') {
+            return 'school';
+        } else if (place.type === 'university' || place.class === 'amenity' && place.type === 'university') {
+            return 'university';
+        } else if (place.type === 'library' || place.class === 'amenity' && place.type === 'library') {
+            return 'library';
+        } else if (place.type === 'cinema' || place.class === 'amenity' && place.type === 'cinema') {
+            return 'cinema';
+        } else if (place.type === 'theatre' || place.class === 'amenity' && place.type === 'theatre') {
+            return 'theatre';
+        } else if (place.type === 'museum' || place.class === 'amenity' && place.type === 'museum') {
+            return 'museum';
+        } else if (place.type === 'hotel' || place.class === 'tourism' && place.type === 'hotel') {
+            return 'hotel';
+        } else if (place.type === 'supermarket' || place.class === 'shop' && place.type === 'supermarket') {
+            return 'supermarket';
+        } else if (place.type === 'mall' || place.class === 'shop' && place.type === 'mall') {
+            return 'mall';
+        } else if (place.type === 'clothes' || place.class === 'shop' && place.type === 'clothes') {
+            return 'clothes';
+        } else if (place.type === 'fuel' || place.class === 'amenity' && place.type === 'fuel') {
+            return 'fuel';
+        } else if (place.type === 'parking' || place.class === 'amenity' && place.type === 'parking') {
+            return 'parking';
+        } else if (place.type === 'bus_station' || place.class === 'amenity' && place.type === 'bus_station') {
+            return 'bus_station';
+        } else if (place.type === 'taxi' || place.class === 'amenity' && place.type === 'taxi') {
+            return 'taxi';
+        } else if (place.type === 'police' || place.class === 'amenity' && place.type === 'police') {
+            return 'police';
+        } else if (place.type === 'market' || place.class === 'amenity' && place.type === 'marketplace') {
+            return 'market';
+        } else if (place.type === 'post_office' || place.class === 'amenity' && place.type === 'post_office') {
+            return 'post_office';
+        } else if (place.type === 'place_of_worship' || place.class === 'amenity' && place.type === 'place_of_worship') {
+            return 'place_of_worship';
+        } else if (place.type === 'stadium' || place.class === 'leisure' && place.type === 'stadium') {
+            return 'stadium';
+        } else if (place.type === 'park' || place.class === 'leisure' && place.type === 'park') {
+            return 'park';
+        } else if (place.type === 'monument' || place.class === 'historic' && place.type === 'monument') {
+            return 'monument';
+        } else if (place.type === 'castle' || place.class === 'historic' && place.type === 'castle') {
+            return 'castle';
+        } else {
+            return 'place';
+        }
+    }
+    
+    // Get icon for place type
+    function getPlaceIcon(placeType) {
+        const icons = {
+            'restaurant': '🍽️',
+            'cafe': '☕',
+            'bar': '🍺',
+            'pub': '🍻',
+            'fast_food': '🍔',
+            'bank': '🏦',
+            'atm': '💳',
+            'hospital': '🏥',
+            'pharmacy': '💊',
+            'school': '🏫',
+            'university': '🎓',
+            'library': '📚',
+            'cinema': '🎬',
+            'theatre': '🎭',
+            'museum': '🏛️',
+            'hotel': '🏨',
+            'supermarket': '🛒',
+            'mall': '🏪',
+            'clothes': '👕',
+            'fuel': '⛽',
+            'parking': '🅿️',
+            'bus_station': '🚌',
+            'taxi': '🚕',
+            'police': '👮',
+            'market': '🛍️',
+            'post_office': '📮',
+            'place_of_worship': '🛐',
+            'stadium': '🏟️',
+            'park': '🏞️',
+            'monument': '🗽',
+            'castle': '🏰'
+        };
+        
+        return icons[placeType] || '📍';
+    }
+    
+    // Hide destination suggestions
+    function hideDestinationSuggestions() {
+        const suggestionsContainer = document.getElementById('destinationSuggestions');
+        suggestionsContainer.style.display = 'none';
+    }
+    
+    // Determine current city based on coordinates
+    function determineCurrentCity(lat, lng) {
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.address) {
+                    currentCity = data.address.city || data.address.town || data.address.village || data.address.county || "Lusaka";
+                    console.log("Current city determined as:", currentCity);
+                }
+            })
+            .catch(error => {
+                console.error('Error determining city:', error);
+            });
+    }
+    
+    // Handle offline/online status
+    window.addEventListener('online', function() {
+        showNotification('Connection restored.');
+    });
 
-// Handle offline/online status
-window.addEventListener('online', function() {
-    showNotification('Connection restored.');
-});
-
-window.addEventListener('offline', function() {
-    showNotification('You are currently offline. Some features may not work.');
-});
-    </script>
+    window.addEventListener('offline', function() {
+        showNotification('You are currently offline. Some features may not work.');
+    });
+</script>
 </body>
 </html>
+
 
 
 
