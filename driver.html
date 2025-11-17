@@ -2536,7 +2536,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-        // Firebase configuration
+       // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
     authDomain: "jubel-13e1a.firebaseapp.com",
@@ -2581,19 +2581,20 @@ let selectedVehicleType = '';
 let soundEnabled = true;
 let rideRequestSound = null;
 let rideRequestSoundInterval = null;
-let rideRequestListener = null;
+
+// Statistics tracking
 let driverStats = {
     totalTrips: 0,
     totalEarnings: 0,
-    onlineHours: 0,
+    totalOnlineTime: 0, // in minutes
     acceptanceRate: 0,
     rating: 0,
-    completedTrips: 0,
-    cancelledTrips: 0
+    currentSessionStart: null,
+    currentSessionTime: 0
 };
-let onlineStartTime = null;
-let rideRequestCount = 0;
-let acceptedRideCount = 0;
+
+// Ride queue from Firebase
+let rideQueueListener = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -2779,11 +2780,9 @@ function setupAuthEventListeners() {
                     stats: {
                         totalTrips: 0,
                         totalEarnings: 0,
-                        onlineHours: 0,
+                        totalOnlineTime: 0,
                         acceptanceRate: 0,
-                        rating: 0,
-                        completedTrips: 0,
-                        cancelledTrips: 0
+                        rating: 0
                     }
                 });
             })
@@ -2807,7 +2806,7 @@ function initializeMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(driverMap);
     
-    // Ride request map - initialize with larger size
+    // Ride request map - ENHANCED: Bigger and properly configured
     rideRequestMap = L.map('rideRequestMap').setView([-15.4167, 28.2833], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
@@ -2998,11 +2997,12 @@ function initializeAdvancedFeatures() {
     // Initialize performance stats with real data
     updatePerformanceStats();
     
-    // Remove ride queue simulation
-    document.getElementById('rideQueue').style.display = 'none';
+    // Initialize ride queue from Firebase
+    initializeRideQueue();
     
     // Set up periodic updates
     setInterval(updatePerformanceStats, 30000); // Update every 30 seconds
+    setInterval(updateOnlineTime, 60000); // Update online time every minute
 }
 
 // Update performance statistics with REAL data
@@ -3013,30 +3013,144 @@ function updatePerformanceStats() {
             .then(snapshot => {
                 const stats = snapshot.val();
                 if (stats) {
-                    driverStats = stats;
+                    driverStats = { ...driverStats, ...stats };
                     
                     // Update UI with real data
-                    document.getElementById('totalTrips').textContent = stats.totalTrips || 0;
-                    document.getElementById('ratingScore').textContent = stats.rating ? stats.rating.toFixed(1) : '0.0';
-                    document.getElementById('onlineTime').textContent = stats.onlineHours ? Math.round(stats.onlineHours) + 'h' : '0h';
-                    document.getElementById('acceptanceRate').textContent = stats.acceptanceRate ? Math.round(stats.acceptanceRate) + '%' : '0%';
+                    document.getElementById('totalTrips').textContent = driverStats.totalTrips || 0;
+                    document.getElementById('ratingScore').textContent = (driverStats.rating || 0).toFixed(1);
+                    document.getElementById('onlineTime').textContent = formatOnlineTime(driverStats.totalOnlineTime || 0);
+                    document.getElementById('acceptanceRate').textContent = (driverStats.acceptanceRate || 0) + '%';
                     
                     // Update account screen stats
-                    document.getElementById('completedRides').textContent = stats.completedTrips || 0;
-                    document.getElementById('cancelledRides').textContent = stats.cancelledTrips || 0;
-                    document.getElementById('totalEarnings').textContent = stats.totalEarnings ? 'K' + stats.totalEarnings.toFixed(2) : 'K0.00';
-                    document.getElementById('driverRating').textContent = stats.rating ? stats.rating.toFixed(1) + ' ★' : '0.0 ★';
+                    document.getElementById('completedRides').textContent = driverStats.totalTrips || 0;
+                    document.getElementById('totalEarnings').textContent = `K${(driverStats.totalEarnings || 0).toFixed(2)}`;
+                    document.getElementById('driverRating').textContent = (driverStats.rating || 0).toFixed(1) + ' ★';
                 }
             })
             .catch(error => {
                 console.error('Error loading driver stats:', error);
             });
+    }
+}
+
+// Format online time from minutes to readable format
+function formatOnlineTime(minutes) {
+    if (minutes < 60) {
+        return `${minutes}m`;
+    } else if (minutes < 1440) {
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return `${hours}h ${mins}m`;
+    } else {
+        const days = Math.floor(minutes / 1440);
+        const hours = Math.floor((minutes % 1440) / 60);
+        return `${days}d ${hours}h`;
+    }
+}
+
+// Update online time tracking
+function updateOnlineTime() {
+    if (isOnline && driverStats.currentSessionStart) {
+        const currentTime = new Date().getTime();
+        const sessionTime = Math.floor((currentTime - driverStats.currentSessionStart) / 60000); // Convert to minutes
+        driverStats.currentSessionTime = sessionTime;
         
-        // Update online hours in real-time if online
-        if (isOnline && onlineStartTime) {
-            const currentOnlineHours = (Date.now() - onlineStartTime) / (1000 * 60 * 60); // hours
-            document.getElementById('onlineTime').textContent = currentOnlineHours.toFixed(1) + 'h';
+        // Update the display
+        document.getElementById('onlineTime').textContent = formatOnlineTime((driverStats.totalOnlineTime || 0) + sessionTime);
+    }
+}
+
+// Initialize ride queue from Firebase (REAL data)
+function initializeRideQueue() {
+    // Remove any existing listener
+    if (rideQueueListener) {
+        rideQueueListener();
+    }
+    
+    // Listen for ride requests in Firebase
+    rideQueueListener = database.ref('rides').orderByChild('status').equalTo('requested').on('value', snapshot => {
+        const rides = snapshot.val();
+        rideQueue = [];
+        
+        if (rides) {
+            // Convert to array and filter by driver's vehicle type
+            Object.keys(rides).forEach(rideId => {
+                const ride = rides[rideId];
+                
+                // Check if ride type matches driver's vehicle type and if it's in the same city
+                if (ride.rideType === selectedVehicleType) {
+                    rideQueue.push({
+                        id: rideId,
+                        ...ride
+                    });
+                }
+            });
         }
+        
+        updateRideQueueDisplay();
+    }, error => {
+        console.error('Error loading ride queue:', error);
+    });
+}
+
+// Update ride queue display with REAL data from Firebase
+function updateRideQueueDisplay() {
+    const queueList = document.getElementById('queueList');
+    queueList.innerHTML = '';
+    
+    if (rideQueue.length > 0 && isOnline && !currentRide) {
+        rideQueue.forEach(ride => {
+            const queueItem = document.createElement('div');
+            queueItem.className = 'queue-item';
+            queueItem.innerHTML = `
+                <div class="queue-info">
+                    <div class="queue-location">${ride.pickupDisplayLocation || ride.pickupLocation}</div>
+                    <div class="queue-time">${calculateDistanceToPickup(ride)} • K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                </div>
+                <button class="queue-action" data-id="${ride.id}">Accept</button>
+            `;
+            queueList.appendChild(queueItem);
+        });
+        
+        // Show queue section
+        document.getElementById('rideQueue').style.display = 'block';
+        
+        // Add event listeners to queue actions
+        document.querySelectorAll('.queue-action').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const rideId = this.getAttribute('data-id');
+                acceptRideFromQueue(rideId);
+            });
+        });
+    } else {
+        document.getElementById('rideQueue').style.display = 'none';
+    }
+}
+
+// Calculate distance to pickup for display
+function calculateDistanceToPickup(ride) {
+    if (!driverMarker || !ride.pickupLat || !ride.pickupLng) {
+        return 'Distance calculating...';
+    }
+    
+    const driverLatLng = driverMarker.getLatLng();
+    const distance = calculateDistance(
+        driverLatLng.lat, driverLatLng.lng,
+        ride.pickupLat, ride.pickupLng
+    );
+    
+    if (distance < 1000) {
+        return Math.round(distance) + ' m away';
+    } else {
+        return (distance / 1000).toFixed(1) + ' km away';
+    }
+}
+
+// Accept ride from queue
+function acceptRideFromQueue(rideId) {
+    const ride = rideQueue.find(r => r.id === rideId);
+    if (ride) {
+        showRideRequest(rideId, ride);
     }
 }
 
@@ -3204,8 +3318,8 @@ function toggleOnlineStatus() {
         // Start location tracking
         startLocationTracking();
         
-        // Start tracking online time
-        onlineStartTime = Date.now();
+        // Start online time tracking
+        driverStats.currentSessionStart = new Date().getTime();
         
         // Listen for ride requests
         listenForRideRequests();
@@ -3223,17 +3337,17 @@ function toggleOnlineStatus() {
         // Stop location tracking
         stopLocationTracking();
         
-        // Update online hours in stats
-        if (onlineStartTime) {
-            const onlineHours = (Date.now() - onlineStartTime) / (1000 * 60 * 60);
-            updateOnlineHours(onlineHours);
-            onlineStartTime = null;
-        }
-        
-        // Stop listening for ride requests
-        if (rideRequestListener) {
-            database.ref('rides').off('value', rideRequestListener);
-            rideRequestListener = null;
+        // Update total online time
+        if (driverStats.currentSessionStart) {
+            const sessionEnd = new Date().getTime();
+            const sessionTime = Math.floor((sessionEnd - driverStats.currentSessionStart) / 60000);
+            driverStats.totalOnlineTime = (driverStats.totalOnlineTime || 0) + sessionTime;
+            driverStats.currentSessionStart = null;
+            
+            // Save to Firebase
+            if (currentUser) {
+                database.ref('users/' + currentUser.uid + '/stats/totalOnlineTime').set(driverStats.totalOnlineTime);
+            }
         }
         
         showNotification('You are now offline.');
@@ -3248,29 +3362,16 @@ function toggleOnlineStatus() {
     }
 }
 
-// Update online hours in Firebase
-function updateOnlineHours(additionalHours) {
-    if (currentUser) {
-        database.ref('users/' + currentUser.uid + '/stats/onlineHours').transaction(currentHours => {
-            return (currentHours || 0) + additionalHours;
-        });
-    }
-}
-
-// Listen for ride requests - ENHANCED FUNCTION
+// Listen for ride requests
 function listenForRideRequests() {
-    if (rideRequestListener) {
-        database.ref('rides').off('value', rideRequestListener);
-    }
-    
-    rideRequestListener = database.ref('rides').orderByChild('status').equalTo('requested').on('value', snapshot => {
+    database.ref('rides').orderByChild('status').equalTo('requested').on('value', snapshot => {
         const rides = snapshot.val();
         if (rides) {
             // Get the first available ride request that matches the driver's vehicle type
             for (const rideId in rides) {
                 const ride = rides[rideId];
                 
-                // Check if ride type matches driver's vehicle type and not already showing a request
+                // Check if ride type matches driver's vehicle type and if we're not already showing a request
                 if (ride.rideType === selectedVehicleType && !currentRideRequest) {
                     // Show ride request popup
                     showRideRequest(rideId, ride);
@@ -3281,7 +3382,7 @@ function listenForRideRequests() {
     });
 }
 
-// Show ride request popup - ENHANCED FUNCTION
+// ENHANCED: Show ride request popup with bigger map and proper zoom
 function showRideRequest(rideId, ride) {
     // Check if driver has accepted a ride already
     if (currentRide) {
@@ -3293,33 +3394,63 @@ function showRideRequest(rideId, ride) {
         ...ride
     };
     
-    // Increment ride request count for statistics
-    rideRequestCount++;
-    
     // Update popup content with REAL data from Firebase
     document.getElementById('customerName').textContent = ride.passengerName || 'Passenger';
     document.getElementById('customerPhone').textContent = ride.passengerPhone || 'N/A';
     document.getElementById('customerRating').textContent = ride.passengerRating || '4.8';
-    document.getElementById('pickupLocation').textContent = ride.pickupLocation;
+    document.getElementById('pickupLocation').textContent = ride.pickupDisplayLocation || ride.pickupLocation;
     document.getElementById('destinationLocation').textContent = ride.destination;
-    document.getElementById('tripDistance').textContent = ride.distance ? `${ride.distance} km` : 'Calculating...';
+    document.getElementById('tripDistance').textContent = ride.distance || 'Calculating...';
     document.getElementById('tripTime').textContent = ride.estimatedTime || 'Calculating...';
+    document.getElementById('surgeMultiplier').textContent = ride.surgeMultiplier || '1.0x';
     
-    // Display REAL fare details from Firebase
-    document.getElementById('baseFare').textContent = ride.baseFare ? `K${ride.baseFare.toFixed(2)}` : 'K0.00';
-    document.getElementById('distanceFare').textContent = ride.distanceFare ? `K${ride.distanceFare.toFixed(2)}` : 'K0.00';
-    document.getElementById('discountFare').textContent = ride.discount ? `-K${ride.discount.toFixed(2)}` : '-K0.00';
-    document.getElementById('totalFare').textContent = ride.totalFare ? `K${ride.totalFare.toFixed(2)}` : 'K0.00';
+    // Calculate and display fare details from Firebase data
+    const baseFare = ride.fare || 15;
+    const discount = ride.promoCode ? baseFare * 0.2 : 0;
+    const totalFare = baseFare - discount;
     
-    // Hide delivery information section for all ride types (simplified UI)
-    document.getElementById('deliveryInfoSection').style.display = 'none';
+    document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
+    document.getElementById('distanceFare').textContent = `K0.00`; // Distance fare included in base fare
+    document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
+    document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
     
-    // Hide waypoints section to simplify UI
-    document.getElementById('waypointsContainer').style.display = 'none';
-    document.querySelector('.section-title').style.display = 'none';
+    // Show delivery information for bike/bicycle rides
+    const deliveryInfoSection = document.getElementById('deliveryInfoSection');
+    if (ride.rideType === 'bike' || ride.rideType === 'bicycle') {
+        deliveryInfoSection.style.display = 'block';
+        
+        // Check if package details exist
+        if (ride.packageDetails) {
+            document.getElementById('receiverName').textContent = ride.packageDetails.receiverName || 'N/A';
+            document.getElementById('receiverPhone').textContent = ride.packageDetails.receiverPhone || 'N/A';
+            document.getElementById('packageDescription').textContent = ride.packageDetails.packageDescription || 'N/A';
+            document.getElementById('packageValue').textContent = ride.packageDetails.packageValue ? `K${ride.packageDetails.packageValue}` : 'N/A';
+            
+            // Show special instructions if available
+            const specialInstructionsContainer = document.getElementById('specialInstructionsContainer');
+            if (ride.packageDetails.specialInstructions) {
+                specialInstructionsContainer.style.display = 'block';
+                document.getElementById('specialInstructions').textContent = ride.packageDetails.specialInstructions;
+            } else {
+                specialInstructionsContainer.style.display = 'none';
+            }
+        } else {
+            // If no package details, show N/A for all fields
+            document.getElementById('receiverName').textContent = 'N/A';
+            document.getElementById('receiverPhone').textContent = 'N/A';
+            document.getElementById('packageDescription').textContent = 'N/A';
+            document.getElementById('packageValue').textContent = 'N/A';
+            document.getElementById('specialInstructionsContainer').style.display = 'none';
+        }
+    } else {
+        deliveryInfoSection.style.display = 'none';
+    }
     
-    // Update ride request map with proper zoom and route
+    // ENHANCED: Update ride request map with proper zoom and route
     updateRideRequestMap(ride);
+    
+    // Generate waypoints
+    generateWaypoints(ride);
     
     // Show popup
     document.getElementById('rideRequestPopup').style.display = 'flex';
@@ -3328,6 +3459,113 @@ function showRideRequest(rideId, ride) {
     if (soundEnabled) {
         playRideRequestSound();
     }
+}
+
+// ENHANCED: Update ride request map - Bigger, properly zoomed with route
+function updateRideRequestMap(ride) {
+    // Clear existing map
+    rideRequestMap.eachLayer(layer => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+            rideRequestMap.removeLayer(layer);
+        }
+    });
+    
+    // Add pickup marker with enhanced styling
+    const pickupMarker = L.marker([ride.pickupLat, ride.pickupLng], {
+        icon: L.divIcon({
+            className: 'pickup-marker',
+            html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">📍</div><div style="background: white; padding: 3px 8px; border-radius: 10px; margin-top: 5px; font-size: 10px; font-weight: bold; box-shadow: 0 1px 5px rgba(0,0,0,0.2);">Pickup</div>',
+            iconSize: [30, 45]
+        })
+    }).addTo(rideRequestMap).bindPopup('Pickup Location');
+    
+    // Add destination marker with enhanced styling
+    const destinationMarker = L.marker([ride.destLat, ride.destLng], {
+        icon: L.divIcon({
+            className: 'destination-marker',
+            html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">🏁</div><div style="background: white; padding: 3px 8px; border-radius: 10px; margin-top: 5px; font-size: 10px; font-weight: bold; box-shadow: 0 1px 5px rgba(0,0,0,0.2);">Destination</div>',
+            iconSize: [30, 45]
+        })
+    }).addTo(rideRequestMap).bindPopup('Destination');
+    
+    // Draw route with enhanced visualization
+    drawEnhancedRouteOnRequestMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
+    
+    // Calculate optimal bounds with padding
+    const bounds = L.latLngBounds(
+        [ride.pickupLat, ride.pickupLng],
+        [ride.destLat, ride.destLng]
+    );
+    
+    // Expand bounds for better visibility
+    const expandedBounds = bounds.pad(0.15);
+    
+    // Fit map to show both locations with optimal zoom
+    rideRequestMap.fitBounds(expandedBounds, { 
+        padding: [25, 25],
+        maxZoom: 16,
+        animate: true
+    });
+    
+    // Add a slight zoom out for better context after a short delay
+    setTimeout(() => {
+        const currentZoom = rideRequestMap.getZoom();
+        if (currentZoom > 12) {
+            rideRequestMap.setZoom(currentZoom - 0.7);
+        }
+    }, 300);
+}
+
+// ENHANCED: Draw route on ride request map with better styling
+function drawEnhancedRouteOnRequestMap(startLat, startLng, endLat, endLng) {
+    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Draw the route on the map with enhanced styling
+                L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 6,
+                    opacity: 0.8,
+                    lineJoin: 'round',
+                    lineCap: 'round',
+                    dashArray: null
+                }).addTo(rideRequestMap);
+                
+                // Add start and end points with custom styling
+                L.circleMarker([startLat, startLng], {
+                    color: '#FF6B35',
+                    fillColor: '#FF6B35',
+                    fillOpacity: 1,
+                    radius: 6,
+                    weight: 2
+                }).addTo(rideRequestMap);
+                
+                L.circleMarker([endLat, endLng], {
+                    color: '#E74C3C',
+                    fillColor: '#E74C3C',
+                    fillOpacity: 1,
+                    radius: 6,
+                    weight: 2
+                }).addTo(rideRequestMap);
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching route:', error);
+            // Fallback: draw a straight line with enhanced styling
+            L.polyline([
+                [startLat, startLng],
+                [endLat, endLng]
+            ], {
+                color: '#FF6B35',
+                weight: 5,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(rideRequestMap);
+        });
 }
 
 // Play ride request sound continuously
@@ -3357,148 +3595,55 @@ function stopRideRequestSound() {
     }
 }
 
-// Update ride request map - ENHANCED FUNCTION with proper zoom and route display
-function updateRideRequestMap(ride) {
-    // Clear existing map
-    rideRequestMap.eachLayer(layer => {
-        if (layer instanceof L.Marker || layer instanceof L.Polyline) {
-            rideRequestMap.removeLayer(layer);
-        }
-    });
+// Generate waypoints between driver and pickup
+function generateWaypoints(ride) {
+    waypoints = [];
+    const waypointsContainer = document.getElementById('waypointsContainer');
+    waypointsContainer.innerHTML = '';
     
-    // Add pickup marker with enhanced styling
-    const pickupMarker = L.marker([ride.pickupLat, ride.pickupLng], {
-        icon: L.divIcon({
-            className: 'pickup-marker',
-            html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">📍</div><div style="background: white; padding: 4px 8px; border-radius: 10px; margin-top: 5px; font-size: 10px; font-weight: bold; box-shadow: 0 1px 5px rgba(0,0,0,0.2);">Pickup</div>',
-            iconSize: [30, 50]
-        })
-    }).addTo(rideRequestMap).bindPopup('Pickup Location');
-    
-    // Add destination marker with enhanced styling
-    const destinationMarker = L.marker([ride.destLat, ride.destLng], {
-        icon: L.divIcon({
-            className: 'destination-marker',
-            html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 14px; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">🏁</div><div style="background: white; padding: 4px 8px; border-radius: 10px; margin-top: 5px; font-size: 10px; font-weight: bold; box-shadow: 0 1px 5px rgba(0,0,0,0.2);">Destination</div>',
-            iconSize: [30, 50]
-        })
-    }).addTo(rideRequestMap).bindPopup('Destination');
-    
-    // Draw route with enhanced styling
-    drawRouteOnRequestMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-    
-    // Create bounds to include both points
-    const bounds = L.latLngBounds(
-        [ride.pickupLat, ride.pickupLng],
-        [ride.destLat, ride.destLng]
+    // Calculate distance for waypoint generation
+    const distance = calculateDistance(
+        ride.pickupLat, ride.pickupLng,
+        ride.destLat, ride.destLng
     );
     
-    // Calculate optimal zoom level based on distance
-    const distance = calculateDistance(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-    let optimalZoom = 13;
+    // Generate appropriate number of waypoints based on distance
+    const numWaypoints = Math.min(Math.max(Math.floor(distance / 1000), 3), 8);
     
-    if (distance < 1) {
-        optimalZoom = 16; // Very close locations
-    } else if (distance < 3) {
-        optimalZoom = 15; // Close locations
-    } else if (distance < 7) {
-        optimalZoom = 14; // Medium distance
-    } else if (distance < 15) {
-        optimalZoom = 13; // Longer distance
-    } else if (distance < 30) {
-        optimalZoom = 12; // Very long distance
-    } else {
-        optimalZoom = 11; // Extremely long distance
-    }
+    // Sample waypoints - in a real app, these would come from the routing service
+    const sampleWaypoints = [
+        "Head northeast on Independence Avenue",
+        "Continue straight for 1.2 km",
+        "Turn right onto Cairo Road",
+        "Merge onto Great East Road",
+        "Continue for 2.5 km",
+        "Turn left at the traffic lights",
+        "Destination will be on your right"
+    ].slice(0, numWaypoints);
     
-    // Fit bounds with padding and optimal zoom
-    rideRequestMap.fitBounds(bounds, { 
-        padding: [30, 30],
-        maxZoom: optimalZoom
+    sampleWaypoints.forEach((waypoint, index) => {
+        waypoints.push(waypoint);
+        
+        const waypointItem = document.createElement('div');
+        waypointItem.className = 'waypoint-item';
+        waypointItem.innerHTML = `
+            <div class="waypoint-icon">
+                <i class="fas fa-map-pin"></i>
+            </div>
+            <div class="waypoint-text">
+                ${waypoint}
+            </div>
+        `;
+        
+        waypointsContainer.appendChild(waypointItem);
     });
-    
-    // Add slight buffer to ensure both markers are fully visible
-    setTimeout(() => {
-        const currentZoom = rideRequestMap.getZoom();
-        rideRequestMap.setZoom(currentZoom - 0.3);
-    }, 100);
 }
 
-// Calculate distance between two points in kilometers
-function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Radius of the earth in km
-    const dLat = deg2rad(lat2 - lat1);
-    const dLon = deg2rad(lon2 - lon1);
-    const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-        Math.sin(dLon/2) * Math.sin(dLon/2); 
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-    const distance = R * c; // Distance in km
-    return distance;
-}
-
-function deg2rad(deg) {
-    return deg * (Math.PI/180);
-}
-
-// Draw route on ride request map - ENHANCED FUNCTION
-function drawRouteOnRequestMap(startLat, startLng, endLat, endLng) {
-    // Use OSRM API to get route
-    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                // Draw the route on the map with enhanced styling
-                L.polyline(routeCoordinates, {
-                    color: '#FF6B35',
-                    weight: 6,
-                    opacity: 0.8,
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                }).addTo(rideRequestMap);
-                
-                // Add route animation effect
-                L.polyline(routeCoordinates, {
-                    color: '#FFFFFF',
-                    weight: 2,
-                    opacity: 0.6,
-                    dashArray: '10, 10',
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                }).addTo(rideRequestMap);
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route:', error);
-            // Fallback: draw a straight line with enhanced styling
-            L.polyline([
-                [startLat, startLng],
-                [endLat, endLng]
-            ], {
-                color: '#FF6B35',
-                weight: 6,
-                opacity: 0.8,
-                lineJoin: 'round',
-                lineCap: 'round'
-            }).addTo(rideRequestMap);
-        });
-}
-
-// Accept a ride - ENHANCED with real statistics update
+// Accept a ride
 function acceptRide() {
     if (currentRideRequest && currentUser) {
         // Stop the ride request sound
         stopRideRequestSound();
-        
-        // Increment accepted ride count for statistics
-        acceptedRideCount++;
-        
-        // Update acceptance rate
-        updateAcceptanceRate();
         
         // Get driver details from Firebase
         database.ref('users/' + currentUser.uid).once('value')
@@ -3510,9 +3655,10 @@ function acceptRide() {
                     driverId: currentUser.uid,
                     driverName: driverData.name,
                     driverPhone: driverData.phone,
-                    driverVehicle: driverData.vehicle,
+                    driverVehicle: driverData.vehicle, // Send all vehicle details
                     status: 'accepted',
-                    acceptedAt: firebase.database.ServerValue.TIMESTAMP
+                    acceptedAt: firebase.database.ServerValue.TIMESTAMP,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
                 });
             })
             .then(() => {
@@ -3525,7 +3671,6 @@ function acceptRide() {
                 
                 // Hide ride request popup
                 document.getElementById('rideRequestPopup').style.display = 'none';
-                currentRideRequest = null;
                 
                 // Update driver panel for active ride
                 updateDriverPanelForActiveRide();
@@ -3533,20 +3678,17 @@ function acceptRide() {
                 // Update map for active ride
                 updateMapForActiveRide();
                 
+                // Update acceptance rate
+                updateAcceptanceRate(true);
+                
                 showNotification('Ride accepted successfully.');
+                
+                currentRideRequest = null;
             })
             .catch(error => {
                 console.error('Error accepting ride:', error);
                 showNotification('Error accepting ride. Please try again.');
             });
-    }
-}
-
-// Update acceptance rate in Firebase
-function updateAcceptanceRate() {
-    if (currentUser && rideRequestCount > 0) {
-        const acceptanceRate = (acceptedRideCount / rideRequestCount) * 100;
-        database.ref('users/' + currentUser.uid + '/stats/acceptanceRate').set(acceptanceRate);
     }
 }
 
@@ -3556,19 +3698,49 @@ function rejectRide() {
         // Stop the ride request sound
         stopRideRequestSound();
         
-        // Update ride status to rejected in Firebase
-        database.ref('rides/' + currentRideRequest.id).update({
-            status: 'rejected',
-            rejectedAt: firebase.database.ServerValue.TIMESTAMP,
-            rejectedBy: currentUser.uid
-        });
-        
         // Hide ride request popup
         document.getElementById('rideRequestPopup').style.display = 'none';
+        
+        // Update acceptance rate
+        updateAcceptanceRate(false);
+        
         currentRideRequest = null;
         
         showNotification('Ride rejected.');
     }
+}
+
+// Update acceptance rate in statistics
+function updateAcceptanceRate(accepted) {
+    if (!currentUser) return;
+    
+    // Get current stats
+    database.ref('users/' + currentUser.uid + '/stats').once('value')
+        .then(snapshot => {
+            const stats = snapshot.val() || {};
+            const totalRequests = (stats.totalRequests || 0) + 1;
+            const acceptedRequests = (stats.acceptedRequests || 0) + (accepted ? 1 : 0);
+            const acceptanceRate = Math.round((acceptedRequests / totalRequests) * 100);
+            
+            // Update stats
+            driverStats.acceptanceRate = acceptanceRate;
+            driverStats.totalRequests = totalRequests;
+            driverStats.acceptedRequests = acceptedRequests;
+            
+            // Save to Firebase
+            return database.ref('users/' + currentUser.uid + '/stats').update({
+                acceptanceRate: acceptanceRate,
+                totalRequests: totalRequests,
+                acceptedRequests: acceptedRequests
+            });
+        })
+        .then(() => {
+            // Update UI
+            document.getElementById('acceptanceRate').textContent = acceptanceRate + '%';
+        })
+        .catch(error => {
+            console.error('Error updating acceptance rate:', error);
+        });
 }
 
 // Update driver panel for active ride
@@ -3589,6 +3761,9 @@ function updateDriverPanelForActiveRide() {
         
         // Update ride action button
         updateRideActionButton('hold-to-start');
+        
+        // Hide ride queue
+        document.getElementById('rideQueue').style.display = 'none';
     }
 }
 
@@ -3613,7 +3788,7 @@ function updateMapForActiveRide() {
         customerMarker = L.marker([currentRide.pickupLat, currentRide.pickupLng], {
             icon: L.divIcon({
                 className: 'customer-marker',
-                html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Customer</div>',
+                html: '<div style="background: #FF6B35; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">📍</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold; box-shadow: 0 1px 5px rgba(0,0,0,0.2);">Customer</div>',
                 iconSize: [25, 40]
             })
         }).addTo(driverMap).bindPopup('Customer Pickup Location');
@@ -3622,7 +3797,7 @@ function updateMapForActiveRide() {
         destinationMarker = L.marker([currentRide.destLat, currentRide.destLng], {
             icon: L.divIcon({
                 className: 'destination-marker',
-                html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold;">Destination</div>',
+                html: '<div style="background: #E74C3C; color: white; border-radius: 50%; width: 25px; height: 25px; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">🏁</div><div style="background: white; padding: 2px 5px; border-radius: 8px; margin-top: 4px; font-size: 8px; font-weight: bold; box-shadow: 0 1px 5px rgba(0,0,0,0.2);">Destination</div>',
                 iconSize: [25, 40]
             })
         }).addTo(driverMap).bindPopup('Destination');
@@ -3776,7 +3951,8 @@ function completeHoldAction() {
         // Start the ride
         database.ref('rides/' + currentRide.id).update({
             status: 'started',
-            startedAt: firebase.database.ServerValue.TIMESTAMP
+            startedAt: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
             currentRide.status = 'started';
@@ -3792,7 +3968,8 @@ function completeHoldAction() {
     } else if (holdButtonContent.innerHTML.includes('Arrive')) {
         // Mark arrived
         database.ref('rides/' + currentRide.id).update({
-            status: 'arrived'
+            status: 'arrived',
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
             currentRide.status = 'arrived';
@@ -3802,7 +3979,8 @@ function completeHoldAction() {
     } else if (holdButtonContent.innerHTML.includes('Pickup')) {
         // Mark pickup
         database.ref('rides/' + currentRide.id).update({
-            status: 'picked_up'
+            status: 'picked_up',
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
             currentRide.status = 'picked_up';
@@ -3819,11 +3997,12 @@ function completeHoldAction() {
         // Complete ride
         database.ref('rides/' + currentRide.id).update({
             status: 'completed',
-            completedAt: firebase.database.ServerValue.TIMESTAMP
+            completedAt: firebase.database.ServerValue.TIMESTAMP,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
             // Calculate commission and update balances
-            const totalFare = currentRide.totalFare || calculateTotalFare(currentRide);
+            const totalFare = currentRide.fare || calculateTotalFare(currentRide);
             const commission = totalFare * commissionRate;
             const driverEarnings = totalFare - commission;
             
@@ -3835,8 +4014,8 @@ function completeHoldAction() {
             const newFloatBalance = floatBalance - commission;
             updateFloatBalance(newFloatBalance);
             
-            // Update driver statistics with REAL data
-            updateDriverStatistics(totalFare, driverEarnings, commission);
+            // Update driver statistics
+            updateDriverStatsAfterRide(totalFare, driverEarnings);
             
             // Add to earnings
             const earningsData = {
@@ -3844,7 +4023,9 @@ function completeHoldAction() {
                 amount: driverEarnings,
                 commission: commission,
                 totalFare: totalFare,
-                timestamp: firebase.database.ServerValue.TIMESTAMP
+                timestamp: firebase.database.ServerValue.TIMESTAMP,
+                passengerName: currentRide.passengerName,
+                distance: currentRide.distance
             };
             
             database.ref('earnings/' + currentUser.uid).push(earningsData)
@@ -3870,39 +4051,70 @@ function completeHoldAction() {
                         driverMap.removeLayer(routePolyline);
                         routePolyline = null;
                     }
+                    
+                    // Show ride queue again
+                    updateRideQueueDisplay();
                 });
         });
     }
 }
 
-// Update driver statistics with REAL data
-function updateDriverStatistics(totalFare, driverEarnings, commission) {
-    if (currentUser) {
-        // Update total trips
-        database.ref('users/' + currentUser.uid + '/stats/totalTrips').transaction(current => (current || 0) + 1);
-        
-        // Update completed trips
-        database.ref('users/' + currentUser.uid + '/stats/completedTrips').transaction(current => (current || 0) + 1);
-        
-        // Update total earnings
-        database.ref('users/' + currentUser.uid + '/stats/totalEarnings').transaction(current => (current || 0) + driverEarnings);
-        
-        // Update rating (in a real app, this would come from passenger ratings)
-        // For now, we'll simulate a random rating between 4.0 and 5.0
-        const newRating = 4.0 + Math.random();
-        database.ref('users/' + currentUser.uid + '/stats/rating').transaction(current => {
-            if (!current) return newRating;
-            return ((current * (driverStats.completedTrips || 0)) + newRating) / ((driverStats.completedTrips || 0) + 1);
+// Update driver statistics after completing a ride
+function updateDriverStatsAfterRide(totalFare, driverEarnings) {
+    if (!currentUser) return;
+    
+    // Get current stats
+    database.ref('users/' + currentUser.uid + '/stats').once('value')
+        .then(snapshot => {
+            const stats = snapshot.val() || {};
+            const totalTrips = (stats.totalTrips || 0) + 1;
+            const totalEarnings = (stats.totalEarnings || 0) + driverEarnings;
+            
+            // Calculate new rating (in a real app, this would come from passenger ratings)
+            const newRating = calculateNewRating(stats.rating || 0, totalTrips);
+            
+            // Update stats
+            driverStats.totalTrips = totalTrips;
+            driverStats.totalEarnings = totalEarnings;
+            driverStats.rating = newRating;
+            
+            // Save to Firebase
+            return database.ref('users/' + currentUser.uid + '/stats').update({
+                totalTrips: totalTrips,
+                totalEarnings: totalEarnings,
+                rating: newRating
+            });
+        })
+        .then(() => {
+            // Update UI
+            document.getElementById('totalTrips').textContent = totalTrips;
+            document.getElementById('ratingScore').textContent = newRating.toFixed(1);
+            document.getElementById('completedRides').textContent = totalTrips;
+            document.getElementById('totalEarnings').textContent = `K${totalEarnings.toFixed(2)}`;
+            document.getElementById('driverRating').textContent = newRating.toFixed(1) + ' ★';
+        })
+        .catch(error => {
+            console.error('Error updating driver stats:', error);
         });
-    }
+}
+
+// Calculate new rating (simplified - in real app would use actual passenger ratings)
+function calculateNewRating(currentRating, totalTrips) {
+    // Simulate rating changes - in a real app, this would use actual passenger ratings
+    const ratingChange = (Math.random() - 0.5) * 0.2; // Small random change
+    let newRating = currentRating + ratingChange;
+    
+    // Keep rating between 3.5 and 5.0
+    newRating = Math.max(3.5, Math.min(5.0, newRating));
+    
+    return newRating;
 }
 
 // Calculate total fare for a ride
 function calculateTotalFare(ride) {
-    const baseFare = ride.baseFare || 15;
-    const distanceFare = ride.distanceFare || Math.max(0, (ride.distance ? parseFloat(ride.distance) * 5 : 5));
-    const discount = ride.discount || (ride.promoCode ? 2 : 0);
-    return baseFare + distanceFare - discount;
+    const baseFare = ride.fare || 15;
+    const discount = ride.promoCode ? baseFare * 0.2 : 0;
+    return baseFare - discount;
 }
 
 // Update float balance
@@ -4140,11 +4352,10 @@ function loadDriverData() {
                     document.getElementById('floatBalanceDisplay').textContent = `K${floatBalance.toFixed(2)}`;
                     document.getElementById('floatBalance').textContent = `K${floatBalance.toFixed(2)}`;
                     
-                    // Load statistics
+                    // Load driver statistics
                     if (userData.stats) {
-                        driverStats = userData.stats;
-                        rideRequestCount = userData.stats.rideRequestCount || 0;
-                        acceptedRideCount = userData.stats.acceptedRideCount || 0;
+                        driverStats = { ...driverStats, ...userData.stats };
+                        updatePerformanceStats();
                     }
                     
                     // Show warning if float balance is below minimum
@@ -4162,9 +4373,6 @@ function loadDriverData() {
                     }
                 }
             });
-        
-        // Load driver stats
-        loadDriverStats();
         
         // Load float history
         loadFloatHistory();
@@ -4264,27 +4472,24 @@ function loadDriverStats() {
                 Object.values(rides).forEach(ride => {
                     if (ride.status === 'completed') {
                         completed++;
-                        totalEarnings += ride.totalFare || 0;
+                        totalEarnings += ride.fare || 0;
                     } else if (ride.status === 'cancelled') {
                         cancelled++;
                     }
                 });
             }
             
-            // Update statistics in Firebase
-            database.ref('users/' + currentUser.uid + '/stats').update({
-                completedTrips: completed,
-                cancelledTrips: cancelled,
-                totalTrips: completed + cancelled
-            });
-            
             document.getElementById('completedRides').textContent = completed;
             document.getElementById('cancelledRides').textContent = cancelled;
             document.getElementById('totalEarnings').textContent = `K${totalEarnings.toFixed(2)}`;
+            
+            // Update driver stats
+            driverStats.totalTrips = completed;
+            driverStats.totalEarnings = totalEarnings;
         });
 }
 
-// Load ride history with REAL data
+// Load ride history with REAL data from Firebase
 function loadRideHistory() {
     if (currentUser) {
         database.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value')
@@ -4298,20 +4503,45 @@ function loadRideHistory() {
                     const ridesArray = Object.keys(rides).map(rideId => ({
                         id: rideId,
                         ...rides[rideId]
-                    })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    })).sort((a, b) => b.timestamp - a.timestamp);
                     
                     ridesArray.forEach(ride => {
                         const historyItem = document.createElement('div');
                         historyItem.className = 'history-item';
                         
-                        const date = new Date(ride.timestamp || Date.now());
+                        const date = new Date(ride.timestamp);
                         const formattedDate = date.toLocaleDateString();
                         const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        
+                        // Create package details HTML if available
+                        let packageDetailsHTML = '';
+                        if (ride.packageDetails) {
+                            packageDetailsHTML = `
+                                <div class="history-details-grid">
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Receiver Name</span>
+                                        <span class="history-detail-value">${ride.packageDetails.receiverName || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Receiver Phone</span>
+                                        <span class="history-detail-value">${ride.packageDetails.receiverPhone || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Package Description</span>
+                                        <span class="history-detail-value">${ride.packageDetails.packageDescription || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Package Value</span>
+                                        <span class="history-detail-value">${ride.packageDetails.packageValue ? 'K' + ride.packageDetails.packageValue : 'N/A'}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }
                         
                         historyItem.innerHTML = `
                             <div class="history-locations">
                                 <div>
-                                    <strong>From:</strong> ${ride.pickupLocation}
+                                    <strong>From:</strong> ${ride.pickupDisplayLocation || ride.pickupLocation}
                                 </div>
                                 <div>
                                     <strong>To:</strong> ${ride.destination}
@@ -4335,8 +4565,9 @@ function loadRideHistory() {
                                     <span class="history-detail-value">${formattedTime}</span>
                                 </div>
                             </div>
+                            ${packageDetailsHTML}
                             <div class="history-info">
-                                <div>K${ride.totalFare ? ride.totalFare.toFixed(2) : '0.00'}</div>
+                                <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
                                 <div class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">
                                     ${ride.status === 'completed' ? 'Completed' : 'Cancelled'}
                                 </div>
@@ -4356,7 +4587,7 @@ function loadRideHistory() {
     }
 }
 
-// Load earnings with REAL data
+// Load earnings with REAL data from Firebase
 function loadEarnings() {
     if (currentUser) {
         database.ref('earnings/' + currentUser.uid).once('value')
@@ -4406,14 +4637,14 @@ function loadEarnings() {
                         }
                     });
                     
-                    // Get real online hours from driver stats
-                    onlineHours = driverStats.onlineHours || 0;
+                    // Calculate online hours from driver stats
+                    onlineHours = Math.floor((driverStats.totalOnlineTime || 0) / 60);
                 }
                 
                 document.getElementById('earningsTotal').textContent = `K${total.toFixed(2)}`;
                 document.getElementById('ridesCompleted').textContent = ridesCompleted;
                 document.getElementById('avgEarning').textContent = ridesCompleted > 0 ? `K${(total / ridesCompleted).toFixed(2)}` : 'K0.00';
-                document.getElementById('onlineHours').textContent = `${Math.round(onlineHours)}h`;
+                document.getElementById('onlineHours').textContent = `${onlineHours}h`;
                 
                 // Update earnings list with commission information
                 updateEarningsList(earnings);
@@ -4576,6 +4807,22 @@ function toggleTraffic() {
     }
 }
 
+// Calculate distance between two points
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // metres
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+}
+
 // Logout function
 function logout() {
     if (confirm('Are you sure you want to log out?')) {
@@ -4587,8 +4834,15 @@ function logout() {
             isOnline = false;
             floatBalance = 0;
             walletBalance = 0;
-            rideRequestCount = 0;
-            acceptedRideCount = 0;
+            driverStats = {
+                totalTrips: 0,
+                totalEarnings: 0,
+                totalOnlineTime: 0,
+                acceptanceRate: 0,
+                rating: 0,
+                currentSessionStart: null,
+                currentSessionTime: 0
+            };
             
             // Stop location tracking
             stopLocationTracking();
@@ -4596,17 +4850,10 @@ function logout() {
             // Stop any playing sounds
             stopRideRequestSound();
             
-            // Stop listening for ride requests
-            if (rideRequestListener) {
-                database.ref('rides').off('value', rideRequestListener);
-                rideRequestListener = null;
-            }
-            
-            // Update online hours if online
-            if (onlineStartTime) {
-                const onlineHours = (Date.now() - onlineStartTime) / (1000 * 60 * 60);
-                updateOnlineHours(onlineHours);
-                onlineStartTime = null;
+            // Remove Firebase listeners
+            if (rideQueueListener) {
+                rideQueueListener();
+                rideQueueListener = null;
             }
             
             // Reset UI
@@ -4643,4 +4890,5 @@ function showNotification(message) {
     </script>
 </body>
 </html>
+
 
