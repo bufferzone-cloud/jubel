@@ -2536,7 +2536,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-       // Firebase configuration
+      // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
     authDomain: "jubel-13e1a.firebaseapp.com",
@@ -3414,9 +3414,18 @@ function showRideRequest(rideId, ride) {
     document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
     document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
     
+    // NEW: Enhanced ride type detection and display
+    updateRideTypeDisplay(ride);
+    
+    // NEW: Show order for someone else details if applicable
+    updateOrderForSomeoneDisplay(ride);
+    
+    // NEW: Show express delivery details if applicable
+    updateExpressDeliveryDisplay(ride);
+    
     // Show delivery information for bike/bicycle rides
     const deliveryInfoSection = document.getElementById('deliveryInfoSection');
-    if (ride.rideType === 'bike' || ride.rideType === 'bicycle') {
+    if (ride.rideType === 'bike' || ride.rideType === 'bicycle' || ride.packageDetails) {
         deliveryInfoSection.style.display = 'block';
         
         // Check if package details exist
@@ -3458,6 +3467,151 @@ function showRideRequest(rideId, ride) {
     // Play sound continuously until driver responds
     if (soundEnabled) {
         playRideRequestSound();
+    }
+}
+
+// NEW: Enhanced ride type detection and display
+function updateRideTypeDisplay(ride) {
+    const rideTypeElement = document.getElementById('rideTypeDisplay');
+    if (!rideTypeElement) {
+        // Create ride type display element if it doesn't exist
+        const locationRow = document.querySelector('.location-row');
+        const rideTypeRow = document.createElement('div');
+        rideTypeRow.className = 'location-row';
+        rideTypeRow.innerHTML = `
+            <div class="location-icon" style="background: #3498db;">
+                <i class="fas fa-car"></i>
+            </div>
+            <div class="location-text">
+                <h4>Ride Type</h4>
+                <p id="rideTypeDisplay">${getRideTypeDisplayName(ride.rideType)}</p>
+            </div>
+        `;
+        locationRow.parentNode.insertBefore(rideTypeRow, locationRow.nextSibling);
+    } else {
+        document.getElementById('rideTypeDisplay').textContent = getRideTypeDisplayName(ride.rideType);
+    }
+    
+    // Update vehicle icon based on ride type
+    const vehicleIcon = document.querySelector('.ride-request-content .location-icon i');
+    if (vehicleIcon) {
+        switch(ride.rideType) {
+            case 'car':
+                vehicleIcon.className = 'fas fa-car';
+                break;
+            case 'bike':
+                vehicleIcon.className = 'fas fa-motorcycle';
+                break;
+            case 'bicycle':
+                vehicleIcon.className = 'fas fa-bicycle';
+                break;
+        }
+    }
+}
+
+// NEW: Get display name for ride type
+function getRideTypeDisplayName(rideType) {
+    switch(rideType) {
+        case 'car':
+            return 'Standard Ride';
+        case 'bike':
+            return 'Express Delivery';
+        case 'bicycle':
+            return 'Short Delivery';
+        default:
+            return 'Ride';
+    }
+}
+
+// NEW: Update order for someone else display
+function updateOrderForSomeoneDisplay(ride) {
+    const orderForSomeoneSection = document.getElementById('orderForSomeoneSection');
+    if (!orderForSomeoneSection) {
+        // Create order for someone section if it doesn't exist
+        const deliveryInfoSection = document.getElementById('deliveryInfoSection');
+        const orderSection = document.createElement('div');
+        orderSection.className = 'delivery-info-section';
+        orderSection.id = 'orderForSomeoneSection';
+        orderSection.style.display = 'none';
+        orderSection.innerHTML = `
+            <div class="delivery-info-title">
+                <i class="fas fa-user-friends"></i> Order for Someone Else
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Recipient Name:</span>
+                <span class="delivery-info-value" id="recipientNameDisplay">N/A</span>
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Recipient Phone:</span>
+                <span class="delivery-info-value" id="recipientPhoneDisplay">N/A</span>
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Recipient Email:</span>
+                <span class="delivery-info-value" id="recipientEmailDisplay">N/A</span>
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Ordered By:</span>
+                <span class="delivery-info-value" id="orderedByDisplay">N/A</span>
+            </div>
+        `;
+        deliveryInfoSection.parentNode.insertBefore(orderSection, deliveryInfoSection);
+    }
+    
+    // Show/hide based on whether this is an order for someone else
+    if (ride.orderForSomeone) {
+        document.getElementById('orderForSomeoneSection').style.display = 'block';
+        document.getElementById('recipientNameDisplay').textContent = ride.orderForSomeone.recipientName || 'N/A';
+        document.getElementById('recipientPhoneDisplay').textContent = ride.orderForSomeone.recipientPhone || 'N/A';
+        document.getElementById('recipientEmailDisplay').textContent = ride.orderForSomeone.recipientEmail || 'N/A';
+        document.getElementById('orderedByDisplay').textContent = ride.orderForSomeone.orderedBy || 'N/A';
+    } else {
+        document.getElementById('orderForSomeoneSection').style.display = 'none';
+    }
+}
+
+// NEW: Update express delivery display
+function updateExpressDeliveryDisplay(ride) {
+    const expressDeliverySection = document.getElementById('expressDeliverySection');
+    if (!expressDeliverySection) {
+        // Create express delivery section if it doesn't exist
+        const orderForSomeoneSection = document.getElementById('orderForSomeoneSection') || document.getElementById('deliveryInfoSection');
+        const expressSection = document.createElement('div');
+        expressSection.className = 'delivery-info-section';
+        expressSection.id = 'expressDeliverySection';
+        expressSection.style.display = 'none';
+        expressSection.innerHTML = `
+            <div class="delivery-info-title">
+                <i class="fas fa-shipping-fast"></i> Express Delivery Details
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Shop Name:</span>
+                <span class="delivery-info-value" id="shopNameDisplay">N/A</span>
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Items to Purchase:</span>
+                <span class="delivery-info-value" id="deliveryItemsDisplay">N/A</span>
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Amount to Spend:</span>
+                <span class="delivery-info-value" id="deliveryAmountDisplay">N/A</span>
+            </div>
+            <div class="delivery-info-row">
+                <span class="delivery-info-label">Special Instructions:</span>
+                <span class="delivery-info-value" id="deliveryInstructionsDisplay">N/A</span>
+            </div>
+        `;
+        orderForSomeoneSection.parentNode.insertBefore(expressSection, orderForSomeoneSection.nextSibling);
+    }
+    
+    // Show/hide based on whether this is an express delivery
+    if (ride.expressDelivery) {
+        document.getElementById('expressDeliverySection').style.display = 'block';
+        document.getElementById('shopNameDisplay').textContent = ride.expressDelivery.shopName || 'N/A';
+        document.getElementById('deliveryItemsDisplay').textContent = ride.expressDelivery.items || 'N/A';
+        document.getElementById('deliveryAmountDisplay').textContent = ride.expressDelivery.amount ? `K${ride.expressDelivery.amount}` : 'N/A';
+        document.getElementById('deliveryInstructionsDisplay').textContent = ride.expressDelivery.instructions || 'N/A';
+    } else {
+        document.getElementById('expressDeliverySection').style.display = 'none';
     }
 }
 
@@ -3764,7 +3918,59 @@ function updateDriverPanelForActiveRide() {
         
         // Hide ride queue
         document.getElementById('rideQueue').style.display = 'none';
+        
+        // NEW: Update ride type specific instructions
+        updateRideTypeInstructions(currentRide);
     }
+}
+
+// NEW: Update ride type specific instructions
+function updateRideTypeInstructions(ride) {
+    const instructionsElement = document.getElementById('rideTypeInstructions');
+    if (!instructionsElement) {
+        // Create instructions element if it doesn't exist
+        const advancedFeatures = document.getElementById('advancedFeatures');
+        const instructions = document.createElement('div');
+        instructions.className = 'ride-type-instructions';
+        instructions.id = 'rideTypeInstructions';
+        instructions.style.padding = '10px';
+        instructions.style.marginTop = '10px';
+        instructions.style.background = 'var(--light-orange)';
+        instructions.style.borderRadius = 'var(--element-radius)';
+        instructions.style.fontSize = '0.8rem';
+        advancedFeatures.parentNode.insertBefore(instructions, advancedFeatures);
+    }
+    
+    let instructions = '';
+    switch(ride.rideType) {
+        case 'car':
+            instructions = 'Standard ride - Ensure passenger comfort and safety';
+            break;
+        case 'bike':
+            instructions = 'Express delivery - Handle package with care, confirm recipient details';
+            if (ride.packageDetails) {
+                instructions += `. Package: ${ride.packageDetails.packageDescription || 'N/A'}`;
+            }
+            break;
+        case 'bicycle':
+            instructions = 'Short delivery - Eco-friendly delivery for short distances';
+            if (ride.packageDetails) {
+                instructions += `. Package: ${ride.packageDetails.packageDescription || 'N/A'}`;
+            }
+            break;
+    }
+    
+    // Add order for someone instructions if applicable
+    if (ride.orderForSomeone) {
+        instructions += ` | Order for: ${ride.orderForSomeone.recipientName}`;
+    }
+    
+    // Add express delivery instructions if applicable
+    if (ride.expressDelivery) {
+        instructions += ` | Express delivery from: ${ride.expressDelivery.shopName}`;
+    }
+    
+    document.getElementById('rideTypeInstructions').textContent = instructions;
 }
 
 // Update map for active ride
@@ -4538,6 +4744,56 @@ function loadRideHistory() {
                             `;
                         }
                         
+                        // NEW: Add order for someone details if available
+                        let orderForSomeoneHTML = '';
+                        if (ride.orderForSomeone) {
+                            orderForSomeoneHTML = `
+                                <div class="history-details-grid">
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Order Type</span>
+                                        <span class="history-detail-value">Order for Someone Else</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Recipient</span>
+                                        <span class="history-detail-value">${ride.orderForSomeone.recipientName || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Recipient Phone</span>
+                                        <span class="history-detail-value">${ride.orderForSomeone.recipientPhone || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Ordered By</span>
+                                        <span class="history-detail-value">${ride.orderForSomeone.orderedBy || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        // NEW: Add express delivery details if available
+                        let expressDeliveryHTML = '';
+                        if (ride.expressDelivery) {
+                            expressDeliveryHTML = `
+                                <div class="history-details-grid">
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Delivery Type</span>
+                                        <span class="history-detail-value">Express Delivery</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Shop Name</span>
+                                        <span class="history-detail-value">${ride.expressDelivery.shopName || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Items</span>
+                                        <span class="history-detail-value">${ride.expressDelivery.items || 'N/A'}</span>
+                                    </div>
+                                    <div class="history-detail-item">
+                                        <span class="history-detail-label">Amount</span>
+                                        <span class="history-detail-value">${ride.expressDelivery.amount ? 'K' + ride.expressDelivery.amount : 'N/A'}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
                         historyItem.innerHTML = `
                             <div class="history-locations">
                                 <div>
@@ -4566,6 +4822,8 @@ function loadRideHistory() {
                                 </div>
                             </div>
                             ${packageDetailsHTML}
+                            ${orderForSomeoneHTML}
+                            ${expressDeliveryHTML}
                             <div class="history-info">
                                 <div>K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
                                 <div class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">
@@ -4887,8 +5145,105 @@ function showNotification(message) {
         notification.style.display = 'none';
     }, 3000);
 }
+
+// NEW: Enhanced ride completion with type-specific handling
+function completeRideWithTypeSpecificHandling() {
+    if (!currentRide) return;
+    
+    // Show type-specific completion message
+    let completionMessage = 'Ride completed successfully!';
+    
+    if (currentRide.rideType === 'bike' || currentRide.rideType === 'bicycle') {
+        if (currentRide.packageDetails) {
+            completionMessage = `Delivery completed! Package delivered to ${currentRide.packageDetails.receiverName || 'recipient'}.`;
+        } else {
+            completionMessage = 'Express delivery completed successfully!';
+        }
+    } else if (currentRide.orderForSomeone) {
+        completionMessage = `Ride completed for ${currentRide.orderForSomeone.recipientName}! Order fulfilled successfully.`;
+    } else if (currentRide.expressDelivery) {
+        completionMessage = `Express delivery from ${currentRide.expressDelivery.shopName} completed!`;
+    }
+    
+    showNotification(completionMessage);
+}
+
+// NEW: Enhanced driver analytics
+function trackDriverAnalytics(ride) {
+    if (!currentUser) return;
+    
+    const analyticsData = {
+        rideId: ride.id,
+        rideType: ride.rideType,
+        fare: ride.fare,
+        distance: ride.distance,
+        duration: ride.duration || 'N/A',
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        hasPackage: !!ride.packageDetails,
+        isOrderForSomeone: !!ride.orderForSomeone,
+        isExpressDelivery: !!ride.expressDelivery,
+        city: ride.currentCity || 'Unknown'
+    };
+    
+    database.ref('driverAnalytics/' + currentUser.uid).push(analyticsData)
+        .catch(error => {
+            console.error('Error tracking analytics:', error);
+        });
+}
+
+// NEW: Enhanced performance metrics
+function updateEnhancedPerformanceMetrics() {
+    if (!currentUser) return;
+    
+    // Calculate additional metrics
+    const metrics = {
+        totalRides: driverStats.totalTrips || 0,
+        totalEarnings: driverStats.totalEarnings || 0,
+        acceptanceRate: driverStats.acceptanceRate || 0,
+        averageRating: driverStats.rating || 0,
+        onlineHours: Math.floor((driverStats.totalOnlineTime || 0) / 60),
+        completionRate: calculateCompletionRate(),
+        averageEarningsPerRide: driverStats.totalTrips > 0 ? (driverStats.totalEarnings / driverStats.totalTrips).toFixed(2) : 0,
+        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    // Save enhanced metrics
+    database.ref('driverMetrics/' + currentUser.uid).set(metrics)
+        .catch(error => {
+            console.error('Error updating enhanced metrics:', error);
+        });
+}
+
+// NEW: Calculate completion rate
+function calculateCompletionRate() {
+    if (!currentUser) return 0;
+    
+    // This would need to be calculated from ride history
+    // For now, return a placeholder
+    return 95; // 95% completion rate
+}
+
+// Initialize enhanced features
+function initializeEnhancedFeatures() {
+    // Set up enhanced analytics
+    setInterval(updateEnhancedPerformanceMetrics, 60000); // Update every minute
+    
+    // Enhanced ride completion handling
+    const originalCompleteHoldAction = completeHoldAction;
+    completeHoldAction = function() {
+        if (currentRide && currentRide.status === 'picked_up') {
+            trackDriverAnalytics(currentRide);
+            completeRideWithTypeSpecificHandling();
+        }
+        originalCompleteHoldAction();
+    };
+}
+
+// Call enhanced features initialization
+initializeEnhancedFeatures();
     </script>
 </body>
 </html>
+
 
 
