@@ -2509,6 +2509,10 @@ let shopLocationSearchResults = [];
 let deliveryDestinationSearchResults = [];
 let activeSearchField = null;
 
+// NEW: Ride request type tracking
+let currentRideRequestType = 'standard'; // 'standard', 'order-for-someone', 'express-delivery'
+let currentRideRequestData = null;
+
 // Zambian cities for search with common misspellings and variations
 const zambianCities = [
     'Lusaka', 'Kitwe', 'Ndola', 'Kabwe', 'Chipata', 'Chingola', 
@@ -4001,9 +4005,51 @@ function requestRide() {
         currentCity: currentCity // Store detected city for analytics
     };
     
+    // Store ride request data for fast processing
+    currentRideRequestData = rideRequest;
+    currentRideRequestType = 'standard';
+    
+    // Show payment selection for all ride types
+    showPaymentSelection(baseFare);
+    }).catch(error => {
+        console.error('Error in ride request process:', error);
+        showNotification('Error calculating route. Please try again.');
+    });
+}
+
+// ENHANCED: Show payment selection for all ride types
+function showPaymentSelection(fare = null) {
+    const calculatedFare = fare || rideFare;
+    
+    document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
+    
+    if (walletBalance < calculatedFare) {
+        document.getElementById('insufficientBalance').style.display = 'block';
+        document.getElementById('confirmPaymentBtn').disabled = true;
+    } else {
+        document.getElementById('insufficientBalance').style.display = 'none';
+        document.getElementById('confirmPaymentBtn').disabled = false;
+    }
+    
+    document.getElementById('paymentSelectionPopup').classList.remove('hidden');
+}
+
+function closePaymentSelection() {
+    document.getElementById('paymentSelectionPopup').classList.add('hidden');
+}
+
+// ENHANCED: Fast ride submission after payment confirmation
+function submitRideRequest() {
+    if (!currentRideRequestData) {
+        showNotification('No ride request data found. Please try again.');
+        return;
+    }
+    
+    const rideRequest = currentRideRequestData;
+    
     // If payment is via wallet, deduct fare from wallet
     if (selectedPaymentType === 'wallet') {
-        const newBalance = walletBalance - baseFare;
+        const newBalance = walletBalance - rideRequest.fare;
         
         database.ref('users/' + currentUser.uid).update({
             walletBalance: newBalance
@@ -4012,7 +4058,7 @@ function requestRide() {
             walletBalance = newBalance;
             updateWalletBalanceUI();
             
-            return database.ref('rides/' + rideId).set(rideRequest);
+            return database.ref('rides/' + rideRequest.id).set(rideRequest);
         })
         .then(() => {
             currentRide = rideRequest;
@@ -4021,7 +4067,7 @@ function requestRide() {
             
             updateUIForActiveRide();
             
-            // Show searching animation
+            // Show searching animation immediately
             document.getElementById('searchingAnimation').style.display = 'flex';
             
             document.getElementById('rideStatus').style.display = 'flex';
@@ -4035,14 +4081,14 @@ function requestRide() {
             
             showNotification('Ride requested. Searching for a driver...');
             
-            listenForDriverAssignment(rideId);
+            listenForDriverAssignment(rideRequest.id);
         })
         .catch(error => {
             console.error('Error requesting ride:', error);
             showNotification('Error requesting ride. Please try again.');
         });
     } else {
-        database.ref('rides/' + rideId).set(rideRequest)
+        database.ref('rides/' + rideRequest.id).set(rideRequest)
             .then(() => {
                 currentRide = rideRequest;
                 
@@ -4050,7 +4096,7 @@ function requestRide() {
                 
                 updateUIForActiveRide();
                 
-                // Show searching animation
+                // Show searching animation immediately
                 document.getElementById('searchingAnimation').style.display = 'flex';
                 
                 document.getElementById('rideStatus').style.display = 'flex';
@@ -4064,48 +4110,16 @@ function requestRide() {
                 
                 showNotification('Ride requested. Searching for a driver...');
                 
-                listenForDriverAssignment(rideId);
+                listenForDriverAssignment(rideRequest.id);
             })
             .catch(error => {
                 console.error('Error requesting ride:', error);
                 showNotification('Error requesting ride. Please try again.');
             });
     }
-    }).catch(error => {
-        console.error('Error in ride request process:', error);
-        showNotification('Error calculating route. Please try again.');
-    });
-}
-
-function showPaymentSelection() {
-    const pickupLocation = document.getElementById('pickupLocation').value;
-    const destinationLocation = document.getElementById('destinationLocation').value;
     
-    if (!destinationLocation) {
-        showNotification('Please enter a destination');
-        return;
-    }
-    
-    if (!currentLocationMarker && !pickupMarker) {
-        showNotification('Unable to determine your location. Please try again.');
-        return;
-    }
-    
-    document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
-    
-    if (walletBalance < rideFare) {
-        document.getElementById('insufficientBalance').style.display = 'block';
-        document.getElementById('confirmPaymentBtn').disabled = true;
-    } else {
-        document.getElementById('insufficientBalance').style.display = 'none';
-        document.getElementById('confirmPaymentBtn').disabled = false;
-    }
-    
-    document.getElementById('paymentSelectionPopup').classList.remove('hidden');
-}
-
-function closePaymentSelection() {
-    document.getElementById('paymentSelectionPopup').classList.add('hidden');
+    // Clear request data
+    currentRideRequestData = null;
 }
 
 function updateUIForActiveRide() {
@@ -5421,78 +5435,12 @@ function submitOrderForSomeone() {
             currentCity: currentCity
         };
         
-        // If payment is via wallet, deduct fare from wallet
-        if (selectedPaymentType === 'wallet') {
-            const newBalance = walletBalance - baseFare;
-            
-            database.ref('users/' + currentUser.uid).update({
-                walletBalance: newBalance
-            })
-            .then(() => {
-                walletBalance = newBalance;
-                updateWalletBalanceUI();
-                
-                return database.ref('rides/' + rideId).set(rideRequest);
-            })
-            .then(() => {
-                currentRide = rideRequest;
-                
-                updateUIForActiveRide();
-                
-                // Show searching animation
-                document.getElementById('searchingAnimation').style.display = 'flex';
-                
-                document.getElementById('rideStatus').style.display = 'flex';
-                document.getElementById('statusDot').className = 'status-dot searching';
-                document.getElementById('statusText').textContent = 'Searching for driver';
-                
-                // Show SOS button if configured
-                if (sosConfig && sosConfig.contact1) {
-                    document.getElementById('sosButton').style.display = 'flex';
-                }
-                
-                showNotification('Ride booked for ' + recipientName + '. Searching for a driver...');
-                
-                listenForDriverAssignment(rideId);
-                
-                // Hide order form
-                document.getElementById('orderForSomeoneForm').classList.remove('active');
-            })
-            .catch(error => {
-                console.error('Error booking ride for someone else:', error);
-                showNotification('Error booking ride. Please try again.');
-            });
-        } else {
-            database.ref('rides/' + rideId).set(rideRequest)
-                .then(() => {
-                    currentRide = rideRequest;
-                    
-                    updateUIForActiveRide();
-                    
-                    // Show searching animation
-                    document.getElementById('searchingAnimation').style.display = 'flex';
-                    
-                    document.getElementById('rideStatus').style.display = 'flex';
-                    document.getElementById('statusDot').className = 'status-dot searching';
-                    document.getElementById('statusText').textContent = 'Searching for driver';
-                    
-                    // Show SOS button if configured
-                    if (sosConfig && sosConfig.contact1) {
-                        document.getElementById('sosButton').style.display = 'flex';
-                    }
-                    
-                    showNotification('Ride booked for ' + recipientName + '. Searching for a driver...');
-                    
-                    listenForDriverAssignment(rideId);
-                    
-                    // Hide order form
-                    document.getElementById('orderForSomeoneForm').classList.remove('active');
-                })
-                .catch(error => {
-                    console.error('Error booking ride for someone else:', error);
-                    showNotification('Error booking ride. Please try again.');
-                });
-        }
+        // Store ride request data for fast processing
+        currentRideRequestData = rideRequest;
+        currentRideRequestType = 'order-for-someone';
+        
+        // Show payment selection
+        showPaymentSelection(baseFare);
     }).catch(error => {
         console.error('Error in order for someone process:', error);
         showNotification('Error calculating route. Please try again.');
@@ -5680,78 +5628,12 @@ function submitExpressDelivery() {
             currentCity: currentCity
         };
         
-        // If payment is via wallet, deduct fare from wallet
-        if (selectedPaymentType === 'wallet') {
-            const newBalance = walletBalance - baseFare;
-            
-            database.ref('users/' + currentUser.uid).update({
-                walletBalance: newBalance
-            })
-            .then(() => {
-                walletBalance = newBalance;
-                updateWalletBalanceUI();
-                
-                return database.ref('rides/' + rideId).set(rideRequest);
-            })
-            .then(() => {
-                currentRide = rideRequest;
-                
-                updateUIForActiveRide();
-                
-                // Show searching animation
-                document.getElementById('searchingAnimation').style.display = 'flex';
-                
-                document.getElementById('rideStatus').style.display = 'flex';
-                document.getElementById('statusDot').className = 'status-dot searching';
-                document.getElementById('statusText').textContent = 'Searching for driver';
-                
-                // Show SOS button if configured
-                if (sosConfig && sosConfig.contact1) {
-                    document.getElementById('sosButton').style.display = 'flex';
-                }
-                
-                showNotification('Express delivery requested. Searching for a driver...');
-                
-                listenForDriverAssignment(rideId);
-                
-                // Hide delivery form
-                document.getElementById('expressDeliveryForm').classList.remove('active');
-            })
-            .catch(error => {
-                console.error('Error requesting express delivery:', error);
-                showNotification('Error requesting delivery. Please try again.');
-            });
-        } else {
-            database.ref('rides/' + rideId).set(rideRequest)
-                .then(() => {
-                    currentRide = rideRequest;
-                    
-                    updateUIForActiveRide();
-                    
-                    // Show searching animation
-                    document.getElementById('searchingAnimation').style.display = 'flex';
-                    
-                    document.getElementById('rideStatus').style.display = 'flex';
-                    document.getElementById('statusDot').className = 'status-dot searching';
-                    document.getElementById('statusText').textContent = 'Searching for driver';
-                    
-                    // Show SOS button if configured
-                    if (sosConfig && sosConfig.contact1) {
-                        document.getElementById('sosButton').style.display = 'flex';
-                    }
-                    
-                    showNotification('Express delivery requested. Searching for a driver...');
-                    
-                    listenForDriverAssignment(rideId);
-                    
-                    // Hide delivery form
-                    document.getElementById('expressDeliveryForm').classList.remove('active');
-                })
-                .catch(error => {
-                    console.error('Error requesting express delivery:', error);
-                    showNotification('Error requesting delivery. Please try again.');
-                });
-        }
+        // Store ride request data for fast processing
+        currentRideRequestData = rideRequest;
+        currentRideRequestType = 'express-delivery';
+        
+        // Show payment selection
+        showPaymentSelection(baseFare);
     }).catch(error => {
         console.error('Error in express delivery process:', error);
         showNotification('Error calculating route. Please try again.');
@@ -5934,9 +5816,10 @@ function setupEventListeners() {
         });
     });
     
-    document.getElementById('requestRideBtn').addEventListener('click', showPaymentSelection);
+    document.getElementById('requestRideBtn').addEventListener('click', requestRide);
     
-    document.getElementById('confirmPaymentBtn').addEventListener('click', requestRide);
+    // ENHANCED: Updated confirm payment button to handle all ride types
+    document.getElementById('confirmPaymentBtn').addEventListener('click', submitRideRequest);
     
     document.getElementById('closePaymentPopup').addEventListener('click', closePaymentSelection);
     
@@ -6098,4 +5981,5 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
