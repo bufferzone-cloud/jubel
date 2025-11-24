@@ -2439,7 +2439,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-    // Firebase configuration
+   // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
     authDomain: "jubel-13e1a.firebaseapp.com",
@@ -2502,10 +2502,12 @@ let recipientDestinationMarker = null;
 let shopLocationMarker = null;
 let deliveryDestinationMarker = null;
 
-// NEW: Chat state management
+// NEW: Enhanced Chat state management
 let chatListener = null;
 let currentChatRideId = null;
 let unreadMessages = {};
+let chatPopupClosedByUser = false; // Track if passenger manually closed chat
+let driverMessageListener = null; // Listener for new driver messages
 
 // NEW: Search state management
 let pickupSearchResults = [];
@@ -4217,6 +4219,9 @@ function handleDriverAssignment(ride) {
                 trackDriverLocation(ride.driverId);
                 
                 showNotification(`Driver ${driver.name} is on the way!`);
+                
+                // NEW: Start listening for driver messages when driver is assigned
+                startDriverMessageListener(ride.id);
             }
         });
     
@@ -4243,7 +4248,44 @@ function addChatWithDriverButton(rideId, driver) {
     }
 }
 
-// NEW: Open chat with driver
+// NEW: Start listening for driver messages
+function startDriverMessageListener(rideId) {
+    // Remove existing listener if any
+    if (driverMessageListener) {
+        driverMessageListener();
+    }
+    
+    // Listen for new messages from driver
+    driverMessageListener = database.ref('chats/' + rideId).orderByChild('timestamp').on('child_added', snapshot => {
+        const message = snapshot.val();
+        
+        // Check if message is from driver (not the current user)
+        if (message.senderId !== currentUser.uid) {
+            // If chat is closed by user, automatically pop it up
+            if (chatPopupClosedByUser && !isChatPopupOpen()) {
+                // Reopen chat popup automatically for driver messages
+                openChatWithDriver(rideId, { name: 'Driver' });
+                showNotification('New message from driver');
+            }
+            
+            // If chat is already open, just display the message
+            if (isChatPopupOpen() && currentChatRideId === rideId) {
+                displayChatMessage(message);
+                // Scroll to bottom
+                const chatMessages = document.getElementById('chatMessages');
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+    });
+}
+
+// NEW: Check if chat popup is currently open
+function isChatPopupOpen() {
+    const chatPopup = document.getElementById('chatPopup');
+    return chatPopup && !chatPopup.classList.contains('hidden');
+}
+
+// NEW: Enhanced Open chat with driver function
 function openChatWithDriver(rideId, driver) {
     // Create chat popup if it doesn't exist
     if (!document.getElementById('chatPopup')) {
@@ -4252,9 +4294,20 @@ function openChatWithDriver(rideId, driver) {
     
     currentChatRideId = rideId;
     
+    // Reset the closed flag since user is opening the chat
+    chatPopupClosedByUser = false;
+    
     // Update chat header with driver info
     document.getElementById('chatDriverName').textContent = driver.name || 'Driver';
     document.getElementById('chatDriverRating').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
+    
+    // Update driver avatar in chat
+    const chatDriverAvatar = document.getElementById('chatDriverAvatar');
+    if (driver.name) {
+        chatDriverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
+    } else {
+        chatDriverAvatar.innerHTML = '<i class="fas fa-user"></i>';
+    }
     
     // Show chat popup
     document.getElementById('chatPopup').classList.remove('hidden');
@@ -4266,7 +4319,7 @@ function openChatWithDriver(rideId, driver) {
     startChatListener(rideId);
 }
 
-// NEW: Create chat popup
+// NEW: Create chat popup with enhanced styling
 function createChatPopup() {
     const chatPopup = document.createElement('div');
     chatPopup.id = 'chatPopup';
@@ -4280,17 +4333,17 @@ function createChatPopup() {
                 </h2>
                 <button class="close-popup" id="closeChatPopup">&times;</button>
             </div>
-            <div class="chat-driver-info" style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+            <div class="chat-driver-info" style="padding: 10px; border-bottom: 1px solid var(--border-color); background: var(--light-orange);">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; font-size: 0.8rem;"></div>
+                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; font-size: 0.8rem; background: var(--primary-orange);"></div>
                     <div>
                         <div style="font-weight: 600; font-size: 0.9rem;" id="chatDriverName">Driver</div>
                         <div style="font-size: 0.7rem; color: var(--medium-gray);" id="chatDriverRating">4.5 ★</div>
                     </div>
                 </div>
             </div>
-            <div class="chat-messages" id="chatMessages" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
-            <div class="chat-input-container" style="padding: 10px; border-top: 1px solid var(--border-color);">
+            <div class="chat-messages" id="chatMessages" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: var(--light-gray);"></div>
+            <div class="chat-input-container" style="padding: 10px; border-top: 1px solid var(--border-color); background: var(--white);">
                 <div style="display: flex; gap: 8px;">
                     <input type="text" id="chatMessageInput" placeholder="Type your message..." style="flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--element-radius);">
                     <button id="sendChatMessageBtn" style="padding: 8px 15px; background: var(--primary-orange); color: white; border: none; border-radius: var(--element-radius); cursor: pointer;">
@@ -4304,7 +4357,11 @@ function createChatPopup() {
     document.body.appendChild(chatPopup);
     
     // Add event listeners for chat
-    document.getElementById('closeChatPopup').addEventListener('click', closeChatPopup);
+    document.getElementById('closeChatPopup').addEventListener('click', function() {
+        chatPopupClosedByUser = true; // Set flag when user manually closes chat
+        closeChatPopup();
+    });
+    
     document.getElementById('sendChatMessageBtn').addEventListener('click', sendChatMessage);
     document.getElementById('chatMessageInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
@@ -4358,7 +4415,7 @@ function startChatListener(rideId) {
     });
 }
 
-// NEW: Display chat message
+// NEW: Display chat message with enhanced styling
 function displayChatMessage(message) {
     const chatMessages = document.getElementById('chatMessages');
     
@@ -4375,10 +4432,11 @@ function displayChatMessage(message) {
         border-radius: 15px;
         margin-bottom: 5px;
         word-wrap: break-word;
-        ${message.senderId === currentUser.uid ? 
-            'background: var(--primary-orange); color: white; align-self: flex-end;' : 
-            'background: var(--light-gray); color: var(--dark-gray); align-self: flex-start;'
-        }
+        align-self: ${message.senderId === currentUser.uid ? 'flex-end' : 'flex-start'};
+        background: ${message.senderId === currentUser.uid ? 'var(--primary-orange)' : 'var(--white)'};
+        color: ${message.senderId === currentUser.uid ? 'white' : 'var(--dark-gray)'};
+        border: ${message.senderId === currentUser.uid ? 'none' : '1px solid var(--border-color)'};
+        box-shadow: ${message.senderId === currentUser.uid ? 'var(--shadow-light)' : 'none'};
     `;
     
     const timestamp = new Date(message.timestamp);
@@ -4420,7 +4478,7 @@ function sendChatMessage() {
         });
 }
 
-// NEW: Close chat popup
+// NEW: Enhanced Close chat popup function
 function closeChatPopup() {
     document.getElementById('chatPopup').classList.add('hidden');
     
@@ -4571,6 +4629,12 @@ function handleRideCancellation(ride) {
         driverLocationListener();
         driverLocationListener = null;
     }
+    
+    // NEW: Remove driver message listener when ride is cancelled
+    if (driverMessageListener) {
+        driverMessageListener();
+        driverMessageListener = null;
+    }
 }
 
 function cancelRide() {
@@ -4711,6 +4775,12 @@ function resetUIAfterRide() {
     // NEW: Close chat popup if open
     if (document.getElementById('chatPopup') && !document.getElementById('chatPopup').classList.contains('hidden')) {
         closeChatPopup();
+    }
+    
+    // NEW: Remove driver message listener
+    if (driverMessageListener) {
+        driverMessageListener();
+        driverMessageListener = null;
     }
     
     if (driverMarker) {
@@ -6248,6 +6318,7 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
 
 
