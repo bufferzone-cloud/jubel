@@ -2590,8 +2590,8 @@ let chatPopupClosedByUser = false; // Track if driver manually closed chat
 let passengerMessageListener = null; // Listener for new passenger messages
 
 // NEW: SOS state variables
-let sosConfig = null;
 let sosButton = null;
+let sosConfig = null;
 
 // Statistics tracking
 let driverStats = {
@@ -2607,9 +2607,8 @@ let driverStats = {
 // Ride queue from Firebase
 let rideQueueListener = null;
 
-// NEW: Ride status persistence
+// NEW: Active ride listener for persistence
 let activeRideListener = null;
-let rideStatusListener = null;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -2651,34 +2650,13 @@ function checkActiveRide() {
                     const ride = rides[rideId];
                     if (ride.status !== 'completed' && ride.status !== 'cancelled' && ride.status !== 'requested') {
                         console.log('Found active ride:', rideId, ride.status);
-                        // Restore the active ride
                         currentRide = {
                             id: rideId,
                             ...ride
                         };
                         
-                        // Update UI for active ride
-                        updateDriverPanelForActiveRide();
-                        updateMapForActiveRide();
-                        
-                        // Show appropriate ride action button based on status
-                        updateRideActionButtonBasedOnStatus(ride.status);
-                        
-                        // Show advanced features
-                        document.getElementById('advancedFeatures').style.display = 'flex';
-                        
-                        // NEW: Show SOS button if configured
-                        if (sosConfig && sosConfig.contact1) {
-                            document.getElementById('sosButton').style.display = 'flex';
-                        }
-                        
-                        // Listen for ride status updates
-                        listenForRideStatusUpdates(rideId);
-                        
-                        // NEW: Start listening for passenger messages
-                        startPassengerMessageListener(rideId);
-                        
-                        showNotification('Active ride restored');
+                        // Restore the ride state in the UI
+                        restoreActiveRideState();
                         break;
                     }
                 }
@@ -2689,11 +2667,29 @@ function checkActiveRide() {
         });
 }
 
-// NEW: Update ride action button based on current ride status
-function updateRideActionButtonBasedOnStatus(status) {
+// NEW: Restore active ride state in UI
+function restoreActiveRideState() {
+    if (!currentRide) return;
+    
+    console.log('Restoring active ride state:', currentRide.status);
+    
+    // Update driver panel for active ride
+    updateDriverPanelForActiveRide();
+    
+    // Update map for active ride
+    updateMapForActiveRide();
+    
+    // Show ride action button
     document.getElementById('rideActionBtn').style.display = 'block';
     
-    switch(status) {
+    // Show advanced features
+    document.getElementById('advancedFeatures').style.display = 'flex';
+    
+    // NEW: Show SOS button
+    showSOSButton();
+    
+    // Update ride action button based on current status
+    switch(currentRide.status) {
         case 'accepted':
             updateRideActionButton('hold-to-start');
             break;
@@ -2706,9 +2702,15 @@ function updateRideActionButtonBasedOnStatus(status) {
         case 'picked_up':
             updateRideActionButton('hold-to-complete');
             break;
-        default:
-            updateRideActionButton('hold-to-start');
     }
+    
+    // NEW: Start listening for ride status updates
+    listenForRideStatusUpdates(currentRide.id);
+    
+    // NEW: Start listening for passenger messages
+    startPassengerMessageListener(currentRide.id);
+    
+    showNotification('Active ride restored');
 }
 
 // Show main app after authentication
@@ -3081,9 +3083,6 @@ function setupEventListeners() {
     // Ride request map controls
     document.getElementById('requestMapZoomIn').addEventListener('click', () => rideRequestMap.zoomIn());
     document.getElementById('requestMapZoomOut').addEventListener('click', () => rideRequestMap.zoomOut());
-    
-    // NEW: SOS Button Event Listener
-    document.getElementById('sosButton').addEventListener('click', triggerSOS);
 }
 
 // NEW: Add Chat with Passenger button to advanced features
@@ -3120,7 +3119,7 @@ function openChatWithPassenger() {
     
     currentChatRideId = currentRide.id;
     
-    // Reset the closed flag since user is opening the chat
+    // Reset the closed flag since driver is opening the chat
     chatPopupClosedByUser = false;
     
     // Update chat header with passenger info
@@ -3191,10 +3190,7 @@ function createDriverChatPopup() {
     document.body.appendChild(chatPopup);
     
     // Add event listeners for chat
-    document.getElementById('closeDriverChatPopup').addEventListener('click', function() {
-        chatPopupClosedByUser = true; // Set flag when user manually closes chat
-        closeDriverChatPopup();
-    });
+    document.getElementById('closeDriverChatPopup').addEventListener('click', closeDriverChatPopup);
     document.getElementById('sendDriverChatMessageBtn').addEventListener('click', sendDriverChatMessage);
     document.getElementById('driverChatMessageInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
@@ -3319,6 +3315,9 @@ function sendDriverChatMessage() {
 function closeDriverChatPopup() {
     document.getElementById('driverChatPopup').classList.add('hidden');
     
+    // Set flag when driver manually closes chat
+    chatPopupClosedByUser = true;
+    
     // Remove chat listener
     if (chatListener) {
         chatListener();
@@ -3339,7 +3338,7 @@ function playNotificationSound() {
     }
 }
 
-// NEW: Start listening for passenger messages
+// NEW: Start listening for passenger messages (for automatic popup)
 function startPassengerMessageListener(rideId) {
     // Remove existing listener if any
     if (passengerMessageListener) {
@@ -3350,9 +3349,9 @@ function startPassengerMessageListener(rideId) {
     passengerMessageListener = database.ref('chats/' + rideId).orderByChild('timestamp').on('child_added', snapshot => {
         const message = snapshot.val();
         
-        // Check if message is from passenger (not the current user)
+        // Check if message is from passenger (not the current driver)
         if (message.senderId !== currentUser.uid) {
-            // If chat is closed by user, automatically pop it up
+            // If chat is closed by driver, automatically pop it up for new passenger messages
             if (chatPopupClosedByUser && !isDriverChatPopupOpen()) {
                 // Reopen chat popup automatically for passenger messages
                 openChatWithPassenger();
@@ -3376,85 +3375,77 @@ function isDriverChatPopupOpen() {
     return chatPopup && !chatPopup.classList.contains('hidden');
 }
 
-// NEW: SOS Functions
-
-// Load SOS configuration
-function loadSOSConfig(uid) {
-    database.ref('sosConfig/' + uid).once('value')
-        .then(snapshot => {
-            sosConfig = snapshot.val();
-            if (sosConfig) {
-                // SOS config loaded, button will be shown when needed
-                console.log('SOS configuration loaded');
-            }
-        })
-        .catch(error => {
-            console.error('Error loading SOS config:', error);
-        });
-}
-
-// Create SOS Button
+// NEW: Create SOS Button
 function createSOSButton() {
-    if (!document.getElementById('sosButton')) {
-        const sosButton = document.createElement('div');
-        sosButton.id = 'sosButton';
-        sosButton.className = 'sos-button';
-        sosButton.innerHTML = 'SOS';
-        sosButton.style.cssText = `
-            position: fixed;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--error-red);
-            color: var(--white);
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            font-weight: 700;
-            box-shadow: var(--shadow-heavy);
-            z-index: 150;
-            cursor: pointer;
-            animation: sos-pulse 2s infinite;
-        `;
-        
-        // Add SOS pulse animation
-        const style = document.createElement('style');
-        style.textContent = `
-            @keyframes sos-pulse {
-                0% {
-                    transform: translateX(-50%) scale(1);
-                    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
-                }
-                70% {
-                    transform: translateX(-50%) scale(1.05);
-                    box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
-                }
-                100% {
-                    transform: translateX(-50%) scale(1);
-                    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
-                }
+    if (sosButton) return;
+    
+    sosButton = document.createElement('div');
+    sosButton.id = 'driverSOSButton';
+    sosButton.className = 'sos-button';
+    sosButton.innerHTML = 'SOS';
+    sosButton.style.cssText = `
+        position: fixed;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--error-red);
+        color: var(--white);
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        font-weight: 700;
+        box-shadow: var(--shadow-heavy);
+        z-index: 150;
+        cursor: pointer;
+        animation: sos-pulse 2s infinite;
+        display: none;
+    `;
+    
+    // Add SOS pulse animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes sos-pulse {
+            0% {
+                transform: translateX(-50%) scale(1);
+                box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
             }
-        `;
-        document.head.appendChild(style);
-        
-        document.getElementById('mainApp').appendChild(sosButton);
-        
-        // Add event listener
-        sosButton.addEventListener('click', triggerSOS);
+            70% {
+                transform: translateX(-50%) scale(1.05);
+                box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+            }
+            100% {
+                transform: translateX(-50%) scale(1);
+                box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+            }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    sosButton.addEventListener('click', triggerSOS);
+    document.body.appendChild(sosButton);
+}
+
+// NEW: Show SOS Button during active rides
+function showSOSButton() {
+    if (!sosButton) {
+        createSOSButton();
+    }
+    sosButton.style.display = 'flex';
+}
+
+// NEW: Hide SOS Button
+function hideSOSButton() {
+    if (sosButton) {
+        sosButton.style.display = 'none';
     }
 }
 
-// Trigger SOS Alert
+// NEW: Trigger SOS Alert
 function triggerSOS() {
-    if (!sosConfig || !sosConfig.contact1) {
-        showNotification('SOS not configured. Please set up emergency contacts first.');
-        return;
-    }
-    
     if (!currentRide) {
         showNotification('No active ride to report SOS for.');
         return;
@@ -3465,13 +3456,10 @@ function triggerSOS() {
         driverId: currentUser.uid,
         driverName: currentUser.displayName || 'Driver',
         driverPhone: userData?.phone || 'Not provided',
-        emergencyContact1: sosConfig.contact1,
-        emergencyContact2: sosConfig.contact2,
-        message: sosConfig.message || 'I need help! My current location and ride details will be shared with you.',
         rideDetails: currentRide,
         timestamp: firebase.database.ServerValue.TIMESTAMP,
         location: driverMarker ? driverMarker.getLatLng() : null,
-        vehicle: userData?.vehicle || {}
+        vehicleDetails: userData?.vehicle || {}
     };
     
     // Add passenger details if available
@@ -3489,7 +3477,7 @@ function triggerSOS() {
                 return database.ref('sosAlerts').push().set(sosAlert);
             })
             .then(() => {
-                showNotification('SOS alert sent to emergency contacts!');
+                showNotification('SOS alert sent! Emergency services have been notified.');
                 
                 // Send SMS notifications (this would require a backend service)
                 // For now, we'll just log the alert
@@ -3502,7 +3490,7 @@ function triggerSOS() {
     } else {
         database.ref('sosAlerts').push().set(sosAlert)
             .then(() => {
-                showNotification('SOS alert sent to emergency contacts!');
+                showNotification('SOS alert sent! Emergency services have been notified.');
                 
                 // Send SMS notifications (this would require a backend service)
                 // For now, we'll just log the alert
@@ -3530,13 +3518,8 @@ function initializeAdvancedFeatures() {
     // NEW: Add chat button to advanced features
     addChatWithPassengerButton();
     
-    // NEW: Create SOS button
+    // NEW: Create SOS button (hidden initially)
     createSOSButton();
-    
-    // NEW: Load SOS configuration
-    if (currentUser) {
-        loadSOSConfig(currentUser.uid);
-    }
 }
 
 // Update performance statistics with REAL data
@@ -4369,13 +4352,11 @@ function acceptRide() {
                 // Update acceptance rate
                 updateAcceptanceRate(true);
                 
-                // NEW: Show SOS button if configured
-                if (sosConfig && sosConfig.contact1) {
-                    document.getElementById('sosButton').style.display = 'flex';
-                }
+                // NEW: Show SOS button
+                showSOSButton();
                 
                 // NEW: Start listening for passenger messages
-                startPassengerMessageListener(currentRideRequest.id);
+                startPassengerMessageListener(currentRide.id);
                 
                 showNotification('Ride accepted successfully.');
                 
@@ -4786,8 +4767,8 @@ function completeHoldAction() {
                     document.getElementById('rideActionBtn').style.display = 'none';
                     document.getElementById('advancedFeatures').style.display = 'none';
                     
-                    // NEW: Hide SOS button when ride is completed
-                    document.getElementById('sosButton').style.display = 'none';
+                    // NEW: Hide SOS button
+                    hideSOSButton();
                     
                     // Clear map markers and routes
                     if (customerMarker) {
@@ -4808,7 +4789,7 @@ function completeHoldAction() {
                         closeDriverChatPopup();
                     }
                     
-                    // NEW: Remove passenger message listener when ride is completed
+                    // NEW: Remove passenger message listener
                     if (passengerMessageListener) {
                         passengerMessageListener();
                         passengerMessageListener = null;
@@ -5138,9 +5119,6 @@ function loadDriverData() {
         
         // Load float history
         loadFloatHistory();
-        
-        // NEW: Load SOS configuration
-        loadSOSConfig(currentUser.uid);
     }
 }
 
@@ -5640,6 +5618,80 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
+// NEW: Listen for ride status updates
+function listenForRideStatusUpdates(rideId) {
+    // Remove existing listener if any
+    if (activeRideListener) {
+        activeRideListener();
+    }
+    
+    activeRideListener = database.ref('rides/' + rideId).on('value', snapshot => {
+        const ride = snapshot.val();
+        if (ride) {
+            currentRide = ride;
+            
+            switch(ride.status) {
+                case 'completed':
+                    // Ride completed, reset UI
+                    resetUIAfterRide();
+                    showNotification('Ride completed successfully.');
+                    break;
+                case 'cancelled':
+                    // Ride cancelled, reset UI
+                    resetUIAfterRide();
+                    showNotification('Ride was cancelled.');
+                    break;
+            }
+        }
+    }, error => {
+        console.error('Error listening for ride status updates:', error);
+    });
+}
+
+// NEW: Reset UI after ride completion or cancellation
+function resetUIAfterRide() {
+    currentRide = null;
+    document.getElementById('rideActionBtn').style.display = 'none';
+    document.getElementById('advancedFeatures').style.display = 'none';
+    
+    // NEW: Hide SOS button
+    hideSOSButton();
+    
+    // Clear map markers and routes
+    if (customerMarker) {
+        driverMap.removeLayer(customerMarker);
+        customerMarker = null;
+    }
+    if (destinationMarker) {
+        driverMap.removeLayer(destinationMarker);
+        destinationMarker = null;
+    }
+    if (routePolyline) {
+        driverMap.removeLayer(routePolyline);
+        routePolyline = null;
+    }
+    
+    // NEW: Close chat popup if open
+    if (document.getElementById('driverChatPopup') && !document.getElementById('driverChatPopup').classList.contains('hidden')) {
+        closeDriverChatPopup();
+    }
+    
+    // NEW: Remove passenger message listener
+    if (passengerMessageListener) {
+        passengerMessageListener();
+        passengerMessageListener = null;
+    }
+    
+    // NEW: Remove active ride listener
+    if (activeRideListener) {
+        activeRideListener();
+        activeRideListener = null;
+    }
+    
+    // Show ride queue again
+    updateRideQueueDisplay();
+}
+
 // Logout function
 function logout() {
     if (confirm('Are you sure you want to log out?')) {
@@ -5685,6 +5737,15 @@ function logout() {
                 passengerMessageListener = null;
             }
             
+            // NEW: Remove active ride listener
+            if (activeRideListener) {
+                activeRideListener();
+                activeRideListener = null;
+            }
+            
+            // NEW: Hide SOS button
+            hideSOSButton();
+            
             // Reset UI
             document.getElementById('mainApp').style.display = 'none';
             document.getElementById('welcomeScreen').classList.remove('hidden');
@@ -5716,189 +5777,10 @@ function showNotification(message) {
         notification.style.display = 'none';
     }, 3000);
 }
-
-// Listen for ride status updates
-function listenForRideStatusUpdates(rideId) {
-    if (rideStatusListener) {
-        rideStatusListener();
-    }
-    
-    rideStatusListener = database.ref('rides/' + rideId).on('value', snapshot => {
-        const ride = snapshot.val();
-        if (ride) {
-            currentRide = ride;
-            
-            switch(ride.status) {
-                case 'accepted':
-                    document.getElementById('statusText').textContent = 'Driver on the way';
-                    break;
-                case 'arrived':
-                    document.getElementById('statusText').textContent = 'Driver arrived';
-                    showNotification('Your driver has arrived!');
-                    break;
-                case 'started':
-                    document.getElementById('statusText').textContent = 'Trip in progress';
-                    break;
-                case 'completed':
-                    document.getElementById('statusText').textContent = 'Trip completed';
-                    resetUIAfterRide();
-                    showNotification('Trip completed. Thank you for using Jubel!');
-                    break;
-                case 'cancelled':
-                    resetUIAfterRide();
-                    showNotification('Ride cancelled');
-                    break;
-            }
-        }
-    });
-}
-
-// Reset UI after ride completion or cancellation
-function resetUIAfterRide() {
-    document.getElementById('rideRequestForm').style.display = 'flex';
-    
-    document.getElementById('rideInfoPanel').style.display = 'none';
-    
-    document.getElementById('driverDetailsCard').style.display = 'none';
-    
-    // NEW: Remove chat button if it exists
-    const chatButton = document.getElementById('chatWithPassengerBtn');
-    if (chatButton) {
-        chatButton.remove();
-    }
-    
-    // NEW: Close chat popup if open
-    if (document.getElementById('driverChatPopup') && !document.getElementById('driverChatPopup').classList.contains('hidden')) {
-        closeDriverChatPopup();
-    }
-    
-    // NEW: Remove passenger message listener
-    if (passengerMessageListener) {
-        passengerMessageListener();
-        passengerMessageListener = null;
-    }
-    
-    if (driverMarker) {
-        driverMap.removeLayer(driverMarker);
-        driverMarker = null;
-    }
-    
-    if (destinationMarker) {
-        driverMap.removeLayer(destinationMarker);
-        destinationMarker = null;
-    }
-    
-    if (routePolyline) {
-        driverMap.removeLayer(routePolyline);
-        routePolyline = null;
-    }
-    
-    if (driverLocationListener) {
-        driverLocationListener();
-        driverLocationListener = null;
-    }
-    
-    currentRide = null;
-}
-
-// Initialize enhanced features
-function initializeEnhancedFeatures() {
-    // Set up enhanced analytics
-    setInterval(updateEnhancedPerformanceMetrics, 60000); // Update every minute
-    
-    // Enhanced ride completion handling
-    const originalCompleteHoldAction = completeHoldAction;
-    completeHoldAction = function() {
-        if (currentRide && currentRide.status === 'picked_up') {
-            trackDriverAnalytics(currentRide);
-            completeRideWithTypeSpecificHandling();
-        }
-        originalCompleteHoldAction();
-    };
-}
-
-// NEW: Enhanced ride completion with type-specific handling
-function completeRideWithTypeSpecificHandling() {
-    if (!currentRide) return;
-    
-    // Show type-specific completion message
-    let completionMessage = 'Ride completed successfully!';
-    
-    if (currentRide.rideType === 'bike' || currentRide.rideType === 'bicycle') {
-        if (currentRide.packageDetails) {
-            completionMessage = `Delivery completed! Package delivered to ${currentRide.packageDetails.receiverName || 'recipient'}.`;
-        } else {
-            completionMessage = 'Express delivery completed successfully!';
-        }
-    } else if (currentRide.orderForSomeone) {
-        completionMessage = `Ride completed for ${currentRide.orderForSomeone.recipientName}! Order fulfilled successfully.`;
-    } else if (currentRide.expressDelivery) {
-        completionMessage = `Express delivery from ${currentRide.expressDelivery.shopName} completed!`;
-    }
-    
-    showNotification(completionMessage);
-}
-
-// NEW: Enhanced driver analytics
-function trackDriverAnalytics(ride) {
-    if (!currentUser) return;
-    
-    const analyticsData = {
-        rideId: ride.id,
-        rideType: ride.rideType,
-        fare: ride.fare,
-        distance: ride.distance,
-        duration: ride.duration || 'N/A',
-        timestamp: firebase.database.ServerValue.TIMESTAMP,
-        hasPackage: !!ride.packageDetails,
-        isOrderForSomeone: !!ride.orderForSomeone,
-        isExpressDelivery: !!ride.expressDelivery,
-        city: ride.currentCity || 'Unknown'
-    };
-    
-    database.ref('driverAnalytics/' + currentUser.uid).push(analyticsData)
-        .catch(error => {
-            console.error('Error tracking analytics:', error);
-        });
-}
-
-// NEW: Enhanced performance metrics
-function updateEnhancedPerformanceMetrics() {
-    if (!currentUser) return;
-    
-    // Calculate additional metrics
-    const metrics = {
-        totalRides: driverStats.totalTrips || 0,
-        totalEarnings: driverStats.totalEarnings || 0,
-        acceptanceRate: driverStats.acceptanceRate || 0,
-        averageRating: driverStats.rating || 0,
-        onlineHours: Math.floor((driverStats.totalOnlineTime || 0) / 60),
-        completionRate: calculateCompletionRate(),
-        averageEarningsPerRide: driverStats.totalTrips > 0 ? (driverStats.totalEarnings / driverStats.totalTrips).toFixed(2) : 0,
-        lastUpdated: firebase.database.ServerValue.TIMESTAMP
-    };
-    
-    // Save enhanced metrics
-    database.ref('driverMetrics/' + currentUser.uid).set(metrics)
-        .catch(error => {
-            console.error('Error updating enhanced metrics:', error);
-        });
-}
-
-// NEW: Calculate completion rate
-function calculateCompletionRate() {
-    if (!currentUser) return 0;
-    
-    // This would need to be calculated from ride history
-    // For now, return a placeholder
-    return 95; // 95% completion rate
-}
-
-// Call enhanced features initialization
-initializeEnhancedFeatures();
     </script>
 </body>
 </html>
+
 
 
 
