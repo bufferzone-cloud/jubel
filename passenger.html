@@ -2502,6 +2502,11 @@ let recipientDestinationMarker = null;
 let shopLocationMarker = null;
 let deliveryDestinationMarker = null;
 
+// NEW: Chat state management
+let chatListener = null;
+let currentChatRideId = null;
+let unreadMessages = {};
+
 // NEW: Search state management
 let pickupSearchResults = [];
 let recipientPickupSearchResults = [];
@@ -4202,6 +4207,9 @@ function handleDriverAssignment(ride) {
                 
                 updateDriverDetailsCard(driver);
                 
+                // NEW: Add Chat with Driver button when driver accepts
+                addChatWithDriverButton(ride.id, driver);
+                
                 addDriverMarker(ride.driverLat, ride.driverLng);
                 
                 drawRoute(ride.driverLat, ride.driverLng, ride.pickupLat, ride.pickupLng);
@@ -4213,6 +4221,216 @@ function handleDriverAssignment(ride) {
         });
     
     listenForRideStatusUpdates(ride.id);
+}
+
+// NEW: Add Chat with Driver button to ride info panel
+function addChatWithDriverButton(rideId, driver) {
+    const rideActions = document.querySelector('.ride-actions');
+    
+    // Check if chat button already exists
+    if (!document.getElementById('chatWithDriverBtn')) {
+        const chatButton = document.createElement('button');
+        chatButton.id = 'chatWithDriverBtn';
+        chatButton.className = 'btn btn-contact';
+        chatButton.innerHTML = '<i class="fas fa-comments"></i> Chat with Driver';
+        chatButton.addEventListener('click', function() {
+            openChatWithDriver(rideId, driver);
+        });
+        
+        // Insert chat button before contact driver button
+        const contactBtn = document.getElementById('contactDriverBtn');
+        rideActions.insertBefore(chatButton, contactBtn);
+    }
+}
+
+// NEW: Open chat with driver
+function openChatWithDriver(rideId, driver) {
+    // Create chat popup if it doesn't exist
+    if (!document.getElementById('chatPopup')) {
+        createChatPopup();
+    }
+    
+    currentChatRideId = rideId;
+    
+    // Update chat header with driver info
+    document.getElementById('chatDriverName').textContent = driver.name || 'Driver';
+    document.getElementById('chatDriverRating').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
+    
+    // Show chat popup
+    document.getElementById('chatPopup').classList.remove('hidden');
+    
+    // Load chat messages
+    loadChatMessages(rideId);
+    
+    // Start listening for new messages
+    startChatListener(rideId);
+}
+
+// NEW: Create chat popup
+function createChatPopup() {
+    const chatPopup = document.createElement('div');
+    chatPopup.id = 'chatPopup';
+    chatPopup.className = 'popup-overlay hidden';
+    chatPopup.innerHTML = `
+        <div class="popup-form" style="max-width: 400px; height: 500px; display: flex; flex-direction: column;">
+            <div class="popup-header">
+                <h2 class="popup-title">
+                    <i class="fas fa-comments"></i>
+                    Chat with Driver
+                </h2>
+                <button class="close-popup" id="closeChatPopup">&times;</button>
+            </div>
+            <div class="chat-driver-info" style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; font-size: 0.8rem;"></div>
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.9rem;" id="chatDriverName">Driver</div>
+                        <div style="font-size: 0.7rem; color: var(--medium-gray);" id="chatDriverRating">4.5 ★</div>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatMessages" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+            <div class="chat-input-container" style="padding: 10px; border-top: 1px solid var(--border-color);">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="chatMessageInput" placeholder="Type your message..." style="flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--element-radius);">
+                    <button id="sendChatMessageBtn" style="padding: 8px 15px; background: var(--primary-orange); color: white; border: none; border-radius: var(--element-radius); cursor: pointer;">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(chatPopup);
+    
+    // Add event listeners for chat
+    document.getElementById('closeChatPopup').addEventListener('click', closeChatPopup);
+    document.getElementById('sendChatMessageBtn').addEventListener('click', sendChatMessage);
+    document.getElementById('chatMessageInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendChatMessage();
+        }
+    });
+}
+
+// NEW: Load chat messages from Firebase
+function loadChatMessages(rideId) {
+    const chatMessages = document.getElementById('chatMessages');
+    chatMessages.innerHTML = '<div class="loading-text">Loading messages...</div>';
+    
+    database.ref('chats/' + rideId).orderByChild('timestamp').once('value')
+        .then(snapshot => {
+            const messages = snapshot.val();
+            chatMessages.innerHTML = '';
+            
+            if (messages) {
+                const messagesArray = Object.values(messages);
+                messagesArray.forEach(message => {
+                    displayChatMessage(message);
+                });
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else {
+                chatMessages.innerHTML = '<div class="no-places" style="text-align: center; padding: 20px; color: var(--medium-gray);">No messages yet. Start the conversation!</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading chat messages:', error);
+            chatMessages.innerHTML = '<div class="no-places" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading messages.</div>';
+        });
+}
+
+// NEW: Start real-time chat listener
+function startChatListener(rideId) {
+    // Remove existing listener
+    if (chatListener) {
+        chatListener();
+    }
+    
+    chatListener = database.ref('chats/' + rideId).orderByChild('timestamp').on('child_added', snapshot => {
+        const message = snapshot.val();
+        displayChatMessage(message);
+        
+        // Scroll to bottom
+        const chatMessages = document.getElementById('chatMessages');
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+}
+
+// NEW: Display chat message
+function displayChatMessage(message) {
+    const chatMessages = document.getElementById('chatMessages');
+    
+    // Remove loading/empty state if present
+    if (chatMessages.querySelector('.loading-text') || chatMessages.querySelector('.no-places')) {
+        chatMessages.innerHTML = '';
+    }
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = `chat-message ${message.senderId === currentUser.uid ? 'own-message' : 'other-message'}`;
+    messageElement.style.cssText = `
+        max-width: 80%;
+        padding: 8px 12px;
+        border-radius: 15px;
+        margin-bottom: 5px;
+        word-wrap: break-word;
+        ${message.senderId === currentUser.uid ? 
+            'background: var(--primary-orange); color: white; align-self: flex-end;' : 
+            'background: var(--light-gray); color: var(--dark-gray); align-self: flex-start;'
+        }
+    `;
+    
+    const timestamp = new Date(message.timestamp);
+    const timeString = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    messageElement.innerHTML = `
+        <div style="font-size: 0.8rem;">${message.message}</div>
+        <div style="font-size: 0.6rem; opacity: 0.7; text-align: ${message.senderId === currentUser.uid ? 'right' : 'left'}; margin-top: 4px;">${timeString}</div>
+    `;
+    
+    chatMessages.appendChild(messageElement);
+}
+
+// NEW: Send chat message
+function sendChatMessage() {
+    const messageInput = document.getElementById('chatMessageInput');
+    const message = messageInput.value.trim();
+    
+    if (!message || !currentChatRideId) {
+        return;
+    }
+    
+    const messageData = {
+        message: message,
+        senderId: currentUser.uid,
+        senderName: userData.name || 'Passenger',
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        rideId: currentChatRideId
+    };
+    
+    // Add message to Firebase
+    database.ref('chats/' + currentChatRideId).push(messageData)
+        .then(() => {
+            messageInput.value = '';
+        })
+        .catch(error => {
+            console.error('Error sending message:', error);
+            showNotification('Error sending message. Please try again.');
+        });
+}
+
+// NEW: Close chat popup
+function closeChatPopup() {
+    document.getElementById('chatPopup').classList.add('hidden');
+    
+    // Remove chat listener
+    if (chatListener) {
+        chatListener();
+        chatListener = null;
+    }
+    
+    currentChatRideId = null;
 }
 
 function updateDriverDetailsCard(driver) {
@@ -4484,6 +4702,17 @@ function resetUIAfterRide() {
     document.getElementById('applyPromoBtn').classList.add('btn-promo');
     document.getElementById('promoSection').classList.remove('active');
     
+    // NEW: Remove chat button if it exists
+    const chatButton = document.getElementById('chatWithDriverBtn');
+    if (chatButton) {
+        chatButton.remove();
+    }
+    
+    // NEW: Close chat popup if open
+    if (document.getElementById('chatPopup') && !document.getElementById('chatPopup').classList.contains('hidden')) {
+        closeChatPopup();
+    }
+    
     if (driverMarker) {
         passengerMap.removeLayer(driverMarker);
         driverMarker = null;
@@ -4715,6 +4944,9 @@ function loadRideHistory() {
                     
                     let historyContent = '';
                     
+                    // NEW: Check if ride has chat messages
+                    const hasChat = ride.hasChat || false;
+                    
                     if (isDelivery) {
                         historyContent = `
                             <div class="history-item-type ${typeClass}">${typeText}</div>
@@ -4748,6 +4980,7 @@ function loadRideHistory() {
                                 <div class="status-badge ${statusClass}">
                                     ${statusText}
                                 </div>
+                                ${hasChat ? '<div class="chat-indicator" style="font-size: 0.6rem; color: var(--info-blue); margin-top: 4px;"><i class="fas fa-comments"></i> Chat available</div>' : ''}
                             </div>
                         `;
                     } else {
@@ -4767,6 +5000,7 @@ function loadRideHistory() {
                                 <div class="status-badge ${statusClass}">
                                     ${statusText}
                                 </div>
+                                ${hasChat ? '<div class="chat-indicator" style="font-size: 0.6rem; color: var(--info-blue); margin-top: 4px;"><i class="fas fa-comments"></i> Chat available</div>' : ''}
                             </div>
                         `;
                     }
@@ -4837,6 +5071,23 @@ function showRideDetailsPopup(rideId) {
                 
                 updatePopupRideMap(ride);
                 
+                // NEW: Check if ride has chat and add view chat button
+                const popupActions = document.querySelector('.popup-actions');
+                let viewChatBtn = document.getElementById('viewChatBtn');
+                
+                if (!viewChatBtn) {
+                    viewChatBtn = document.createElement('button');
+                    viewChatBtn.id = 'viewChatBtn';
+                    viewChatBtn.className = 'btn btn-primary';
+                    viewChatBtn.innerHTML = '<i class="fas fa-comments"></i> View Chat';
+                    viewChatBtn.style.marginRight = '8px';
+                    popupActions.insertBefore(viewChatBtn, popupActions.firstChild);
+                }
+                
+                viewChatBtn.onclick = function() {
+                    viewRideChat(rideId, ride);
+                };
+                
                 if (ride.driverId) {
                     database.ref('users/' + ride.driverId).once('value')
                         .then(driverSnapshot => {
@@ -4863,6 +5114,22 @@ function showRideDetailsPopup(rideId) {
             console.error('Error loading ride details:', error);
             showNotification('Error loading ride details.');
         });
+}
+
+// NEW: View ride chat from history
+function viewRideChat(rideId, ride) {
+    if (ride.driverId) {
+        database.ref('users/' + ride.driverId).once('value')
+            .then(driverSnapshot => {
+                const driver = driverSnapshot.val();
+                if (driver) {
+                    openChatWithDriver(rideId, driver);
+                    closeRideDetailsPopup();
+                }
+            });
+    } else {
+        showNotification('No driver information available for this ride.');
+    }
 }
 
 function updateDriverProgress(status) {
@@ -5981,5 +6248,6 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
 
