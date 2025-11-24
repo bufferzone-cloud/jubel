@@ -2536,7 +2536,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-      // Firebase configuration
+     // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
     authDomain: "jubel-13e1a.firebaseapp.com",
@@ -2582,10 +2582,16 @@ let soundEnabled = true;
 let rideRequestSound = null;
 let rideRequestSoundInterval = null;
 
-// NEW: Chat state variables
+// NEW: Enhanced Chat state variables
 let chatListener = null;
 let currentChatRideId = null;
 let unreadMessages = {};
+let chatPopupClosedByDriver = false; // Track if driver manually closed chat
+let passengerMessageListener = null; // Listener for new passenger messages
+
+// NEW: SOS state variables
+let sosConfig = null;
+let sosButtonVisible = false;
 
 // Statistics tracking
 let driverStats = {
@@ -2618,6 +2624,9 @@ function initializeAuth() {
             setupEventListeners();
             loadDriverData();
             initializeAdvancedFeatures();
+            
+            // NEW: Load SOS configuration for driver
+            loadDriverSOSConfig(user.uid);
         } else {
             // Show welcome screen
             document.getElementById('welcomeScreen').classList.remove('hidden');
@@ -2995,6 +3004,113 @@ function setupEventListeners() {
     // Ride request map controls
     document.getElementById('requestMapZoomIn').addEventListener('click', () => rideRequestMap.zoomIn());
     document.getElementById('requestMapZoomOut').addEventListener('click', () => rideRequestMap.zoomOut());
+    
+    // NEW: SOS Button Event Listener
+    document.getElementById('sosButton').addEventListener('click', triggerDriverSOS);
+}
+
+// NEW: Load driver SOS configuration
+function loadDriverSOSConfig(uid) {
+    database.ref('driverSOSConfig/' + uid).once('value')
+        .then(snapshot => {
+            sosConfig = snapshot.val();
+            if (!sosConfig) {
+                // Set default SOS configuration for driver
+                sosConfig = {
+                    emergencyContact1: '',
+                    emergencyContact2: '',
+                    message: 'I need help! My current location and ride details will be shared with you.'
+                };
+            }
+        })
+        .catch(error => {
+            console.error('Error loading driver SOS config:', error);
+            // Set default configuration
+            sosConfig = {
+                emergencyContact1: '',
+                emergencyContact2: '',
+                message: 'I need help! My current location and ride details will be shared with you.'
+            };
+        });
+}
+
+// NEW: Trigger Driver SOS
+function triggerDriverSOS() {
+    if (!sosConfig || !sosConfig.emergencyContact1) {
+        showNotification('SOS not configured. Please set up emergency contacts in settings.');
+        return;
+    }
+    
+    if (!currentRide) {
+        showNotification('No active ride to report SOS for.');
+        return;
+    }
+    
+    // Create SOS alert for driver
+    const sosAlert = {
+        driverId: currentUser.uid,
+        driverName: currentUser.displayName || 'Driver',
+        driverPhone: currentUser.phoneNumber || 'Not provided',
+        emergencyContact1: sosConfig.emergencyContact1,
+        emergencyContact2: sosConfig.emergencyContact2,
+        message: sosConfig.message,
+        rideDetails: currentRide,
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        location: driverMarker ? driverMarker.getLatLng() : null,
+        type: 'driver_sos'
+    };
+    
+    // Add passenger details if available
+    if (currentRide.passengerId) {
+        database.ref('users/' + currentRide.passengerId).once('value')
+            .then(passengerSnapshot => {
+                const passenger = passengerSnapshot.val();
+                if (passenger) {
+                    sosAlert.passengerDetails = {
+                        name: passenger.name,
+                        phone: passenger.phone
+                    };
+                }
+                
+                return database.ref('sosAlerts').push().set(sosAlert);
+            })
+            .then(() => {
+                showNotification('SOS alert sent to emergency contacts!');
+                
+                // Log the alert
+                console.log('Driver SOS Alert:', sosAlert);
+            })
+            .catch(error => {
+                console.error('Error sending SOS alert:', error);
+                showNotification('Error sending SOS alert. Please try again or call emergency services directly.');
+            });
+    } else {
+        database.ref('sosAlerts').push().set(sosAlert)
+            .then(() => {
+                showNotification('SOS alert sent to emergency contacts!');
+                
+                // Log the alert
+                console.log('Driver SOS Alert:', sosAlert);
+            })
+            .catch(error => {
+                console.error('Error sending SOS alert:', error);
+                showNotification('Error sending SOS alert. Please try again or call emergency services directly.');
+            });
+    }
+}
+
+// NEW: Show SOS Button during active rides
+function showSOSButton() {
+    if (currentRide) {
+        document.getElementById('sosButton').style.display = 'flex';
+        sosButtonVisible = true;
+    }
+}
+
+// NEW: Hide SOS Button when ride ends
+function hideSOSButton() {
+    document.getElementById('sosButton').style.display = 'none';
+    sosButtonVisible = false;
 }
 
 // NEW: Add Chat with Passenger button to advanced features
@@ -3017,7 +3133,7 @@ function addChatWithPassengerButton() {
     }
 }
 
-// NEW: Open chat with passenger
+// NEW: Enhanced Open chat with passenger function
 function openChatWithPassenger() {
     if (!currentRide || !currentRide.id) {
         showNotification('No active ride to chat with passenger.');
@@ -3031,6 +3147,9 @@ function openChatWithPassenger() {
     
     currentChatRideId = currentRide.id;
     
+    // Reset the closed flag since driver is opening the chat
+    chatPopupClosedByDriver = false;
+    
     // Update chat header with passenger info
     document.getElementById('chatPassengerName').textContent = currentRide.passengerName || 'Passenger';
     document.getElementById('chatPassengerRating').textContent = currentRide.passengerRating ? `${currentRide.passengerRating} ★` : '4.5 ★';
@@ -3043,6 +3162,9 @@ function openChatWithPassenger() {
     
     // Start listening for new messages
     startChatListener(currentRide.id);
+    
+    // NEW: Start listening for passenger messages specifically for auto-popup
+    startPassengerMessageListener(currentRide.id);
 }
 
 // NEW: Create driver chat popup
@@ -3099,7 +3221,11 @@ function createDriverChatPopup() {
     document.body.appendChild(chatPopup);
     
     // Add event listeners for chat
-    document.getElementById('closeDriverChatPopup').addEventListener('click', closeDriverChatPopup);
+    document.getElementById('closeDriverChatPopup').addEventListener('click', function() {
+        chatPopupClosedByDriver = true; // Set flag when driver manually closes chat
+        closeDriverChatPopup();
+    });
+    
     document.getElementById('sendDriverChatMessageBtn').addEventListener('click', sendDriverChatMessage);
     document.getElementById('driverChatMessageInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
@@ -3150,12 +3276,41 @@ function startChatListener(rideId) {
         // Scroll to bottom
         const chatMessages = document.getElementById('driverChatMessages');
         chatMessages.scrollTop = chatMessages.scrollHeight;
+    });
+}
+
+// NEW: Start passenger message listener for auto-popup
+function startPassengerMessageListener(rideId) {
+    // Remove existing listener if any
+    if (passengerMessageListener) {
+        passengerMessageListener();
+    }
+    
+    // Listen for new messages from passenger (not the current driver)
+    passengerMessageListener = database.ref('chats/' + rideId).orderByChild('timestamp').on('child_added', snapshot => {
+        const message = snapshot.val();
         
-        // Play notification sound for new messages from passenger
-        if (message.senderId !== currentUser.uid && soundEnabled) {
-            playNotificationSound();
+        // Check if message is from passenger (not the current driver)
+        if (message.senderId !== currentUser.uid) {
+            // If chat is closed by driver, automatically pop it up for new passenger messages
+            if (chatPopupClosedByDriver && !isDriverChatPopupOpen()) {
+                // Reopen chat popup automatically for passenger messages
+                openChatWithPassenger();
+                showNotification('New message from passenger');
+            }
+            
+            // Play notification sound for new messages from passenger
+            if (soundEnabled) {
+                playNotificationSound();
+            }
         }
     });
+}
+
+// NEW: Check if driver chat popup is currently open
+function isDriverChatPopupOpen() {
+    const chatPopup = document.getElementById('driverChatPopup');
+    return chatPopup && !chatPopup.classList.contains('hidden');
 }
 
 // NEW: Display chat message in driver chat
@@ -3228,6 +3383,12 @@ function closeDriverChatPopup() {
     if (chatListener) {
         chatListener();
         chatListener = null;
+    }
+    
+    // Remove passenger message listener
+    if (passengerMessageListener) {
+        passengerMessageListener();
+        passengerMessageListener = null;
     }
     
     currentChatRideId = null;
@@ -4090,6 +4251,9 @@ function acceptRide() {
                 // Update acceptance rate
                 updateAcceptanceRate(true);
                 
+                // NEW: Show SOS button for active ride
+                showSOSButton();
+                
                 showNotification('Ride accepted successfully.');
                 
                 currentRideRequest = null;
@@ -4498,6 +4662,9 @@ function completeHoldAction() {
                     currentRide = null;
                     document.getElementById('rideActionBtn').style.display = 'none';
                     document.getElementById('advancedFeatures').style.display = 'none';
+                    
+                    // NEW: Hide SOS button when ride completes
+                    hideSOSButton();
                     
                     // Clear map markers and routes
                     if (customerMarker) {
@@ -5380,6 +5547,15 @@ function logout() {
                 chatListener = null;
             }
             
+            // NEW: Remove passenger message listener
+            if (passengerMessageListener) {
+                passengerMessageListener();
+                passengerMessageListener = null;
+            }
+            
+            // NEW: Hide SOS button
+            hideSOSButton();
+            
             // Reset UI
             document.getElementById('mainApp').style.display = 'none';
             document.getElementById('welcomeScreen').classList.remove('hidden');
@@ -5510,6 +5686,7 @@ initializeEnhancedFeatures();
     </script>
 </body>
 </html>
+
 
 
 
