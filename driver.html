@@ -2582,6 +2582,11 @@ let soundEnabled = true;
 let rideRequestSound = null;
 let rideRequestSoundInterval = null;
 
+// NEW: Chat state variables
+let chatListener = null;
+let currentChatRideId = null;
+let unreadMessages = {};
+
 // Statistics tracking
 let driverStats = {
     totalTrips: 0,
@@ -2992,6 +2997,253 @@ function setupEventListeners() {
     document.getElementById('requestMapZoomOut').addEventListener('click', () => rideRequestMap.zoomOut());
 }
 
+// NEW: Add Chat with Passenger button to advanced features
+function addChatWithPassengerButton() {
+    const advancedFeatures = document.getElementById('advancedFeatures');
+    
+    // Check if chat button already exists
+    if (!document.getElementById('chatWithPassengerBtn')) {
+        const chatButton = document.createElement('button');
+        chatButton.id = 'chatWithPassengerBtn';
+        chatButton.className = 'feature-btn';
+        chatButton.innerHTML = '<i class="fas fa-comments"></i><span>Chat with Passenger</span>';
+        chatButton.addEventListener('click', function() {
+            openChatWithPassenger();
+        });
+        
+        // Insert chat button after contact customer button
+        const contactBtn = document.getElementById('contactCustomerBtn');
+        advancedFeatures.insertBefore(chatButton, contactBtn.nextSibling);
+    }
+}
+
+// NEW: Open chat with passenger
+function openChatWithPassenger() {
+    if (!currentRide || !currentRide.id) {
+        showNotification('No active ride to chat with passenger.');
+        return;
+    }
+    
+    // Create chat popup if it doesn't exist
+    if (!document.getElementById('driverChatPopup')) {
+        createDriverChatPopup();
+    }
+    
+    currentChatRideId = currentRide.id;
+    
+    // Update chat header with passenger info
+    document.getElementById('chatPassengerName').textContent = currentRide.passengerName || 'Passenger';
+    document.getElementById('chatPassengerRating').textContent = currentRide.passengerRating ? `${currentRide.passengerRating} ★` : '4.5 ★';
+    
+    // Show chat popup
+    document.getElementById('driverChatPopup').classList.remove('hidden');
+    
+    // Load chat messages
+    loadChatMessages(currentRide.id);
+    
+    // Start listening for new messages
+    startChatListener(currentRide.id);
+}
+
+// NEW: Create driver chat popup
+function createDriverChatPopup() {
+    const chatPopup = document.createElement('div');
+    chatPopup.id = 'driverChatPopup';
+    chatPopup.className = 'popup-overlay hidden';
+    chatPopup.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 15px;
+    `;
+    
+    chatPopup.innerHTML = `
+        <div class="popup-form" style="max-width: 400px; height: 500px; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden;">
+            <div class="popup-header" style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border-color);">
+                <h2 class="popup-title" style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                    <i class="fas fa-comments"></i>
+                    Chat with Passenger
+                </h2>
+                <button class="close-popup" id="closeDriverChatPopup" style="background: none; border: none; font-size: 1.3rem; cursor: pointer; color: var(--medium-gray);">&times;</button>
+            </div>
+            <div class="chat-passenger-info" style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div class="passenger-avatar" id="chatPassengerAvatar" style="width: 30px; height: 30px; border-radius: 50%; background: var(--light-gray); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--medium-gray);">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.9rem;" id="chatPassengerName">Passenger</div>
+                        <div style="font-size: 0.7rem; color: var(--medium-gray);" id="chatPassengerRating">4.5 ★</div>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-messages" id="driverChatMessages" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+            <div class="chat-input-container" style="padding: 10px; border-top: 1px solid var(--border-color);">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="driverChatMessageInput" placeholder="Type your message..." style="flex: 1; padding: 8px; border: 1px solid var(--border-color); border-radius: var(--element-radius); font-size: 0.8rem;">
+                    <button id="sendDriverChatMessageBtn" style="padding: 8px 15px; background: var(--primary-orange); color: white; border: none; border-radius: var(--element-radius); cursor: pointer;">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(chatPopup);
+    
+    // Add event listeners for chat
+    document.getElementById('closeDriverChatPopup').addEventListener('click', closeDriverChatPopup);
+    document.getElementById('sendDriverChatMessageBtn').addEventListener('click', sendDriverChatMessage);
+    document.getElementById('driverChatMessageInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendDriverChatMessage();
+        }
+    });
+}
+
+// NEW: Load chat messages from Firebase
+function loadChatMessages(rideId) {
+    const chatMessages = document.getElementById('driverChatMessages');
+    chatMessages.innerHTML = '<div class="loading-text">Loading messages...</div>';
+    
+    database.ref('chats/' + rideId).orderByChild('timestamp').once('value')
+        .then(snapshot => {
+            const messages = snapshot.val();
+            chatMessages.innerHTML = '';
+            
+            if (messages) {
+                const messagesArray = Object.values(messages);
+                messagesArray.forEach(message => {
+                    displayDriverChatMessage(message);
+                });
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            } else {
+                chatMessages.innerHTML = '<div class="no-places" style="text-align: center; padding: 20px; color: var(--medium-gray);">No messages yet. Start the conversation!</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading chat messages:', error);
+            chatMessages.innerHTML = '<div class="no-places" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading messages.</div>';
+        });
+}
+
+// NEW: Start real-time chat listener
+function startChatListener(rideId) {
+    // Remove existing listener
+    if (chatListener) {
+        chatListener();
+    }
+    
+    chatListener = database.ref('chats/' + rideId).orderByChild('timestamp').on('child_added', snapshot => {
+        const message = snapshot.val();
+        displayDriverChatMessage(message);
+        
+        // Scroll to bottom
+        const chatMessages = document.getElementById('driverChatMessages');
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Play notification sound for new messages from passenger
+        if (message.senderId !== currentUser.uid && soundEnabled) {
+            playNotificationSound();
+        }
+    });
+}
+
+// NEW: Display chat message in driver chat
+function displayDriverChatMessage(message) {
+    const chatMessages = document.getElementById('driverChatMessages');
+    
+    // Remove loading/empty state if present
+    if (chatMessages.querySelector('.loading-text') || chatMessages.querySelector('.no-places')) {
+        chatMessages.innerHTML = '';
+    }
+    
+    const messageElement = document.createElement('div');
+    messageElement.className = `chat-message ${message.senderId === currentUser.uid ? 'own-message' : 'other-message'}`;
+    messageElement.style.cssText = `
+        max-width: 80%;
+        padding: 8px 12px;
+        border-radius: 15px;
+        margin-bottom: 5px;
+        word-wrap: break-word;
+        ${message.senderId === currentUser.uid ? 
+            'background: var(--primary-orange); color: white; align-self: flex-end;' : 
+            'background: var(--light-gray); color: var(--dark-gray); align-self: flex-start;'
+        }
+    `;
+    
+    const timestamp = new Date(message.timestamp);
+    const timeString = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    messageElement.innerHTML = `
+        <div style="font-size: 0.8rem;">${message.message}</div>
+        <div style="font-size: 0.6rem; opacity: 0.7; text-align: ${message.senderId === currentUser.uid ? 'right' : 'left'}; margin-top: 4px;">${timeString}</div>
+    `;
+    
+    chatMessages.appendChild(messageElement);
+}
+
+// NEW: Send chat message from driver
+function sendDriverChatMessage() {
+    const messageInput = document.getElementById('driverChatMessageInput');
+    const message = messageInput.value.trim();
+    
+    if (!message || !currentChatRideId) {
+        return;
+    }
+    
+    const messageData = {
+        message: message,
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || 'Driver',
+        timestamp: firebase.database.ServerValue.TIMESTAMP,
+        rideId: currentChatRideId
+    };
+    
+    // Add message to Firebase
+    database.ref('chats/' + currentChatRideId).push(messageData)
+        .then(() => {
+            messageInput.value = '';
+        })
+        .catch(error => {
+            console.error('Error sending message:', error);
+            showNotification('Error sending message. Please try again.');
+        });
+}
+
+// NEW: Close driver chat popup
+function closeDriverChatPopup() {
+    document.getElementById('driverChatPopup').classList.add('hidden');
+    
+    // Remove chat listener
+    if (chatListener) {
+        chatListener();
+        chatListener = null;
+    }
+    
+    currentChatRideId = null;
+}
+
+// NEW: Play notification sound for new messages
+function playNotificationSound() {
+    if (soundEnabled) {
+        const notificationSound = new Audio();
+        notificationSound.src = 'notification.mp3'; // You would need to add this sound file
+        notificationSound.play().catch(e => {
+            console.log('Notification sound play failed:', e);
+        });
+    }
+}
+
 // Initialize advanced features
 function initializeAdvancedFeatures() {
     // Initialize performance stats with real data
@@ -3003,6 +3255,9 @@ function initializeAdvancedFeatures() {
     // Set up periodic updates
     setInterval(updatePerformanceStats, 30000); // Update every 30 seconds
     setInterval(updateOnlineTime, 60000); // Update online time every minute
+    
+    // NEW: Add chat button to advanced features
+    addChatWithPassengerButton();
 }
 
 // Update performance statistics with REAL data
@@ -4258,6 +4513,11 @@ function completeHoldAction() {
                         routePolyline = null;
                     }
                     
+                    // NEW: Close chat popup if open
+                    if (document.getElementById('driverChatPopup') && !document.getElementById('driverChatPopup').classList.contains('hidden')) {
+                        closeDriverChatPopup();
+                    }
+                    
                     // Show ride queue again
                     updateRideQueueDisplay();
                 });
@@ -5114,6 +5374,12 @@ function logout() {
                 rideQueueListener = null;
             }
             
+            // NEW: Remove chat listener
+            if (chatListener) {
+                chatListener();
+                chatListener = null;
+            }
+            
             // Reset UI
             document.getElementById('mainApp').style.display = 'none';
             document.getElementById('welcomeScreen').classList.remove('hidden');
@@ -5244,6 +5510,7 @@ initializeEnhancedFeatures();
     </script>
 </body>
 </html>
+
 
 
 
