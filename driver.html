@@ -459,7 +459,7 @@
             margin-bottom: 12px;
         }
         
-        /* CHANGED: Increased driver avatar size on home page */
+        /* CHANGED: Increased driver profile picture size */
         .driver-avatar {
             width: 60px; /* Increased from 40px */
             height: 60px; /* Increased from 40px */
@@ -471,7 +471,6 @@
             font-size: 1.5rem; /* Increased from 1rem */
             color: var(--white);
             font-weight: 700;
-            overflow: hidden;
         }
         
         .driver-details h2 {
@@ -1776,7 +1775,7 @@
             color: var(--primary-orange);
         }
         
-        /* CHANGED: Square image upload boxes in 2x2 grid */
+        /* CHANGED: Image Upload Styles - Square boxes in 2x2 grid */
         .image-upload-section {
             margin-top: 20px;
         }
@@ -1799,10 +1798,9 @@
             font-size: 0.8rem;
         }
         
-        /* CHANGED: Square upload boxes */
         .image-upload-box {
             width: 100%;
-            height: 120px; /* Square aspect ratio */
+            height: 120px; /* Square box */
             border: 2px dashed var(--border-color);
             border-radius: var(--element-radius);
             display: flex;
@@ -1920,7 +1918,7 @@
             color: var(--dark-gray);
         }
         
-        /* CHANGED: Larger driver profile image on home page */
+        /* Driver Profile Image Styles */
         .driver-profile-image {
             width: 100%; /* Fill the container */
             height: 100%; /* Fill the container */
@@ -1945,11 +1943,7 @@
             margin-top: 8px;
         }
         
-        /* NEW: Vehicle images display in account page */
-        .vehicle-images-section {
-            margin-top: 15px;
-        }
-        
+        /* NEW: Vehicle Images Grid in Account Page */
         .vehicle-images-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -1970,15 +1964,16 @@
         
         .vehicle-image-box {
             width: 100%;
-            height: 120px; /* Square aspect ratio */
+            height: 120px; /* Square box */
             border: 2px solid var(--border-color);
             border-radius: var(--element-radius);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
             position: relative;
+            overflow: hidden;
+            background: var(--light-gray);
         }
         
         .vehicle-image-preview {
@@ -1988,13 +1983,9 @@
         }
         
         .no-vehicle-image {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            text-align: center;
             color: var(--medium-gray);
             font-size: 0.7rem;
-            text-align: center;
             padding: 10px;
         }
         
@@ -2404,7 +2395,7 @@
                 </div>
             </div>
             
-            <!-- CHANGED: Square image upload boxes in 2x2 grid -->
+            <!-- CHANGED: Image Upload Section - Square boxes in 2x2 grid -->
             <div class="image-upload-section">
                 <h3 class="section-title">Required Documents & Photos</h3>
                 <p style="font-size: 0.8rem; color: var(--medium-gray); margin-bottom: 10px;">
@@ -2517,7 +2508,7 @@
             <div class="panel-collapse-handle" id="panelCollapseHandle"></div>
             
             <div class="driver-info">
-                <!-- CHANGED: Larger driver avatar on home page -->
+                <!-- CHANGED: Increased driver profile picture size -->
                 <div class="driver-avatar" id="driverAvatar">
                     <img id="driverProfileImage" class="driver-profile-image" src="" alt="Driver" style="display: none;">
                     <i class="fas fa-user" id="driverDefaultIcon"></i>
@@ -2811,16 +2802,16 @@
                     <label for="vehicleColorInput">Vehicle Color</label>
                     <input type="text" id="vehicleColorInput" class="input-field" placeholder="Red, Blue, etc." readonly>
                 </div>
-            </div>
-            
-            <!-- NEW: Vehicle Images Section in Account Page -->
-            <div class="vehicle-images-section">
-                <h3 class="section-title">
-                    <i class="fas fa-images"></i>
-                    Vehicle Images
-                </h3>
-                <div class="vehicle-images-grid" id="vehicleImagesGrid">
-                    <!-- Vehicle images will be populated here -->
+                
+                <!-- NEW: Vehicle Images Grid in Account Page -->
+                <div class="vehicle-images-section">
+                    <h4 class="section-title">
+                        <i class="fas fa-images"></i>
+                        Vehicle Images
+                    </h4>
+                    <div class="vehicle-images-grid" id="vehicleImagesGrid">
+                        <!-- Vehicle images will be populated here -->
+                    </div>
                 </div>
             </div>
             
@@ -4500,7 +4491,7 @@
             });
         }
 
-        // CHANGED: Update ride queue display with REAL data from Firebase including actual amounts
+        // CHANGED: Update ride queue display with REAL data from Firebase - Now shows actual ride amounts
         function updateRideQueueDisplay() {
             const queueList = document.getElementById('queueList');
             queueList.innerHTML = '';
@@ -4509,11 +4500,14 @@
                 rideQueue.forEach(ride => {
                     const queueItem = document.createElement('div');
                     queueItem.className = 'queue-item';
-                    // CHANGED: Show actual ride amount in queue
+                    
+                    // CHANGED: Show actual ride amount in the queue
+                    const rideAmount = ride.fare ? `K${ride.fare.toFixed(2)}` : 'K0.00';
+                    
                     queueItem.innerHTML = `
                         <div class="queue-info">
                             <div class="queue-location">${ride.pickupDisplayLocation || ride.pickupLocation}</div>
-                            <div class="queue-time">${calculateDistanceToPickup(ride)} • K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                            <div class="queue-time">${calculateDistanceToPickup(ride)} • ${rideAmount}</div>
                         </div>
                         <button class="queue-action" data-id="${ride.id}">Accept</button>
                     `;
@@ -4698,6 +4692,81 @@
             }
         }
 
+        // NEW: Load vehicle images for display in account page
+        function loadVehicleImages() {
+            if (!currentUser) return;
+            
+            database.ref('users/' + currentUser.uid + '/images').once('value')
+                .then(snapshot => {
+                    const images = snapshot.val();
+                    const vehicleImagesGrid = document.getElementById('vehicleImagesGrid');
+                    vehicleImagesGrid.innerHTML = '';
+                    
+                    if (images) {
+                        // Define which images to show based on vehicle type
+                        let imageTypes = [];
+                        
+                        if (selectedVehicleType === 'car') {
+                            imageTypes = [
+                                { id: 'profilePhoto', label: 'Profile Photo' },
+                                { id: 'vehicleFront', label: 'Vehicle Front' },
+                                { id: 'vehicleBack', label: 'Vehicle Back' },
+                                { id: 'frontSeats', label: 'Front Seats' },
+                                { id: 'backSeats', label: 'Back Seats' }
+                            ];
+                        } else if (selectedVehicleType === 'bike') {
+                            imageTypes = [
+                                { id: 'profilePhoto', label: 'Profile Photo' },
+                                { id: 'bikePhoto', label: 'Bike Photo' }
+                            ];
+                        } else if (selectedVehicleType === 'bicycle') {
+                            imageTypes = [
+                                { id: 'profilePhoto', label: 'Profile Photo' },
+                                { id: 'bicyclePhoto', label: 'Bicycle Photo' }
+                            ];
+                        }
+                        
+                        // Add NRC images for all vehicle types
+                        imageTypes.push(
+                            { id: 'nrcFront', label: 'NRC Front' },
+                            { id: 'nrcBack', label: 'NRC Back' }
+                        );
+                        
+                        // Add driver's license for car and bike
+                        if (selectedVehicleType === 'car' || selectedVehicleType === 'bike') {
+                            imageTypes.push({ id: 'driversLicense', label: 'Driver\'s License' });
+                        }
+                        
+                        // Create image display items
+                        imageTypes.forEach(imageType => {
+                            const imageItem = document.createElement('div');
+                            imageItem.className = 'vehicle-image-item';
+                            
+                            const imageUrl = images[imageType.id];
+                            
+                            imageItem.innerHTML = `
+                                <div class="vehicle-image-label">${imageType.label}</div>
+                                <div class="vehicle-image-box">
+                                    ${imageUrl ? 
+                                        `<img src="${imageUrl}" class="vehicle-image-preview" alt="${imageType.label}">` :
+                                        `<div class="no-vehicle-image">No image uploaded</div>`
+                                    }
+                                </div>
+                            `;
+                            
+                            vehicleImagesGrid.appendChild(imageItem);
+                        });
+                    } else {
+                        vehicleImagesGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--medium-gray);">No vehicle images found.</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading vehicle images:', error);
+                    const vehicleImagesGrid = document.getElementById('vehicleImagesGrid');
+                    vehicleImagesGrid.innerHTML = '<p style="grid-column: 1 / -1; text-align: center; padding: 20px; color: var(--error-red);">Error loading vehicle images.</p>';
+                });
+        }
+
         // Toggle online status
         function toggleOnlineStatus() {
             isOnline = !isOnline;
@@ -4868,7 +4937,7 @@
             // ENHANCED: Update ride request map with proper zoom and route
             updateRideRequestMap(ride);
             
-            // CHANGED: Generate real waypoints using OSRM API
+            // CHANGED: Generate REAL waypoints using OSRM API
             generateRealWaypoints(ride);
             
             // Show popup
@@ -5132,14 +5201,13 @@
                 });
         }
 
-        // CHANGED: Generate real waypoints using OSRM API
+        // CHANGED: Generate REAL waypoints using OSRM API
         function generateRealWaypoints(ride) {
-            waypoints = [];
             const waypointsContainer = document.getElementById('waypointsContainer');
             waypointsContainer.innerHTML = '<div class="loading-text">Loading route instructions...</div>';
             
             // Use OSRM API to get route instructions
-            fetch(`https://router.project-osrm.org/route/v1/driving/${ride.pickupLng},${ride.pickupLat};${ride.destLng},${ride.destLat}?overview=full&steps=true`)
+            fetch(`https://router.project-osrm.org/route/v1/driving/${ride.pickupLng},${ride.pickupLat};${ride.destLng},${ride.destLat}?overview=full&geometries=geojson&steps=true`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.routes && data.routes.length > 0) {
@@ -5147,6 +5215,7 @@
                         const legs = route.legs;
                         
                         waypointsContainer.innerHTML = '';
+                        waypoints = [];
                         
                         if (legs && legs.length > 0) {
                             const steps = legs[0].steps;
@@ -5160,32 +5229,30 @@
                                 const instruction = step.maneuver.instruction;
                                 const distance = (step.distance / 1000).toFixed(1); // Convert to km
                                 
-                                waypoints.push({
-                                    instruction: instruction,
-                                    distance: distance
-                                });
-                                
-                                const waypointItem = document.createElement('div');
-                                waypointItem.className = 'waypoint-item';
-                                waypointItem.innerHTML = `
-                                    <div class="waypoint-icon">
-                                        <i class="fas fa-map-pin"></i>
-                                    </div>
-                                    <div class="waypoint-text">
-                                        <strong>${instruction}</strong>
-                                        <div style="font-size: 0.7rem; color: var(--medium-gray); margin-top: 2px;">${distance} km</div>
-                                    </div>
-                                `;
-                                
-                                waypointsContainer.appendChild(waypointItem);
+                                if (instruction && !instruction.includes('arrived')) {
+                                    waypoints.push({
+                                        instruction: instruction,
+                                        distance: distance
+                                    });
+                                    
+                                    const waypointItem = document.createElement('div');
+                                    waypointItem.className = 'waypoint-item';
+                                    waypointItem.innerHTML = `
+                                        <div class="waypoint-icon">
+                                            <i class="fas fa-map-pin"></i>
+                                        </div>
+                                        <div class="waypoint-text">
+                                            <div>${instruction}</div>
+                                            <div style="font-size: 0.6rem; color: var(--medium-gray); margin-top: 2px;">${distance} km</div>
+                                        </div>
+                                    `;
+                                    
+                                    waypointsContainer.appendChild(waypointItem);
+                                }
                             }
                             
-                            // Add the last step if not already included
-                            if (steps.length > 0 && waypoints.length < maxWaypoints) {
-                                const lastStep = steps[steps.length - 1];
-                                const lastInstruction = lastStep.maneuver.instruction;
-                                const lastDistance = (lastStep.distance / 1000).toFixed(1);
-                                
+                            // Add destination as the last waypoint
+                            if (waypoints.length > 0) {
                                 const waypointItem = document.createElement('div');
                                 waypointItem.className = 'waypoint-item';
                                 waypointItem.innerHTML = `
@@ -5193,8 +5260,7 @@
                                         <i class="fas fa-flag-checkered"></i>
                                     </div>
                                     <div class="waypoint-text">
-                                        <strong>${lastInstruction}</strong>
-                                        <div style="font-size: 0.7rem; color: var(--medium-gray); margin-top: 2px;">${lastDistance} km</div>
+                                        <div>Arrive at destination</div>
                                     </div>
                                 `;
                                 
@@ -6115,77 +6181,7 @@
                 
                 // Load float history
                 loadFloatHistory();
-                
-                // NEW: Load vehicle images
-                loadVehicleImages();
             }
-        }
-
-        // NEW: Load vehicle images for display in account page
-        function loadVehicleImages() {
-            if (!currentUser) return;
-            
-            database.ref('users/' + currentUser.uid + '/images').once('value')
-                .then(snapshot => {
-                    const images = snapshot.val();
-                    const vehicleImagesGrid = document.getElementById('vehicleImagesGrid');
-                    vehicleImagesGrid.innerHTML = '';
-                    
-                    if (images) {
-                        // Define image labels based on vehicle type
-                        let imageLabels = {};
-                        
-                        if (selectedVehicleType === 'car') {
-                            imageLabels = {
-                                profilePhoto: 'Profile Photo',
-                                nrcFront: 'NRC Front',
-                                nrcBack: 'NRC Back',
-                                driversLicense: 'Driver\'s License',
-                                vehicleFront: 'Vehicle Front',
-                                vehicleBack: 'Vehicle Back',
-                                frontSeats: 'Front Seats',
-                                backSeats: 'Back Seats'
-                            };
-                        } else if (selectedVehicleType === 'bike') {
-                            imageLabels = {
-                                profilePhoto: 'Profile Photo',
-                                nrcFront: 'NRC Front',
-                                nrcBack: 'NRC Back',
-                                driversLicense: 'Driver\'s License',
-                                bikePhoto: 'Bike Photo'
-                            };
-                        } else if (selectedVehicleType === 'bicycle') {
-                            imageLabels = {
-                                profilePhoto: 'Profile Photo',
-                                nrcFront: 'NRC Front',
-                                nrcBack: 'NRC Back',
-                                bicyclePhoto: 'Bicycle Photo'
-                            };
-                        }
-                        
-                        // Create image display items
-                        Object.keys(imageLabels).forEach(imageKey => {
-                            if (images[imageKey]) {
-                                const imageItem = document.createElement('div');
-                                imageItem.className = 'vehicle-image-item';
-                                imageItem.innerHTML = `
-                                    <div class="vehicle-image-label">${imageLabels[imageKey]}</div>
-                                    <div class="vehicle-image-box">
-                                        <img src="${images[imageKey]}" class="vehicle-image-preview" alt="${imageLabels[imageKey]}">
-                                    </div>
-                                `;
-                                vehicleImagesGrid.appendChild(imageItem);
-                            }
-                        });
-                    } else {
-                        vehicleImagesGrid.innerHTML = '<p style="text-align: center; padding: 10px; color: var(--medium-gray); grid-column: 1 / -1;">No vehicle images found.</p>';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading vehicle images:', error);
-                    const vehicleImagesGrid = document.getElementById('vehicleImagesGrid');
-                    vehicleImagesGrid.innerHTML = '<p style="text-align: center; padding: 10px; color: var(--error-red); grid-column: 1 / -1;">Error loading vehicle images.</p>';
-                });
         }
 
         // Update vehicle icon based on vehicle type
