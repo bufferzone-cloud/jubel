@@ -2439,7 +2439,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-   // Firebase configuration
+  // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
     authDomain: "jubel-13e1a.firebaseapp.com",
@@ -4179,6 +4179,7 @@ function listenForDriverAssignment(rideId) {
     });
 }
 
+// ENHANCED: Handle driver assignment with image display
 function handleDriverAssignment(ride) {
     // Hide searching animation
     document.getElementById('searchingAnimation').style.display = 'none';
@@ -4202,9 +4203,33 @@ function handleDriverAssignment(ride) {
                         `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
                 }
                 
+                // NEW: Update driver avatar with profile image if available
                 const driverAvatar = document.getElementById('driverAvatar');
-                if (driver.name) {
+                if (ride.driverProfileImage) {
+                    // Create image element if it doesn't exist
+                    let driverProfileImg = document.getElementById('driverProfileImage');
+                    if (!driverProfileImg) {
+                        driverProfileImg = document.createElement('img');
+                        driverProfileImg.id = 'driverProfileImage';
+                        driverProfileImg.className = 'driver-profile-image';
+                        driverProfileImg.alt = 'Driver';
+                        driverAvatar.innerHTML = '';
+                        driverAvatar.appendChild(driverProfileImg);
+                    }
+                    driverProfileImg.src = ride.driverProfileImage;
+                    driverProfileImg.style.display = 'block';
+                } else if (driver.name) {
                     driverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
+                }
+                
+                // NEW: Display vehicle image if available
+                if (ride.vehicleImage) {
+                    const vehicleImageSection = document.getElementById('vehicleImageSection');
+                    const vehicleFrontImage = document.getElementById('vehicleFrontImage');
+                    if (vehicleImageSection && vehicleFrontImage) {
+                        vehicleFrontImage.src = ride.vehicleImage;
+                        vehicleImageSection.style.display = 'block';
+                    }
                 }
                 
                 updateDriverDetailsCard(driver);
@@ -4301,9 +4326,11 @@ function openChatWithDriver(rideId, driver) {
     document.getElementById('chatDriverName').textContent = driver.name || 'Driver';
     document.getElementById('chatDriverRating').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
     
-    // Update driver avatar in chat
+    // Update driver avatar in chat with profile image if available
     const chatDriverAvatar = document.getElementById('chatDriverAvatar');
-    if (driver.name) {
+    if (currentRide && currentRide.driverProfileImage) {
+        chatDriverAvatar.innerHTML = `<img src="${currentRide.driverProfileImage}" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+    } else if (driver.name) {
         chatDriverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
     } else {
         chatDriverAvatar.innerHTML = '<i class="fas fa-user"></i>';
@@ -4335,7 +4362,7 @@ function createChatPopup() {
             </div>
             <div class="chat-driver-info" style="padding: 10px; border-bottom: 1px solid var(--border-color); background: var(--light-orange);">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; font-size: 0.8rem; background: var(--primary-orange);"></div>
+                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; border-radius: 50%; background: var(--light-gray); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--medium-gray);"></div>
                     <div>
                         <div style="font-weight: 600; font-size: 0.9rem;" id="chatDriverName">Driver</div>
                         <div style="font-size: 0.7rem; color: var(--medium-gray);" id="chatDriverRating">4.5 ★</div>
@@ -6318,6 +6345,7 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
 
 
