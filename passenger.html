@@ -2520,6 +2520,10 @@ let activeSearchField = null;
 let currentRideRequestType = 'standard'; // 'standard', 'order-for-someone', 'express-delivery'
 let currentRideRequestData = null;
 
+// NEW: Driver images state
+let driverProfileImage = null;
+let driverVehicleImage = null;
+
 // Zambian cities for search with common misspellings and variations
 const zambianCities = [
     'Lusaka', 'Kitwe', 'Ndola', 'Kabwe', 'Chipata', 'Chingola', 
@@ -4146,6 +4150,7 @@ function updateUIForActiveRide() {
     document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
 }
 
+// ENHANCED: Driver assignment handler with image support
 function listenForDriverAssignment(rideId) {
     if (driverAssignmentListener) {
         driverAssignmentListener();
@@ -4179,6 +4184,7 @@ function listenForDriverAssignment(rideId) {
     });
 }
 
+// ENHANCED: Handle driver assignment with image support
 function handleDriverAssignment(ride) {
     // Hide searching animation
     document.getElementById('searchingAnimation').style.display = 'none';
@@ -4202,10 +4208,8 @@ function handleDriverAssignment(ride) {
                         `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
                 }
                 
-                const driverAvatar = document.getElementById('driverAvatar');
-                if (driver.name) {
-                    driverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
-                }
+                // NEW: Update driver avatar with profile image if available
+                updateDriverAvatarWithImage(driver, ride);
                 
                 updateDriverDetailsCard(driver);
                 
@@ -4226,6 +4230,57 @@ function handleDriverAssignment(ride) {
         });
     
     listenForRideStatusUpdates(ride.id);
+}
+
+// NEW: Update driver avatar with profile image
+function updateDriverAvatarWithImage(driver, ride) {
+    const driverAvatar = document.getElementById('driverAvatar');
+    
+    // Check if driver profile image is available in the ride data (sent from driver)
+    if (ride.driverProfileImage) {
+        driverProfileImage = ride.driverProfileImage;
+        driverAvatar.innerHTML = `<img src="${driverProfileImage}" class="driver-profile-image" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+    } 
+    // Fallback to checking driver's images in their profile
+    else if (driver.images && driver.images.profilePhoto) {
+        driverProfileImage = driver.images.profilePhoto;
+        driverAvatar.innerHTML = `<img src="${driverProfileImage}" class="driver-profile-image" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+    }
+    // Final fallback - use initial or default icon
+    else if (driver.name) {
+        driverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
+    } else {
+        driverAvatar.innerHTML = '<i class="fas fa-user"></i>';
+    }
+    
+    // NEW: Update vehicle image if available
+    updateVehicleImageDisplay(ride);
+}
+
+// NEW: Update vehicle image display
+function updateVehicleImageDisplay(ride) {
+    const vehicleImageSection = document.getElementById('vehicleImageSection');
+    
+    // Check if vehicle image is available in the ride data
+    if (ride.vehicleImage) {
+        driverVehicleImage = ride.vehicleImage;
+        vehicleImageSection.innerHTML = `
+            <h4 class="section-title">Driver's Vehicle</h4>
+            <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle Front" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px;">
+        `;
+        vehicleImageSection.style.display = 'block';
+    } 
+    // Fallback to checking driver's vehicle images in their profile
+    else if (ride.driverVehicle && ride.driverVehicle.images && ride.driverVehicle.images.vehicleFront) {
+        driverVehicleImage = ride.driverVehicle.images.vehicleFront;
+        vehicleImageSection.innerHTML = `
+            <h4 class="section-title">Driver's Vehicle</h4>
+            <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle Front" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px;">
+        `;
+        vehicleImageSection.style.display = 'block';
+    } else {
+        vehicleImageSection.style.display = 'none';
+    }
 }
 
 // NEW: Add Chat with Driver button to ride info panel
@@ -4301,9 +4356,11 @@ function openChatWithDriver(rideId, driver) {
     document.getElementById('chatDriverName').textContent = driver.name || 'Driver';
     document.getElementById('chatDriverRating').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
     
-    // Update driver avatar in chat
+    // NEW: Update driver avatar in chat with profile image if available
     const chatDriverAvatar = document.getElementById('chatDriverAvatar');
-    if (driver.name) {
+    if (driverProfileImage) {
+        chatDriverAvatar.innerHTML = `<img src="${driverProfileImage}" class="driver-profile-image" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+    } else if (driver.name) {
         chatDriverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
     } else {
         chatDriverAvatar.innerHTML = '<i class="fas fa-user"></i>';
@@ -4335,7 +4392,7 @@ function createChatPopup() {
             </div>
             <div class="chat-driver-info" style="padding: 10px; border-bottom: 1px solid var(--border-color); background: var(--light-orange);">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; font-size: 0.8rem; background: var(--primary-orange);"></div>
+                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; font-size: 0.8rem; background: var(--primary-orange); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;"></div>
                     <div>
                         <div style="font-weight: 600; font-size: 0.9rem;" id="chatDriverName">Driver</div>
                         <div style="font-size: 0.7rem; color: var(--medium-gray);" id="chatDriverRating">4.5 ★</div>
@@ -4782,6 +4839,10 @@ function resetUIAfterRide() {
         driverMessageListener();
         driverMessageListener = null;
     }
+    
+    // NEW: Reset driver images
+    driverProfileImage = null;
+    driverVehicleImage = null;
     
     if (driverMarker) {
         passengerMap.removeLayer(driverMarker);
@@ -6318,6 +6379,7 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
 
 
