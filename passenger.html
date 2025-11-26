@@ -2439,7 +2439,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-   // Firebase configuration
+  // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
     authDomain: "jubel-13e1a.firebaseapp.com",
@@ -2523,6 +2523,9 @@ let currentRideRequestData = null;
 // NEW: Driver images state
 let driverProfileImage = null;
 let driverVehicleImage = null;
+
+// NEW: Ride persistence state
+let activeRideRestored = false;
 
 // Zambian cities for search with common misspellings and variations
 const zambianCities = [
@@ -2631,6 +2634,9 @@ function loadUserData(uid) {
                 // NEW: Load SOS configuration
                 loadSOSConfig(uid);
                 
+                // NEW: Check for active ride
+                checkActiveRide(uid);
+                
                 showNotification('Welcome back to Jubel!');
             } else {
                 showNotification('User data not found. Please sign up again.');
@@ -2643,6 +2649,99 @@ function loadUserData(uid) {
             console.error('Error loading user data:', error);
             showNotification('Error loading user data. Please try again.');
         });
+}
+
+// NEW: Check for active ride when app loads
+function checkActiveRide(uid) {
+    database.ref('rides').orderByChild('passengerId').equalTo(uid).once('value')
+        .then(snapshot => {
+            const rides = snapshot.val();
+            if (rides) {
+                // Find any active ride (not completed or cancelled)
+                for (const rideId in rides) {
+                    const ride = rides[rideId];
+                    if (ride.status !== 'completed' && ride.status !== 'cancelled' && ride.status !== 'requested') {
+                        // Passenger has an active ride, restore it
+                        restoreActiveRide(rideId, ride);
+                        break;
+                    }
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error checking active ride:', error);
+        });
+}
+
+// NEW: Restore active ride after app refresh
+function restoreActiveRide(rideId, ride) {
+    currentRide = {
+        id: rideId,
+        ...ride
+    };
+    
+    // Update UI for active ride
+    updateUIForActiveRide();
+    
+    // Show searching animation if still searching
+    if (ride.status === 'requested') {
+        document.getElementById('searchingAnimation').style.display = 'flex';
+        document.getElementById('rideStatus').style.display = 'flex';
+        document.getElementById('statusDot').className = 'status-dot searching';
+        document.getElementById('statusText').textContent = 'Searching for driver';
+        
+        listenForDriverAssignment(rideId);
+    } 
+    // If driver is assigned, restore driver details
+    else if (ride.driverId && (ride.status === 'accepted' || ride.status === 'arrived' || ride.status === 'started' || ride.status === 'picked_up')) {
+        handleDriverAssignment(ride);
+        
+        // Update ride status display
+        updateRideStatusDisplay(ride.status);
+        
+        // Start listening for driver location
+        if (ride.driverId) {
+            trackDriverLocation(ride.driverId);
+        }
+        
+        // NEW: Start listening for driver messages
+        startDriverMessageListener(rideId);
+        
+        // NEW: Show SOS button if configured
+        if (sosConfig && sosConfig.contact1) {
+            document.getElementById('sosButton').style.display = 'flex';
+        }
+    }
+    
+    activeRideRestored = true;
+    showNotification('Active ride restored');
+}
+
+// NEW: Update ride status display
+function updateRideStatusDisplay(status) {
+    const statusText = document.getElementById('statusText');
+    const statusDot = document.getElementById('statusDot');
+    const estimatedTime = document.getElementById('estimatedTime');
+    
+    switch(status) {
+        case 'accepted':
+            statusText.textContent = 'Driver on the way';
+            statusDot.className = 'status-dot arriving';
+            estimatedTime.style.display = 'flex';
+            break;
+        case 'arrived':
+            statusText.textContent = 'Driver arrived';
+            statusDot.className = 'status-dot riding';
+            break;
+        case 'started':
+            statusText.textContent = 'Trip in progress';
+            statusDot.className = 'status-dot riding';
+            break;
+        case 'picked_up':
+            statusText.textContent = 'Trip in progress';
+            statusDot.className = 'status-dot riding';
+            break;
+    }
 }
 
 // NEW: Load SOS configuration
@@ -4150,7 +4249,7 @@ function updateUIForActiveRide() {
     document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
 }
 
-// ENHANCED: Driver assignment handler with image support
+// ENHANCED: Driver assignment handler with image support and vehicle display
 function listenForDriverAssignment(rideId) {
     if (driverAssignmentListener) {
         driverAssignmentListener();
@@ -4184,7 +4283,7 @@ function listenForDriverAssignment(rideId) {
     });
 }
 
-// ENHANCED: Handle driver assignment with image support
+// ENHANCED: Handle driver assignment with image support and vehicle display
 function handleDriverAssignment(ride) {
     // Hide searching animation
     document.getElementById('searchingAnimation').style.display = 'none';
@@ -4210,6 +4309,9 @@ function handleDriverAssignment(ride) {
                 
                 // NEW: Update driver avatar with profile image if available
                 updateDriverAvatarWithImage(driver, ride);
+                
+                // NEW: Update driver vehicle display
+                updateDriverVehicleDisplay(driver, ride);
                 
                 updateDriverDetailsCard(driver);
                 
@@ -4252,34 +4354,99 @@ function updateDriverAvatarWithImage(driver, ride) {
     } else {
         driverAvatar.innerHTML = '<i class="fas fa-user"></i>';
     }
-    
-    // NEW: Update vehicle image if available
-    updateVehicleImageDisplay(ride);
 }
 
-// NEW: Update vehicle image display
-function updateVehicleImageDisplay(ride) {
+// NEW: Update driver vehicle display with vehicle image and details
+function updateDriverVehicleDisplay(driver, ride) {
     const vehicleImageSection = document.getElementById('vehicleImageSection');
+    
+    // Create vehicle image section if it doesn't exist
+    if (!vehicleImageSection) {
+        const driverDetailsCard = document.getElementById('driverDetailsCard');
+        const vehicleSection = document.createElement('div');
+        vehicleSection.id = 'vehicleImageSection';
+        vehicleSection.className = 'vehicle-image-section';
+        vehicleSection.style.cssText = `
+            margin-top: 10px;
+            padding: 10px;
+            background: var(--light-gray);
+            border-radius: var(--element-radius);
+            border: 1px solid var(--border-color);
+        `;
+        vehicleSection.innerHTML = `
+            <h4 class="section-title" style="font-size: 0.8rem; margin-bottom: 8px;">
+                <i class="fas fa-car"></i> Driver's Vehicle
+            </h4>
+            <div id="vehicleImageContainer"></div>
+        `;
+        driverDetailsCard.appendChild(vehicleSection);
+    }
+    
+    const vehicleImageContainer = document.getElementById('vehicleImageContainer');
     
     // Check if vehicle image is available in the ride data
     if (ride.vehicleImage) {
         driverVehicleImage = ride.vehicleImage;
-        vehicleImageSection.innerHTML = `
-            <h4 class="section-title">Driver's Vehicle</h4>
-            <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle Front" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px;">
+        vehicleImageContainer.innerHTML = `
+            <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">
+            <div class="vehicle-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.7rem;">
+                <div class="vehicle-detail">
+                    <strong>Type:</strong> ${driver.vehicle?.type || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Model:</strong> ${driver.vehicle?.model || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Color:</strong> ${driver.vehicle?.color || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Plate:</strong> ${driver.vehicle?.licensePlate || 'N/A'}
+                </div>
+            </div>
         `;
-        vehicleImageSection.style.display = 'block';
     } 
     // Fallback to checking driver's vehicle images in their profile
-    else if (ride.driverVehicle && ride.driverVehicle.images && ride.driverVehicle.images.vehicleFront) {
-        driverVehicleImage = ride.driverVehicle.images.vehicleFront;
-        vehicleImageSection.innerHTML = `
-            <h4 class="section-title">Driver's Vehicle</h4>
-            <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle Front" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px;">
+    else if (driver.images && driver.images.vehicleFront) {
+        driverVehicleImage = driver.images.vehicleFront;
+        vehicleImageContainer.innerHTML = `
+            <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">
+            <div class="vehicle-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.7rem;">
+                <div class="vehicle-detail">
+                    <strong>Type:</strong> ${driver.vehicle?.type || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Model:</strong> ${driver.vehicle?.model || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Color:</strong> ${driver.vehicle?.color || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Plate:</strong> ${driver.vehicle?.licensePlate || 'N/A'}
+                </div>
+            </div>
         `;
-        vehicleImageSection.style.display = 'block';
     } else {
-        vehicleImageSection.style.display = 'none';
+        // Show vehicle details without image
+        vehicleImageContainer.innerHTML = `
+            <div class="no-vehicle-image" style="text-align: center; padding: 20px; color: var(--medium-gray); font-size: 0.8rem;">
+                <i class="fas fa-car" style="font-size: 2rem; margin-bottom: 8px; display: block;"></i>
+                Vehicle image not available
+            </div>
+            <div class="vehicle-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.7rem; margin-top: 8px;">
+                <div class="vehicle-detail">
+                    <strong>Type:</strong> ${driver.vehicle?.type || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Model:</strong> ${driver.vehicle?.model || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Color:</strong> ${driver.vehicle?.color || 'N/A'}
+                </div>
+                <div class="vehicle-detail">
+                    <strong>Plate:</strong> ${driver.vehicle?.licensePlate || 'N/A'}
+                </div>
+            </div>
+        `;
     }
 }
 
@@ -4619,6 +4786,10 @@ function listenForRideStatusUpdates(rideId) {
                     // NEW: Hide SOS button when ride is completed
                     document.getElementById('sosButton').style.display = 'none';
                     resetUIAfterRide();
+                    
+                    // NEW: Show rating popup after ride completion
+                    showRatingPopup(ride);
+                    
                     showNotification('Trip completed. Thank you for using Jubel!');
                     break;
                 case 'cancelled':
@@ -4632,6 +4803,241 @@ function listenForRideStatusUpdates(rideId) {
             }
         }
     });
+}
+
+// NEW: Show rating popup after ride completion
+function showRatingPopup(ride) {
+    // Create rating popup if it doesn't exist
+    if (!document.getElementById('ratingPopup')) {
+        createRatingPopup();
+    }
+    
+    // Set ride ID for rating submission
+    document.getElementById('ratingPopup').setAttribute('data-ride-id', ride.id);
+    
+    // Set driver information
+    document.getElementById('ratingDriverName').textContent = ride.driverName || 'Driver';
+    document.getElementById('ratingVehicleInfo').textContent = 
+        `${ride.driverVehicle?.type || 'Vehicle'} - ${ride.driverVehicle?.licensePlate || 'N/A'}`;
+    
+    // Reset stars
+    resetRatingStars();
+    
+    // Show popup
+    document.getElementById('ratingPopup').classList.remove('hidden');
+}
+
+// NEW: Create rating popup form
+function createRatingPopup() {
+    const ratingPopup = document.createElement('div');
+    ratingPopup.id = 'ratingPopup';
+    ratingPopup.className = 'popup-overlay hidden';
+    ratingPopup.innerHTML = `
+        <div class="popup-form" style="max-width: 400px;">
+            <div class="popup-header">
+                <h2 class="popup-title">
+                    <i class="fas fa-star"></i>
+                    Rate Your Driver
+                </h2>
+                <button class="close-popup" id="closeRatingPopup">&times;</button>
+            </div>
+            <div class="popup-content">
+                <div class="rating-driver-info" style="text-align: center; margin-bottom: 20px;">
+                    <div class="driver-avatar" id="ratingDriverAvatar" style="width: 60px; height: 60px; margin: 0 auto 10px; background: var(--primary-orange); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white;">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <h3 id="ratingDriverName" style="margin-bottom: 5px;">Driver Name</h3>
+                    <p id="ratingVehicleInfo" style="color: var(--medium-gray); font-size: 0.9rem;">Vehicle Info</p>
+                </div>
+                
+                <div class="rating-stars-container" style="text-align: center; margin: 20px 0;">
+                    <div class="rating-stars" id="ratingStars">
+                        <span class="star" data-rating="1"><i class="far fa-star"></i></span>
+                        <span class="star" data-rating="2"><i class="far fa-star"></i></span>
+                        <span class="star" data-rating="3"><i class="far fa-star"></i></span>
+                        <span class="star" data-rating="4"><i class="far fa-star"></i></span>
+                        <span class="star" data-rating="5"><i class="far fa-star"></i></span>
+                    </div>
+                    <div id="ratingText" style="margin-top: 10px; font-size: 0.9rem; color: var(--medium-gray);">Tap to rate</div>
+                </div>
+                
+                <div class="rating-comment" style="margin-bottom: 20px;">
+                    <label for="ratingComment" style="display: block; margin-bottom: 8px; font-weight: 600;">Additional Comments (Optional)</label>
+                    <textarea id="ratingComment" placeholder="How was your ride experience?" style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: var(--element-radius); resize: vertical; min-height: 80px;"></textarea>
+                </div>
+                
+                <button id="submitRatingBtn" class="request-ride-btn" style="width: 100%;">
+                    <i class="fas fa-paper-plane"></i> Submit Rating
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(ratingPopup);
+    
+    // Add event listeners for rating popup
+    document.getElementById('closeRatingPopup').addEventListener('click', closeRatingPopup);
+    document.getElementById('submitRatingBtn').addEventListener('click', submitRating);
+    
+    // Add star rating functionality
+    const stars = document.querySelectorAll('#ratingStars .star');
+    stars.forEach(star => {
+        star.addEventListener('click', function() {
+            const rating = parseInt(this.getAttribute('data-rating'));
+            setRatingStars(rating);
+        });
+        
+        star.addEventListener('mouseover', function() {
+            const rating = parseInt(this.getAttribute('data-rating'));
+            highlightStars(rating);
+        });
+    });
+    
+    document.getElementById('ratingStars').addEventListener('mouseleave', function() {
+        const currentRating = parseInt(document.getElementById('ratingStars').getAttribute('data-current-rating') || '0');
+        if (currentRating > 0) {
+            setRatingStars(currentRating);
+        } else {
+            resetRatingStars();
+        }
+    });
+}
+
+// NEW: Set rating stars
+function setRatingStars(rating) {
+    const stars = document.querySelectorAll('#ratingStars .star');
+    const ratingText = document.getElementById('ratingText');
+    
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.innerHTML = '<i class="fas fa-star"></i>';
+            star.style.color = '#FFD700';
+        } else {
+            star.innerHTML = '<i class="far fa-star"></i>';
+            star.style.color = '#CCCCCC';
+        }
+    });
+    
+    // Update rating text
+    const ratingTexts = {
+        1: 'Poor',
+        2: 'Fair',
+        3: 'Good',
+        4: 'Very Good',
+        5: 'Excellent'
+    };
+    
+    ratingText.textContent = ratingTexts[rating] || 'Tap to rate';
+    ratingText.style.color = '#FF6B35';
+    
+    // Store current rating
+    document.getElementById('ratingStars').setAttribute('data-current-rating', rating);
+}
+
+// NEW: Highlight stars on hover
+function highlightStars(rating) {
+    const stars = document.querySelectorAll('#ratingStars .star');
+    
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.innerHTML = '<i class="fas fa-star"></i>';
+            star.style.color = '#FFD700';
+        } else {
+            star.innerHTML = '<i class="far fa-star"></i>';
+            star.style.color = '#CCCCCC';
+        }
+    });
+}
+
+// NEW: Reset rating stars
+function resetRatingStars() {
+    const stars = document.querySelectorAll('#ratingStars .star');
+    const ratingText = document.getElementById('ratingText');
+    
+    stars.forEach(star => {
+        star.innerHTML = '<i class="far fa-star"></i>';
+        star.style.color = '#CCCCCC';
+    });
+    
+    ratingText.textContent = 'Tap to rate';
+    ratingText.style.color = 'var(--medium-gray)';
+    
+    document.getElementById('ratingStars').setAttribute('data-current-rating', '0');
+}
+
+// NEW: Submit rating to Firebase
+function submitRating() {
+    const rideId = document.getElementById('ratingPopup').getAttribute('data-ride-id');
+    const rating = parseInt(document.getElementById('ratingStars').getAttribute('data-current-rating') || '0');
+    const comment = document.getElementById('ratingComment').value.trim();
+    
+    if (rating === 0) {
+        showNotification('Please select a rating');
+        return;
+    }
+    
+    if (!rideId || !currentRide || !currentRide.driverId) {
+        showNotification('Error submitting rating. Please try again.');
+        return;
+    }
+    
+    const ratingData = {
+        rideId: rideId,
+        driverId: currentRide.driverId,
+        passengerId: currentUser.uid,
+        passengerName: userData.name || 'Passenger',
+        rating: rating,
+        comment: comment,
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    // Save rating to Firebase
+    database.ref('ratings').push(ratingData)
+        .then(() => {
+            // Update driver's average rating
+            updateDriverRating(currentRide.driverId, rating);
+            
+            showNotification('Thank you for your rating!');
+            closeRatingPopup();
+        })
+        .catch(error => {
+            console.error('Error submitting rating:', error);
+            showNotification('Error submitting rating. Please try again.');
+        });
+}
+
+// NEW: Update driver's average rating
+function updateDriverRating(driverId, newRating) {
+    // Get driver's current ratings
+    database.ref('ratings').orderByChild('driverId').equalTo(driverId).once('value')
+        .then(snapshot => {
+            const ratings = snapshot.val();
+            let totalRating = 0;
+            let ratingCount = 0;
+            
+            if (ratings) {
+                Object.values(ratings).forEach(rating => {
+                    totalRating += rating.rating;
+                    ratingCount++;
+                });
+            }
+            
+            // Calculate new average
+            const averageRating = totalRating / ratingCount;
+            
+            // Update driver's average rating in their profile
+            return database.ref('users/' + driverId + '/stats/rating').set(averageRating.toFixed(1));
+        })
+        .catch(error => {
+            console.error('Error updating driver rating:', error);
+        });
+}
+
+// NEW: Close rating popup
+function closeRatingPopup() {
+    document.getElementById('ratingPopup').classList.add('hidden');
+    document.getElementById('ratingComment').value = '';
+    resetRatingStars();
 }
 
 function addDriverMarker(lat, lng) {
@@ -6379,6 +6785,7 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
 
 
