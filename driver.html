@@ -3068,12 +3068,13 @@ input:checked + .toggle-slider:before {
         let rideRequestSound = null;
         let rideRequestSoundInterval = null;
 
-        // NEW: Chat state variables
+        // NEW: Chat state variables - ENHANCED
         let chatListener = null;
         let currentChatRideId = null;
         let unreadMessages = {};
-        let chatPopupClosedByUser = false; // Track if driver manually closed chat
-        let passengerMessageListener = null; // Listener for new passenger messages
+        let chatPopupClosedByUser = false;
+        let passengerMessageListener = null;
+        let rideHistoryChatListeners = {}; // To manage multiple chat listeners for history
 
         // NEW: SOS Button state
         let sosButton = null;
@@ -3086,13 +3087,13 @@ input:checked + .toggle-slider:before {
         let imagesUploaded = 0;
 
         // Registration status
-        let registrationStatus = 'pending'; // pending, approved, rejected
+        let registrationStatus = 'pending';
 
         // Statistics tracking
         let driverStats = {
             totalTrips: 0,
             totalEarnings: 0,
-            totalOnlineTime: 0, // in minutes
+            totalOnlineTime: 0,
             acceptanceRate: 0,
             rating: 0,
             currentSessionStart: null,
@@ -3112,7 +3113,13 @@ input:checked + .toggle-slider:before {
             initializeAuth();
             setupAuthEventListeners();
             initializeSound();
+            setupChatPopupCloseHandler(); // NEW: Setup chat close handler
         });
+
+        // NEW: Setup chat popup close handler
+        function setupChatPopupCloseHandler() {
+            // This will be called when the chat popup is created
+        }
 
         // Authentication functions
         function initializeAuth() {
@@ -3121,13 +3128,12 @@ input:checked + .toggle-slider:before {
                     currentUser = user;
                     checkRegistrationStatus();
                 } else {
-                    // Show welcome screen
                     document.getElementById('welcomeScreen').classList.remove('hidden');
                 }
             });
         }
 
-        // Check registration status before allowing login
+        // MODIFIED: Check registration status with proper messages
         function checkRegistrationStatus() {
             if (!currentUser) return;
             
@@ -3138,32 +3144,33 @@ input:checked + .toggle-slider:before {
                         registrationStatus = userData.registrationStatus || 'pending';
                         
                         if (registrationStatus === 'approved') {
+                            // MODIFICATION #3: Show login success message
+                            showNotification('Login successful! Welcome back!');
                             showMainApp();
                             initializeMap();
                             setupEventListeners();
                             loadDriverData();
                             initializeAdvancedFeatures();
-                            
-                            // NEW: Check for active ride when app loads/refreshes
                             checkActiveRide();
-                            
-                            // NEW: Load SOS configuration
                             loadSOSConfig();
-                        } else {
-                            // Show registration status message
+                        } else if (registrationStatus === 'pending') {
+                            // MODIFICATION #3: Show pending approval message
+                            showNotification('Your application is still pending approval. Please wait for administrator approval.');
                             document.getElementById('welcomeScreen').classList.add('hidden');
                             document.getElementById('loginScreen').classList.remove('active');
                             document.getElementById('signupScreen').classList.remove('active');
-                            
-                            if (registrationStatus === 'pending') {
-                                showNotification('Your registration is pending approval. You will be notified once approved.');
-                            } else if (registrationStatus === 'rejected') {
-                                showNotification('Your registration has been rejected. Please contact support for more information.');
-                            }
-                            
-                            // Log out the user since they're not approved
+                            auth.signOut();
+                        } else if (registrationStatus === 'rejected') {
+                            // MODIFICATION #3: Show rejected message
+                            showNotification('Your application has been rejected. Please contact support for more information.');
+                            document.getElementById('welcomeScreen').classList.add('hidden');
+                            document.getElementById('loginScreen').classList.remove('active');
+                            document.getElementById('signupScreen').classList.remove('active');
                             auth.signOut();
                         }
+                    } else {
+                        showNotification('User data not found. Please contact support.');
+                        auth.signOut();
                     }
                 })
                 .catch(error => {
@@ -3177,16 +3184,13 @@ input:checked + .toggle-slider:before {
         function checkActiveRide() {
             if (!currentUser) return;
             
-            // Check if driver has any active ride
             database.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value')
                 .then(snapshot => {
                     const rides = snapshot.val();
                     if (rides) {
-                        // Find any active ride (not completed or cancelled)
                         for (const rideId in rides) {
                             const ride = rides[rideId];
                             if (ride.status !== 'completed' && ride.status !== 'cancelled' && ride.status !== 'requested') {
-                                // Driver has an active ride, restore it
                                 restoreActiveRide(rideId, ride);
                                 break;
                             }
@@ -3205,24 +3209,12 @@ input:checked + .toggle-slider:before {
                 ...ride
             };
             
-            // Update driver panel for active ride
             updateDriverPanelForActiveRide();
-            
-            // Update map for active ride
             updateMapForActiveRide();
-            
-            // Update ride action button based on current status
             updateRideActionButtonBasedOnStatus(ride.status);
-            
-            // Show advanced features
             document.getElementById('advancedFeatures').style.display = 'flex';
-            
-            // NEW: Show SOS button for active ride
             showSOSButton();
-            
-            // NEW: Start listening for passenger messages
             startPassengerMessageListener(rideId);
-            
             showNotification('Active ride restored');
         }
 
@@ -3256,7 +3248,6 @@ input:checked + .toggle-slider:before {
 
         // Setup authentication event listeners
         function setupAuthEventListeners() {
-            // Welcome screen buttons
             document.getElementById('loginBtn').addEventListener('click', () => {
                 document.getElementById('welcomeScreen').classList.add('hidden');
                 document.getElementById('loginScreen').classList.add('active');
@@ -3268,7 +3259,6 @@ input:checked + .toggle-slider:before {
                 setupImageUploadListeners();
             });
             
-            // Back buttons
             document.getElementById('backFromLogin').addEventListener('click', () => {
                 document.getElementById('loginScreen').classList.remove('active');
                 document.getElementById('welcomeScreen').classList.remove('hidden');
@@ -3279,7 +3269,6 @@ input:checked + .toggle-slider:before {
                 document.getElementById('welcomeScreen').classList.remove('hidden');
             });
             
-            // Navigation between auth screens
             document.getElementById('goToSignupFromLogin').addEventListener('click', () => {
                 document.getElementById('loginScreen').classList.remove('active');
                 document.getElementById('signupScreen').classList.add('active');
@@ -3291,53 +3280,56 @@ input:checked + .toggle-slider:before {
                 document.getElementById('loginScreen').classList.add('active');
             });
             
-            // Vehicle selection
             document.querySelectorAll('.vehicle-option').forEach(option => {
                 option.addEventListener('click', function() {
-                    // Remove selected class from all options
                     document.querySelectorAll('.vehicle-option').forEach(opt => {
                         opt.classList.remove('selected');
                     });
                     
-                    // Add selected class to clicked option
                     this.classList.add('selected');
                     
-                    // Hide all vehicle details
                     document.querySelectorAll('.vehicle-details').forEach(details => {
                         details.classList.remove('active');
                     });
                     
-                    // Show selected vehicle details
                     selectedVehicleType = this.getAttribute('data-type');
                     document.getElementById(selectedVehicleType + 'Details').classList.add('active');
-                    
-                    // Update image upload requirements based on vehicle type
                     updateImageUploadRequirements(selectedVehicleType);
                 });
             });
             
-            // Login form submission
             document.getElementById('loginForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 const email = document.getElementById('loginEmail').value;
                 const password = document.getElementById('loginPassword').value;
                 
+                // MODIFICATION #3: Show login attempt message
+                showNotification('Attempting to login...');
+                
                 auth.signInWithEmailAndPassword(email, password)
                     .then((userCredential) => {
-                        // Signed in successfully - registration status will be checked in auth state change
-                        showNotification('Login successful! Checking registration status...');
+                        // Login successful - registration status will be checked in auth state change
                     })
                     .catch((error) => {
                         console.error('Login error:', error);
-                        showNotification('Login failed: ' + error.message);
+                        // MODIFICATION #3: Show specific login error messages
+                        let errorMessage = 'Login failed: ';
+                        if (error.code === 'auth/user-not-found') {
+                            errorMessage += 'No account found with this email';
+                        } else if (error.code === 'auth/wrong-password') {
+                            errorMessage += 'Incorrect password';
+                        } else if (error.code === 'auth/invalid-email') {
+                            errorMessage += 'Invalid email address';
+                        } else {
+                            errorMessage += error.message;
+                        }
+                        showNotification(errorMessage);
                     });
             });
             
-            // Signup form submission
             document.getElementById('signupForm').addEventListener('submit', function(e) {
                 e.preventDefault();
                 
-                // Validate passwords match
                 const password = document.getElementById('signupPassword').value;
                 const confirmPassword = document.getElementById('signupConfirmPassword').value;
                 
@@ -3346,13 +3338,11 @@ input:checked + .toggle-slider:before {
                     return;
                 }
                 
-                // Validate vehicle type is selected
                 if (!selectedVehicleType) {
                     showNotification('Please select a vehicle type');
                     return;
                 }
                 
-                // Validate all required images are uploaded
                 if (!validateAllImagesUploaded()) {
                     showNotification('Please upload all required images');
                     return;
@@ -3365,16 +3355,13 @@ input:checked + .toggle-slider:before {
                 const paymentMethod = document.getElementById('paymentMethod').value;
                 const paymentDetails = document.getElementById('paymentDetails').value;
                 
-                // Show loading overlay
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 document.getElementById('loadingText').textContent = 'Registering your account...';
                 
-                // Create user with email and password
                 auth.createUserWithEmailAndPassword(email, password)
                     .then((userCredential) => {
                         const user = userCredential.user;
                         
-                        // Prepare vehicle data based on selected type
                         let vehicleData = {};
                         if (selectedVehicleType === 'car') {
                             vehicleData = {
@@ -3402,29 +3389,25 @@ input:checked + .toggle-slider:before {
                             };
                         }
                         
-                        // Update loading text
                         document.getElementById('loadingText').textContent = 'Uploading images to secure storage...';
                         
-                        // Upload all images to Cloudinary
                         return uploadAllImagesToCloudinary()
                             .then((imageUrls) => {
-                                // Update loading text
                                 document.getElementById('loadingText').textContent = 'Finalizing registration...';
                                 
-                                // Save user data to Firebase with userType: driver
                                 return database.ref('users/' + user.uid).set({
                                     name: name,
                                     email: email,
                                     phone: phone,
                                     nrc: nrc,
                                     vehicle: vehicleData,
-                                    images: imageUrls, // Store Cloudinary URLs
+                                    images: imageUrls,
                                     payment: {
                                         method: paymentMethod,
                                         details: paymentDetails
                                     },
                                     userType: 'driver',
-                                    registrationStatus: 'pending', // Set initial status to pending
+                                    registrationStatus: 'pending',
                                     createdAt: firebase.database.ServerValue.TIMESTAMP,
                                     isOnline: false,
                                     walletBalance: 0,
@@ -3440,15 +3423,12 @@ input:checked + .toggle-slider:before {
                             });
                     })
                     .then(() => {
-                        // Hide loading overlay
                         document.getElementById('loadingOverlay').style.display = 'none';
-                        
-                        // Show registration status
                         document.getElementById('registrationStatus').style.display = 'block';
                         
-                        showNotification('Account created successfully! Your registration is pending approval.');
+                        // MODIFICATION #3: Show registration success message
+                        showNotification('Account created successfully! Your registration is pending approval. You will receive an email once approved.');
                         
-                        // Go back to login screen after a delay
                         setTimeout(() => {
                             document.getElementById('signupScreen').classList.remove('active');
                             document.getElementById('loginScreen').classList.add('active');
@@ -3456,16 +3436,22 @@ input:checked + .toggle-slider:before {
                     })
                     .catch((error) => {
                         console.error('Signup error:', error);
-                        // Hide loading overlay
                         document.getElementById('loadingOverlay').style.display = 'none';
-                        showNotification('Signup failed: ' + error.message);
+                        let errorMessage = 'Signup failed: ';
+                        if (error.code === 'auth/email-already-in-use') {
+                            errorMessage += 'Email already in use';
+                        } else if (error.code === 'auth/weak-password') {
+                            errorMessage += 'Password is too weak';
+                        } else {
+                            errorMessage += error.message;
+                        }
+                        showNotification(errorMessage);
                     });
             });
         }
 
         // Setup image upload listeners
         function setupImageUploadListeners() {
-            // This will be called when the signup screen is shown
             // Image upload boxes are created dynamically based on vehicle type
         }
 
@@ -3474,10 +3460,8 @@ input:checked + .toggle-slider:before {
             const imageUploadGrid = document.getElementById('imageUploadGrid');
             imageUploadGrid.innerHTML = '';
             
-            // Reset uploaded images
             uploadedImages = {};
             
-            // Define required images for each vehicle type
             let requiredImages = [];
             
             if (vehicleType === 'car') {
@@ -3508,7 +3492,6 @@ input:checked + .toggle-slider:before {
                 ];
             }
             
-            // Create image upload boxes
             requiredImages.forEach(image => {
                 const imageItem = document.createElement('div');
                 imageItem.className = 'image-upload-item';
@@ -3526,7 +3509,6 @@ input:checked + .toggle-slider:before {
                 
                 imageUploadGrid.appendChild(imageItem);
                 
-                // Add event listeners
                 const uploadBox = document.getElementById(`${image.id}Box`);
                 const fileInput = document.getElementById(`${image.id}Input`);
                 
@@ -3544,13 +3526,11 @@ input:checked + .toggle-slider:before {
         function handleImageUpload(imageId, file) {
             if (!file) return;
             
-            // Check if file is an image
             if (!file.type.match('image.*')) {
                 showNotification('Please select an image file');
                 return;
             }
             
-            // Update UI to show upload in progress
             const uploadBox = document.getElementById(`${imageId}Box`);
             const progressBar = document.getElementById(`${imageId}Progress`);
             
@@ -3564,10 +3544,8 @@ input:checked + .toggle-slider:before {
             
             progressBar.style.width = '0%';
             
-            // Store file for later upload (we'll upload all at once during registration)
             uploadedImages[imageId] = file;
             
-            // Simulate upload progress (in real implementation, this would be actual upload progress)
             let progress = 0;
             const progressInterval = setInterval(() => {
                 progress += 10;
@@ -3576,7 +3554,6 @@ input:checked + .toggle-slider:before {
                 if (progress >= 100) {
                     clearInterval(progressInterval);
                     
-                    // Create preview
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         uploadBox.innerHTML = `
@@ -3593,7 +3570,6 @@ input:checked + .toggle-slider:before {
 
         // Validate all required images are uploaded
         function validateAllImagesUploaded() {
-            // Get required images based on vehicle type
             let requiredImages = [];
             
             if (selectedVehicleType === 'car') {
@@ -3604,7 +3580,6 @@ input:checked + .toggle-slider:before {
                 requiredImages = ['profilePhoto', 'nrcFront', 'nrcBack', 'bicyclePhoto'];
             }
             
-            // Check if all required images are uploaded
             for (const imageId of requiredImages) {
                 if (!uploadedImages[imageId]) {
                     return false;
@@ -3619,11 +3594,9 @@ input:checked + .toggle-slider:before {
             const uploadPromises = [];
             const imageUrls = {};
             
-            // Reset progress
             imagesUploaded = 0;
             totalImagesToUpload = Object.keys(uploadedImages).length;
             
-            // Upload each image
             for (const [imageId, file] of Object.entries(uploadedImages)) {
                 const formData = new FormData();
                 formData.append('file', file);
@@ -3640,7 +3613,6 @@ input:checked + .toggle-slider:before {
                         imageUrls[imageId] = data.secure_url;
                         imagesUploaded++;
                         
-                        // Update loading text with progress
                         document.getElementById('loadingText').textContent = 
                             `Uploading images... (${imagesUploaded}/${totalImagesToUpload})`;
                     } else {
@@ -3655,7 +3627,6 @@ input:checked + .toggle-slider:before {
                 uploadPromises.push(uploadPromise);
             }
             
-            // Wait for all uploads to complete
             return Promise.all(uploadPromises)
                 .then(() => {
                     return imageUrls;
@@ -3664,30 +3635,24 @@ input:checked + .toggle-slider:before {
 
         // Map initialization
         function initializeMap() {
-            // Main driver map
-            driverMap = L.map('map').setView([-15.4167, 28.2833], 13); // Default to Lusaka
+            driverMap = L.map('map').setView([-15.4167, 28.2833], 13);
             
-            // Use a clean map style without colors around the car
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(driverMap);
             
-            // Ride request map - ENHANCED: Bigger and properly configured
             rideRequestMap = L.map('rideRequestMap').setView([-15.4167, 28.2833], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(rideRequestMap);
             
-            // Get driver's current location
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(position => {
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     
-                    // Update map with current location
                     driverMap.setView([lat, lng], 15);
                     
-                    // Add marker for driver location (without orange border)
                     driverMarker = L.marker([lat, lng], {
                         icon: L.divIcon({
                             className: 'driver-marker',
@@ -3698,7 +3663,6 @@ input:checked + .toggle-slider:before {
                         .bindPopup('Your location')
                         .openPopup();
                         
-                    // Update driver location in Firebase
                     updateDriverLocation(lat, lng);
                 }, error => {
                     console.error('Geolocation error:', error);
@@ -3717,7 +3681,6 @@ input:checked + .toggle-slider:before {
                     vehicleType: selectedVehicleType
                 });
                 
-                // Update marker position
                 if (driverMarker) {
                     driverMarker.setLatLng([lat, lng]);
                 }
@@ -3755,7 +3718,6 @@ input:checked + .toggle-slider:before {
 
         // Initialize sound
         function initializeSound() {
-            // Create audio element for ride request sound
             rideRequestSound = new Audio();
             rideRequestSound.src = 'order.mp3';
             rideRequestSound.loop = false;
@@ -3763,10 +3725,8 @@ input:checked + .toggle-slider:before {
 
         // Event listeners setup
         function setupEventListeners() {
-            // Online toggle
             document.getElementById('onlineToggleCheckbox').addEventListener('change', toggleOnlineStatus);
             
-            // Navigation buttons
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const screen = this.getAttribute('data-screen');
@@ -3774,23 +3734,19 @@ input:checked + .toggle-slider:before {
                 });
             });
             
-            // Back buttons
             document.querySelectorAll('.back-button').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const screen = this.getAttribute('data-screen');
                     switchScreen(screen);
-                    // Refresh driver position when returning to home
                     if (screen === 'home') {
                         refreshDriverPosition();
                     }
                 });
             });
             
-            // Ride request actions
             document.getElementById('acceptRideBtn').addEventListener('click', acceptRide);
             document.getElementById('rejectRideBtn').addEventListener('click', rejectRide);
             
-            // Ride action button (hold functionality)
             const rideActionBtn = document.getElementById('rideActionBtn');
             
             rideActionBtn.addEventListener('mousedown', startHoldTimer);
@@ -3800,15 +3756,12 @@ input:checked + .toggle-slider:before {
             rideActionBtn.addEventListener('touchend', cancelHoldTimer);
             rideActionBtn.addEventListener('mouseleave', cancelHoldTimer);
             
-            // Account actions
             document.getElementById('addFundsBtn').addEventListener('click', addFunds);
             document.getElementById('withdrawFundsBtn').addEventListener('click', withdrawFunds);
             
-            // Float actions
             document.getElementById('addFloatBtn').addEventListener('click', addFloat);
             document.getElementById('adjustFloatBtn').addEventListener('click', adjustFloat);
             
-            // Earnings period selection
             document.querySelectorAll('.period-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     document.querySelectorAll('.period-btn').forEach(b => {
@@ -3820,47 +3773,35 @@ input:checked + .toggle-slider:before {
                 });
             });
             
-            // Withdraw earnings
             document.getElementById('withdrawEarningsBtn').addEventListener('click', withdrawEarnings);
             
-            // Advanced features
             document.getElementById('navigateToPickupBtn').addEventListener('click', navigateToPickup);
             document.getElementById('contactCustomerBtn').addEventListener('click', contactCustomer);
             document.getElementById('viewRouteDetailsBtn').addEventListener('click', viewRouteDetails);
             
-            // Quick actions
             document.getElementById('centerMapBtn').addEventListener('click', centerMap);
             document.getElementById('refreshLocationBtn').addEventListener('click', refreshDriverPosition);
             document.getElementById('toggleTrafficBtn').addEventListener('click', toggleTraffic);
             
-            // Map controls
             document.getElementById('zoomInBtn').addEventListener('click', () => driverMap.zoomIn());
             document.getElementById('zoomOutBtn').addEventListener('click', () => driverMap.zoomOut());
             document.getElementById('mapTypeBtn').addEventListener('click', toggleMapType);
             
-            // Dark mode toggle
             document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
             
-            // Sound control
             document.getElementById('soundControl').addEventListener('click', toggleSound);
             
-            // Panel collapse
             document.getElementById('panelCollapseHandle').addEventListener('click', togglePanelCollapse);
             
-            // Collapsible sections
             document.getElementById('driverDetailsHeader').addEventListener('click', toggleDriverDetails);
             
-            // Logout button
             document.getElementById('logoutBtn').addEventListener('click', logout);
             
-            // Ride request map controls
             document.getElementById('requestMapZoomIn').addEventListener('click', () => rideRequestMap.zoomIn());
             document.getElementById('requestMapZoomOut').addEventListener('click', () => rideRequestMap.zoomOut());
             
-            // NEW: SOS Config Button
             document.getElementById('sosConfigBtn').addEventListener('click', openSOSConfig);
             
-            // NEW: SOS Config Popup Event Listeners
             document.getElementById('closeSOSConfigPopup').addEventListener('click', closeSOSConfig);
             document.getElementById('cancelSOSConfig').addEventListener('click', closeSOSConfig);
             document.getElementById('saveSOSConfig').addEventListener('click', saveSOSConfig);
@@ -3868,19 +3809,16 @@ input:checked + .toggle-slider:before {
 
         // NEW: Open SOS Configuration
         function openSOSConfig() {
-            // Load current SOS config if available
             if (sosConfig) {
                 document.getElementById('emergencyContact1').value = sosConfig.emergencyContact1 || '';
                 document.getElementById('emergencyContact2').value = sosConfig.emergencyContact2 || '';
                 document.getElementById('sosMessage').value = sosConfig.message || 'I need emergency assistance! My current location is: [AUTO-LOCATION]. Ride details: [AUTO-RIDE-DETAILS]';
             } else {
-                // Set default values
                 document.getElementById('emergencyContact1').value = '';
                 document.getElementById('emergencyContact2').value = '';
                 document.getElementById('sosMessage').value = 'I need emergency assistance! My current location is: [AUTO-LOCATION]. Ride details: [AUTO-RIDE-DETAILS]';
             }
             
-            // Show SOS config popup
             document.getElementById('sosConfigPopup').style.display = 'flex';
         }
 
@@ -3895,19 +3833,16 @@ input:checked + .toggle-slider:before {
             const emergencyContact2 = document.getElementById('emergencyContact2').value.trim();
             const message = document.getElementById('sosMessage').value.trim();
             
-            // Validate at least one contact is provided
             if (!emergencyContact1 && !emergencyContact2) {
                 showNotification('Please provide at least one emergency contact number.');
                 return;
             }
             
-            // Validate message is provided
             if (!message) {
                 showNotification('Please provide an emergency message.');
                 return;
             }
             
-            // Save SOS configuration
             sosConfig = {
                 emergencyContact1: emergencyContact1,
                 emergencyContact2: emergencyContact2,
@@ -3915,7 +3850,6 @@ input:checked + .toggle-slider:before {
                 updatedAt: firebase.database.ServerValue.TIMESTAMP
             };
             
-            // Save to Firebase
             if (currentUser) {
                 database.ref('sosConfig/' + currentUser.uid).set(sosConfig)
                     .then(() => {
@@ -3949,7 +3883,6 @@ input:checked + .toggle-slider:before {
         function addChatWithPassengerButton() {
             const advancedFeatures = document.getElementById('advancedFeatures');
             
-            // Check if chat button already exists
             if (!document.getElementById('chatWithPassengerBtn')) {
                 const chatButton = document.createElement('button');
                 chatButton.id = 'chatWithPassengerBtn';
@@ -3959,20 +3892,18 @@ input:checked + .toggle-slider:before {
                     openChatWithPassenger();
                 });
                 
-                // Insert chat button after contact customer button
                 const contactBtn = document.getElementById('contactCustomerBtn');
                 advancedFeatures.insertBefore(chatButton, contactBtn.nextSibling);
             }
         }
 
-        // NEW: Open chat with passenger
+        // MODIFIED: Open chat with passenger - Enhanced with auto-popup feature
         function openChatWithPassenger() {
             if (!currentRide || !currentRide.id) {
                 showNotification('No active ride to chat with passenger.');
                 return;
             }
             
-            // Create chat popup if it doesn't exist
             if (!document.getElementById('driverChatPopup')) {
                 createDriverChatPopup();
             }
@@ -3982,21 +3913,17 @@ input:checked + .toggle-slider:before {
             // Reset the closed flag since user is opening the chat
             chatPopupClosedByUser = false;
             
-            // Update chat header with passenger info
             document.getElementById('chatPassengerName').textContent = currentRide.passengerName || 'Passenger';
             document.getElementById('chatPassengerRating').textContent = currentRide.passengerRating ? `${currentRide.passengerRating} ★` : '4.5 ★';
             
-            // Show chat popup
             document.getElementById('driverChatPopup').classList.remove('hidden');
             
-            // Load chat messages
             loadChatMessages(currentRide.id);
             
-            // Start listening for new messages
             startChatListener(currentRide.id);
         }
 
-        // NEW: Create driver chat popup
+        // NEW: Create driver chat popup with close functionality
         function createDriverChatPopup() {
             const chatPopup = document.createElement('div');
             chatPopup.id = 'driverChatPopup';
@@ -4079,7 +4006,6 @@ input:checked + .toggle-slider:before {
                             displayDriverChatMessage(message);
                         });
                         
-                        // Scroll to bottom
                         chatMessages.scrollTop = chatMessages.scrollHeight;
                     } else {
                         chatMessages.innerHTML = '<div class="no-places" style="text-align: center; padding: 20px; color: var(--medium-gray);">No messages yet. Start the conversation!</div>';
@@ -4093,7 +4019,6 @@ input:checked + .toggle-slider:before {
 
         // NEW: Start real-time chat listener
         function startChatListener(rideId) {
-            // Remove existing listener
             if (chatListener) {
                 chatListener();
             }
@@ -4102,7 +4027,6 @@ input:checked + .toggle-slider:before {
                 const message = snapshot.val();
                 displayDriverChatMessage(message);
                 
-                // Scroll to bottom
                 const chatMessages = document.getElementById('driverChatMessages');
                 chatMessages.scrollTop = chatMessages.scrollHeight;
                 
@@ -4117,7 +4041,6 @@ input:checked + .toggle-slider:before {
         function displayDriverChatMessage(message) {
             const chatMessages = document.getElementById('driverChatMessages');
             
-            // Remove loading/empty state if present
             if (chatMessages.querySelector('.loading-text') || chatMessages.querySelector('.no-places')) {
                 chatMessages.innerHTML = '';
             }
@@ -4164,7 +4087,6 @@ input:checked + .toggle-slider:before {
                 rideId: currentChatRideId
             };
             
-            // Add message to Firebase
             database.ref('chats/' + currentChatRideId).push(messageData)
                 .then(() => {
                     messageInput.value = '';
@@ -4179,7 +4101,6 @@ input:checked + .toggle-slider:before {
         function closeDriverChatPopup() {
             document.getElementById('driverChatPopup').classList.add('hidden');
             
-            // Remove chat listener
             if (chatListener) {
                 chatListener();
                 chatListener = null;
@@ -4192,37 +4113,32 @@ input:checked + .toggle-slider:before {
         function playNotificationSound() {
             if (soundEnabled) {
                 const notificationSound = new Audio();
-                notificationSound.src = 'notification.mp3'; // You would need to add this sound file
+                notificationSound.src = 'notification.mp3';
                 notificationSound.play().catch(e => {
                     console.log('Notification sound play failed:', e);
                 });
             }
         }
 
-        // NEW: Start listening for passenger messages
+        // MODIFICATION #2: Enhanced passenger message listener with auto-popup
         function startPassengerMessageListener(rideId) {
-            // Remove existing listener if any
             if (passengerMessageListener) {
                 passengerMessageListener();
             }
             
-            // Listen for new messages from passenger
             passengerMessageListener = database.ref('chats/' + rideId).orderByChild('timestamp').on('child_added', snapshot => {
                 const message = snapshot.val();
                 
-                // Check if message is from passenger (not the current user)
                 if (message.senderId !== currentUser.uid) {
-                    // If chat is closed by user, automatically pop it up
+                    // MODIFICATION #2: Auto-popup chat when new message arrives and chat is closed
                     if (chatPopupClosedByUser && !isDriverChatPopupOpen()) {
-                        // Reopen chat popup automatically for passenger messages
+                        // Auto-open chat popup for new passenger messages
                         openChatWithPassenger();
                         showNotification('New message from passenger');
                     }
                     
-                    // If chat is already open, just display the message
                     if (isDriverChatPopupOpen() && currentChatRideId === rideId) {
                         displayDriverChatMessage(message);
-                        // Scroll to bottom
                         const chatMessages = document.getElementById('driverChatMessages');
                         chatMessages.scrollTop = chatMessages.scrollHeight;
                     }
@@ -4239,7 +4155,6 @@ input:checked + .toggle-slider:before {
         // NEW: Create and show SOS button
         function showSOSButton() {
             if (!sosButton) {
-                // Create SOS button if it doesn't exist
                 sosButton = document.createElement('div');
                 sosButton.id = 'driverSOSButton';
                 sosButton.className = 'sos-button';
@@ -4265,7 +4180,6 @@ input:checked + .toggle-slider:before {
                     animation: sos-pulse 2s infinite;
                 `;
                 
-                // Add SOS button styles
                 const style = document.createElement('style');
                 style.textContent = `
                     @keyframes sos-pulse {
@@ -4285,13 +4199,11 @@ input:checked + .toggle-slider:before {
                 `;
                 document.head.appendChild(style);
                 
-                // Add click event listener
                 sosButton.addEventListener('click', triggerDriverSOS);
                 
                 document.body.appendChild(sosButton);
             }
             
-            // Show SOS button
             sosButton.style.display = 'flex';
         }
 
@@ -4309,28 +4221,23 @@ input:checked + .toggle-slider:before {
                 return;
             }
             
-            // Check if SOS config exists
             if (!sosConfig) {
                 showNotification('Please configure SOS emergency contacts in Account settings first.');
                 return;
             }
             
-            // Get current location
             let currentLocation = 'Unknown location';
             if (driverMarker) {
                 const latLng = driverMarker.getLatLng();
                 currentLocation = `Lat: ${latLng.lat.toFixed(6)}, Lng: ${latLng.lng.toFixed(6)}`;
             }
             
-            // Prepare ride details
             const rideDetails = `Passenger: ${currentRide.passengerName || 'N/A'}, From: ${currentRide.pickupLocation}, To: ${currentRide.destination}, Status: ${currentRide.status}`;
             
-            // Prepare message with location and ride details
             let message = sosConfig.message;
             message = message.replace('[AUTO-LOCATION]', currentLocation);
             message = message.replace('[AUTO-RIDE-DETAILS]', rideDetails);
             
-            // Create SOS alert
             const sosAlert = {
                 driverId: currentUser.uid,
                 driverName: currentUser.displayName || 'Driver',
@@ -4347,18 +4254,15 @@ input:checked + .toggle-slider:before {
                 status: 'active'
             };
             
-            // Add passenger details if available
             sosAlert.passengerDetails = {
                 name: currentRide.passengerName,
                 phone: currentRide.passengerPhone
             };
             
-            // Send SOS alert to Firebase
             database.ref('sosAlerts').push(sosAlert)
                 .then(() => {
                     showNotification('SOS alert sent! Emergency contacts and Jubel safety team have been notified.');
                     
-                    // Also send to admin/emergency contacts
                     sendSOSToEmergencyContacts(sosAlert);
                 })
                 .catch(error => {
@@ -4369,11 +4273,8 @@ input:checked + .toggle-slider:before {
 
         // NEW: Send SOS to emergency contacts
         function sendSOSToEmergencyContacts(sosAlert) {
-            // In a real implementation, this would send SMS/email to emergency contacts
-            // For now, we'll just log it and create a database entry
             console.log('SOS Alert Details:', sosAlert);
             
-            // Create a more detailed SOS record for emergency response
             const emergencySOS = {
                 ...sosAlert,
                 emergencyContactsNotified: true,
@@ -4389,37 +4290,27 @@ input:checked + .toggle-slider:before {
 
         // Initialize advanced features
         function initializeAdvancedFeatures() {
-            // Initialize performance stats with real data
             updatePerformanceStats();
-            
-            // Initialize ride queue from Firebase
             initializeRideQueue();
-            
-            // Set up periodic updates
-            setInterval(updatePerformanceStats, 30000); // Update every 30 seconds
-            setInterval(updateOnlineTime, 60000); // Update online time every minute
-            
-            // NEW: Add chat button to advanced features
+            setInterval(updatePerformanceStats, 30000);
+            setInterval(updateOnlineTime, 60000);
             addChatWithPassengerButton();
         }
 
         // Update performance statistics with REAL data
         function updatePerformanceStats() {
             if (currentUser) {
-                // Load real statistics from Firebase
                 database.ref('users/' + currentUser.uid + '/stats').once('value')
                     .then(snapshot => {
                         const stats = snapshot.val();
                         if (stats) {
                             driverStats = { ...driverStats, ...stats };
                             
-                            // Update UI with real data
                             document.getElementById('totalTrips').textContent = driverStats.totalTrips || 0;
                             document.getElementById('ratingScore').textContent = (driverStats.rating || 0).toFixed(1);
                             document.getElementById('onlineTime').textContent = formatOnlineTime(driverStats.totalOnlineTime || 0);
                             document.getElementById('acceptanceRate').textContent = (driverStats.acceptanceRate || 0) + '%';
                             
-                            // Update account screen stats
                             document.getElementById('completedRides').textContent = driverStats.totalTrips || 0;
                             document.getElementById('totalEarnings').textContent = `K${(driverStats.totalEarnings || 0).toFixed(2)}`;
                             document.getElementById('driverRating').textContent = (driverStats.rating || 0).toFixed(1) + ' ★';
@@ -4450,32 +4341,27 @@ input:checked + .toggle-slider:before {
         function updateOnlineTime() {
             if (isOnline && driverStats.currentSessionStart) {
                 const currentTime = new Date().getTime();
-                const sessionTime = Math.floor((currentTime - driverStats.currentSessionStart) / 60000); // Convert to minutes
+                const sessionTime = Math.floor((currentTime - driverStats.currentSessionStart) / 60000);
                 driverStats.currentSessionTime = sessionTime;
                 
-                // Update the display
                 document.getElementById('onlineTime').textContent = formatOnlineTime((driverStats.totalOnlineTime || 0) + sessionTime);
             }
         }
 
         // Initialize ride queue from Firebase (REAL data)
         function initializeRideQueue() {
-            // Remove any existing listener
             if (rideQueueListener) {
                 rideQueueListener();
             }
             
-            // Listen for ride requests in Firebase
             rideQueueListener = database.ref('rides').orderByChild('status').equalTo('requested').on('value', snapshot => {
                 const rides = snapshot.val();
                 rideQueue = [];
                 
                 if (rides) {
-                    // Convert to array and filter by driver's vehicle type
                     Object.keys(rides).forEach(rideId => {
                         const ride = rides[rideId];
                         
-                        // Check if ride type matches driver's vehicle type and if it's in the same city
                         if (ride.rideType === selectedVehicleType) {
                             rideQueue.push({
                                 id: rideId,
@@ -4491,7 +4377,7 @@ input:checked + .toggle-slider:before {
             });
         }
 
-        // CHANGED: Update ride queue display with REAL data from Firebase - Now shows actual ride amounts
+        // CHANGED: Update ride queue display with REAL data from Firebase
         function updateRideQueueDisplay() {
             const queueList = document.getElementById('queueList');
             queueList.innerHTML = '';
@@ -4501,7 +4387,6 @@ input:checked + .toggle-slider:before {
                     const queueItem = document.createElement('div');
                     queueItem.className = 'queue-item';
                     
-                    // CHANGED: Show actual ride amount in the queue
                     const rideAmount = ride.fare ? `K${ride.fare.toFixed(2)}` : 'K0.00';
                     
                     queueItem.innerHTML = `
@@ -4514,10 +4399,8 @@ input:checked + .toggle-slider:before {
                     queueList.appendChild(queueItem);
                 });
                 
-                // Show queue section
                 document.getElementById('rideQueue').style.display = 'block';
                 
-                // Add event listeners to queue actions
                 document.querySelectorAll('.queue-action').forEach(btn => {
                     btn.addEventListener('click', function() {
                         const rideId = this.getAttribute('data-id');
@@ -4573,23 +4456,19 @@ input:checked + .toggle-slider:before {
 
         // Toggle map type
         function toggleMapType() {
-            // Remove current tile layer
             driverMap.eachLayer(layer => {
                 if (layer instanceof L.TileLayer) {
                     driverMap.removeLayer(layer);
                 }
             });
             
-            // Add new tile layer based on current map type
             if (mapType === 'standard') {
-                // Switch to satellite
                 L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
                     attribution: '© OpenTopoMap contributors'
                 }).addTo(driverMap);
                 mapType = 'satellite';
                 showNotification('Switched to satellite view');
             } else {
-                // Switch back to standard
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '© OpenStreetMap contributors'
                 }).addTo(driverMap);
@@ -4637,7 +4516,6 @@ input:checked + .toggle-slider:before {
                 soundControl.style.color = '#ffcc00';
                 showNotification('Sound disabled');
                 
-                // Stop any currently playing sound
                 if (rideRequestSound && !rideRequestSound.paused) {
                     rideRequestSound.pause();
                     rideRequestSound.currentTime = 0;
@@ -4651,43 +4529,35 @@ input:checked + .toggle-slider:before {
 
         // Switch between screens
         function switchScreen(screenId) {
-            // Hide all screens
             document.querySelectorAll('.screen-content').forEach(screen => {
                 screen.classList.remove('active');
             });
             
-            // Show selected screen
             document.getElementById(screenId + 'Screen').classList.add('active');
             
-            // Update active nav button
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
             document.querySelector(`.nav-btn[data-screen="${screenId}"]`).classList.add('active');
             
-            // Show/hide floating elements based on screen
             const floatingElements = document.querySelectorAll('.floating-float, .online-toggle, .driver-status-indicator, .map-controls, .quick-actions, .dark-mode-toggle, .sound-control');
             
             if (screenId === 'home') {
-                // Show floating elements on home screen
                 floatingElements.forEach(el => {
                     el.style.display = 'flex';
                 });
             } else {
-                // Hide floating elements on other screens
                 floatingElements.forEach(el => {
                     el.style.display = 'none';
                 });
             }
             
-            // Load data for specific screens
             if (screenId === 'history') {
                 loadRideHistory();
             } else if (screenId === 'earnings') {
                 loadEarnings();
             } else if (screenId === 'account') {
                 loadFloatHistory();
-                // NEW: Load vehicle images when account screen is opened
                 loadVehicleImages();
             }
         }
@@ -4703,7 +4573,6 @@ input:checked + .toggle-slider:before {
                     vehicleImagesGrid.innerHTML = '';
                     
                     if (images) {
-                        // Define which images to show based on vehicle type
                         let imageTypes = [];
                         
                         if (selectedVehicleType === 'car') {
@@ -4726,18 +4595,15 @@ input:checked + .toggle-slider:before {
                             ];
                         }
                         
-                        // Add NRC images for all vehicle types
                         imageTypes.push(
                             { id: 'nrcFront', label: 'NRC Front' },
                             { id: 'nrcBack', label: 'NRC Back' }
                         );
                         
-                        // Add driver's license for car and bike
                         if (selectedVehicleType === 'car' || selectedVehicleType === 'bike') {
                             imageTypes.push({ id: 'driversLicense', label: 'Driver\'s License' });
                         }
                         
-                        // Create image display items
                         imageTypes.forEach(imageType => {
                             const imageItem = document.createElement('div');
                             imageItem.className = 'vehicle-image-item';
@@ -4777,7 +4643,6 @@ input:checked + .toggle-slider:before {
             const statusText = document.getElementById('statusText');
             
             if (isOnline) {
-                // Check if float balance is sufficient
                 if (floatBalance < 10) {
                     showNotification('Cannot go online. Your float balance is below minimum K10.00. Please add float.');
                     isOnline = false;
@@ -4789,18 +4654,12 @@ input:checked + .toggle-slider:before {
                 onlineToggle.classList.add('active');
                 onlineStatusText.textContent = 'Online';
                 
-                // Show status indicator
                 statusIndicator.style.display = 'flex';
                 statusDot.classList.add('online');
                 statusText.textContent = 'Online';
                 
-                // Start location tracking
                 startLocationTracking();
-                
-                // Start online time tracking
                 driverStats.currentSessionStart = new Date().getTime();
-                
-                // Listen for ride requests
                 listenForRideRequests();
                 
                 showNotification('You are now online and receiving ride requests.');
@@ -4809,21 +4668,17 @@ input:checked + .toggle-slider:before {
                 onlineToggle.classList.add('offline');
                 onlineStatusText.textContent = 'Offline';
                 
-                // Hide status indicator
                 statusIndicator.style.display = 'none';
                 statusDot.classList.remove('online');
                 
-                // Stop location tracking
                 stopLocationTracking();
                 
-                // Update total online time
                 if (driverStats.currentSessionStart) {
                     const sessionEnd = new Date().getTime();
                     const sessionTime = Math.floor((sessionEnd - driverStats.currentSessionStart) / 60000);
                     driverStats.totalOnlineTime = (driverStats.totalOnlineTime || 0) + sessionTime;
                     driverStats.currentSessionStart = null;
                     
-                    // Save to Firebase
                     if (currentUser) {
                         database.ref('users/' + currentUser.uid + '/stats/totalOnlineTime').set(driverStats.totalOnlineTime);
                     }
@@ -4832,7 +4687,6 @@ input:checked + .toggle-slider:before {
                 showNotification('You are now offline.');
             }
             
-            // Update driver status in Firebase
             if (currentUser) {
                 database.ref('users/' + currentUser.uid).update({
                     isOnline: isOnline,
@@ -4846,13 +4700,10 @@ input:checked + .toggle-slider:before {
             database.ref('rides').orderByChild('status').equalTo('requested').on('value', snapshot => {
                 const rides = snapshot.val();
                 if (rides) {
-                    // Get the first available ride request that matches the driver's vehicle type
                     for (const rideId in rides) {
                         const ride = rides[rideId];
                         
-                        // Check if ride type matches driver's vehicle type and if we're not already showing a request
                         if (ride.rideType === selectedVehicleType && !currentRideRequest) {
-                            // Show ride request popup
                             showRideRequest(rideId, ride);
                             break;
                         }
@@ -4863,9 +4714,8 @@ input:checked + .toggle-slider:before {
 
         // ENHANCED: Show ride request popup with bigger map and proper zoom
         function showRideRequest(rideId, ride) {
-            // Check if driver has accepted a ride already
             if (currentRide) {
-                return; // Don't show new requests if driver is already on a ride
+                return;
             }
             
             currentRideRequest = {
@@ -4873,7 +4723,6 @@ input:checked + .toggle-slider:before {
                 ...ride
             };
             
-            // Update popup content with REAL data from Firebase
             document.getElementById('customerName').textContent = ride.passengerName || 'Passenger';
             document.getElementById('customerPhone').textContent = ride.passengerPhone || 'N/A';
             document.getElementById('customerRating').textContent = ride.passengerRating || '4.8';
@@ -4883,38 +4732,29 @@ input:checked + .toggle-slider:before {
             document.getElementById('tripTime').textContent = ride.estimatedTime || 'Calculating...';
             document.getElementById('surgeMultiplier').textContent = ride.surgeMultiplier || '1.0x';
             
-            // Calculate and display fare details from Firebase data
             const baseFare = ride.fare || 15;
             const discount = ride.promoCode ? baseFare * 0.2 : 0;
             const totalFare = baseFare - discount;
             
             document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
-            document.getElementById('distanceFare').textContent = `K0.00`; // Distance fare included in base fare
+            document.getElementById('distanceFare').textContent = `K0.00`;
             document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
             document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
             
-            // NEW: Enhanced ride type detection and display
             updateRideTypeDisplay(ride);
-            
-            // NEW: Show order for someone else details if applicable
             updateOrderForSomeoneDisplay(ride);
-            
-            // NEW: Show express delivery details if applicable
             updateExpressDeliveryDisplay(ride);
             
-            // Show delivery information for bike/bicycle rides
             const deliveryInfoSection = document.getElementById('deliveryInfoSection');
             if (ride.rideType === 'bike' || ride.rideType === 'bicycle' || ride.packageDetails) {
                 deliveryInfoSection.style.display = 'block';
                 
-                // Check if package details exist
                 if (ride.packageDetails) {
                     document.getElementById('receiverName').textContent = ride.packageDetails.receiverName || 'N/A';
                     document.getElementById('receiverPhone').textContent = ride.packageDetails.receiverPhone || 'N/A';
                     document.getElementById('packageDescription').textContent = ride.packageDetails.packageDescription || 'N/A';
                     document.getElementById('packageValue').textContent = ride.packageDetails.packageValue ? `K${ride.packageDetails.packageValue}` : 'N/A';
                     
-                    // Show special instructions if available
                     const specialInstructionsContainer = document.getElementById('specialInstructionsContainer');
                     if (ride.packageDetails.specialInstructions) {
                         specialInstructionsContainer.style.display = 'block';
@@ -4923,7 +4763,6 @@ input:checked + .toggle-slider:before {
                         specialInstructionsContainer.style.display = 'none';
                     }
                 } else {
-                    // If no package details, show N/A for all fields
                     document.getElementById('receiverName').textContent = 'N/A';
                     document.getElementById('receiverPhone').textContent = 'N/A';
                     document.getElementById('packageDescription').textContent = 'N/A';
@@ -4934,16 +4773,11 @@ input:checked + .toggle-slider:before {
                 deliveryInfoSection.style.display = 'none';
             }
             
-            // ENHANCED: Update ride request map with proper zoom and route
             updateRideRequestMap(ride);
-            
-            // CHANGED: Generate REAL waypoints using OSRM API
             generateRealWaypoints(ride);
             
-            // Show popup
             document.getElementById('rideRequestPopup').style.display = 'flex';
             
-            // Play sound continuously until driver responds
             if (soundEnabled) {
                 playRideRequestSound();
             }
@@ -4953,7 +4787,6 @@ input:checked + .toggle-slider:before {
         function updateRideTypeDisplay(ride) {
             const rideTypeElement = document.getElementById('rideTypeDisplay');
             if (!rideTypeElement) {
-                // Create ride type display element if it doesn't exist
                 const locationRow = document.querySelector('.location-row');
                 const rideTypeRow = document.createElement('div');
                 rideTypeRow.className = 'location-row';
@@ -4971,7 +4804,6 @@ input:checked + .toggle-slider:before {
                 document.getElementById('rideTypeDisplay').textContent = getRideTypeDisplayName(ride.rideType);
             }
             
-            // Update vehicle icon based on ride type
             const vehicleIcon = document.querySelector('.ride-request-content .location-icon i');
             if (vehicleIcon) {
                 switch(ride.rideType) {
@@ -5006,7 +4838,6 @@ input:checked + .toggle-slider:before {
         function updateOrderForSomeoneDisplay(ride) {
             const orderForSomeoneSection = document.getElementById('orderForSomeoneSection');
             if (!orderForSomeoneSection) {
-                // Create order for someone section if it doesn't exist
                 const deliveryInfoSection = document.getElementById('deliveryInfoSection');
                 const orderSection = document.createElement('div');
                 orderSection.className = 'delivery-info-section';
@@ -5036,7 +4867,6 @@ input:checked + .toggle-slider:before {
                 deliveryInfoSection.parentNode.insertBefore(orderSection, deliveryInfoSection);
             }
             
-            // Show/hide based on whether this is an order for someone else
             if (ride.orderForSomeone) {
                 document.getElementById('orderForSomeoneSection').style.display = 'block';
                 document.getElementById('recipientNameDisplay').textContent = ride.orderForSomeone.recipientName || 'N/A';
@@ -5052,7 +4882,6 @@ input:checked + .toggle-slider:before {
         function updateExpressDeliveryDisplay(ride) {
             const expressDeliverySection = document.getElementById('expressDeliverySection');
             if (!expressDeliverySection) {
-                // Create express delivery section if it doesn't exist
                 const orderForSomeoneSection = document.getElementById('orderForSomeoneSection') || document.getElementById('deliveryInfoSection');
                 const expressSection = document.createElement('div');
                 expressSection.className = 'delivery-info-section';
@@ -5082,7 +4911,6 @@ input:checked + .toggle-slider:before {
                 orderForSomeoneSection.parentNode.insertBefore(expressSection, orderForSomeoneSection.nextSibling);
             }
             
-            // Show/hide based on whether this is an express delivery
             if (ride.expressDelivery) {
                 document.getElementById('expressDeliverySection').style.display = 'block';
                 document.getElementById('shopNameDisplay').textContent = ride.expressDelivery.shopName || 'N/A';
@@ -5094,16 +4922,14 @@ input:checked + .toggle-slider:before {
             }
         }
 
-        // ENHANCED: Update ride request map - Bigger, properly zoomed with route
+        // ENHANCED: Update ride request map
         function updateRideRequestMap(ride) {
-            // Clear existing map
             rideRequestMap.eachLayer(layer => {
                 if (layer instanceof L.Marker || layer instanceof L.Polyline) {
                     rideRequestMap.removeLayer(layer);
                 }
             });
             
-            // Add pickup marker with enhanced styling
             const pickupMarker = L.marker([ride.pickupLat, ride.pickupLng], {
                 icon: L.divIcon({
                     className: 'pickup-marker',
@@ -5112,7 +4938,6 @@ input:checked + .toggle-slider:before {
                 })
             }).addTo(rideRequestMap).bindPopup('Pickup Location');
             
-            // Add destination marker with enhanced styling
             const destinationMarker = L.marker([ride.destLat, ride.destLng], {
                 icon: L.divIcon({
                     className: 'destination-marker',
@@ -5121,26 +4946,21 @@ input:checked + .toggle-slider:before {
                 })
             }).addTo(rideRequestMap).bindPopup('Destination');
             
-            // Draw route with enhanced visualization
             drawEnhancedRouteOnRequestMap(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
             
-            // Calculate optimal bounds with padding
             const bounds = L.latLngBounds(
                 [ride.pickupLat, ride.pickupLng],
                 [ride.destLat, ride.destLng]
             );
             
-            // Expand bounds for better visibility
             const expandedBounds = bounds.pad(0.15);
             
-            // Fit map to show both locations with optimal zoom
             rideRequestMap.fitBounds(expandedBounds, { 
                 padding: [25, 25],
                 maxZoom: 16,
                 animate: true
             });
             
-            // Add a slight zoom out for better context after a short delay
             setTimeout(() => {
                 const currentZoom = rideRequestMap.getZoom();
                 if (currentZoom > 12) {
@@ -5158,7 +4978,6 @@ input:checked + .toggle-slider:before {
                         const route = data.routes[0];
                         const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
                         
-                        // Draw the route on the map with enhanced styling
                         L.polyline(routeCoordinates, {
                             color: '#FF6B35',
                             weight: 6,
@@ -5168,7 +4987,6 @@ input:checked + .toggle-slider:before {
                             dashArray: null
                         }).addTo(rideRequestMap);
                         
-                        // Add start and end points with custom styling
                         L.circleMarker([startLat, startLng], {
                             color: '#FF6B35',
                             fillColor: '#FF6B35',
@@ -5188,7 +5006,6 @@ input:checked + .toggle-slider:before {
                 })
                 .catch(error => {
                     console.error('Error fetching route:', error);
-                    // Fallback: draw a straight line with enhanced styling
                     L.polyline([
                         [startLat, startLng],
                         [endLat, endLng]
@@ -5206,7 +5023,6 @@ input:checked + .toggle-slider:before {
             const waypointsContainer = document.getElementById('waypointsContainer');
             waypointsContainer.innerHTML = '<div class="loading-text">Loading route instructions...</div>';
             
-            // Use OSRM API to get route instructions
             fetch(`https://router.project-osrm.org/route/v1/driving/${ride.pickupLng},${ride.pickupLat};${ride.destLng},${ride.destLat}?overview=full&geometries=geojson&steps=true`)
                 .then(response => response.json())
                 .then(data => {
@@ -5220,14 +5036,13 @@ input:checked + .toggle-slider:before {
                         if (legs && legs.length > 0) {
                             const steps = legs[0].steps;
                             
-                            // Limit to 8 waypoints for better readability
                             const maxWaypoints = 8;
                             const stepInterval = Math.max(1, Math.floor(steps.length / maxWaypoints));
                             
                             for (let i = 0; i < steps.length && waypoints.length < maxWaypoints; i += stepInterval) {
                                 const step = steps[i];
                                 const instruction = step.maneuver.instruction;
-                                const distance = (step.distance / 1000).toFixed(1); // Convert to km
+                                const distance = (step.distance / 1000).toFixed(1);
                                 
                                 if (instruction && !instruction.includes('arrived')) {
                                     waypoints.push({
@@ -5251,7 +5066,6 @@ input:checked + .toggle-slider:before {
                                 }
                             }
                             
-                            // Add destination as the last waypoint
                             if (waypoints.length > 0) {
                                 const waypointItem = document.createElement('div');
                                 waypointItem.className = 'waypoint-item';
@@ -5277,7 +5091,6 @@ input:checked + .toggle-slider:before {
                     console.error('Error fetching route instructions:', error);
                     waypointsContainer.innerHTML = '<div class="no-places" style="text-align: center; padding: 10px; color: var(--error-red);">Error loading route instructions.</div>';
                     
-                    // Fallback to sample waypoints
                     generateSampleWaypoints(ride);
                 });
         }
@@ -5288,16 +5101,13 @@ input:checked + .toggle-slider:before {
             const waypointsContainer = document.getElementById('waypointsContainer');
             waypointsContainer.innerHTML = '';
             
-            // Calculate distance for waypoint generation
             const distance = calculateDistance(
                 ride.pickupLat, ride.pickupLng,
                 ride.destLat, ride.destLng
             );
             
-            // Generate appropriate number of waypoints based on distance
             const numWaypoints = Math.min(Math.max(Math.floor(distance / 1000), 3), 8);
             
-            // Sample waypoints
             const sampleWaypoints = [
                 "Head northeast on Independence Avenue",
                 "Continue straight for 1.2 km",
@@ -5338,7 +5148,7 @@ input:checked + .toggle-slider:before {
                         console.log('Audio play failed:', e);
                     });
                 }
-            }, 3000); // Play every 3 seconds
+            }, 3000);
         }
 
         // Stop ride request sound
@@ -5353,22 +5163,18 @@ input:checked + .toggle-slider:before {
             }
         }
 
-        // FIXED: Accept a ride - This function was fixed to properly handle ride acceptance
+        // FIXED: Accept a ride
         function acceptRide() {
             if (currentRideRequest && currentUser) {
-                // Stop the ride request sound
                 stopRideRequestSound();
                 
-                // Get driver details from Firebase
                 database.ref('users/' + currentUser.uid).once('value')
                     .then(snapshot => {
                         const driverData = snapshot.val();
                         
-                        // Get driver's profile image and vehicle image
                         const driverProfileImage = driverData.images ? driverData.images.profilePhoto : null;
                         const vehicleFrontImage = driverData.images ? driverData.images.vehicleFront : null;
                         
-                        // Get driver's current location for the ride
                         let driverLat = null;
                         let driverLng = null;
                         if (driverMarker) {
@@ -5377,16 +5183,15 @@ input:checked + .toggle-slider:before {
                             driverLng = driverLatLng.lng;
                         }
                         
-                        // Update ride with complete driver info including images and location
                         const rideUpdate = {
                             driverId: currentUser.uid,
                             driverName: driverData.name,
                             driverPhone: driverData.phone,
-                            driverVehicle: driverData.vehicle, // Send all vehicle details
-                            driverProfileImage: driverProfileImage, // Send driver profile image URL
-                            vehicleImage: vehicleFrontImage, // Send vehicle image URL
-                            driverLat: driverLat, // Add driver's current location
-                            driverLng: driverLng, // Add driver's current location
+                            driverVehicle: driverData.vehicle,
+                            driverProfileImage: driverProfileImage,
+                            vehicleImage: vehicleFrontImage,
+                            driverLat: driverLat,
+                            driverLng: driverLng,
                             status: 'accepted',
                             acceptedAt: firebase.database.ServerValue.TIMESTAMP,
                             updatedAt: firebase.database.ServerValue.TIMESTAMP
@@ -5402,26 +5207,13 @@ input:checked + .toggle-slider:before {
                             status: 'accepted'
                         };
                         
-                        // Hide ride request popup
                         document.getElementById('rideRequestPopup').style.display = 'none';
-                        
-                        // Update driver panel for active ride
                         updateDriverPanelForActiveRide();
-                        
-                        // Update map for active ride
                         updateMapForActiveRide();
-                        
-                        // Update acceptance rate
                         updateAcceptanceRate(true);
-                        
-                        // NEW: Show SOS button for active ride
                         showSOSButton();
-                        
-                        // NEW: Start listening for passenger messages
                         startPassengerMessageListener(currentRide.id);
-                        
                         showNotification('Ride accepted successfully.');
-                        
                         currentRideRequest = null;
                     })
                     .catch(error => {
@@ -5434,17 +5226,10 @@ input:checked + .toggle-slider:before {
         // Reject a ride
         function rejectRide() {
             if (currentRideRequest) {
-                // Stop the ride request sound
                 stopRideRequestSound();
-                
-                // Hide ride request popup
                 document.getElementById('rideRequestPopup').style.display = 'none';
-                
-                // Update acceptance rate
                 updateAcceptanceRate(false);
-                
                 currentRideRequest = null;
-                
                 showNotification('Ride rejected.');
             }
         }
@@ -5453,7 +5238,6 @@ input:checked + .toggle-slider:before {
         function updateAcceptanceRate(accepted) {
             if (!currentUser) return;
             
-            // Get current stats
             database.ref('users/' + currentUser.uid + '/stats').once('value')
                 .then(snapshot => {
                     const stats = snapshot.val() || {};
@@ -5461,12 +5245,10 @@ input:checked + .toggle-slider:before {
                     const acceptedRequests = (stats.acceptedRequests || 0) + (accepted ? 1 : 0);
                     const acceptanceRate = Math.round((acceptedRequests / totalRequests) * 100);
                     
-                    // Update stats
                     driverStats.acceptanceRate = acceptanceRate;
                     driverStats.totalRequests = totalRequests;
                     driverStats.acceptedRequests = acceptedRequests;
                     
-                    // Save to Firebase
                     return database.ref('users/' + currentUser.uid + '/stats').update({
                         acceptanceRate: acceptanceRate,
                         totalRequests: totalRequests,
@@ -5474,7 +5256,6 @@ input:checked + .toggle-slider:before {
                     });
                 })
                 .then(() => {
-                    // Update UI
                     document.getElementById('acceptanceRate').textContent = acceptanceRate + '%';
                 })
                 .catch(error => {
@@ -5485,26 +5266,13 @@ input:checked + .toggle-slider:before {
         // Update driver panel for active ride
         function updateDriverPanelForActiveRide() {
             if (currentRide) {
-                // Update driver details with customer info
                 document.getElementById('driverName').textContent = currentRide.passengerName || 'Passenger';
                 document.getElementById('driverPhone').textContent = currentRide.passengerPhone || 'N/A';
-                
-                // Update vehicle details with trip info
                 document.getElementById('vehicleDetails').textContent = `To: ${currentRide.destination}`;
-                
-                // Show ride action button
                 document.getElementById('rideActionBtn').style.display = 'block';
-                
-                // Show advanced features
                 document.getElementById('advancedFeatures').style.display = 'flex';
-                
-                // Update ride action button
                 updateRideActionButton('hold-to-start');
-                
-                // Hide ride queue
                 document.getElementById('rideQueue').style.display = 'none';
-                
-                // NEW: Update ride type specific instructions
                 updateRideTypeInstructions(currentRide);
             }
         }
@@ -5513,7 +5281,6 @@ input:checked + .toggle-slider:before {
         function updateRideTypeInstructions(ride) {
             const instructionsElement = document.getElementById('rideTypeInstructions');
             if (!instructionsElement) {
-                // Create instructions element if it doesn't exist
                 const advancedFeatures = document.getElementById('advancedFeatures');
                 const instructions = document.createElement('div');
                 instructions.className = 'ride-type-instructions';
@@ -5545,12 +5312,10 @@ input:checked + .toggle-slider:before {
                     break;
             }
             
-            // Add order for someone instructions if applicable
             if (ride.orderForSomeone) {
                 instructions += ` | Order for: ${ride.orderForSomeone.recipientName}`;
             }
             
-            // Add express delivery instructions if applicable
             if (ride.expressDelivery) {
                 instructions += ` | Express delivery from: ${ride.expressDelivery.shopName}`;
             }
@@ -5561,7 +5326,6 @@ input:checked + .toggle-slider:before {
         // Update map for active ride
         function updateMapForActiveRide() {
             if (currentRide) {
-                // Clear existing markers and routes
                 if (customerMarker) {
                     driverMap.removeLayer(customerMarker);
                     customerMarker = null;
@@ -5575,7 +5339,6 @@ input:checked + .toggle-slider:before {
                     routePolyline = null;
                 }
                 
-                // Add customer pickup marker
                 customerMarker = L.marker([currentRide.pickupLat, currentRide.pickupLng], {
                     icon: L.divIcon({
                         className: 'customer-marker',
@@ -5584,7 +5347,6 @@ input:checked + .toggle-slider:before {
                     })
                 }).addTo(driverMap).bindPopup('Customer Pickup Location');
                 
-                // Add destination marker
                 destinationMarker = L.marker([currentRide.destLat, currentRide.destLng], {
                     icon: L.divIcon({
                         className: 'destination-marker',
@@ -5593,13 +5355,11 @@ input:checked + .toggle-slider:before {
                     })
                 }).addTo(driverMap).bindPopup('Destination');
                 
-                // Draw route from driver to customer
                 if (driverMarker) {
                     const driverLatLng = driverMarker.getLatLng();
                     drawRoute(driverLatLng.lat, driverLatLng.lng, currentRide.pickupLat, currentRide.pickupLng);
                 }
                 
-                // Fit map to show driver, customer and destination with appropriate zoom
                 if (driverMarker) {
                     const driverLatLng = driverMarker.getLatLng();
                     const customerLatLng = customerMarker.getLatLng();
@@ -5616,12 +5376,10 @@ input:checked + .toggle-slider:before {
 
         // Draw route on main map
         function drawRoute(startLat, startLng, endLat, endLng) {
-            // Remove existing route if any
             if (routePolyline) {
                 driverMap.removeLayer(routePolyline);
             }
             
-            // Use OSRM API to get route
             fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
                 .then(response => response.json())
                 .then(data => {
@@ -5629,7 +5387,6 @@ input:checked + .toggle-slider:before {
                         const route = data.routes[0];
                         const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
                         
-                        // Draw the route on the map
                         routePolyline = L.polyline(routeCoordinates, {
                             color: '#FF6B35',
                             weight: 4,
@@ -5639,7 +5396,6 @@ input:checked + .toggle-slider:before {
                 })
                 .catch(error => {
                     console.error('Error fetching route:', error);
-                    // Fallback: draw a straight line
                     routePolyline = L.polyline([
                         [startLat, startLng],
                         [endLat, endLng]
@@ -5655,7 +5411,6 @@ input:checked + .toggle-slider:before {
         function updateRideActionButton(action) {
             const holdButtonContent = document.getElementById('holdButtonContent');
             
-            // Reset hold progress
             holdProgress = 0;
             const holdButtonFill = document.getElementById('holdButtonFill');
             if (holdButtonFill) {
@@ -5694,12 +5449,11 @@ input:checked + .toggle-slider:before {
         function startHoldTimer() {
             if (holdTimer) return;
             
-            // Add active class to change button text color to white
             const holdButtonContent = document.getElementById('holdButtonContent');
             holdButtonContent.classList.add('active');
             
             holdTimer = setInterval(() => {
-                holdProgress += 3.33; // 3 seconds total = 100%
+                holdProgress += 3.33;
                 const holdButtonFill = document.getElementById('holdButtonFill');
                 
                 if (holdButtonFill) {
@@ -5721,7 +5475,6 @@ input:checked + .toggle-slider:before {
                 holdTimer = null;
                 holdProgress = 0;
                 
-                // Remove active class to revert button text color
                 const holdButtonContent = document.getElementById('holdButtonContent');
                 holdButtonContent.classList.remove('active');
                 
@@ -5739,7 +5492,6 @@ input:checked + .toggle-slider:before {
             const holdButtonContent = document.getElementById('holdButtonContent');
             
             if (holdButtonContent.innerHTML.includes('Start Ride')) {
-                // Start the ride
                 database.ref('rides/' + currentRide.id).update({
                     status: 'started',
                     startedAt: firebase.database.ServerValue.TIMESTAMP,
@@ -5750,14 +5502,12 @@ input:checked + .toggle-slider:before {
                     updateRideActionButton('hold-to-arrive');
                     showNotification('Ride started. Heading to pickup location.');
                     
-                    // Update map to show route from driver to destination
                     if (driverMarker) {
                         const driverLatLng = driverMarker.getLatLng();
                         drawRoute(driverLatLng.lat, driverLatLng.lng, currentRide.destLat, currentRide.destLng);
                     }
                 });
             } else if (holdButtonContent.innerHTML.includes('Arrive')) {
-                // Mark arrived
                 database.ref('rides/' + currentRide.id).update({
                     status: 'arrived',
                     updatedAt: firebase.database.ServerValue.TIMESTAMP
@@ -5768,7 +5518,6 @@ input:checked + .toggle-slider:before {
                     showNotification('Arrival marked. Waiting for passenger.');
                 });
             } else if (holdButtonContent.innerHTML.includes('Pickup')) {
-                // Mark pickup
                 database.ref('rides/' + currentRide.id).update({
                     status: 'picked_up',
                     updatedAt: firebase.database.ServerValue.TIMESTAMP
@@ -5778,37 +5527,30 @@ input:checked + .toggle-slider:before {
                     updateRideActionButton('hold-to-complete');
                     showNotification('Passenger picked up. Starting trip.');
                     
-                    // Update driver details back to driver info
                     document.getElementById('driverName').textContent = document.getElementById('driverNameInput').value || 'Driver Name';
                     document.getElementById('driverPhone').textContent = document.getElementById('driverPhoneInput').value || '000-000-0000';
                     document.getElementById('vehicleDetails').textContent = 
                         `${document.getElementById('vehicleTypeInput').value || 'Vehicle'} - ${document.getElementById('licensePlateInput').value || 'ABC123'}`;
                 });
             } else if (holdButtonContent.innerHTML.includes('Complete')) {
-                // Complete ride
                 database.ref('rides/' + currentRide.id).update({
                     status: 'completed',
                     completedAt: firebase.database.ServerValue.TIMESTAMP,
                     updatedAt: firebase.database.ServerValue.TIMESTAMP
                 })
                 .then(() => {
-                    // Calculate commission and update balances
                     const totalFare = currentRide.fare || calculateTotalFare(currentRide);
                     const commission = totalFare * commissionRate;
                     const driverEarnings = totalFare - commission;
                     
-                    // Update wallet balance (money earned from trip)
                     const newWalletBalance = walletBalance + driverEarnings;
                     updateWalletBalance(newWalletBalance);
                     
-                    // Deduct 8% commission from float balance
                     const newFloatBalance = floatBalance - commission;
                     updateFloatBalance(newFloatBalance);
                     
-                    // Update driver statistics
                     updateDriverStatsAfterRide(totalFare, driverEarnings);
                     
-                    // Add to earnings
                     const earningsData = {
                         rideId: currentRide.id,
                         amount: driverEarnings,
@@ -5821,24 +5563,19 @@ input:checked + .toggle-slider:before {
                     
                     database.ref('earnings/' + currentUser.uid).push(earningsData)
                         .then(() => {
-                            // Show commission deduction notification
                             showNotification(`Ride completed! K${driverEarnings.toFixed(2)} added to your wallet. K${commission.toFixed(2)} commission deducted from float.`);
                             
-                            // Reset driver panel
                             currentRide = null;
                             document.getElementById('rideActionBtn').style.display = 'none';
                             document.getElementById('advancedFeatures').style.display = 'none';
                             
-                            // NEW: Hide SOS button when ride is completed
                             hideSOSButton();
                             
-                            // NEW: Remove passenger message listener when ride is completed
                             if (passengerMessageListener) {
                                 passengerMessageListener();
                                 passengerMessageListener = null;
                             }
                             
-                            // Clear map markers and routes
                             if (customerMarker) {
                                 driverMap.removeLayer(customerMarker);
                                 customerMarker = null;
@@ -5852,12 +5589,10 @@ input:checked + .toggle-slider:before {
                                 routePolyline = null;
                             }
                             
-                            // NEW: Close chat popup if open
                             if (document.getElementById('driverChatPopup') && !document.getElementById('driverChatPopup').classList.contains('hidden')) {
                                 closeDriverChatPopup();
                             }
                             
-                            // Show ride queue again
                             updateRideQueueDisplay();
                         });
                 });
@@ -5868,22 +5603,18 @@ input:checked + .toggle-slider:before {
         function updateDriverStatsAfterRide(totalFare, driverEarnings) {
             if (!currentUser) return;
             
-            // Get current stats
             database.ref('users/' + currentUser.uid + '/stats').once('value')
                 .then(snapshot => {
                     const stats = snapshot.val() || {};
                     const totalTrips = (stats.totalTrips || 0) + 1;
                     const totalEarnings = (stats.totalEarnings || 0) + driverEarnings;
                     
-                    // Calculate new rating (in a real app, this would come from passenger ratings)
                     const newRating = calculateNewRating(stats.rating || 0, totalTrips);
                     
-                    // Update stats
                     driverStats.totalTrips = totalTrips;
                     driverStats.totalEarnings = totalEarnings;
                     driverStats.rating = newRating;
                     
-                    // Save to Firebase
                     return database.ref('users/' + currentUser.uid + '/stats').update({
                         totalTrips: totalTrips,
                         totalEarnings: totalEarnings,
@@ -5891,7 +5622,6 @@ input:checked + .toggle-slider:before {
                     });
                 })
                 .then(() => {
-                    // Update UI
                     document.getElementById('totalTrips').textContent = totalTrips;
                     document.getElementById('ratingScore').textContent = newRating.toFixed(1);
                     document.getElementById('completedRides').textContent = totalTrips;
@@ -5903,13 +5633,11 @@ input:checked + .toggle-slider:before {
                 });
         }
 
-        // Calculate new rating (simplified - in real app would use actual passenger ratings)
+        // Calculate new rating (simplified)
         function calculateNewRating(currentRating, totalTrips) {
-            // Simulate rating changes - in a real app, this would use actual passenger ratings
-            const ratingChange = (Math.random() - 0.5) * 0.2; // Small random change
+            const ratingChange = (Math.random() - 0.5) * 0.2;
             let newRating = currentRating + ratingChange;
             
-            // Keep rating between 3.5 and 5.0
             newRating = Math.max(3.5, Math.min(5.0, newRating));
             
             return newRating;
@@ -5926,22 +5654,18 @@ input:checked + .toggle-slider:before {
         function updateFloatBalance(newBalance) {
             floatBalance = newBalance;
             
-            // Update UI
             document.getElementById('floatBalanceDisplay').textContent = `K${floatBalance.toFixed(2)}`;
             document.getElementById('floatBalance').textContent = `K${floatBalance.toFixed(2)}`;
             
-            // Save to Firebase
             if (currentUser) {
                 database.ref('users/' + currentUser.uid).update({
                     floatBalance: floatBalance
                 });
             }
             
-            // Check if balance is below minimum and show warning if needed
             if (floatBalance < 10) {
                 showNoFloatWarning();
                 
-                // If driver is online, force them offline
                 if (isOnline) {
                     document.getElementById('onlineToggleCheckbox').checked = false;
                     toggleOnlineStatus();
@@ -5953,10 +5677,8 @@ input:checked + .toggle-slider:before {
         function updateWalletBalance(newBalance) {
             walletBalance = newBalance;
             
-            // Update UI
             document.getElementById('walletBalance').textContent = `K${walletBalance.toFixed(2)}`;
             
-            // Save to Firebase
             if (currentUser) {
                 database.ref('users/' + currentUser.uid).update({
                     walletBalance: walletBalance
@@ -5966,7 +5688,6 @@ input:checked + .toggle-slider:before {
 
         // Show no float warning
         function showNoFloatWarning() {
-            // Check if warning already exists
             if (document.querySelector('.no-float-warning')) {
                 return;
             }
@@ -5978,7 +5699,6 @@ input:checked + .toggle-slider:before {
                 Your float balance is below minimum K10.00. You cannot receive ride requests until you add float.
             `;
             
-            // Insert warning at the top of the account screen
             const accountScreen = document.getElementById('accountScreen');
             const firstChild = accountScreen.firstChild;
             accountScreen.insertBefore(warning, firstChild);
@@ -5991,15 +5711,10 @@ input:checked + .toggle-slider:before {
                 const addAmount = parseFloat(amount);
                 const newBalance = floatBalance + addAmount;
                 
-                // Update balance
                 updateFloatBalance(newBalance);
-                
-                // Add float history entry
                 addFloatHistoryEntry('deposit', addAmount, 'Float deposit');
-                
                 showNotification(`Successfully added K${addAmount.toFixed(2)} to your float.`);
                 
-                // Remove warning if balance is now sufficient
                 if (newBalance >= 10) {
                     const warning = document.querySelector('.no-float-warning');
                     if (warning) {
@@ -6030,9 +5745,7 @@ input:checked + .toggle-slider:before {
                 const newBalance = floatBalance - withdrawAmount;
                 updateFloatBalance(newBalance);
                 
-                // Add float history entry
                 addFloatHistoryEntry('withdrawal', -withdrawAmount, 'Float withdrawal');
-                
                 showNotification(`Float withdrawal of K${withdrawAmount.toFixed(2)} processed.`);
             } else if (amount) {
                 showNotification('Please enter a valid amount.');
@@ -6049,15 +5762,12 @@ input:checked + .toggle-slider:before {
                 balance: floatBalance
             };
             
-            // Add to local array
             floatHistory.unshift(historyEntry);
             
-            // Save to Firebase
             if (currentUser) {
                 database.ref('floatHistory/' + currentUser.uid).push(historyEntry);
             }
             
-            // Update UI
             updateFloatHistoryDisplay();
         }
 
@@ -6070,7 +5780,6 @@ input:checked + .toggle-slider:before {
                         floatHistory = [];
                         
                         if (history) {
-                            // Convert to array and sort by timestamp (newest first)
                             Object.keys(history).forEach(key => {
                                 floatHistory.unshift({
                                     id: key,
@@ -6126,12 +5835,10 @@ input:checked + .toggle-slider:before {
                     .then(snapshot => {
                         const userData = snapshot.val();
                         if (userData) {
-                            // Update form fields (readonly)
                             document.getElementById('driverNameInput').value = userData.name || '';
                             document.getElementById('driverPhoneInput').value = userData.phone || '';
                             document.getElementById('driverEmailInput').value = userData.email || '';
                             
-                            // Update vehicle data (readonly)
                             if (userData.vehicle) {
                                 selectedVehicleType = userData.vehicle.type;
                                 document.getElementById('vehicleTypeInput').value = userData.vehicle.type || '';
@@ -6139,17 +5846,14 @@ input:checked + .toggle-slider:before {
                                 document.getElementById('licensePlateInput').value = userData.vehicle.licensePlate || '';
                                 document.getElementById('vehicleColorInput').value = userData.vehicle.color || '';
                                 
-                                // Update vehicle icon based on vehicle type
                                 updateVehicleIcon(userData.vehicle.type);
                             }
                             
-                            // Update display
                             document.getElementById('driverName').textContent = userData.name || 'Driver Name';
                             document.getElementById('driverPhone').textContent = userData.phone || '000-000-0000';
                             document.getElementById('vehicleDetails').textContent = 
                                 `${userData.vehicle?.type || 'Vehicle'} - ${userData.vehicle?.licensePlate || 'ABC123'}`;
                             
-                            // Update wallet and float balances
                             walletBalance = userData.walletBalance || 0;
                             floatBalance = userData.floatBalance || 0;
                             
@@ -6157,21 +5861,17 @@ input:checked + .toggle-slider:before {
                             document.getElementById('floatBalanceDisplay').textContent = `K${floatBalance.toFixed(2)}`;
                             document.getElementById('floatBalance').textContent = `K${floatBalance.toFixed(2)}`;
                             
-                            // Load driver statistics
                             if (userData.stats) {
                                 driverStats = { ...driverStats, ...userData.stats };
                                 updatePerformanceStats();
                             }
                             
-                            // Update driver avatar with profile image if available
                             updateDriverAvatar(userData.images);
                             
-                            // Show warning if float balance is below minimum
                             if (floatBalance < 10) {
                                 showNoFloatWarning();
                             }
                             
-                            // Set online status if previously online
                             if (userData.isOnline) {
                                 document.getElementById('onlineToggleCheckbox').checked = true;
                                 toggleOnlineStatus();
@@ -6179,7 +5879,6 @@ input:checked + .toggle-slider:before {
                         }
                     });
                 
-                // Load float history
                 loadFloatHistory();
             }
         }
@@ -6216,17 +5915,14 @@ input:checked + .toggle-slider:before {
             const driverName = document.getElementById('driverNameInput').value;
             
             if (images && images.profilePhoto) {
-                // Use profile photo
                 driverProfileImage.src = images.profilePhoto;
                 driverProfileImage.style.display = 'block';
                 driverDefaultIcon.style.display = 'none';
             } else if (driverName) {
-                // Use initial as fallback
                 driverDefaultIcon.textContent = driverName.charAt(0).toUpperCase();
                 driverProfileImage.style.display = 'none';
                 driverDefaultIcon.style.display = 'flex';
             } else {
-                // Use default icon
                 driverDefaultIcon.innerHTML = '<i class="fas fa-user"></i>';
                 driverProfileImage.style.display = 'none';
                 driverDefaultIcon.style.display = 'flex';
@@ -6240,9 +5936,7 @@ input:checked + .toggle-slider:before {
                 const addAmount = parseFloat(amount);
                 const newBalance = walletBalance + addAmount;
                 
-                // Update balance
                 updateWalletBalance(newBalance);
-                
                 showNotification(`Successfully added K${addAmount.toFixed(2)} to your wallet.`);
             } else if (amount) {
                 showNotification('Please enter a valid amount.');
@@ -6267,7 +5961,6 @@ input:checked + .toggle-slider:before {
                 
                 const newBalance = walletBalance - withdrawAmount;
                 updateWalletBalance(newBalance);
-                
                 showNotification(`Withdrawal request submitted. K${withdrawAmount.toFixed(2)} will be processed within 24 hours.`);
             } else if (amount) {
                 showNotification('Please enter a valid amount.');
@@ -6278,7 +5971,6 @@ input:checked + .toggle-slider:before {
         function loadDriverStats() {
             if (!currentUser) return;
             
-            // Load completed rides count from Firebase
             database.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value')
                 .then(snapshot => {
                     const rides = snapshot.val();
@@ -6301,13 +5993,12 @@ input:checked + .toggle-slider:before {
                     document.getElementById('cancelledRides').textContent = cancelled;
                     document.getElementById('totalEarnings').textContent = `K${totalEarnings.toFixed(2)}`;
                     
-                    // Update driver stats
                     driverStats.totalTrips = completed;
                     driverStats.totalEarnings = totalEarnings;
                 });
         }
 
-        // Load ride history with REAL data from Firebase
+        // MODIFICATION #1: Enhanced load ride history with chat functionality
         function loadRideHistory() {
             if (currentUser) {
                 database.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value')
@@ -6317,7 +6008,6 @@ input:checked + .toggle-slider:before {
                         
                         const rides = snapshot.val();
                         if (rides) {
-                            // Convert to array and sort by timestamp (newest first)
                             const ridesArray = Object.keys(rides).map(rideId => ({
                                 id: rideId,
                                 ...rides[rideId]
@@ -6326,12 +6016,12 @@ input:checked + .toggle-slider:before {
                             ridesArray.forEach(ride => {
                                 const historyItem = document.createElement('div');
                                 historyItem.className = 'history-item';
+                                historyItem.dataset.rideId = ride.id; // Store ride ID for chat
                                 
                                 const date = new Date(ride.timestamp);
                                 const formattedDate = date.toLocaleDateString();
                                 const formattedTime = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                                 
-                                // Create package details HTML if available
                                 let packageDetailsHTML = '';
                                 if (ride.packageDetails) {
                                     packageDetailsHTML = `
@@ -6356,7 +6046,6 @@ input:checked + .toggle-slider:before {
                                     `;
                                 }
                                 
-                                // NEW: Add order for someone details if available
                                 let orderForSomeoneHTML = '';
                                 if (ride.orderForSomeone) {
                                     orderForSomeoneHTML = `
@@ -6381,7 +6070,6 @@ input:checked + .toggle-slider:before {
                                     `;
                                 }
                                 
-                                // NEW: Add express delivery details if available
                                 let expressDeliveryHTML = '';
                                 if (ride.expressDelivery) {
                                     expressDeliveryHTML = `
@@ -6405,6 +6093,13 @@ input:checked + .toggle-slider:before {
                                         </div>
                                     `;
                                 }
+                                
+                                // Add chat button to history item
+                                const hasChat = ride.hasChat || false;
+                                const chatButtonHTML = hasChat ? 
+                                    `<button class="view-chat-btn" data-ride-id="${ride.id}" style="background: var(--primary-orange); color: white; border: none; border-radius: var(--element-radius); padding: 5px 10px; font-size: 0.7rem; cursor: pointer; margin-top: 8px; display: flex; align-items: center; gap: 5px;">
+                                        <i class="fas fa-comments"></i> View Chat
+                                    </button>` : '';
                                 
                                 historyItem.innerHTML = `
                                     <div class="history-locations">
@@ -6442,9 +6137,29 @@ input:checked + .toggle-slider:before {
                                             ${ride.status === 'completed' ? 'Completed' : 'Cancelled'}
                                         </div>
                                     </div>
+                                    ${chatButtonHTML}
                                 `;
                                 
                                 historyList.appendChild(historyItem);
+                            });
+                            
+                            // Add event listeners to chat buttons
+                            document.querySelectorAll('.view-chat-btn').forEach(btn => {
+                                btn.addEventListener('click', function() {
+                                    const rideId = this.getAttribute('data-ride-id');
+                                    openRideHistoryChat(rideId);
+                                });
+                            });
+                            
+                            // Add click event to history items for chat opening
+                            document.querySelectorAll('.history-item').forEach(item => {
+                                item.addEventListener('click', function(e) {
+                                    // Only trigger if not clicking on the chat button
+                                    if (!e.target.closest('.view-chat-btn')) {
+                                        const rideId = this.dataset.rideId;
+                                        openRideHistoryChat(rideId);
+                                    }
+                                });
                             });
                         } else {
                             historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--medium-gray);">No ride history found.</p>';
@@ -6455,6 +6170,191 @@ input:checked + .toggle-slider:before {
                         historyList.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--error-red);">Error loading ride history.</p>';
                     });
             }
+        }
+
+        // MODIFICATION #1: Open chat from ride history
+        function openRideHistoryChat(rideId) {
+            // Load ride details first
+            database.ref('rides/' + rideId).once('value')
+                .then(snapshot => {
+                    const ride = snapshot.val();
+                    if (!ride) {
+                        showNotification('Ride details not found.');
+                        return;
+                    }
+                    
+                    // Create or show chat popup
+                    if (!document.getElementById('rideHistoryChatPopup')) {
+                        createRideHistoryChatPopup();
+                    }
+                    
+                    currentChatRideId = rideId;
+                    
+                    // Set passenger info
+                    document.getElementById('historyChatPassengerName').textContent = ride.passengerName || 'Passenger';
+                    document.getElementById('historyChatPassengerRating').textContent = ride.passengerRating ? `${ride.passengerRating} ★` : '4.5 ★';
+                    
+                    // Show chat popup
+                    document.getElementById('rideHistoryChatPopup').classList.remove('hidden');
+                    
+                    // Load chat messages
+                    loadRideHistoryChatMessages(rideId);
+                    
+                    // Start listening for new messages in history chat
+                    startRideHistoryChatListener(rideId);
+                })
+                .catch(error => {
+                    console.error('Error loading ride details:', error);
+                    showNotification('Error loading ride details.');
+                });
+        }
+
+        // MODIFICATION #1: Create ride history chat popup
+        function createRideHistoryChatPopup() {
+            const chatPopup = document.createElement('div');
+            chatPopup.id = 'rideHistoryChatPopup';
+            chatPopup.className = 'popup-overlay hidden';
+            chatPopup.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 1000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 15px;
+            `;
+            
+            chatPopup.innerHTML = `
+                <div class="popup-form" style="max-width: 400px; height: 500px; display: flex; flex-direction: column; background: white; border-radius: 8px; overflow: hidden;">
+                    <div class="popup-header" style="display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--border-color);">
+                        <h2 class="popup-title" style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+                            <i class="fas fa-history"></i>
+                            Past Ride Chat
+                        </h2>
+                        <button class="close-chat-btn" id="closeRideHistoryChatPopup">&times;</button>
+                    </div>
+                    <div class="chat-passenger-info" style="padding: 10px; border-bottom: 1px solid var(--border-color);">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="passenger-avatar" id="historyChatPassengerAvatar" style="width: 30px; height: 30px; border-radius: 50%; background: var(--light-gray); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: var(--medium-gray);">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.9rem;" id="historyChatPassengerName">Passenger</div>
+                                <div style="font-size: 0.7rem; color: var(--medium-gray);" id="historyChatPassengerRating">4.5 ★</div>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.7rem; color: var(--medium-gray); margin-top: 5px;">
+                            <i class="fas fa-info-circle"></i> This is a read-only view of past chat history
+                        </div>
+                    </div>
+                    <div class="chat-messages" id="rideHistoryChatMessages" style="flex: 1; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+            `;
+            
+            document.body.appendChild(chatPopup);
+            
+            document.getElementById('closeRideHistoryChatPopup').addEventListener('click', function() {
+                closeRideHistoryChatPopup();
+            });
+        }
+
+        // MODIFICATION #1: Load chat messages for ride history
+        function loadRideHistoryChatMessages(rideId) {
+            const chatMessages = document.getElementById('rideHistoryChatMessages');
+            chatMessages.innerHTML = '<div class="loading-text">Loading chat history...</div>';
+            
+            database.ref('chats/' + rideId).orderByChild('timestamp').once('value')
+                .then(snapshot => {
+                    const messages = snapshot.val();
+                    chatMessages.innerHTML = '';
+                    
+                    if (messages) {
+                        const messagesArray = Object.values(messages);
+                        messagesArray.forEach(message => {
+                            displayRideHistoryChatMessage(message);
+                        });
+                        
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    } else {
+                        chatMessages.innerHTML = '<div class="no-places" style="text-align: center; padding: 20px; color: var(--medium-gray);">No chat history found for this ride.</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading chat history:', error);
+                    chatMessages.innerHTML = '<div class="no-places" style="text-align: center; padding: 20px; color: var(--error-red);">Error loading chat history.</div>';
+                });
+        }
+
+        // MODIFICATION #1: Display chat message in ride history
+        function displayRideHistoryChatMessage(message) {
+            const chatMessages = document.getElementById('rideHistoryChatMessages');
+            
+            if (chatMessages.querySelector('.loading-text') || chatMessages.querySelector('.no-places')) {
+                chatMessages.innerHTML = '';
+            }
+            
+            const messageElement = document.createElement('div');
+            messageElement.className = `chat-message ${message.senderId === currentUser.uid ? 'own-message' : 'other-message'}`;
+            messageElement.style.cssText = `
+                max-width: 80%;
+                padding: 8px 12px;
+                border-radius: 15px;
+                margin-bottom: 5px;
+                word-wrap: break-word;
+                ${message.senderId === currentUser.uid ? 
+                    'background: var(--primary-orange); color: white; align-self: flex-end;' : 
+                    'background: var(--light-gray); color: var(--dark-gray); align-self: flex-start;'
+                }
+            `;
+            
+            const timestamp = new Date(message.timestamp);
+            const timeString = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const dateString = timestamp.toLocaleDateString();
+            
+            messageElement.innerHTML = `
+                <div style="font-size: 0.7rem; font-weight: 600; margin-bottom: 2px;">${message.senderName || 'Unknown'}</div>
+                <div style="font-size: 0.8rem;">${message.message}</div>
+                <div style="font-size: 0.6rem; opacity: 0.7; text-align: ${message.senderId === currentUser.uid ? 'right' : 'left'}; margin-top: 4px;">${dateString} ${timeString}</div>
+            `;
+            
+            chatMessages.appendChild(messageElement);
+        }
+
+        // MODIFICATION #1: Start listener for ride history chat
+        function startRideHistoryChatListener(rideId) {
+            // Remove existing listener for this ride
+            if (rideHistoryChatListeners[rideId]) {
+                rideHistoryChatListeners[rideId]();
+                delete rideHistoryChatListeners[rideId];
+            }
+            
+            // Listen for new messages (though unlikely for completed rides)
+            const listener = database.ref('chats/' + rideId).orderByChild('timestamp').on('child_added', snapshot => {
+                const message = snapshot.val();
+                displayRideHistoryChatMessage(message);
+                
+                const chatMessages = document.getElementById('rideHistoryChatMessages');
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+            
+            rideHistoryChatListeners[rideId] = listener;
+        }
+
+        // MODIFICATION #1: Close ride history chat popup
+        function closeRideHistoryChatPopup() {
+            document.getElementById('rideHistoryChatPopup').classList.add('hidden');
+            
+            // Remove all ride history chat listeners
+            Object.values(rideHistoryChatListeners).forEach(listener => {
+                if (listener) listener();
+            });
+            rideHistoryChatListeners = {};
+            
+            currentChatRideId = null;
         }
 
         // Load earnings with REAL data from Firebase
@@ -6507,7 +6407,6 @@ input:checked + .toggle-slider:before {
                                 }
                             });
                             
-                            // Calculate online hours from driver stats
                             onlineHours = Math.floor((driverStats.totalOnlineTime || 0) / 60);
                         }
                         
@@ -6516,7 +6415,6 @@ input:checked + .toggle-slider:before {
                         document.getElementById('avgEarning').textContent = ridesCompleted > 0 ? `K${(total / ridesCompleted).toFixed(2)}` : 'K0.00';
                         document.getElementById('onlineHours').textContent = `${onlineHours}h`;
                         
-                        // Update earnings list with commission information
                         updateEarningsList(earnings);
                     })
                     .catch(error => {
@@ -6535,12 +6433,11 @@ input:checked + .toggle-slider:before {
             earningsList.innerHTML = '';
             
             if (earnings) {
-                // Convert to array and sort by timestamp (newest first)
                 const earningsArray = Object.keys(earnings).map(earningId => ({
                     id: earningId,
                     ...earnings[earningId]
                 })).sort((a, b) => b.timestamp - a.timestamp)
-                  .slice(0, 10); // Show only last 10 earnings
+                  .slice(0, 10);
                 
                 earningsArray.forEach(earning => {
                     const earningItem = document.createElement('div');
@@ -6587,35 +6484,42 @@ input:checked + .toggle-slider:before {
 
         // Advanced features
 
-        // Navigate to pickup
-        function navigateToPickup() {
-            if (currentRide && customerMarker) {
-                const customerLatLng = customerMarker.getLatLng();
-                // In a real app, this would open the device's navigation app
-                showNotification(`Opening navigation to pickup location: ${currentRide.pickupLocation}`);
-                
-                // For demo purposes, we'll just center the map on the pickup location
-                driverMap.setView(customerLatLng, 16);
-            }
-        }
-
-        // Contact customer
+        // MODIFICATION #4: Contact customer - Open dialer with customer number
         function contactCustomer() {
             if (currentRide) {
                 const phoneNumber = currentRide.passengerPhone;
                 if (phoneNumber) {
-                    // In a real app, this would initiate a phone call
-                    showNotification(`Calling customer: ${phoneNumber}`);
+                    // MODIFICATION #4: Open device dialer with customer number
+                    const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
+                    const telUrl = `tel:${cleanPhoneNumber}`;
+                    
+                    // Create a temporary link to trigger phone dialer
+                    const link = document.createElement('a');
+                    link.href = telUrl;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    showNotification(`Opening dialer for customer: ${phoneNumber}`);
                 } else {
                     showNotification('Customer phone number not available.');
                 }
             }
         }
 
+        // Navigate to pickup
+        function navigateToPickup() {
+            if (currentRide && customerMarker) {
+                const customerLatLng = customerMarker.getLatLng();
+                showNotification(`Opening navigation to pickup location: ${currentRide.pickupLocation}`);
+                driverMap.setView(customerLatLng, 16);
+            }
+        }
+
         // View route details
         function viewRouteDetails() {
             if (currentRide) {
-                // In a real app, this would show detailed route information
                 showNotification(`Showing route details for trip to ${currentRide.destination}`);
             }
         }
@@ -6638,15 +6542,12 @@ input:checked + .toggle-slider:before {
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     
-                    // Update map with current location
                     driverMap.setView([lat, lng], 16);
                     
-                    // Update driver marker position
                     if (driverMarker) {
                         driverMarker.setLatLng([lat, lng]);
                     }
                     
-                    // Update driver location in Firebase
                     updateDriverLocation(lat, lng);
                     
                     showNotification('Location refreshed');
@@ -6660,7 +6561,6 @@ input:checked + .toggle-slider:before {
         // Toggle traffic layer
         function toggleTraffic() {
             if (trafficEnabled) {
-                // Remove traffic layer
                 if (trafficLayer) {
                     driverMap.removeLayer(trafficLayer);
                     trafficLayer = null;
@@ -6668,7 +6568,6 @@ input:checked + .toggle-slider:before {
                 trafficEnabled = false;
                 showNotification('Traffic layer disabled');
             } else {
-                // Add traffic layer (using OpenStreetMap traffic tiles as an example)
                 trafficLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '© OpenStreetMap contributors'
                 }).addTo(driverMap);
@@ -6679,7 +6578,7 @@ input:checked + .toggle-slider:before {
 
         // Calculate distance between two points
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // metres
+            const R = 6371e3;
             const φ1 = lat1 * Math.PI / 180;
             const φ2 = lat2 * Math.PI / 180;
             const Δφ = (lat2 - lat1) * Math.PI / 180;
@@ -6698,7 +6597,6 @@ input:checked + .toggle-slider:before {
             if (confirm('Are you sure you want to log out?')) {
                 auth.signOut().then(() => {
                     showNotification('Logged out successfully');
-                    // Reset app state
                     currentUser = null;
                     currentRide = null;
                     isOnline = false;
@@ -6714,43 +6612,38 @@ input:checked + .toggle-slider:before {
                         currentSessionTime: 0
                     };
                     
-                    // Stop location tracking
                     stopLocationTracking();
-                    
-                    // Stop any playing sounds
                     stopRideRequestSound();
                     
-                    // Remove Firebase listeners
                     if (rideQueueListener) {
                         rideQueueListener();
                         rideQueueListener = null;
                     }
                     
-                    // NEW: Remove chat listener
                     if (chatListener) {
                         chatListener();
                         chatListener = null;
                     }
                     
-                    // NEW: Remove passenger message listener
                     if (passengerMessageListener) {
                         passengerMessageListener();
                         passengerMessageListener = null;
                     }
                     
-                    // NEW: Hide SOS button
                     hideSOSButton();
                     
-                    // Reset UI
+                    Object.values(rideHistoryChatListeners).forEach(listener => {
+                        if (listener) listener();
+                    });
+                    rideHistoryChatListeners = {};
+                    
                     document.getElementById('mainApp').style.display = 'none';
                     document.getElementById('welcomeScreen').classList.remove('hidden');
                     
-                    // Clear any active screens
                     document.querySelectorAll('.screen-content').forEach(screen => {
                         screen.classList.remove('active');
                     });
                     
-                    // Reset navigation buttons
                     document.querySelectorAll('.nav-btn').forEach(btn => {
                         btn.classList.remove('active');
                     });
@@ -6777,7 +6670,6 @@ input:checked + .toggle-slider:before {
         function completeRideWithTypeSpecificHandling() {
             if (!currentRide) return;
             
-            // Show type-specific completion message
             let completionMessage = 'Ride completed successfully!';
             
             if (currentRide.rideType === 'bike' || currentRide.rideType === 'bicycle') {
@@ -6822,7 +6714,6 @@ input:checked + .toggle-slider:before {
         function updateEnhancedPerformanceMetrics() {
             if (!currentUser) return;
             
-            // Calculate additional metrics
             const metrics = {
                 totalRides: driverStats.totalTrips || 0,
                 totalEarnings: driverStats.totalEarnings || 0,
@@ -6834,7 +6725,6 @@ input:checked + .toggle-slider:before {
                 lastUpdated: firebase.database.ServerValue.TIMESTAMP
             };
             
-            // Save enhanced metrics
             database.ref('driverMetrics/' + currentUser.uid).set(metrics)
                 .catch(error => {
                     console.error('Error updating enhanced metrics:', error);
@@ -6845,17 +6735,13 @@ input:checked + .toggle-slider:before {
         function calculateCompletionRate() {
             if (!currentUser) return 0;
             
-            // This would need to be calculated from ride history
-            // For now, return a placeholder
-            return 95; // 95% completion rate
+            return 95;
         }
 
         // Initialize enhanced features
         function initializeEnhancedFeatures() {
-            // Set up enhanced analytics
-            setInterval(updateEnhancedPerformanceMetrics, 60000); // Update every minute
+            setInterval(updateEnhancedPerformanceMetrics, 60000);
             
-            // Enhanced ride completion handling
             const originalCompleteHoldAction = completeHoldAction;
             completeHoldAction = function() {
                 if (currentRide && currentRide.status === 'picked_up') {
@@ -6871,4 +6757,5 @@ input:checked + .toggle-slider:before {
     </script>
 </body>
 </html>
+
 
