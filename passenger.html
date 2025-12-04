@@ -2494,7 +2494,7 @@ let walletBalanceListener = null;
 let currentScreen = 'home';
 let homeScreenRefreshRequired = false;
 
-// NEW: Enhanced state variables
+// Enhanced state variables
 let sosConfig = null;
 let activeMoreOption = null;
 let recipientPickupMarker = null;
@@ -2517,12 +2517,12 @@ let driverProfileImage = null;
 let driverVehicleImage = null;
 let activeRideRestored = false;
 
-// NEW: Schedule ride variables
+// Schedule ride variables
 let scheduledRides = [];
 let scheduledRideTimers = {};
 let scheduledRideCheckInterval = null;
 
-// NEW: Live tracking variables
+// Live tracking variables
 let liveTrackingListeners = {};
 let sharedRideLinks = {};
 
@@ -2626,7 +2626,7 @@ function loadUserData(uid) {
         });
 }
 
-// NEW: Load scheduled rides
+// Load scheduled rides
 function loadScheduledRides(uid) {
     database.ref('scheduledRides').orderByChild('passengerId').equalTo(uid).once('value')
         .then(snapshot => {
@@ -2650,7 +2650,7 @@ function loadScheduledRides(uid) {
         });
 }
 
-// NEW: Schedule ride timer
+// Schedule ride timer
 function scheduleRideTimer(ride) {
     const timeUntilRide = ride.scheduledTime - Date.now();
     
@@ -2669,7 +2669,7 @@ function scheduleRideTimer(ride) {
     updateScheduledRideCountdown(ride);
 }
 
-// NEW: Auto request scheduled ride
+// Auto request scheduled ride
 function autoRequestScheduledRide(ride) {
     // Convert scheduled ride to active ride
     const rideId = database.ref().child('rides').push().key;
@@ -2719,7 +2719,7 @@ function autoRequestScheduledRide(ride) {
     });
 }
 
-// NEW: Start scheduled ride checker
+// Start scheduled ride checker
 function startScheduledRideChecker() {
     if (scheduledRideCheckInterval) {
         clearInterval(scheduledRideCheckInterval);
@@ -2732,7 +2732,7 @@ function startScheduledRideChecker() {
     }, 60000); // Update every minute
 }
 
-// NEW: Update scheduled ride countdown display
+// Update scheduled ride countdown display
 function updateScheduledRideCountdown(ride) {
     const timeLeft = ride.scheduledTime - Date.now();
     
@@ -2807,7 +2807,7 @@ function restoreActiveRide(rideId, ride) {
             document.getElementById('sosButton').style.display = 'flex';
         }
         
-        // NEW: Start live tracking if applicable
+        // Start live tracking if applicable
         if (ride.orderForSomeone || ride.expressDelivery) {
             startLiveTracking(rideId, ride.driverId);
         }
@@ -2881,7 +2881,7 @@ function updateWalletBalanceUI() {
     document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
 }
 
-// ENHANCED: Map initialization with schedule and tracking features
+// Map initialization with schedule and tracking features
 function initializeMap() {
     passengerMap = L.map('map').setView([-15.4167, 28.2833], 13);
     
@@ -2894,13 +2894,13 @@ function initializeMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(popupRideMap);
     
-    // NEW: Add schedule and tracking controls
+    // Add schedule and tracking controls
     addMapControls();
     
     refreshPassengerPosition();
 }
 
-// NEW: Add map controls for schedule and tracking
+// Add map controls for schedule and tracking
 function addMapControls() {
     // Schedule ride button
     const scheduleControl = L.control({position: 'topleft'});
@@ -3054,7 +3054,7 @@ function determineCityByProximity(lat, lng) {
     return shortestDistance <= 100000 ? closestCity : "Unknown Location";
 }
 
-// ENHANCED: Update pickup location with city-locked search capability
+// Update pickup location with city-locked search capability
 function updatePickupLocation(lat, lng) {
     if (pickupMarker) {
         passengerMap.removeLayer(pickupMarker);
@@ -3071,14 +3071,14 @@ function updatePickupLocation(lat, lng) {
         
     getPreciseAddress(lat, lng, 'pickupLocation');
     
-    // NEW: Make pickup location editable
+    // Make pickup location editable
     document.getElementById('pickupLocation').removeAttribute('readonly');
     
     // Add clear button for pickup location
     addPickupLocationClearButton();
 }
 
-// NEW: Add clear button for pickup location
+// Add clear button for pickup location
 function addPickupLocationClearButton() {
     const pickupInput = document.getElementById('pickupLocation');
     const parent = pickupInput.parentElement;
@@ -3269,7 +3269,7 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
         });
 }
 
-// NEW: Perform city-locked search with geospatial filtering
+// Perform city-locked search with geospatial filtering
 function performCityLockedSearch(query, searchType) {
     return new Promise((resolve, reject) => {
         if (!currentCity || currentCity === "Unknown Location") {
@@ -3352,7 +3352,7 @@ function performCityLockedSearch(query, searchType) {
     });
 }
 
-// NEW: Calculate city bounding box for search
+// Calculate city bounding box for search
 function calculateCityBoundingBox(cityBoundary) {
     const radiusKm = cityBoundary.radius / 1000;
     const latDelta = (radiusKm / 111.32);
@@ -4064,7 +4064,7 @@ function drawRoute(startLat, startLng, endLat, endLng) {
         });
 }
 
-// NEW: Schedule Ride Functionality
+// Schedule Ride Functionality
 function openScheduleRidePopup() {
     // Create schedule ride popup
     if (!document.getElementById('scheduleRidePopup')) {
@@ -4676,8 +4676,6 @@ function editScheduledRide(scheduleId) {
     }, 100);
 }
 
-// Continue with existing functions...
-
 function requestRide() {
     const pickupLocation = document.getElementById('pickupLocation').value;
     const destinationLocation = document.getElementById('destinationLocation').value;
@@ -4842,7 +4840,7 @@ function submitRideRequest() {
             
             listenForDriverAssignment(rideRequest.id);
             
-            // NEW: Start live tracking if applicable
+            // Start live tracking if applicable
             if (rideRequest.orderForSomeone || rideRequest.expressDelivery) {
                 setupLiveTracking(rideRequest.id);
             }
@@ -4874,7 +4872,7 @@ function submitRideRequest() {
                 
                 listenForDriverAssignment(rideRequest.id);
                 
-                // NEW: Start live tracking if applicable
+                // Start live tracking if applicable
                 if (rideRequest.orderForSomeone || rideRequest.expressDelivery) {
                     setupLiveTracking(rideRequest.id);
                 }
@@ -4904,11 +4902,11 @@ function updateUIForActiveRide() {
     document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
     document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
     
-    // NEW: Add share and tracking buttons
+    // Add share and tracking buttons
     addShareAndTrackingButtons();
 }
 
-// NEW: Add share and tracking buttons to active ride
+// Add share and tracking buttons to active ride
 function addShareAndTrackingButtons() {
     const rideActions = document.querySelector('.ride-actions');
     
@@ -4937,7 +4935,7 @@ function addShareAndTrackingButtons() {
     }
 }
 
-// NEW: Share ride details
+// Share ride details
 function shareRideDetails() {
     if (!currentRide) {
         showNotification('No active ride to share.');
@@ -4985,7 +4983,7 @@ function shareRideDetails() {
     }
 }
 
-// NEW: Setup live tracking for a ride
+// Setup live tracking for a ride
 function setupLiveTracking(rideId) {
     // Create a unique tracking ID
     const trackingId = generateTrackingId();
@@ -5014,7 +5012,7 @@ function setupLiveTracking(rideId) {
         });
 }
 
-// NEW: Share live tracking link
+// Share live tracking link
 function shareLiveTracking() {
     if (!currentRide) {
         showNotification('No active ride to track.');
@@ -5052,7 +5050,7 @@ function shareLiveTracking() {
     }
 }
 
-// NEW: Start live tracking updates
+// Start live tracking updates
 function startLiveTracking(rideId, driverId) {
     if (!sharedRideLinks[rideId]) {
         return; // No tracking set up for this ride
@@ -5085,7 +5083,7 @@ function startLiveTracking(rideId, driverId) {
     });
 }
 
-// NEW: Generate unique tracking ID
+// Generate unique tracking ID
 function generateTrackingId() {
     return 'track_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now().toString(36);
 }
@@ -5157,7 +5155,7 @@ function handleDriverAssignment(ride) {
                 
                 startDriverMessageListener(ride.id);
                 
-                // NEW: Start live tracking if applicable
+                // Start live tracking if applicable
                 if (ride.orderForSomeone || ride.expressDelivery) {
                     startLiveTracking(ride.id, ride.driverId);
                 }
@@ -5571,10 +5569,10 @@ function listenForRideStatusUpdates(rideId) {
                     document.getElementById('sosButton').style.display = 'none';
                     resetUIAfterRide();
                     
-                    // NEW: Show rating popup after completion
+                    // Show rating popup after completion
                     showRatingPopup(ride);
                     
-                    // NEW: Stop live tracking
+                    // Stop live tracking
                     stopLiveTracking(rideId);
                     
                     showNotification('Trip completed. Thank you for using Jubel!');
@@ -5585,7 +5583,7 @@ function listenForRideStatusUpdates(rideId) {
                     document.getElementById('sosButton').style.display = 'none';
                     resetUIAfterRide();
                     
-                    // NEW: Stop live tracking
+                    // Stop live tracking
                     stopLiveTracking(rideId);
                     
                     showNotification('Ride cancelled');
@@ -5595,7 +5593,7 @@ function listenForRideStatusUpdates(rideId) {
     });
 }
 
-// NEW: Stop live tracking
+// Stop live tracking
 function stopLiveTracking(rideId) {
     if (liveTrackingListeners[rideId]) {
         liveTrackingListeners[rideId]();
@@ -6054,7 +6052,7 @@ function handleRideCancellation(ride) {
         driverMessageListener = null;
     }
     
-    // NEW: Stop live tracking
+    // Stop live tracking
     stopLiveTracking(ride.id);
 }
 
@@ -6626,6 +6624,81 @@ function viewRideChat(rideId, ride) {
     }
 }
 
+function updatePopupRideMap(ride) {
+    popupRideMap.eachLayer(function(layer) {
+        if (layer instanceof L.TileLayer) {
+            return;
+        }
+        popupRideMap.removeLayer(layer);
+    });
+    
+    if (ride.pickupLat && ride.pickupLng) {
+        const pickupMarker = L.marker([ride.pickupLat, ride.pickupLng], {
+            icon: L.divIcon({
+                className: 'pickup-marker',
+                html: '<div class="pickup-marker"><i class="fas fa-map-marker-alt"></i></div>',
+                iconSize: [22, 22]
+            })
+        }).addTo(popupRideMap)
+            .bindPopup(`Pickup: ${ride.pickupDisplayLocation || ride.pickupLocation}`);
+    }
+    
+    if (ride.destLat && ride.destLng) {
+        const destinationMarker = L.marker([ride.destLat, ride.destLng], {
+            icon: L.divIcon({
+                className: 'destination-marker',
+                html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
+                iconSize: [22, 22]
+            })
+        }).addTo(popupRideMap)
+            .bindPopup(`Destination: ${ride.destination}`);
+    }
+    
+    if (ride.pickupLat && ride.pickupLng && ride.destLat && ride.destLng) {
+        fetch(`https://router.project-osrm.org/route/v1/driving/${ride.pickupLng},${ride.pickupLat};${ride.destLng},${ride.destLat}?overview=full&geometries=geojson`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.routes && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    
+                    L.polyline(routeCoordinates, {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7,
+                        dashArray: '8, 8'
+                    }).addTo(popupRideMap);
+                    
+                    const bounds = L.latLngBounds(
+                        [ride.pickupLat, ride.pickupLng],
+                        [ride.destLat, ride.destLng]
+                    );
+                    popupRideMap.fitBounds(bounds, { padding: [20, 20] });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching route for popup:', error);
+                if (ride.pickupLat && ride.pickupLng && ride.destLat && ride.destLng) {
+                    L.polyline([
+                        [ride.pickupLat, ride.pickupLng],
+                        [ride.destLat, ride.destLng]
+                    ], {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7,
+                        dashArray: '8, 8'
+                    }).addTo(popupRideMap);
+                    
+                    const bounds = L.latLngBounds(
+                        [ride.pickupLat, ride.pickupLng],
+                        [ride.destLat, ride.destLng]
+                    );
+                    popupRideMap.fitBounds(bounds, { padding: [20, 20] });
+                }
+            });
+    }
+}
+
 function updateDriverProgress(status) {
     const progressElement = document.getElementById('popupDriverProgress');
     
@@ -6962,7 +7035,7 @@ function refreshHomeScreen() {
     showNotification('Home screen refreshed');
 }
 
-// NEW: More Options Functions
+// More Options Functions
 function toggleMoreOptions() {
     const dropdown = document.getElementById('moreOptionsDropdown');
     dropdown.classList.toggle('active');
@@ -7669,4 +7742,5 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
