@@ -9413,4 +9413,335 @@ function updatePopupRideMap(ride) {
             .bindPopup('Pickup Location');
     }
     
-    if (ride
+    if (ride.destLat && ride.destLng) {
+        L.marker([ride.destLat, ride.destLng], {
+            icon: L.divIcon({
+                className: 'destination-marker',
+                html: '<div class="destination-marker"><i class="fas fa-flag"></i></div>',
+                iconSize: [22, 22]
+            })
+        }).addTo(appState.popupRideMap)
+            .bindPopup('Destination');
+    }
+    
+    // Set view to show both markers
+    if (ride.pickupLat && ride.pickupLng && ride.destLat && ride.destLng) {
+        const bounds = L.latLngBounds(
+            [ride.pickupLat, ride.pickupLng],
+            [ride.destLat, ride.destLng]
+        );
+        appState.popupRideMap.fitBounds(bounds);
+        
+        // Draw route if we have both points
+        fetch(`https://router.project-osrm.org/route/v1/driving/${ride.pickupLng},${ride.pickupLat};${ride.destLng},${ride.destLat}?overview=full&geometries=geojson`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.routes && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    
+                    L.polyline(routeCoordinates, {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7,
+                        lineJoin: 'round'
+                    }).addTo(appState.popupRideMap);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching route for popup:', error);
+                // Draw straight line as fallback
+                if (ride.pickupLat && ride.pickupLng && ride.destLat && ride.destLng) {
+                    L.polyline([
+                        [ride.pickupLat, ride.pickupLng],
+                        [ride.destLat, ride.destLng]
+                    ], {
+                        color: '#FF6B35',
+                        weight: 3,
+                        opacity: 0.6,
+                        dashArray: '10, 10'
+                    }).addTo(appState.popupRideMap);
+                }
+            });
+    } else if (ride.pickupLat && ride.pickupLng) {
+        appState.popupRideMap.setView([ride.pickupLat, ride.pickupLng], 15);
+    }
+}
+
+// Initialize App
+function initializeApp() {
+    console.log("Enhanced Jubel Passenger App Initializing...");
+    
+    // Start periodic city detection updates
+    setInterval(() => {
+        if (appState.userLocation && appState.currentScreen === 'home') {
+            determineCurrentCity(appState.userLocation.lat, appState.userLocation.lng)
+                .then(city => {
+                    console.log("Periodic city update:", city);
+                })
+                .catch(error => {
+                    console.error("Periodic city detection failed:", error);
+                });
+        }
+    }, 60000); // Update every minute
+    
+    // Handle visibility changes
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && appState.currentScreen === 'home') {
+            setTimeout(refreshHomeScreen, 1000);
+        }
+    });
+    
+    // Handle offline/online status
+    window.addEventListener('online', function() {
+        showNotification('Connection restored.');
+        if (appState.currentScreen === 'home') {
+            setTimeout(refreshPassengerPosition, 1000);
+        }
+    });
+    
+    window.addEventListener('offline', function() {
+        showNotification('You are currently offline. Some features may not work.');
+    });
+    
+    // Handle window resize
+    window.addEventListener('resize', function() {
+        if (appState.passengerMap) {
+            setTimeout(() => {
+                appState.passengerMap.invalidateSize();
+                if (appState.popupRideMap) {
+                    appState.popupRideMap.invalidateSize();
+                }
+            }, 100);
+        }
+    });
+    
+    // Initialize close schedule popup button if it exists
+    const closeSchedulePopupBtn = document.getElementById('closeSchedulePopup');
+    if (closeSchedulePopupBtn) {
+        closeSchedulePopupBtn.addEventListener('click', closeSchedulePopup);
+    }
+    
+    // Initialize confirm schedule button if it exists
+    const confirmScheduleBtn = document.getElementById('confirmScheduleBtn');
+    if (confirmScheduleBtn) {
+        confirmScheduleBtn.addEventListener('click', confirmScheduleRide);
+    }
+    
+    // Setup schedule vehicle options
+    document.querySelectorAll('.schedule-vehicle-option').forEach(option => {
+        option.addEventListener('click', function() {
+            document.querySelectorAll('.schedule-vehicle-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            this.classList.add('selected');
+            updateScheduleFare();
+        });
+    });
+    
+    // Setup schedule location inputs
+    const schedulePickup = document.getElementById('schedulePickup');
+    const scheduleDestination = document.getElementById('scheduleDestination');
+    
+    if (schedulePickup) {
+        schedulePickup.addEventListener('input', updateScheduleFare);
+    }
+    
+    if (scheduleDestination) {
+        scheduleDestination.addEventListener('input', updateScheduleFare);
+    }
+    
+    console.log("Jubel Passenger App fully loaded with enhanced features");
+    showNotification('Jubel Passenger App Ready');
+}
+
+// Update Schedule Fare
+function updateScheduleFare() {
+    const schedulePickup = document.getElementById('schedulePickup').value;
+    const scheduleDestination = document.getElementById('scheduleDestination').value;
+    
+    if (schedulePickup.length > 3 && scheduleDestination.length > 3) {
+        Promise.all([
+            forwardGeocode(schedulePickup),
+            forwardGeocode(scheduleDestination)
+        ]).then(([pickupResults, destinationResults]) => {
+            if (pickupResults.length > 0 && destinationResults.length > 0) {
+                const pickupLat = parseFloat(pickupResults[0].lat);
+                const pickupLng = parseFloat(pickupResults[0].lon);
+                const destLat = parseFloat(destinationResults[0].lat);
+                const destLng = parseFloat(destinationResults[0].lon);
+                
+                const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
+                let baseFare = calculateFareFromDistance(distance);
+                
+                const vehicleType = document.querySelector('.schedule-vehicle-option.selected')?.getAttribute('data-type') || 'car';
+                switch(vehicleType) {
+                    case 'car':
+                        baseFare = baseFare;
+                        break;
+                    case 'bike':
+                        baseFare = baseFare * 0.7;
+                        break;
+                }
+                
+                document.getElementById('scheduleFare').textContent = `K${baseFare.toFixed(2)}`;
+            }
+        });
+    } else {
+        document.getElementById('scheduleFare').textContent = 'K0.00';
+    }
+}
+
+// Enhanced error handling
+window.addEventListener('error', function(event) {
+    console.error('Global error:', event.error);
+    showNotification('An error occurred. Please refresh the page.', 'error');
+});
+
+// Performance monitoring
+if ('performance' in window) {
+    window.addEventListener('load', function() {
+        const perfData = window.performance.getEntriesByType('navigation')[0];
+        console.log('Page load performance:', {
+            dns: perfData.domainLookupEnd - perfData.domainLookupStart,
+            tcp: perfData.connectEnd - perfData.connectStart,
+            request: perfData.responseEnd - perfData.responseStart,
+            domLoad: perfData.domContentLoadedEventEnd - perfData.domContentLoadedEventStart,
+            total: perfData.loadEventEnd - perfData.loadEventStart
+        });
+    });
+}
+
+// Initialize the app when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM fully loaded, initializing app...");
+    initializeAuth();
+    initializeApp();
+    
+    // Show initial notification
+    setTimeout(() => {
+        if (appState.currentScreen === 'home') {
+            showNotification('Welcome to Jubel! Use the map to set your pickup location or type a destination.');
+        }
+    }, 1500);
+});
+
+// Add any missing global functions
+if (typeof window !== 'undefined') {
+    // Make essential functions available globally
+    window.requestRide = requestRide;
+    window.cancelRide = cancelRide;
+    window.contactDriver = contactDriver;
+    window.applyPromoCode = applyPromoCode;
+    window.shareReferralCode = shareReferralCode;
+    window.depositToWallet = depositToWallet;
+    window.withdrawFromWallet = withdrawFromWallet;
+    window.contactWhatsApp = contactWhatsApp;
+    window.contactPhone = contactPhone;
+    window.centerMap = centerMap;
+    window.setRating = setRating;
+    window.submitRating = submitRating;
+    window.triggerSOS = triggerSOS;
+    window.refreshPassengerPosition = refreshPassengerPosition;
+    window.switchScreen = switchScreen;
+    window.loadRideHistory = loadRideHistory;
+    window.loadAccountData = loadAccountData;
+    window.showRideDetailsPopup = showRideDetailsPopup;
+    window.closeRideDetailsPopup = closeRideDetailsPopup;
+    window.setManualPickupLocation = setManualPickupLocation;
+    window.searchNearbyFromMap = searchNearbyFromMap;
+    window.selectNearbyResult = selectNearbyResult;
+    window.searchCustomNearby = searchCustomNearby;
+    window.retrySearch = retrySearch;
+    window.toggleMoreOptions = toggleMoreOptions;
+    window.handleMoreOptionSelection = handleMoreOptionSelection;
+    window.cancelMoreOptionForm = cancelMoreOptionForm;
+    window.submitOrderForSomeone = submitOrderForSomeone;
+    window.submitExpressDelivery = submitExpressDelivery;
+    window.saveSOSConfig = saveSOSConfig;
+    window.submitScheduleRide = confirmScheduleRide;
+    window.closeSchedulePopup = closeSchedulePopup;
+    
+    // Add debug helper
+    window.debugState = function() {
+        console.log('Current App State:', {
+            user: appState.currentUser ? 'Logged in' : 'Not logged in',
+            ride: appState.currentRide ? `Active ride (${appState.currentRide.status})` : 'No active ride',
+            city: appState.currentCity,
+            wallet: `K${appState.walletBalance.toFixed(2)}`,
+            location: appState.userLocation ? `Lat: ${appState.userLocation.lat}, Lng: ${appState.userLocation.lng}` : 'No location',
+            screen: appState.currentScreen
+        });
+        return appState;
+    };
+}
+
+// Add CSS animation for the loading spinner
+const style = document.createElement('style');
+style.textContent = `
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+    border: 3px solid var(--light-gray);
+    border-top: 3px solid var(--primary-orange);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    animation: rotate 1s linear infinite;
+}
+
+.connection-status {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    background: var(--success-green);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    z-index: 2000;
+    display: none;
+}
+
+.connection-status.offline {
+    background: var(--error-red);
+}
+`;
+document.head.appendChild(style);
+
+// Add connection status indicator
+const connectionStatus = document.createElement('div');
+connectionStatus.className = 'connection-status';
+connectionStatus.textContent = 'Online';
+document.body.appendChild(connectionStatus);
+
+// Update connection status
+function updateConnectionStatus() {
+    if (navigator.onLine) {
+        connectionStatus.textContent = 'Online';
+        connectionStatus.classList.remove('offline');
+        connectionStatus.style.display = 'block';
+        setTimeout(() => {
+            connectionStatus.style.display = 'none';
+        }, 3000);
+    } else {
+        connectionStatus.textContent = 'Offline';
+        connectionStatus.classList.add('offline');
+        connectionStatus.style.display = 'block';
+    }
+}
+
+window.addEventListener('online', updateConnectionStatus);
+window.addEventListener('offline', updateConnectionStatus);
+
+// Initial connection status check
+updateConnectionStatus();
+
+console.log("Jubel Passenger App initialization complete!");
+ </script>
+</body>
+</html>
+
