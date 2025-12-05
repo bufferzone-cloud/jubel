@@ -2927,6 +2927,7 @@ let currentRideRequestData = null;
 let driverProfileImage = null;
 let driverVehicleImage = null;
 let activeRideRestored = false;
+let driverMessagesQueue = [];
 
 // Schedule ride variables
 let scheduledRides = [];
@@ -2974,8 +2975,8 @@ const cityBoundaries = {
 // Enhanced search cache for instant results
 let searchCache = new Map();
 let lastSearchTime = 0;
-const SEARCH_DEBOUNCE_TIME = 50; // 50ms for instant results
-const CACHE_DURATION = 300000; // 5 minutes cache duration
+const SEARCH_DEBOUNCE_TIME = 50;
+const CACHE_DURATION = 300000;
 
 // Zambian common places database for instant suggestions
 const zambianCommonPlaces = {
@@ -3098,7 +3099,6 @@ function loadScheduledRides(uid) {
                 
                 startScheduledRideChecker();
                 
-                // Update UI if on schedule screen
                 if (currentScreen === 'home') {
                     updateScheduledRidesUI();
                 }
@@ -3166,7 +3166,6 @@ function autoRequestScheduledRide(ride) {
         
         showNotification(`Scheduled ride to ${ride.destination} has been automatically requested.`);
         
-        // Remove from scheduled rides list
         scheduledRides = scheduledRides.filter(r => r.id !== ride.id);
         updateScheduledRidesUI();
     })
@@ -3198,7 +3197,6 @@ function updateScheduledRideCountdown(ride) {
     const hours = Math.floor(timeLeft / (1000 * 60 * 60));
     const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
     
-    // Update UI if needed
     const rideElement = document.querySelector(`[data-scheduled-ride-id="${ride.id}"]`);
     if (rideElement) {
         const countdownElement = rideElement.querySelector('.scheduled-countdown');
@@ -3217,7 +3215,6 @@ function updateScheduledRidesUI() {
     
     const scheduledSection = document.getElementById('scheduledRidesSection');
     if (!scheduledSection) {
-        // Create scheduled rides section if it doesn't exist
         const homeScreen = document.getElementById('homeScreenContent');
         const scheduledHTML = `
             <div id="scheduledRidesSection" style="margin-top: 15px; display: ${scheduledRides.length > 0 ? 'block' : 'none'}">
@@ -3302,7 +3299,6 @@ function updateScheduledRidesUI() {
             scheduledRidesList.appendChild(rideElement);
         });
         
-        // Add event listeners for cancel buttons
         document.querySelectorAll('.btn-cancel-schedule').forEach(btn => {
             btn.addEventListener('click', function() {
                 const rideId = this.getAttribute('data-ride-id');
@@ -3310,7 +3306,6 @@ function updateScheduledRidesUI() {
             });
         });
         
-        // Add event listeners for edit buttons
         document.querySelectorAll('.btn-edit-schedule').forEach(btn => {
             btn.addEventListener('click', function() {
                 const rideId = this.getAttribute('data-ride-id');
@@ -3327,16 +3322,13 @@ function cancelScheduledRide(rideId) {
             cancelledAt: firebase.database.ServerValue.TIMESTAMP
         })
         .then(() => {
-            // Clear timer
             if (scheduledRideTimers[rideId]) {
                 clearTimeout(scheduledRideTimers[rideId]);
                 delete scheduledRideTimers[rideId];
             }
             
-            // Remove from local array
             scheduledRides = scheduledRides.filter(ride => ride.id !== rideId);
             
-            // Update UI
             updateScheduledRidesUI();
             
             showNotification('Scheduled ride cancelled.');
@@ -3357,7 +3349,6 @@ function editScheduledRide(rideId) {
     
     openScheduleRidePopup();
     
-    // Pre-fill the form with ride data
     setTimeout(() => {
         const activeTab = ride.scheduleType || 'standard';
         document.querySelectorAll('.tab-btn').forEach(tab => {
@@ -3376,12 +3367,10 @@ function editScheduledRide(rideId) {
             activeForm.style.display = 'block';
         }
         
-        // Fill form fields based on schedule type
         if (activeTab === 'standard') {
             document.getElementById('schedulePickupLocation').value = ride.pickupDisplayLocation || '';
             document.getElementById('scheduleDestination').value = ride.destination || '';
             
-            // Set vehicle type
             document.querySelectorAll('#scheduleStandardForm .vehicle-option').forEach(option => {
                 option.classList.remove('selected');
                 if (option.getAttribute('data-type') === ride.rideType) {
@@ -3389,7 +3378,6 @@ function editScheduledRide(rideId) {
                 }
             });
             
-            // Set package details if any
             if (ride.packageDetails) {
                 document.getElementById('schedulePackageToggle').style.display = 'flex';
                 document.getElementById('schedulePackageForm').style.display = 'block';
@@ -3410,19 +3398,15 @@ function editScheduledRide(rideId) {
             document.getElementById('scheduleRecipientPhone').value = ride.orderForSomeone?.recipientPhone || '';
         }
         
-        // Set date and time
         const scheduledDate = new Date(ride.scheduledTime);
         document.getElementById('scheduleDate').value = scheduledDate.toISOString().split('T')[0];
         document.getElementById('scheduleTime').value = 
             `${scheduledDate.getHours().toString().padStart(2, '0')}:${scheduledDate.getMinutes().toString().padStart(2, '0')}`;
         
-        // Set payment method
         document.getElementById('schedulePaymentMethod').value = ride.paymentMethod || 'wallet';
         
-        // Calculate fare
         calculateScheduleFare();
         
-        // Update confirm button to say "Update"
         const confirmBtn = document.getElementById('confirmScheduleRideBtn');
         confirmBtn.innerHTML = '<i class="fas fa-save"></i> Update Scheduled Ride';
         confirmBtn.setAttribute('data-edit-ride-id', rideId);
@@ -3438,7 +3422,7 @@ function checkActiveRide(uid) {
             if (rides) {
                 for (const rideId in rides) {
                     const ride = rides[rideId];
-                    if (ride.status !== 'completed' && ride.status !== 'cancelled' && ride.status !== 'requested') {
+                    if (ride.status !== 'completed' && ride.status !== 'cancelled') {
                         restoreActiveRide(rideId, ride);
                         break;
                     }
@@ -3564,14 +3548,12 @@ function initializeMap() {
         attribution: '© OpenStreetMap contributors'
     }).addTo(popupRideMap);
     
-    // Add enhanced controls
     addEnhancedMapControls();
     
     refreshPassengerPosition();
 }
 
 function addEnhancedMapControls() {
-    // Schedule ride control
     const scheduleControl = L.control({position: 'topleft'});
     scheduleControl.onAdd = function(map) {
         const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
@@ -3581,7 +3563,6 @@ function addEnhancedMapControls() {
     };
     scheduleControl.addTo(passengerMap);
     
-    // Current location control
     const locationControl = L.control({position: 'topright'});
     locationControl.onAdd = function(map) {
         const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
@@ -3595,7 +3576,6 @@ function addEnhancedMapControls() {
 // ULTRA-FAST CITY DETECTION
 function determineCurrentCity(lat, lng) {
     return new Promise((resolve, reject) => {
-        // First check if we're within city boundaries
         const boundaryCity = checkCityBoundaries(lat, lng);
         if (boundaryCity) {
             currentCity = boundaryCity;
@@ -3604,7 +3584,6 @@ function determineCurrentCity(lat, lng) {
             return;
         }
         
-        // If not in boundaries, use reverse geocoding
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`)
             .then(response => {
                 if (!response.ok) {
@@ -3718,7 +3697,6 @@ function updateCityDisplay(cityName) {
             cityDisplay.style.color = "var(--success-green)";
             cityDisplay.style.fontWeight = "900";
             
-            // Show notification for city detection
             if (currentScreen === 'home') {
                 showNotification(`📍 You're in ${cityName}. Search results will be limited to this city for accuracy.`);
             }
@@ -3753,7 +3731,6 @@ function refreshPassengerPosition() {
             determineCurrentCity(lat, lng).then(city => {
                 console.log("Final detected city:", city);
                 
-                // Pre-fill pickup location with city-based address
                 if (city && city !== "Unknown") {
                     getAddressForDisplay(lat, lng).then(address => {
                         if (address) {
@@ -3762,7 +3739,6 @@ function refreshPassengerPosition() {
                     });
                 }
                 
-                // Clear search cache for new city
                 clearSearchCacheForNewCity(city);
             }).catch(error => {
                 console.error('City detection failed:', error);
@@ -3790,7 +3766,6 @@ function refreshPassengerPosition() {
 function clearSearchCacheForNewCity(newCity) {
     if (!newCity) return;
     
-    // Clear cache entries that don't match current city
     const newCache = new Map();
     for (const [key, value] of searchCache.entries()) {
         if (key.includes(newCity)) {
@@ -3802,20 +3777,18 @@ function clearSearchCacheForNewCity(newCity) {
 
 function getAddressForDisplay(lat, lng) {
     return new Promise((resolve, reject) => {
-        // First try to get a quick address from city data
         if (currentCity) {
-            // Return a simple address based on city
             const simpleAddress = `Near ${currentCity}, Zambia`;
             resolve(simpleAddress);
             return;
         }
         
-        // Fallback to detailed geocoding
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1&accept-language=en`)
             .then(response => response.json())
             .then(data => {
                 if (data && data.display_name) {
-                    resolve(data.display_name);
+                    const formattedAddress = formatAddressForPickup(data.display_name);
+                    resolve(formattedAddress);
                 } else {
                     resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
                 }
@@ -3825,6 +3798,29 @@ function getAddressForDisplay(lat, lng) {
                 resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
             });
     });
+}
+
+function formatAddressForPickup(fullAddress) {
+    if (!fullAddress) return '';
+    
+    const parts = fullAddress.split(',');
+    
+    if (parts.length >= 4) {
+        const houseNumberOrInfrastructure = parts[0].trim();
+        const road = parts[1] ? parts[1].trim() : '';
+        const area = parts[2] ? parts[2].trim() : '';
+        const city = parts[3] ? parts[3].trim() : '';
+        
+        const addressParts = [];
+        if (houseNumberOrInfrastructure) addressParts.push(houseNumberOrInfrastructure);
+        if (road) addressParts.push(road);
+        if (area) addressParts.push(area);
+        if (city) addressParts.push(city);
+        
+        return addressParts.join(', ');
+    }
+    
+    return fullAddress;
 }
 
 function handleGeolocationError(error) {
@@ -3869,7 +3865,6 @@ function updatePickupLocation(lat, lng) {
         document.getElementById('pickupLocation').value = address;
     });
     
-    // Make pickup location editable
     document.getElementById('pickupLocation').removeAttribute('readonly');
     
     addPickupLocationClearButton();
@@ -3923,11 +3918,9 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
     
     const suggestionsContainer = document.getElementById(`${searchType}Suggestions`);
     
-    // Show loading immediately
     suggestionsContainer.innerHTML = '<div class="search-loading"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
     suggestionsContainer.style.display = 'block';
     
-    // Debounce search
     const now = Date.now();
     if (now - lastSearchTime < SEARCH_DEBOUNCE_TIME) {
         setTimeout(() => searchPlacesEnhanced(query, searchType), SEARCH_DEBOUNCE_TIME);
@@ -3935,7 +3928,6 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
     }
     lastSearchTime = now;
     
-    // Check cache first
     const cacheKey = `${currentCity}_${query}_${searchType}`;
     if (searchCache.has(cacheKey)) {
         const cachedResult = searchCache.get(cacheKey);
@@ -3945,11 +3937,9 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
         }
     }
     
-    // Check for common places first (instant results)
     const commonPlaces = getCommonPlacesSuggestions(query);
     if (commonPlaces.length > 0) {
         displaySearchResults(commonPlaces, searchType);
-        // Also cache these results
         searchCache.set(cacheKey, {
             results: commonPlaces,
             timestamp: Date.now()
@@ -3957,11 +3947,9 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
         return;
     }
     
-    // Perform city-locked search
     performCityLockedSearch(query, searchType)
         .then(results => {
             if (results.length > 0) {
-                // Cache results
                 searchCache.set(cacheKey, {
                     results: results,
                     timestamp: Date.now()
@@ -3969,7 +3957,6 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
                 
                 displaySearchResults(results, searchType);
                 
-                // Auto-select first result if it's highly relevant
                 if (results[0].relevanceScore > 8 && results.length === 1) {
                     const inputField = getSearchInputField(searchType);
                     if (inputField && inputField.value === query) {
@@ -3996,12 +3983,10 @@ function getCommonPlacesSuggestions(query) {
     const queryLower = query.toLowerCase();
     const places = zambianCommonPlaces[currentCity];
     
-    // Exact matches first
     const exactMatches = places.filter(place => 
         place.toLowerCase().includes(queryLower)
     );
     
-    // Partial matches
     const partialMatches = places.filter(place => {
         const placeLower = place.toLowerCase();
         const queryWords = queryLower.split(' ');
@@ -4010,10 +3995,8 @@ function getCommonPlacesSuggestions(query) {
         );
     });
     
-    // Combine and deduplicate
     const allMatches = [...new Set([...exactMatches, ...partialMatches])];
     
-    // Convert to search result format
     return allMatches.map(place => {
         const result = {
             display_name: place,
@@ -4028,7 +4011,6 @@ function getCommonPlacesSuggestions(query) {
             distance: 0
         };
         
-        // Add distance calculation if we have user location
         if (userLocation) {
             result.distance = calculateDistance(
                 userLocation.lat, userLocation.lng,
@@ -4037,7 +4019,7 @@ function getCommonPlacesSuggestions(query) {
         }
         
         return result;
-    }).slice(0, 5); // Limit to 5 results
+    }).slice(0, 5);
 }
 
 function getSearchInputField(searchType) {
@@ -4060,7 +4042,6 @@ function getSearchInputField(searchType) {
 
 function performCityLockedSearch(query, searchType) {
     return new Promise((resolve, reject) => {
-        // If no city detected, perform country-wide search
         if (!currentCity || currentCity === "Unknown") {
             performUnifiedSearch(query)
                 .then(resolve)
@@ -4068,15 +4049,12 @@ function performCityLockedSearch(query, searchType) {
             return;
         }
         
-        // Build search query with city lock
         const cityBoundary = cityBoundaries[currentCity];
         let searchQuery = `${query}, ${currentCity}, Zambia`;
         
-        // Use bounded search for better accuracy
         const bbox = calculateCityBoundingBox(cityBoundary);
         const bboxStr = `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
         
-        // Show searching indicator
         const inputField = getSearchInputField(searchType);
         if (inputField) {
             inputField.parentElement.classList.add('searching');
@@ -4097,7 +4075,6 @@ function performCityLockedSearch(query, searchType) {
                 if (data && data.length > 0) {
                     const enhancedResults = data
                         .filter(place => {
-                            // Strict city boundary filtering
                             const distance = calculateDistance(
                                 parseFloat(place.lat), parseFloat(place.lon),
                                 cityBoundary.lat, cityBoundary.lng
@@ -4132,7 +4109,6 @@ function performCityLockedSearch(query, searchType) {
                     
                     resolve(enhancedResults);
                 } else {
-                    // Fallback to regular search
                     performUnifiedSearch(query)
                         .then(resolve)
                         .catch(reject);
@@ -4454,13 +4430,11 @@ function setupSearchInputListener(searchType, inputId, suggestionsId) {
         }
         
         if (query.length >= 2 && query !== lastQuery) {
-            // Add searching indicator
             this.parentElement.classList.add('searching');
             
             window.searchTimeout = setTimeout(() => {
                 lastQuery = query;
                 
-                // For all searches, enforce city lock if city is detected
                 if (currentCity) {
                     searchPlacesEnhanced(query, searchType);
                 } else {
@@ -4499,7 +4473,6 @@ function setupSearchInputListener(searchType, inputId, suggestionsId) {
         }
     });
     
-    // Handle click outside to close suggestions
     document.addEventListener('click', function(e) {
         if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
             hideSearchSuggestions(searchType);
@@ -4579,7 +4552,6 @@ function calculateRelevanceScore(place, query, city) {
         }
     }
     
-    // Bonus for common places
     if (place.type === 'common_place') {
         score += 3;
     }
@@ -4598,7 +4570,6 @@ function extractCityFromPlace(place) {
 function formatDisplayName(fullName, city) {
     if (!fullName) return 'Unknown Location';
     
-    // For common places, return the name as is
     if (fullName.type === 'common_place') {
         return fullName.name || fullName;
     }
@@ -4625,7 +4596,6 @@ function formatDisplayName(fullName, city) {
 function getShortAddress(fullAddress) {
     if (!fullAddress) return '';
     
-    // For common places, return empty
     if (fullAddress.type === 'common_place') {
         return '';
     }
@@ -4932,12 +4902,10 @@ function openScheduleRidePopup() {
         createScheduleRidePopup();
     }
     
-    // Reset edit mode
     const confirmBtn = document.getElementById('confirmScheduleRideBtn');
     confirmBtn.innerHTML = '<i class="fas fa-calendar-check"></i> Schedule Ride';
     confirmBtn.removeAttribute('data-edit-ride-id');
     
-    // Set current date and time
     const now = new Date();
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -4948,10 +4916,8 @@ function openScheduleRidePopup() {
     const timeString = `${(now.getHours() + 1).toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     document.getElementById('scheduleTime').value = timeString;
     
-    // Set pickup location from current pickup
     document.getElementById('schedulePickupLocation').value = document.getElementById('pickupLocation').value;
     
-    // Reset all forms
     document.querySelectorAll('.schedule-form').forEach(form => {
         form.style.display = 'none';
     });
@@ -4962,7 +4928,6 @@ function openScheduleRidePopup() {
     });
     document.querySelector('.tab-btn[data-tab="standard"]').classList.add('active');
     
-    // Reset vehicle selection
     document.querySelectorAll('#scheduleStandardForm .vehicle-option').forEach(option => {
         option.classList.remove('selected');
         if (option.getAttribute('data-type') === 'car') {
@@ -4970,11 +4935,9 @@ function openScheduleRidePopup() {
         }
     });
     
-    // Reset package form
     document.getElementById('schedulePackageForm').style.display = 'none';
     document.getElementById('schedulePackageToggle').style.display = 'none';
     
-    // Reset other form fields
     document.getElementById('scheduleDestination').value = '';
     document.getElementById('scheduleShopName').value = '';
     document.getElementById('scheduleShopLocation').value = '';
@@ -4989,10 +4952,8 @@ function openScheduleRidePopup() {
     document.getElementById('schedulePackageDescription').value = '';
     document.getElementById('scheduleSpecialInstructions').value = '';
     
-    // Set payment method
     document.getElementById('schedulePaymentMethod').value = 'wallet';
     
-    // Reset fare display
     document.getElementById('scheduleEstimatedFare').textContent = 'K0.00';
     document.getElementById('scheduleEtaDisplay').textContent = 'ETA: -- min';
     
@@ -5153,12 +5114,10 @@ function createScheduleRidePopup() {
     
     document.body.appendChild(schedulePopup);
     
-    // Add event listeners
     document.getElementById('closeSchedulePopup').addEventListener('click', closeSchedulePopup);
     document.getElementById('cancelScheduleBtn').addEventListener('click', closeSchedulePopup);
     document.getElementById('confirmScheduleRideBtn').addEventListener('click', confirmScheduleRide);
     
-    // Tab switching
     document.querySelectorAll('.tab-btn').forEach(tab => {
         tab.addEventListener('click', function() {
             document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
@@ -5171,7 +5130,6 @@ function createScheduleRidePopup() {
         });
     });
     
-    // Vehicle selection
     document.querySelectorAll('#scheduleStandardForm .vehicle-option').forEach(option => {
         option.addEventListener('click', function() {
             document.querySelectorAll('#scheduleStandardForm .vehicle-option').forEach(opt => {
@@ -5187,13 +5145,11 @@ function createScheduleRidePopup() {
         });
     });
     
-    // Package toggle
     document.getElementById('schedulePackageToggle').addEventListener('click', function() {
         const packageForm = document.getElementById('schedulePackageForm');
         packageForm.style.display = packageForm.style.display === 'none' ? 'block' : 'none';
     });
     
-    // Search input listeners
     const searchFields = [
         { id: 'schedulePickupLocation', type: 'schedulePickup' },
         { id: 'scheduleDestination', type: 'scheduleDestination' },
@@ -5221,12 +5177,10 @@ function createScheduleRidePopup() {
         }
     });
     
-    // Date and time change listeners
     document.getElementById('scheduleDate').addEventListener('change', calculateScheduleFare);
     document.getElementById('scheduleTime').addEventListener('change', calculateScheduleFare);
     document.getElementById('schedulePaymentMethod').addEventListener('change', calculateScheduleFare);
     
-    // Additional form field listeners for fare calculation
     document.getElementById('scheduleShopName').addEventListener('input', calculateScheduleFare);
     document.getElementById('scheduleDeliveryItems').addEventListener('input', calculateScheduleFare);
     document.getElementById('scheduleRecipientName').addEventListener('input', calculateScheduleFare);
@@ -5281,11 +5235,9 @@ function calculateScheduleFare() {
                         case 'bicycle': baseFare *= 0.5; break;
                     }
                 } else if (activeTab === 'delivery') {
-                    // Delivery typically uses bikes
                     baseFare *= 0.7;
                 }
                 
-                // Apply premium for scheduled rides (10% extra for convenience)
                 baseFare *= 1.1;
                 
                 document.getElementById('scheduleEstimatedFare').textContent = `K${baseFare.toFixed(2)}`;
@@ -5297,7 +5249,6 @@ function calculateScheduleFare() {
             }
         }).then(result => {
             if (result) {
-                // Update map if needed
                 updateScheduleMapPreview(result.pickupResults[0], result.destResults[0]);
             }
         });
@@ -5308,8 +5259,6 @@ function calculateScheduleFare() {
 }
 
 function updateScheduleMapPreview(pickupResult, destResult) {
-    // This function could update a small map preview in the schedule popup
-    // For now, we'll just log the coordinates
     console.log('Schedule preview:', {
         pickup: { lat: pickupResult.lat, lng: pickupResult.lon, name: pickupResult.display_name },
         destination: { lat: destResult.lat, lng: destResult.lon, name: destResult.display_name }
@@ -5336,7 +5285,6 @@ function confirmScheduleRide() {
         return;
     }
     
-    // Validate minimum time (at least 30 minutes from now)
     const minTime = new Date(Date.now() + 30 * 60 * 1000);
     if (scheduledDateTime < minTime) {
         showNotification('Please schedule at least 30 minutes in advance.');
@@ -5366,7 +5314,6 @@ function confirmScheduleRide() {
         }
     }).then(completeRideData => {
         if (isEditMode && editRideId) {
-            // Update existing scheduled ride
             completeRideData.id = editRideId;
             
             database.ref('scheduledRides/' + editRideId).update(completeRideData)
@@ -5374,13 +5321,11 @@ function confirmScheduleRide() {
                     showNotification('Scheduled ride updated successfully!');
                     closeSchedulePopup();
                     
-                    // Update local array
                     const index = scheduledRides.findIndex(r => r.id === editRideId);
                     if (index !== -1) {
                         scheduledRides[index] = completeRideData;
                     }
                     
-                    // Reschedule timer
                     if (scheduledRideTimers[editRideId]) {
                         clearTimeout(scheduledRideTimers[editRideId]);
                         delete scheduledRideTimers[editRideId];
@@ -5394,7 +5339,6 @@ function confirmScheduleRide() {
                     showNotification('Error updating scheduled ride. Please try again.');
                 });
         } else {
-            // Create new scheduled ride
             const scheduleId = database.ref().child('scheduledRides').push().key;
             completeRideData.id = scheduleId;
             
@@ -5411,7 +5355,7 @@ function confirmScheduleRide() {
                 })
                 .catch(error => {
                     console.error('Error scheduling ride:', error);
-                    showNotification('Error scheduling ride. Please try again.');
+                    showNotification('Error scheduling ride. Please check locations and try again.');
                 });
         }
     }).catch(error => {
@@ -5451,7 +5395,6 @@ async function getStandardScheduleData(baseData) {
         case 'bicycle': fare *= 0.5; break;
     }
     
-    // Apply scheduled ride premium
     fare *= 1.1;
     
     const rideData = {
@@ -5509,7 +5452,6 @@ async function getDeliveryScheduleData(baseData) {
     const distance = calculateDistance(shopLat, shopLng, destLat, destLng);
     let fare = 23 + Math.ceil(distance / 90);
     
-    // Delivery typically uses bikes and has premium
     fare = fare * 0.7 * 1.1;
     
     return {
@@ -5559,7 +5501,6 @@ async function getSomeoneElseScheduleData(baseData) {
     const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
     let fare = 23 + Math.ceil(distance / 90);
     
-    // Apply scheduled ride premium
     fare *= 1.1;
     
     return {
@@ -5702,7 +5643,8 @@ function getFullAddress(lat, lng) {
             })
             .then(data => {
                 if (data && data.display_name) {
-                    resolve(data.display_name);
+                    const formattedAddress = formatAddressForPickup(data.display_name);
+                    resolve(formattedAddress);
                 } else {
                     resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
                 }
@@ -6086,13 +6028,25 @@ function updateDriverAvatarWithImage(driver, ride) {
     if (ride.driverProfileImage) {
         driverProfileImage = ride.driverProfileImage;
         driverAvatar.innerHTML = `<img src="${driverProfileImage}" class="driver-profile-image" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+        driverAvatar.style.width = '50px';
+        driverAvatar.style.height = '50px';
+        driverAvatar.style.fontSize = '1.2rem';
     } else if (driver.images && driver.images.profilePhoto) {
         driverProfileImage = driver.images.profilePhoto;
         driverAvatar.innerHTML = `<img src="${driverProfileImage}" class="driver-profile-image" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+        driverAvatar.style.width = '50px';
+        driverAvatar.style.height = '50px';
+        driverAvatar.style.fontSize = '1.2rem';
     } else if (driver.name) {
         driverAvatar.innerHTML = driver.name.charAt(0).toUpperCase();
+        driverAvatar.style.width = '50px';
+        driverAvatar.style.height = '50px';
+        driverAvatar.style.fontSize = '1.5rem';
     } else {
         driverAvatar.innerHTML = '<i class="fas fa-user"></i>';
+        driverAvatar.style.width = '50px';
+        driverAvatar.style.height = '50px';
+        driverAvatar.style.fontSize = '1.2rem';
     }
 }
 
@@ -6210,9 +6164,14 @@ function startDriverMessageListener(rideId) {
         const message = snapshot.val();
         
         if (message.senderId !== currentUser.uid) {
-            if (chatPopupClosedByUser && !isChatPopupOpen()) {
-                openChatWithDriver(rideId, { name: 'Driver' });
-                showNotification('New message from driver');
+            driverMessagesQueue.push({
+                rideId: rideId,
+                message: message,
+                timestamp: message.timestamp
+            });
+            
+            if (!isChatPopupOpen()) {
+                showDriverMessageNotification(message);
             }
             
             if (isChatPopupOpen() && currentChatRideId === rideId) {
@@ -6222,6 +6181,68 @@ function startDriverMessageListener(rideId) {
             }
         }
     });
+}
+
+function showDriverMessageNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'notification driver-message-notification';
+    notification.style.cssText = `
+        position: fixed;
+        top: 60px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--primary-gradient);
+        color: var(--white);
+        padding: 12px 16px;
+        border-radius: var(--element-radius);
+        box-shadow: var(--shadow-heavy);
+        z-index: 1000;
+        max-width: 80%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        animation: slideIn 0.3s ease;
+    `;
+    
+    notification.innerHTML = `
+        <div style="font-size: 1.2rem;">
+            <i class="fas fa-comment-alt"></i>
+        </div>
+        <div>
+            <div style="font-weight: 700; font-size: 0.8rem;">New message from driver</div>
+            <div style="font-size: 0.75rem; opacity: 0.9;">${message.message.substring(0, 50)}${message.message.length > 50 ? '...' : ''}</div>
+        </div>
+        <div style="margin-left: auto; font-size: 1.2rem;">
+            <i class="fas fa-times"></i>
+        </div>
+    `;
+    
+    notification.querySelector('.fa-times').addEventListener('click', function(e) {
+        e.stopPropagation();
+        notification.remove();
+    });
+    
+    notification.addEventListener('click', function() {
+        if (currentRide) {
+            database.ref('users/' + currentRide.driverId).once('value')
+                .then(driverSnapshot => {
+                    const driver = driverSnapshot.val();
+                    if (driver) {
+                        openChatWithDriver(rideId, driver);
+                        notification.remove();
+                    }
+                });
+        }
+    });
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.remove();
+        }
+    }, 5000);
 }
 
 function isChatPopupOpen() {
@@ -6269,7 +6290,7 @@ function createChatPopup() {
             </div>
             <div class="chat-driver-info" style="padding: 10px; border-bottom: 1px solid var(--border-color); background: var(--light-orange);">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 30px; height: 30px; font-size: 0.8rem; background: var(--primary-orange); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;"></div>
+                    <div class="driver-avatar" id="chatDriverAvatar" style="width: 40px; height: 40px; font-size: 1.2rem; background: var(--primary-orange); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white;"></div>
                     <div>
                         <div style="font-weight: 600; font-size: 0.9rem;" id="chatDriverName">Driver</div>
                         <div style="font-size: 0.7rem; color: var(--medium-gray);" id="chatDriverRating">4.5 ★</div>
@@ -7089,7 +7110,6 @@ function showRideDetailsPopup(rideId) {
                     document.getElementById('popupDriverDetails').classList.add('hidden');
                 }
                 
-                // Load chat history
                 loadPopupChatHistory(rideId);
                 
                 document.getElementById('rideDetailsPopup').classList.remove('hidden');
@@ -7112,7 +7132,6 @@ function updatePopupRideMap(ride) {
         attribution: '© OpenStreetMap contributors'
     }).addTo(popupRideMap);
     
-    // Add pickup marker
     L.marker([ride.pickupLat, ride.pickupLng], {
         icon: L.divIcon({
             className: 'pickup-marker',
@@ -7122,7 +7141,6 @@ function updatePopupRideMap(ride) {
     }).addTo(popupRideMap)
         .bindPopup(`<strong>Pickup:</strong> ${ride.pickupDisplayLocation || ride.pickupLocation}`);
     
-    // Add destination marker
     L.marker([ride.destLat, ride.destLng], {
         icon: L.divIcon({
             className: 'destination-marker',
@@ -7132,7 +7150,6 @@ function updatePopupRideMap(ride) {
     }).addTo(popupRideMap)
         .bindPopup(`<strong>Destination:</strong> ${ride.destination}`);
     
-    // Draw route
     fetch(`https://router.project-osrm.org/route/v1/driving/${ride.pickupLng},${ride.pickupLat};${ride.destLng},${ride.destLat}?overview=full&geometries=geojson`)
         .then(response => response.json())
         .then(data => {
@@ -7327,7 +7344,7 @@ function showNotification(message) {
     notification.textContent = message;
     notification.style.display = 'block';
     notification.style.animation = 'none';
-    notification.offsetHeight; // Trigger reflow
+    notification.offsetHeight;
     notification.style.animation = 'slideUp 0.3s ease, fadeOut 0.3s ease 3.7s';
     
     setTimeout(() => {
@@ -7404,7 +7421,6 @@ function refreshHomeScreen() {
     document.getElementById('rideRequestForm').style.display = 'flex';
     document.getElementById('rideInfoPanel').style.display = 'none';
     
-    // Update scheduled rides UI
     updateScheduledRidesUI();
     
     homeScreenRefreshRequired = false;
@@ -7993,7 +8009,6 @@ function setupEventListeners() {
             hideAllSearchSuggestions();
         }
         
-        // Close more options dropdown when clicking outside
         if (!e.target.closest('.more-options-btn') && !e.target.closest('.more-options-dropdown')) {
             document.getElementById('moreOptionsDropdown').classList.remove('active');
         }
@@ -8054,7 +8069,6 @@ function setupEventListeners() {
     
     document.getElementById('scheduleRideBtn').addEventListener('click', openScheduleRidePopup);
     
-    // Add CSS for notification animations
     const style = document.createElement('style');
     style.textContent = `
         @keyframes slideUp {
@@ -8064,6 +8078,15 @@ function setupEventListeners() {
         @keyframes fadeOut {
             from { opacity: 1; }
             to { opacity: 0; }
+        }
+        @keyframes slideIn {
+            from { transform: translate(-50%, -20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .driver-avatar {
+            width: 50px !important;
+            height: 50px !important;
+            font-size: 1.2rem !important;
         }
     `;
     document.head.appendChild(style);
@@ -8086,7 +8109,6 @@ function hideAllSearchSuggestions() {
 function initializeApp() {
     console.log("Jubel Passenger App Initialized with Enhanced Features");
     
-    // Add CSS for enhanced animations
     const enhancedStyles = `
         @keyframes pulse {
             0% { transform: scale(1); }
@@ -8115,6 +8137,19 @@ function initializeApp() {
         .searching .search-indicator {
             animation: pulse 1s infinite;
         }
+        
+        .driver-avatar {
+            width: 50px !important;
+            height: 50px !important;
+            font-size: 1.2rem !important;
+        }
+        
+        .driver-profile-image {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+        }
     `;
     
     const styleSheet = document.createElement("style");
@@ -8122,7 +8157,6 @@ function initializeApp() {
     styleSheet.innerText = enhancedStyles;
     document.head.appendChild(styleSheet);
     
-    // Periodic city detection updates
     setInterval(() => {
         if (userLocation && currentScreen === 'home') {
             determineCurrentCity(userLocation.lat, userLocation.lng)
@@ -8135,20 +8169,17 @@ function initializeApp() {
         }
     }, 60000);
     
-    // Handle app visibility changes
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden && currentScreen === 'home') {
             setTimeout(refreshHomeScreen, 1000);
         }
     });
     
-    // Handle page load completion
     window.addEventListener('load', function() {
         console.log("Jubel Passenger App fully loaded with enhanced city detection and search");
         showNotification('🚗 Jubel Passenger App Ready! City-locked search enabled for accurate results.');
     });
     
-    // Handle offline/online status
     window.addEventListener('online', function() {
         showNotification('Connection restored.');
         if (currentScreen === 'home') {
@@ -8160,15 +8191,12 @@ function initializeApp() {
         showNotification('You are currently offline. Some features may not work.');
     });
     
-    // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
-        // Ctrl/Cmd + S to schedule ride
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             openScheduleRidePopup();
         }
         
-        // Escape to close popups
         if (e.key === 'Escape') {
             if (!document.getElementById('paymentSelectionPopup').classList.contains('hidden')) {
                 closePaymentSelection();
@@ -8185,12 +8213,10 @@ function initializeApp() {
         }
     });
     
-    // Initialize tooltips
     initializeTooltips();
 }
 
 function initializeTooltips() {
-    // Add tooltips to important elements
     const tooltipElements = [
         { selector: '#scheduleRideBtn', text: 'Schedule rides for later' },
         { selector: '#moreOptionsBtn', text: 'More ride options' },
@@ -8211,4 +8237,5 @@ setupEventListeners();
     </script>
 </body>
 </html>
+
 
