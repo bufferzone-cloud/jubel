@@ -2852,7 +2852,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     
     <script>
-// Enhanced JavaScript with advanced features - Total lines: ~6800
+// Enhanced JavaScript with advanced features - Total lines: ~8500
 
 // Firebase configuration
 const firebaseConfig = {
@@ -2977,6 +2977,44 @@ let lastSearchTime = 0;
 const SEARCH_DEBOUNCE_TIME = 50; // 50ms for instant results
 const CACHE_DURATION = 300000; // 5 minutes cache duration
 
+// Zambian common places database for instant suggestions
+const zambianCommonPlaces = {
+    'Lusaka': [
+        'Manda Hill Shopping Mall', 'East Park Mall', 'Arcades Shopping Mall', 'Levy Mall',
+        'Kamwala Market', 'Soweto Market', 'City Market', 'Lusaka City Council',
+        'University of Zambia', 'Lusaka Apex Medical University', 'Levy Mwanawasa Hospital',
+        'University Teaching Hospital', 'Kenneth Kaunda Airport', 'Lusaka National Museum',
+        'State House', 'National Assembly', 'Mulungushi Conference Centre',
+        'Zambia National Broadcasting Corporation', 'Taj Pamodzi Hotel', 'Protea Hotel',
+        'Radisson Blu Hotel', 'Cresta Golfview Hotel', 'Lusaka Playhouse', 'Nakatindi Hall'
+    ],
+    'Kitwe': [
+        'Mukuba Mall', 'Kitwe City Mall', 'Nkana Mall', 'Chimwemwe Shopping Centre',
+        'Kitwe Main Market', 'Wusakile Market', 'Kitwe Teaching Hospital', 'Nkana Mine',
+        'Mopani Copper Mines', 'Copperbelt University', 'David Kaunda Stadium',
+        'Arthur Davies Stadium', 'Kitwe Golf Club', 'Nkana Golf Club', 'Kitwe Museum',
+        'Nkana Mine Club', 'Savoy Hotel', 'Mukuba Hotel', 'Protea Hotel Kitwe'
+    ],
+    'Ndola': [
+        'Mukuba Mall Ndola', 'Northrise Mall', 'Shoprite Ndola', 'Masala Market',
+        'Ndola Main Market', 'Itawa Market', 'Ndola Teaching Hospital', 'Lewanika Hospital',
+        'Simon Mwansa Kapwepwe Airport', 'Indeni Oil Refinery', 'Ndola Golf Club',
+        'Dag Hammarskjöld Crash Site Memorial', 'Masala Stadium', 'Levy Mwanawasa Stadium',
+        'Savoy Hotel Ndola', 'Mikomfwa Hotel', 'Protea Hotel Ndola'
+    ],
+    'Kabwe': [
+        'Mukobeko Mall', 'Kabwe Main Market', 'Kabwe Central Hospital', 'Broken Hill Mine',
+        'Big Tree National Monument', 'Kabwe Golf Club', 'Kabwe Stadium',
+        'Kabwe Museum', 'Mulungushi University', 'Nkrumah University', 'Railways Football Club'
+    ],
+    'Livingstone': [
+        'Victoria Falls', 'Mosi-oa-Tunya National Park', 'Livingstone Museum',
+        'Maramba Market', 'Dambwa Market', 'Livingstone Central Hospital',
+        'Harry Mwanga Nkumbula Airport', 'Zambezi Sun Hotel', 'Royal Livingstone Hotel',
+        'Avani Victoria Falls Resort', 'David Livingstone Safari Lodge', 'Toka Leya Camp'
+    ]
+};
+
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
     initializeAuth();
@@ -3031,6 +3069,7 @@ function loadUserData(uid) {
                 loadScheduledRides(uid);
                 
                 showNotification('Welcome back to Jubel!');
+                initializeApp();
             } else {
                 showNotification('User data not found. Please sign up again.');
                 setTimeout(() => {
@@ -3058,6 +3097,11 @@ function loadScheduledRides(uid) {
                 });
                 
                 startScheduledRideChecker();
+                
+                // Update UI if on schedule screen
+                if (currentScreen === 'home') {
+                    updateScheduledRidesUI();
+                }
             }
         })
         .catch(error => {
@@ -3121,6 +3165,10 @@ function autoRequestScheduledRide(ride) {
         submitRideRequest();
         
         showNotification(`Scheduled ride to ${ride.destination} has been automatically requested.`);
+        
+        // Remove from scheduled rides list
+        scheduledRides = scheduledRides.filter(r => r.id !== ride.id);
+        updateScheduledRidesUI();
     })
     .catch(error => {
         console.error('Error auto-requesting scheduled ride:', error);
@@ -3162,6 +3210,225 @@ function updateScheduledRideCountdown(ride) {
             }
         }
     }
+}
+
+function updateScheduledRidesUI() {
+    if (currentScreen !== 'home') return;
+    
+    const scheduledSection = document.getElementById('scheduledRidesSection');
+    if (!scheduledSection) {
+        // Create scheduled rides section if it doesn't exist
+        const homeScreen = document.getElementById('homeScreenContent');
+        const scheduledHTML = `
+            <div id="scheduledRidesSection" style="margin-top: 15px; display: ${scheduledRides.length > 0 ? 'block' : 'none'}">
+                <h4 class="section-title" style="font-size: 0.9rem; margin-bottom: 10px;">
+                    <i class="fas fa-clock"></i> Upcoming Scheduled Rides
+                </h4>
+                <div id="scheduledRidesList"></div>
+            </div>
+        `;
+        
+        const rideRequestForm = document.getElementById('rideRequestForm');
+        if (rideRequestForm) {
+            rideRequestForm.insertAdjacentHTML('beforebegin', scheduledHTML);
+        }
+    }
+    
+    const scheduledRidesList = document.getElementById('scheduledRidesList');
+    if (scheduledRidesList) {
+        if (scheduledRides.length === 0) {
+            document.getElementById('scheduledRidesSection').style.display = 'none';
+            return;
+        }
+        
+        document.getElementById('scheduledRidesSection').style.display = 'block';
+        scheduledRidesList.innerHTML = '';
+        
+        scheduledRides.forEach(ride => {
+            const scheduledTime = new Date(ride.scheduledTime);
+            const timeLeft = ride.scheduledTime - Date.now();
+            const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+            const minutesLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            
+            const rideElement = document.createElement('div');
+            rideElement.className = 'scheduled-ride-item';
+            rideElement.setAttribute('data-scheduled-ride-id', ride.id);
+            rideElement.innerHTML = `
+                <div class="scheduled-ride-header">
+                    <div class="scheduled-ride-type">
+                        ${ride.scheduleType === 'delivery' ? 'Delivery' : 
+                          ride.scheduleType === 'someone-else' ? 'For Someone' : 'Ride'}
+                    </div>
+                    <div class="scheduled-ride-fare">K${ride.fare ? ride.fare.toFixed(2) : '0.00'}</div>
+                </div>
+                <div class="history-locations" style="margin: 8px 0;">
+                    <div class="history-location">
+                        <div class="history-location-icon pickup">
+                            <i class="fas fa-map-marker-alt"></i>
+                        </div>
+                        <div style="font-size: 0.75rem;">
+                            ${ride.pickupDisplayLocation || ride.pickupLocation}
+                        </div>
+                    </div>
+                    <div class="history-location">
+                        <div class="history-location-icon destination">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <div style="font-size: 0.75rem;">
+                            ${ride.destination}
+                        </div>
+                    </div>
+                </div>
+                <div class="scheduled-countdown">
+                    <i class="fas fa-calendar-alt"></i> 
+                    ${scheduledTime.toLocaleDateString()} at ${scheduledTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                    <br>
+                    <span style="color: var(--primary-orange); font-weight: 700;">
+                        ${hoursLeft > 0 ? `${hoursLeft}h ${minutesLeft}m` : `${minutesLeft}m`} until auto-request
+                    </span>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                    <button class="btn-cancel-schedule" data-ride-id="${ride.id}" 
+                            style="flex: 1; padding: 6px; background: var(--light-gray); border: 1px solid var(--border-color); border-radius: var(--element-radius); cursor: pointer; font-size: 0.7rem;">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                    <button class="btn-edit-schedule" data-ride-id="${ride.id}"
+                            style="flex: 1; padding: 6px; background: var(--primary-orange); color: white; border: none; border-radius: var(--element-radius); cursor: pointer; font-size: 0.7rem;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                </div>
+            `;
+            
+            scheduledRidesList.appendChild(rideElement);
+        });
+        
+        // Add event listeners for cancel buttons
+        document.querySelectorAll('.btn-cancel-schedule').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const rideId = this.getAttribute('data-ride-id');
+                cancelScheduledRide(rideId);
+            });
+        });
+        
+        // Add event listeners for edit buttons
+        document.querySelectorAll('.btn-edit-schedule').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const rideId = this.getAttribute('data-ride-id');
+                editScheduledRide(rideId);
+            });
+        });
+    }
+}
+
+function cancelScheduledRide(rideId) {
+    if (confirm('Are you sure you want to cancel this scheduled ride?')) {
+        database.ref('scheduledRides/' + rideId).update({
+            status: 'cancelled',
+            cancelledAt: firebase.database.ServerValue.TIMESTAMP
+        })
+        .then(() => {
+            // Clear timer
+            if (scheduledRideTimers[rideId]) {
+                clearTimeout(scheduledRideTimers[rideId]);
+                delete scheduledRideTimers[rideId];
+            }
+            
+            // Remove from local array
+            scheduledRides = scheduledRides.filter(ride => ride.id !== rideId);
+            
+            // Update UI
+            updateScheduledRidesUI();
+            
+            showNotification('Scheduled ride cancelled.');
+        })
+        .catch(error => {
+            console.error('Error cancelling scheduled ride:', error);
+            showNotification('Error cancelling scheduled ride.');
+        });
+    }
+}
+
+function editScheduledRide(rideId) {
+    const ride = scheduledRides.find(r => r.id === rideId);
+    if (!ride) {
+        showNotification('Scheduled ride not found.');
+        return;
+    }
+    
+    openScheduleRidePopup();
+    
+    // Pre-fill the form with ride data
+    setTimeout(() => {
+        const activeTab = ride.scheduleType || 'standard';
+        document.querySelectorAll('.tab-btn').forEach(tab => {
+            tab.classList.remove('active');
+            if (tab.getAttribute('data-tab') === activeTab) {
+                tab.classList.add('active');
+            }
+        });
+        
+        document.querySelectorAll('.schedule-form').forEach(form => {
+            form.style.display = 'none';
+        });
+        
+        const activeForm = document.getElementById(`schedule${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}Form`);
+        if (activeForm) {
+            activeForm.style.display = 'block';
+        }
+        
+        // Fill form fields based on schedule type
+        if (activeTab === 'standard') {
+            document.getElementById('schedulePickupLocation').value = ride.pickupDisplayLocation || '';
+            document.getElementById('scheduleDestination').value = ride.destination || '';
+            
+            // Set vehicle type
+            document.querySelectorAll('#scheduleStandardForm .vehicle-option').forEach(option => {
+                option.classList.remove('selected');
+                if (option.getAttribute('data-type') === ride.rideType) {
+                    option.classList.add('selected');
+                }
+            });
+            
+            // Set package details if any
+            if (ride.packageDetails) {
+                document.getElementById('schedulePackageToggle').style.display = 'flex';
+                document.getElementById('schedulePackageForm').style.display = 'block';
+                document.getElementById('scheduleReceiverName').value = ride.packageDetails.receiverName || '';
+                document.getElementById('scheduleReceiverPhone').value = ride.packageDetails.receiverPhone || '';
+                document.getElementById('schedulePackageDescription').value = ride.packageDetails.packageDescription || '';
+                document.getElementById('scheduleSpecialInstructions').value = ride.packageDetails.specialInstructions || '';
+            }
+        } else if (activeTab === 'delivery') {
+            document.getElementById('scheduleShopName').value = ride.expressDelivery?.shopName || '';
+            document.getElementById('scheduleShopLocation').value = ride.pickupDisplayLocation || '';
+            document.getElementById('scheduleDeliveryItems').value = ride.expressDelivery?.items || '';
+            document.getElementById('scheduleDeliveryDestination').value = ride.destination || '';
+        } else if (activeTab === 'someone-else') {
+            document.getElementById('scheduleRecipientPickup').value = ride.pickupDisplayLocation || '';
+            document.getElementById('scheduleRecipientDestination').value = ride.destination || '';
+            document.getElementById('scheduleRecipientName').value = ride.orderForSomeone?.recipientName || '';
+            document.getElementById('scheduleRecipientPhone').value = ride.orderForSomeone?.recipientPhone || '';
+        }
+        
+        // Set date and time
+        const scheduledDate = new Date(ride.scheduledTime);
+        document.getElementById('scheduleDate').value = scheduledDate.toISOString().split('T')[0];
+        document.getElementById('scheduleTime').value = 
+            `${scheduledDate.getHours().toString().padStart(2, '0')}:${scheduledDate.getMinutes().toString().padStart(2, '0')}`;
+        
+        // Set payment method
+        document.getElementById('schedulePaymentMethod').value = ride.paymentMethod || 'wallet';
+        
+        // Calculate fare
+        calculateScheduleFare();
+        
+        // Update confirm button to say "Update"
+        const confirmBtn = document.getElementById('confirmScheduleRideBtn');
+        confirmBtn.innerHTML = '<i class="fas fa-save"></i> Update Scheduled Ride';
+        confirmBtn.setAttribute('data-edit-ride-id', rideId);
+        
+        showNotification('Editing scheduled ride. Make your changes and click Update.');
+    }, 100);
 }
 
 function checkActiveRide(uid) {
@@ -3272,7 +3539,6 @@ function setupWalletBalanceListener(uid) {
         if (newBalance !== walletBalance) {
             walletBalance = newBalance;
             updateWalletBalanceUI();
-            showNotification(`Wallet balance updated: K${walletBalance.toFixed(2)}`);
         }
     }, error => {
         console.error('Error listening to wallet balance:', error);
@@ -3314,10 +3580,22 @@ function addEnhancedMapControls() {
         return div;
     };
     scheduleControl.addTo(passengerMap);
+    
+    // Current location control
+    const locationControl = L.control({position: 'topright'});
+    locationControl.onAdd = function(map) {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+        div.innerHTML = '<button style="background: var(--info-blue); color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; font-size: 1.2rem;" title="Center on My Location"><i class="fas fa-crosshairs"></i></button>';
+        div.onclick = centerMap;
+        return div;
+    };
+    locationControl.addTo(passengerMap);
 }
 
+// ULTRA-FAST CITY DETECTION
 function determineCurrentCity(lat, lng) {
     return new Promise((resolve, reject) => {
+        // First check if we're within city boundaries
         const boundaryCity = checkCityBoundaries(lat, lng);
         if (boundaryCity) {
             currentCity = boundaryCity;
@@ -3326,6 +3604,7 @@ function determineCurrentCity(lat, lng) {
             return;
         }
         
+        // If not in boundaries, use reverse geocoding
         fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`)
             .then(response => {
                 if (!response.ok) {
@@ -3437,6 +3716,12 @@ function updateCityDisplay(cityName) {
         cityDisplay.textContent = cityName;
         if (cityName !== "Detecting..." && cityName !== "Unknown") {
             cityDisplay.style.color = "var(--success-green)";
+            cityDisplay.style.fontWeight = "900";
+            
+            // Show notification for city detection
+            if (currentScreen === 'home') {
+                showNotification(`📍 You're in ${cityName}. Search results will be limited to this city for accuracy.`);
+            }
         }
     }
 }
@@ -3465,15 +3750,10 @@ function refreshPassengerPosition() {
             
             updatePickupLocation(lat, lng);
             
-            showNotification('Detecting your location...');
-            
             determineCurrentCity(lat, lng).then(city => {
                 console.log("Final detected city:", city);
-                if (currentScreen === 'home') {
-                    showNotification(`Location detected in ${city}`);
-                }
                 
-                // Set pickup location based on detected city
+                // Pre-fill pickup location with city-based address
                 if (city && city !== "Unknown") {
                     getAddressForDisplay(lat, lng).then(address => {
                         if (address) {
@@ -3481,21 +3761,18 @@ function refreshPassengerPosition() {
                         }
                     });
                 }
+                
+                // Clear search cache for new city
+                clearSearchCacheForNewCity(city);
             }).catch(error => {
                 console.error('City detection failed:', error);
                 currentCity = null;
-                if (currentScreen === 'home') {
-                    showNotification('Unable to detect city. Using country-wide search.');
-                }
             });
             
             if (!locationWatchId) {
                 startLocationTracking();
             }
             
-            if (currentScreen === 'home') {
-                showNotification('Location refreshed');
-            }
         }, error => {
             console.error('Geolocation error:', error);
             handleGeolocationError(error);
@@ -3510,19 +3787,41 @@ function refreshPassengerPosition() {
     }
 }
 
+function clearSearchCacheForNewCity(newCity) {
+    if (!newCity) return;
+    
+    // Clear cache entries that don't match current city
+    const newCache = new Map();
+    for (const [key, value] of searchCache.entries()) {
+        if (key.includes(newCity)) {
+            newCache.set(key, value);
+        }
+    }
+    searchCache = newCache;
+}
+
 function getAddressForDisplay(lat, lng) {
-    return new Promise((resolve) => {
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`)
+    return new Promise((resolve, reject) => {
+        // First try to get a quick address from city data
+        if (currentCity) {
+            // Return a simple address based on city
+            const simpleAddress = `Near ${currentCity}, Zambia`;
+            resolve(simpleAddress);
+            return;
+        }
+        
+        // Fallback to detailed geocoding
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&addressdetails=1&accept-language=en`)
             .then(response => response.json())
             .then(data => {
-                if (data && data.address) {
-                    const address = buildPreciseAddress(data.address);
-                    resolve(address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                if (data && data.display_name) {
+                    resolve(data.display_name);
                 } else {
                     resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
                 }
             })
-            .catch(() => {
+            .catch(error => {
+                console.error('Full address geocoding error:', error);
                 resolve(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
             });
     });
@@ -3615,51 +3914,7 @@ function addPickupLocationClearButton() {
     parent.appendChild(clearBtn);
 }
 
-function buildPreciseAddress(address) {
-    const addressParts = [];
-    
-    if (address.house_number || address.housenumber) {
-        addressParts.push(address.house_number || address.housenumber);
-    }
-    
-    if (address.building) {
-        addressParts.push(address.building);
-    } else if (address.amenity) {
-        addressParts.push(address.amenity);
-    }
-    
-    if (address.road) {
-        addressParts.push(address.road);
-    }
-    
-    if (address.suburb) {
-        addressParts.push(address.suburb);
-    } else if (address.neighbourhood) {
-        addressParts.push(address.neighbourhood);
-    }
-    
-    if (address.residential) {
-        addressParts.push(address.residential);
-    }
-    
-    if (address.quarter) {
-        addressParts.push(address.quarter);
-    }
-    
-    if (address.city || address.town || address.village) {
-        addressParts.push(address.city || address.town || address.village);
-    }
-    
-    const filteredParts = addressParts.filter(part => part && part.trim().length > 0);
-    
-    if (filteredParts.length > 0) {
-        return filteredParts.join(', ');
-    }
-    
-    return null;
-}
-
-// ULTRA-FAST CITY-LOCKED SEARCH FUNCTIONALITY
+// ADVANCED CITY-LOCKED SEARCH FUNCTIONALITY
 function searchPlacesEnhanced(query, searchType = 'destination') {
     if (!query || query.length < 2) {
         hideSearchSuggestions(searchType);
@@ -3669,7 +3924,7 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
     const suggestionsContainer = document.getElementById(`${searchType}Suggestions`);
     
     // Show loading immediately
-    suggestionsContainer.innerHTML = '<div class="search-loading">Searching...</div>';
+    suggestionsContainer.innerHTML = '<div class="search-loading"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
     suggestionsContainer.style.display = 'block';
     
     // Debounce search
@@ -3688,6 +3943,18 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
             displaySearchResults(cachedResult.results, searchType);
             return;
         }
+    }
+    
+    // Check for common places first (instant results)
+    const commonPlaces = getCommonPlacesSuggestions(query);
+    if (commonPlaces.length > 0) {
+        displaySearchResults(commonPlaces, searchType);
+        // Also cache these results
+        searchCache.set(cacheKey, {
+            results: commonPlaces,
+            timestamp: Date.now()
+        });
+        return;
     }
     
     // Perform city-locked search
@@ -3719,6 +3986,58 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
             console.error('Search error:', error);
             showNoResultsMessage(query, searchType);
         });
+}
+
+function getCommonPlacesSuggestions(query) {
+    if (!currentCity || !zambianCommonPlaces[currentCity]) {
+        return [];
+    }
+    
+    const queryLower = query.toLowerCase();
+    const places = zambianCommonPlaces[currentCity];
+    
+    // Exact matches first
+    const exactMatches = places.filter(place => 
+        place.toLowerCase().includes(queryLower)
+    );
+    
+    // Partial matches
+    const partialMatches = places.filter(place => {
+        const placeLower = place.toLowerCase();
+        const queryWords = queryLower.split(' ');
+        return queryWords.some(word => 
+            word.length > 2 && placeLower.includes(word)
+        );
+    });
+    
+    // Combine and deduplicate
+    const allMatches = [...new Set([...exactMatches, ...partialMatches])];
+    
+    // Convert to search result format
+    return allMatches.map(place => {
+        const result = {
+            display_name: place,
+            name: place,
+            type: 'common_place',
+            class: 'amenity',
+            relevanceScore: 10,
+            city: currentCity,
+            isCurrentCity: true,
+            displayLat: cityBoundaries[currentCity]?.lat || -15.4167,
+            displayLon: cityBoundaries[currentCity]?.lng || 28.2833,
+            distance: 0
+        };
+        
+        // Add distance calculation if we have user location
+        if (userLocation) {
+            result.distance = calculateDistance(
+                userLocation.lat, userLocation.lng,
+                result.displayLat, result.displayLon
+            );
+        }
+        
+        return result;
+    }).slice(0, 5); // Limit to 5 results
 }
 
 function getSearchInputField(searchType) {
@@ -3757,6 +4076,12 @@ function performCityLockedSearch(query, searchType) {
         const bbox = calculateCityBoundingBox(cityBoundary);
         const bboxStr = `${bbox.minLng},${bbox.minLat},${bbox.maxLng},${bbox.maxLat}`;
         
+        // Show searching indicator
+        const inputField = getSearchInputField(searchType);
+        if (inputField) {
+            inputField.parentElement.classList.add('searching');
+        }
+        
         fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=15&dedupe=1&countrycodes=zm&bounded=1&viewbox=${bboxStr}`)
             .then(response => {
                 if (!response.ok) {
@@ -3765,6 +4090,10 @@ function performCityLockedSearch(query, searchType) {
                 return response.json();
             })
             .then(data => {
+                if (inputField) {
+                    inputField.parentElement.classList.remove('searching');
+                }
+                
                 if (data && data.length > 0) {
                     const enhancedResults = data
                         .filter(place => {
@@ -3810,6 +4139,9 @@ function performCityLockedSearch(query, searchType) {
                 }
             })
             .catch(error => {
+                if (inputField) {
+                    inputField.parentElement.classList.remove('searching');
+                }
                 console.error('City-locked search error:', error);
                 performUnifiedSearch(query)
                     .then(resolve)
@@ -4128,8 +4460,8 @@ function setupSearchInputListener(searchType, inputId, suggestionsId) {
             window.searchTimeout = setTimeout(() => {
                 lastQuery = query;
                 
-                // For pickup searches, enforce city lock if city is detected
-                if (searchType === 'pickup' && currentCity) {
+                // For all searches, enforce city lock if city is detected
+                if (currentCity) {
                     searchPlacesEnhanced(query, searchType);
                 } else {
                     searchPlacesEnhanced(query, searchType);
@@ -4197,6 +4529,11 @@ function showNoResultsMessage(query = '', searchType = 'destination') {
         } else if (currentCity) {
             message += ` in ${currentCity}`;
         }
+        
+        if (query) {
+            message += ` for "${query}"`;
+        }
+        
         suggestionsContainer.innerHTML = `<div class="no-results">${message}</div>`;
     }
 }
@@ -4237,7 +4574,14 @@ function calculateRelevanceScore(place, query, city) {
         );
         if (distance > 50000) {
             score -= 3;
+        } else if (distance < 1000) {
+            score += 2;
         }
+    }
+    
+    // Bonus for common places
+    if (place.type === 'common_place') {
+        score += 3;
     }
     
     return Math.max(0, score);
@@ -4253,6 +4597,11 @@ function extractCityFromPlace(place) {
 
 function formatDisplayName(fullName, city) {
     if (!fullName) return 'Unknown Location';
+    
+    // For common places, return the name as is
+    if (fullName.type === 'common_place') {
+        return fullName.name || fullName;
+    }
     
     const parts = fullName.split(',');
     const relevantParts = [];
@@ -4276,6 +4625,11 @@ function formatDisplayName(fullName, city) {
 function getShortAddress(fullAddress) {
     if (!fullAddress) return '';
     
+    // For common places, return empty
+    if (fullAddress.type === 'common_place') {
+        return '';
+    }
+    
     const parts = fullAddress.split(',');
     return parts.slice(0, Math.min(3, parts.length)).join(', ');
 }
@@ -4284,7 +4638,7 @@ function removeDuplicatePlaces(places) {
     const seen = new Set();
     return places.filter(place => {
         const coordKey = `${place.lat}-${place.lon}`;
-        const nameKey = place.display_name.substring(0, 50).toLowerCase();
+        const nameKey = place.display_name ? place.display_name.substring(0, 50).toLowerCase() : place.name?.substring(0, 50).toLowerCase() || '';
         const uniqueKey = `${coordKey}-${nameKey}`;
         
         if (seen.has(uniqueKey)) {
@@ -4308,6 +4662,10 @@ function getCachedSearchResults(searchType) {
 }
 
 function getPlaceType(place) {
+    if (place.type === 'common_place') {
+        return 'place';
+    }
+    
     if (place.type === 'restaurant' || place.class === 'amenity' && place.type === 'restaurant') {
         return 'restaurant';
     } else if (place.type === 'cafe' || place.class === 'amenity' && place.type === 'cafe') {
@@ -4568,11 +4926,16 @@ function drawRoute(startLat, startLng, endLat, endLng) {
         });
 }
 
-// Schedule Ride Functionality
+// ENHANCED SCHEDULE RIDE FUNCTIONALITY
 function openScheduleRidePopup() {
     if (!document.getElementById('scheduleRidePopup')) {
         createScheduleRidePopup();
     }
+    
+    // Reset edit mode
+    const confirmBtn = document.getElementById('confirmScheduleRideBtn');
+    confirmBtn.innerHTML = '<i class="fas fa-calendar-check"></i> Schedule Ride';
+    confirmBtn.removeAttribute('data-edit-ride-id');
     
     // Set current date and time
     const now = new Date();
@@ -4587,6 +4950,51 @@ function openScheduleRidePopup() {
     
     // Set pickup location from current pickup
     document.getElementById('schedulePickupLocation').value = document.getElementById('pickupLocation').value;
+    
+    // Reset all forms
+    document.querySelectorAll('.schedule-form').forEach(form => {
+        form.style.display = 'none';
+    });
+    document.getElementById('scheduleStandardForm').style.display = 'block';
+    
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector('.tab-btn[data-tab="standard"]').classList.add('active');
+    
+    // Reset vehicle selection
+    document.querySelectorAll('#scheduleStandardForm .vehicle-option').forEach(option => {
+        option.classList.remove('selected');
+        if (option.getAttribute('data-type') === 'car') {
+            option.classList.add('selected');
+        }
+    });
+    
+    // Reset package form
+    document.getElementById('schedulePackageForm').style.display = 'none';
+    document.getElementById('schedulePackageToggle').style.display = 'none';
+    
+    // Reset other form fields
+    document.getElementById('scheduleDestination').value = '';
+    document.getElementById('scheduleShopName').value = '';
+    document.getElementById('scheduleShopLocation').value = '';
+    document.getElementById('scheduleDeliveryItems').value = '';
+    document.getElementById('scheduleDeliveryDestination').value = '';
+    document.getElementById('scheduleRecipientPickup').value = '';
+    document.getElementById('scheduleRecipientDestination').value = '';
+    document.getElementById('scheduleRecipientName').value = '';
+    document.getElementById('scheduleRecipientPhone').value = '';
+    document.getElementById('scheduleReceiverName').value = '';
+    document.getElementById('scheduleReceiverPhone').value = '';
+    document.getElementById('schedulePackageDescription').value = '';
+    document.getElementById('scheduleSpecialInstructions').value = '';
+    
+    // Set payment method
+    document.getElementById('schedulePaymentMethod').value = 'wallet';
+    
+    // Reset fare display
+    document.getElementById('scheduleEstimatedFare').textContent = 'K0.00';
+    document.getElementById('scheduleEtaDisplay').textContent = 'ETA: -- min';
     
     document.getElementById('scheduleRidePopup').classList.remove('hidden');
 }
@@ -4638,13 +5046,13 @@ function createScheduleRidePopup() {
                         </div>
                     </div>
                     
-                    <div class="package-toggle" id="schedulePackageToggle" style="display: none;">
+                    <div class="package-toggle" id="schedulePackageToggle" style="display: none; margin-top: 10px;">
                         <i class="fas fa-box"></i>
                         Add Package Details
                     </div>
                     
-                    <div class="package-form" id="schedulePackageForm" style="display: none;">
-                        <h4 class="section-title">Package Details</h4>
+                    <div class="package-form" id="schedulePackageForm" style="display: none; margin-top: 10px;">
+                        <h4 class="section-title" style="font-size: 0.9rem;">Package Details</h4>
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="scheduleReceiverName">Receiver Name</label>
@@ -4804,8 +5212,29 @@ function createScheduleRidePopup() {
                 }
                 calculateScheduleFare();
             });
+            
+            input.addEventListener('focus', function() {
+                if (this.value.length >= 2) {
+                    searchPlacesEnhanced(this.value, field.type);
+                }
+            });
         }
     });
+    
+    // Date and time change listeners
+    document.getElementById('scheduleDate').addEventListener('change', calculateScheduleFare);
+    document.getElementById('scheduleTime').addEventListener('change', calculateScheduleFare);
+    document.getElementById('schedulePaymentMethod').addEventListener('change', calculateScheduleFare);
+    
+    // Additional form field listeners for fare calculation
+    document.getElementById('scheduleShopName').addEventListener('input', calculateScheduleFare);
+    document.getElementById('scheduleDeliveryItems').addEventListener('input', calculateScheduleFare);
+    document.getElementById('scheduleRecipientName').addEventListener('input', calculateScheduleFare);
+    document.getElementById('scheduleRecipientPhone').addEventListener('input', calculateScheduleFare);
+    document.getElementById('scheduleReceiverName').addEventListener('input', calculateScheduleFare);
+    document.getElementById('scheduleReceiverPhone').addEventListener('input', calculateScheduleFare);
+    document.getElementById('schedulePackageDescription').addEventListener('input', calculateScheduleFare);
+    document.getElementById('scheduleSpecialInstructions').addEventListener('input', calculateScheduleFare);
 }
 
 function calculateScheduleFare() {
@@ -4851,15 +5280,40 @@ function calculateScheduleFare() {
                         case 'bike': baseFare *= 0.7; break;
                         case 'bicycle': baseFare *= 0.5; break;
                     }
+                } else if (activeTab === 'delivery') {
+                    // Delivery typically uses bikes
+                    baseFare *= 0.7;
                 }
+                
+                // Apply premium for scheduled rides (10% extra for convenience)
+                baseFare *= 1.1;
                 
                 document.getElementById('scheduleEstimatedFare').textContent = `K${baseFare.toFixed(2)}`;
                 
                 const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
                 document.getElementById('scheduleEtaDisplay').textContent = `ETA: ${etaMinutes} min`;
+                
+                return { baseFare, distance, pickupResults, destResults };
+            }
+        }).then(result => {
+            if (result) {
+                // Update map if needed
+                updateScheduleMapPreview(result.pickupResults[0], result.destResults[0]);
             }
         });
+    } else {
+        document.getElementById('scheduleEstimatedFare').textContent = 'K0.00';
+        document.getElementById('scheduleEtaDisplay').textContent = 'ETA: -- min';
     }
+}
+
+function updateScheduleMapPreview(pickupResult, destResult) {
+    // This function could update a small map preview in the schedule popup
+    // For now, we'll just log the coordinates
+    console.log('Schedule preview:', {
+        pickup: { lat: pickupResult.lat, lng: pickupResult.lon, name: pickupResult.display_name },
+        destination: { lat: destResult.lat, lng: destResult.lon, name: destResult.display_name }
+    });
 }
 
 function confirmScheduleRide() {
@@ -4867,6 +5321,9 @@ function confirmScheduleRide() {
     const date = document.getElementById('scheduleDate').value;
     const time = document.getElementById('scheduleTime').value;
     const paymentMethod = document.getElementById('schedulePaymentMethod').value;
+    const confirmBtn = document.getElementById('confirmScheduleRideBtn');
+    const isEditMode = confirmBtn.hasAttribute('data-edit-ride-id');
+    const editRideId = isEditMode ? confirmBtn.getAttribute('data-edit-ride-id') : null;
     
     if (!date || !time) {
         showNotification('Please select date and time for scheduling.');
@@ -4879,6 +5336,13 @@ function confirmScheduleRide() {
         return;
     }
     
+    // Validate minimum time (at least 30 minutes from now)
+    const minTime = new Date(Date.now() + 30 * 60 * 1000);
+    if (scheduledDateTime < minTime) {
+        showNotification('Please schedule at least 30 minutes in advance.');
+        return;
+    }
+    
     let rideData = {
         passengerId: currentUser.uid,
         passengerName: userData.name || 'Passenger',
@@ -4887,7 +5351,8 @@ function confirmScheduleRide() {
         paymentMethod: paymentMethod,
         status: 'scheduled',
         createdAt: firebase.database.ServerValue.TIMESTAMP,
-        currentCity: currentCity
+        currentCity: currentCity,
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
     };
     
     Promise.resolve().then(() => {
@@ -4900,22 +5365,55 @@ function confirmScheduleRide() {
                 return getSomeoneElseScheduleData(rideData);
         }
     }).then(completeRideData => {
-        const scheduleId = database.ref().child('scheduledRides').push().key;
-        completeRideData.id = scheduleId;
-        
-        database.ref('scheduledRides/' + scheduleId).set(completeRideData)
-            .then(() => {
-                showNotification('Ride scheduled successfully!');
-                closeSchedulePopup();
-                
-                scheduledRides.push(completeRideData);
-                
-                scheduleRideTimer(completeRideData);
-            })
-            .catch(error => {
-                console.error('Error scheduling ride:', error);
-                showNotification('Error scheduling ride. Please try again.');
-            });
+        if (isEditMode && editRideId) {
+            // Update existing scheduled ride
+            completeRideData.id = editRideId;
+            
+            database.ref('scheduledRides/' + editRideId).update(completeRideData)
+                .then(() => {
+                    showNotification('Scheduled ride updated successfully!');
+                    closeSchedulePopup();
+                    
+                    // Update local array
+                    const index = scheduledRides.findIndex(r => r.id === editRideId);
+                    if (index !== -1) {
+                        scheduledRides[index] = completeRideData;
+                    }
+                    
+                    // Reschedule timer
+                    if (scheduledRideTimers[editRideId]) {
+                        clearTimeout(scheduledRideTimers[editRideId]);
+                        delete scheduledRideTimers[editRideId];
+                    }
+                    scheduleRideTimer(completeRideData);
+                    
+                    updateScheduledRidesUI();
+                })
+                .catch(error => {
+                    console.error('Error updating scheduled ride:', error);
+                    showNotification('Error updating scheduled ride. Please try again.');
+                });
+        } else {
+            // Create new scheduled ride
+            const scheduleId = database.ref().child('scheduledRides').push().key;
+            completeRideData.id = scheduleId;
+            
+            database.ref('scheduledRides/' + scheduleId).set(completeRideData)
+                .then(() => {
+                    showNotification('Ride scheduled successfully!');
+                    closeSchedulePopup();
+                    
+                    scheduledRides.push(completeRideData);
+                    
+                    scheduleRideTimer(completeRideData);
+                    
+                    updateScheduledRidesUI();
+                })
+                .catch(error => {
+                    console.error('Error scheduling ride:', error);
+                    showNotification('Error scheduling ride. Please try again.');
+                });
+        }
     }).catch(error => {
         console.error('Error in schedule process:', error);
         showNotification('Error processing schedule. Please check locations and try again.');
@@ -4927,13 +5425,17 @@ async function getStandardScheduleData(baseData) {
     const destination = document.getElementById('scheduleDestination').value;
     const vehicleType = document.querySelector('#scheduleStandardForm .vehicle-option.selected').getAttribute('data-type');
     
+    if (!pickupLocation || !destination) {
+        throw new Error('Pickup and destination locations are required');
+    }
+    
     const [pickupResults, destResults] = await Promise.all([
         forwardGeocode(pickupLocation),
         forwardGeocode(destination)
     ]);
     
     if (pickupResults.length === 0 || destResults.length === 0) {
-        throw new Error('Invalid locations');
+        throw new Error('Invalid locations. Please select valid pickup and destination addresses.');
     }
     
     const pickupLat = parseFloat(pickupResults[0].lat);
@@ -4948,6 +5450,9 @@ async function getStandardScheduleData(baseData) {
         case 'bike': fare *= 0.7; break;
         case 'bicycle': fare *= 0.5; break;
     }
+    
+    // Apply scheduled ride premium
+    fare *= 1.1;
     
     const rideData = {
         ...baseData,
@@ -4983,13 +5488,17 @@ async function getDeliveryScheduleData(baseData) {
     const deliveryItems = document.getElementById('scheduleDeliveryItems').value;
     const destination = document.getElementById('scheduleDeliveryDestination').value;
     
+    if (!shopLocation || !destination) {
+        throw new Error('Shop location and delivery destination are required');
+    }
+    
     const [shopResults, destResults] = await Promise.all([
         forwardGeocode(shopLocation),
         forwardGeocode(destination)
     ]);
     
     if (shopResults.length === 0 || destResults.length === 0) {
-        throw new Error('Invalid locations');
+        throw new Error('Invalid locations. Please select valid shop and destination addresses.');
     }
     
     const shopLat = parseFloat(shopResults[0].lat);
@@ -4998,7 +5507,10 @@ async function getDeliveryScheduleData(baseData) {
     const destLng = parseFloat(destResults[0].lon);
     
     const distance = calculateDistance(shopLat, shopLng, destLat, destLng);
-    const fare = 23 + Math.ceil(distance / 90);
+    let fare = 23 + Math.ceil(distance / 90);
+    
+    // Delivery typically uses bikes and has premium
+    fare = fare * 0.7 * 1.1;
     
     return {
         ...baseData,
@@ -5010,7 +5522,7 @@ async function getDeliveryScheduleData(baseData) {
         destLat: destLat,
         destLng: destLng,
         rideType: 'bike',
-        fare: fare * 0.7,
+        fare: fare,
         distance: (distance / 1000).toFixed(2) + ' km',
         scheduleType: 'delivery',
         expressDelivery: {
@@ -5026,13 +5538,17 @@ async function getSomeoneElseScheduleData(baseData) {
     const recipientName = document.getElementById('scheduleRecipientName').value;
     const recipientPhone = document.getElementById('scheduleRecipientPhone').value;
     
+    if (!recipientPickup || !recipientDestination || !recipientName) {
+        throw new Error('Recipient pickup, destination, and name are required');
+    }
+    
     const [pickupResults, destResults] = await Promise.all([
         forwardGeocode(recipientPickup),
         forwardGeocode(recipientDestination)
     ]);
     
     if (pickupResults.length === 0 || destResults.length === 0) {
-        throw new Error('Invalid locations');
+        throw new Error('Invalid locations. Please select valid pickup and destination addresses.');
     }
     
     const pickupLat = parseFloat(pickupResults[0].lat);
@@ -5041,7 +5557,10 @@ async function getSomeoneElseScheduleData(baseData) {
     const destLng = parseFloat(destResults[0].lon);
     
     const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
-    const fare = 23 + Math.ceil(distance / 90);
+    let fare = 23 + Math.ceil(distance / 90);
+    
+    // Apply scheduled ride premium
+    fare *= 1.1;
     
     return {
         ...baseData,
@@ -5200,7 +5719,7 @@ function showPaymentSelection(fare = null) {
     
     document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
     
-    if (walletBalance < calculatedFare) {
+    if (selectedPaymentType === 'wallet' && walletBalance < calculatedFare) {
         document.getElementById('insufficientBalance').style.display = 'block';
         document.getElementById('confirmPaymentBtn').disabled = true;
     } else {
@@ -6807,6 +7326,9 @@ function showNotification(message) {
     const notification = document.getElementById('notification');
     notification.textContent = message;
     notification.style.display = 'block';
+    notification.style.animation = 'none';
+    notification.offsetHeight; // Trigger reflow
+    notification.style.animation = 'slideUp 0.3s ease, fadeOut 0.3s ease 3.7s';
     
     setTimeout(() => {
         notification.style.display = 'none';
@@ -6881,6 +7403,9 @@ function refreshHomeScreen() {
     
     document.getElementById('rideRequestForm').style.display = 'flex';
     document.getElementById('rideInfoPanel').style.display = 'none';
+    
+    // Update scheduled rides UI
+    updateScheduledRidesUI();
     
     homeScreenRefreshRequired = false;
     
@@ -7467,6 +7992,11 @@ function setupEventListeners() {
             !e.target.closest('.suggestion-list')) {
             hideAllSearchSuggestions();
         }
+        
+        // Close more options dropdown when clicking outside
+        if (!e.target.closest('.more-options-btn') && !e.target.closest('.more-options-dropdown')) {
+            document.getElementById('moreOptionsDropdown').classList.remove('active');
+        }
     });
     
     document.querySelectorAll('.saved-location-btn').forEach(btn => {
@@ -7523,6 +8053,20 @@ function setupEventListeners() {
     document.getElementById('sosButton').addEventListener('click', triggerSOS);
     
     document.getElementById('scheduleRideBtn').addEventListener('click', openScheduleRidePopup);
+    
+    // Add CSS for notification animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 function hideAllSearchSuggestions() {
@@ -7541,6 +8085,42 @@ function hideAllSearchSuggestions() {
 // Initialize enhanced app features
 function initializeApp() {
     console.log("Jubel Passenger App Initialized with Enhanced Features");
+    
+    // Add CSS for enhanced animations
+    const enhancedStyles = `
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .schedule-ride-btn {
+            animation: pulse 2s infinite;
+        }
+        
+        .schedule-ride-btn:hover {
+            animation: none;
+            transform: scale(1.05);
+        }
+        
+        .scheduled-ride-item {
+            transition: all 0.3s ease;
+        }
+        
+        .scheduled-ride-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .searching .search-indicator {
+            animation: pulse 1s infinite;
+        }
+    `;
+    
+    const styleSheet = document.createElement("style");
+    styleSheet.type = "text/css";
+    styleSheet.innerText = enhancedStyles;
+    document.head.appendChild(styleSheet);
     
     // Periodic city detection updates
     setInterval(() => {
@@ -7565,24 +8145,70 @@ function initializeApp() {
     // Handle page load completion
     window.addEventListener('load', function() {
         console.log("Jubel Passenger App fully loaded with enhanced city detection and search");
-        showNotification('Jubel Passenger App Ready');
+        showNotification('🚗 Jubel Passenger App Ready! City-locked search enabled for accurate results.');
+    });
+    
+    // Handle offline/online status
+    window.addEventListener('online', function() {
+        showNotification('Connection restored.');
+        if (currentScreen === 'home') {
+            setTimeout(refreshPassengerPosition, 1000);
+        }
+    });
+    
+    window.addEventListener('offline', function() {
+        showNotification('You are currently offline. Some features may not work.');
+    });
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // Ctrl/Cmd + S to schedule ride
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            e.preventDefault();
+            openScheduleRidePopup();
+        }
+        
+        // Escape to close popups
+        if (e.key === 'Escape') {
+            if (!document.getElementById('paymentSelectionPopup').classList.contains('hidden')) {
+                closePaymentSelection();
+            }
+            if (!document.getElementById('rideDetailsPopup').classList.contains('hidden')) {
+                closeRideDetailsPopup();
+            }
+            if (!document.getElementById('scheduleRidePopup').classList.contains('hidden')) {
+                closeSchedulePopup();
+            }
+            if (!document.getElementById('chatPopup').classList.contains('hidden')) {
+                closeChatPopup();
+            }
+        }
+    });
+    
+    // Initialize tooltips
+    initializeTooltips();
+}
+
+function initializeTooltips() {
+    // Add tooltips to important elements
+    const tooltipElements = [
+        { selector: '#scheduleRideBtn', text: 'Schedule rides for later' },
+        { selector: '#moreOptionsBtn', text: 'More ride options' },
+        { selector: '.floating-balance', text: 'Your wallet balance' },
+        { selector: '.city-indicator', text: 'Current city for search' }
+    ];
+    
+    tooltipElements.forEach(item => {
+        const element = document.querySelector(item.selector);
+        if (element) {
+            element.setAttribute('title', item.text);
+        }
     });
 }
 
-// Handle offline/online status
-window.addEventListener('online', function() {
-    showNotification('Connection restored.');
-    if (currentScreen === 'home') {
-        setTimeout(refreshPassengerPosition, 1000);
-    }
-});
-
-window.addEventListener('offline', function() {
-    showNotification('You are currently offline. Some features may not work.');
-});
-
-// Initialize enhanced app features
-initializeApp();
+// Initialize everything
+setupEventListeners();
     </script>
 </body>
 </html>
+
