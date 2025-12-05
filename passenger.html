@@ -3041,13 +3041,13 @@ let driverLocationListener = null;
 let userData = null;
 let selectedPaymentType = 'wallet';
 let rideFare = 0;
-let currentCity = null;
+let currentCity = "Detecting...";
 let packageDetails = null;
 let walletBalanceListener = null;
 let currentScreen = 'home';
 let homeScreenRefreshRequired = false;
 
-// Enhanced state variables for enhanced features
+// NEW: State variables for enhanced features
 let sosConfig = null;
 let activeMoreOption = null;
 let activeScheduleOption = null;
@@ -3065,7 +3065,7 @@ let unreadMessages = {};
 let chatPopupClosedByUser = false;
 let driverMessageListener = null;
 
-// Search state management with enhanced caching
+// Search state management with caching
 let pickupSearchResults = [];
 let recipientPickupSearchResults = [];
 let shopLocationSearchResults = [];
@@ -3100,79 +3100,55 @@ let multiStopMarkers = [];
 let multiStopRoutes = [];
 let currentMultiStopCount = 2;
 
-// Enhanced Search cache for performance with better TTL management
+// Enhanced Search cache for performance
 let searchCache = new Map();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
-// Debounce timers for search with better timing
+// Debounce timers for search
 let searchDebounceTimers = {};
 
-// Comprehensive Zambian places database with categories
-const zambianPlaces = {
-    'Lusaka': [
-        'Manda Hill Shopping Mall', 'East Park Mall', 'Arcades Shopping Mall', 'Levy Junction Mall',
-        'Kafue Road', 'Cairo Road', 'Great East Road', 'Great North Road',
-        'University of Zambia', 'Copperbelt University', 'University Teaching Hospital',
-        'Lusaka National Park', 'Kalimba Reptile Park', 'State House', 'National Assembly',
-        'Kamwala Market', 'Soweto Market', 'City Market', 'Matero Market',
-        'Kenneth Kaunda International Airport', 'Lusaka City Airport',
-        'Proflight Zambia', 'Zambia Airways', 'Airtel Headquarters', 'MTN Headquarters',
-        'InterContinental Hotel', 'Radisson Blu', 'Protea Hotel', 'Taj Pamodzi',
-        'Lusaka Golf Club', 'Lusaka Club', 'Pizza Hut', 'KFC', 'Nando\'s', 'Hungry Lion',
-        'Shoprite', 'Pick n Pay', 'Spar', 'Choppies', 'Game Stores'
-    ],
-    'Kitwe': [
-        'Mukuba Mall', 'Kitwe City Mall', 'Nkana Mall', 'Chimwemwe Shopping Centre',
-        'Copperbelt University', 'Kitwe Teaching Hospital', 'Wusakile Market',
-        'Chisokone Market', 'Arthur Davison Children\'s Hospital', 'Mindolo Dam',
-        'Kitwe Golf Club', 'Nkana Mine', 'Mopani Copper Mines', 'KCM Smelter'
-    ],
-    'Ndola': [
-        'Mukuba Mall Ndola', 'Northrise Mall', 'Masala Market', 'Ndola Teaching Hospital',
-        'Simon Mwansa Kapwepwe International Airport', 'Dag Hammarskjöld Crash Site',
-        'Copperbelt Energy Corporation', 'Zambia Sugar', 'Trade Kings'
-    ],
-    'Kabwe': [
-        'Big Tree', 'Kabwe Golf Club', 'Mulungushi University', 'Kabwe Mine',
-        'Kabwe Railway Museum', 'Kafue River'
-    ],
-    'Livingstone': [
-        'Victoria Falls', 'Livingstone Museum', 'Mosi-oa-Tunya National Park',
-        'Harry Mwanga Nkumbula International Airport', 'Royal Livingstone Hotel',
-        'Avani Victoria Falls Resort', 'Zambezi River'
-    ]
-};
-
-// Zambian cities for search with common misspellings and variations
+// Enhanced Zambian cities for search with common misspellings and variations
 const zambianCities = [
     'Lusaka', 'Kitwe', 'Ndola', 'Kabwe', 'Chipata', 'Chingola', 
     'Mufulira', 'Luanshya', 'Livingstone', 'Kasama', 'Solwezi', 
     'Kapiri Mposhi', 'Chililabombwe', 'Mazabuka', 'Mongu', 'Kafue',
-    'Mansa', 'Choma', 'Mpika', 'Nchelenge', 'Mbala', 'Nakonde'
+    'Choma', 'Mansa', 'Nchelenge', 'Kawambwa', 'Mbala', 'Mpika',
+    'Petauke', 'Katete', 'Siavonga', 'Monze', 'Kalulushi', 'Mwinilunga'
 ];
 
-// Enhanced city aliases for handling spelling mistakes and variations
+// Enhanced City aliases for handling spelling mistakes and variations
 const cityAliases = {
-    // Lusaka variations
     'lusaka': 'Lusaka', 'lsk': 'Lusaka', 'lsk city': 'Lusaka', 'lusaka city': 'Lusaka',
-    'lska': 'Lusaka', 'lusaka town': 'Lusaka',
-    
-    // Kitwe variations
-    'kitwe': 'Kitwe', 'kitwe city': 'Kitwe', 'kitwe town': 'Kitwe',
-    
-    // Ndola variations
-    'ndola': 'Ndola', 'ndola city': 'Ndola', 'ndola town': 'Ndola',
-    
-    // Other cities
-    'kabwe': 'Kabwe', 'chipata': 'Chipata', 'chingola': 'Chingola',
-    'mufulira': 'Mufulira', 'luanshya': 'Luanshya', 'livingstone': 'Livingstone',
-    'kasama': 'Kasama', 'solwezi': 'Solwezi', 'kapiri': 'Kapiri Mposhi',
-    'kapiri mposhi': 'Kapiri Mposhi', 'chililabombwe': 'Chililabombwe',
-    'chili': 'Chililabombwe', 'mazabuka': 'Mazabuka', 'mongu': 'Mongu',
-    'kafue': 'Kafue', 'mansa': 'Mansa', 'choma': 'Choma', 'mpika': 'Mpika'
+    'kitwe': 'Kitwe', 'kitwe town': 'Kitwe',
+    'ndola': 'Ndola', 'ndola city': 'Ndola',
+    'kabwe': 'Kabwe', 'kabwe town': 'Kabwe',
+    'chipata': 'Chipata', 'chipata town': 'Chipata',
+    'chingola': 'Chingola', 'chingola town': 'Chingola',
+    'mufulira': 'Mufulira', 'mufulira town': 'Mufulira',
+    'luanshya': 'Luanshya', 'luanshya town': 'Luanshya',
+    'livingstone': 'Livingstone', 'livingstone town': 'Livingstone',
+    'kasama': 'Kasama', 'kasama town': 'Kasama',
+    'solwezi': 'Solwezi', 'solwezi town': 'Solwezi',
+    'kapiri': 'Kapiri Mposhi', 'kapiri mposhi': 'Kapiri Mposhi', 'kapiri mposhi town': 'Kapiri Mposhi',
+    'chililabombwe': 'Chililabombwe', 'chili': 'Chililabombwe', 'chililabombwe town': 'Chililabombwe',
+    'mazabuka': 'Mazabuka', 'mazabuka town': 'Mazabuka',
+    'mongu': 'Mongu', 'mongu town': 'Mongu',
+    'kafue': 'Kafue', 'kafue town': 'Kafue',
+    'choma': 'Choma', 'choma town': 'Choma',
+    'mansa': 'Mansa', 'mansa town': 'Mansa',
+    'nchelenge': 'Nchelenge',
+    'kawambwa': 'Kawambwa',
+    'mbala': 'Mbala',
+    'mpika': 'Mpika',
+    'petauke': 'Petauke',
+    'katete': 'Katete',
+    'siavonga': 'Siavonga',
+    'monze': 'Monze',
+    'kalulushi': 'Kalulushi',
+    'mwinilunga': 'Mwinilunga'
 };
 
-// Enhanced city boundaries for more accurate detection with larger coverage
+// Enhanced city boundaries for more accurate detection
 const cityBoundaries = {
     'Lusaka': { lat: -15.4167, lng: 28.2833, radius: 30000 },
     'Kitwe': { lat: -12.8139, lng: 28.2136, radius: 25000 },
@@ -3187,16 +3163,34 @@ const cityBoundaries = {
     'Solwezi': { lat: -12.1833, lng: 26.4000, radius: 20000 },
     'Kapiri Mposhi': { lat: -13.9667, lng: 28.6833, radius: 15000 },
     'Chililabombwe': { lat: -12.3667, lng: 27.8333, radius: 15000 },
-    'Mazabuka': { lat: -15.8667, lng: 27.7667, radius: 15000 },
-    'Mongu': { lat: -15.2500, lng: 23.1500, radius: 15000 },
-    'Kafue': { lat: -15.7667, lng: 28.1833, radius: 15000 }
+    'Mazabuka': { lat: -15.8567, lng: 27.7483, radius: 15000 },
+    'Mongu': { lat: -15.2486, lng: 23.1275, radius: 15000 },
+    'Kafue': { lat: -15.7667, lng: 28.1833, radius: 15000 },
+    'Choma': { lat: -16.8167, lng: 26.9833, radius: 15000 },
+    'Mansa': { lat: -11.2000, lng: 28.8833, radius: 15000 }
 };
 
-// Common Zambian road/street patterns
-const zambianRoadPatterns = [
-    'road', 'street', 'avenue', 'drive', 'lane', 'way', 'boulevard', 'close', 
-    'circuit', 'crescent', 'place', 'terrace', 'highway', 'expressway'
-];
+// Common Zambian places and landmarks for better search results
+const commonZambianPlaces = {
+    'Manda Hill': { city: 'Lusaka', lat: -15.4070, lng: 28.3147 },
+    'East Park Mall': { city: 'Lusaka', lat: -15.3942, lng: 28.3403 },
+    'Levy Mall': { city: 'Lusaka', lat: -15.4167, lng: 28.2833 },
+    'Arcades Shopping Mall': { city: 'Lusaka', lat: -15.3986, lng: 28.3192 },
+    'University of Zambia': { city: 'Lusaka', lat: -15.3878, lng: 28.3272 },
+    'Lusaka Airport': { city: 'Lusaka', lat: -15.3308, lng: 28.4528 },
+    'Lusaka Central Hospital': { city: 'Lusaka', lat: -15.4131, lng: 28.2878 },
+    'Kamwala Market': { city: 'Lusaka', lat: -15.4181, lng: 28.2889 },
+    'Soweto Market': { city: 'Lusaka', lat: -15.4147, lng: 28.3011 },
+    'Ndola Airport': { city: 'Ndola', lat: -12.9981, lng: 28.6644 },
+    'Ndola Central Hospital': { city: 'Ndola', lat: -12.9667, lng: 28.6333 },
+    'Kitwe Central Hospital': { city: 'Kitwe', lat: -12.8139, lng: 28.2136 },
+    'Nkana Golf Club': { city: 'Kitwe', lat: -12.8167, lng: 28.2167 },
+    'Livingstone Airport': { city: 'Livingstone', lat: -17.8217, lng: 25.8225 },
+    'Victoria Falls': { city: 'Livingstone', lat: -17.9244, lng: 25.8572 },
+    'Livingstone Museum': { city: 'Livingstone', lat: -17.8500, lng: 25.8667 },
+    'Kabwe Central Hospital': { city: 'Kabwe', lat: -14.4333, lng: 28.4500 },
+    'Chililabombwe General Hospital': { city: 'Chililabombwe', lat: -12.3667, lng: 27.8333 }
+};
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', function() {
@@ -3393,26 +3387,31 @@ function executeScheduledRide(ride) {
         });
 }
 
-// ENHANCED: Check for active ride when app loads with better persistence
+// Check for active ride when app loads
 function checkActiveRide(uid) {
+    console.log('Checking for active ride for user:', uid);
+    
     database.ref('rides').orderByChild('passengerId').equalTo(uid).once('value')
         .then(snapshot => {
             const rides = snapshot.val();
             if (rides) {
-                // Sort by timestamp to get the most recent active ride
-                const ridesArray = Object.keys(rides).map(rideId => ({
-                    id: rideId,
-                    ...rides[rideId]
-                }));
+                const rideEntries = Object.entries(rides);
+                console.log('Found rides:', rideEntries.length);
                 
-                // Sort by timestamp descending
-                ridesArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-                
-                for (const ride of ridesArray) {
-                    // Check if ride is active (not completed or cancelled)
-                    if (ride.status !== 'completed' && ride.status !== 'cancelled' && ride.status !== 'expired') {
-                        console.log('Found active ride:', ride.id, ride.status);
-                        restoreActiveRide(ride.id, ride);
+                for (const [rideId, ride] of rideEntries) {
+                    console.log(`Checking ride ${rideId}:`, ride.status);
+                    
+                    // Check for active rides (not completed or cancelled)
+                    if (ride.status !== 'completed' && ride.status !== 'cancelled' && ride.status !== 'requested') {
+                        console.log('Found active ride to restore:', rideId);
+                        restoreActiveRide(rideId, ride);
+                        return;
+                    }
+                    
+                    // Also check for rides that have a driver assigned but are still requested
+                    if (ride.status === 'requested' && ride.driverId) {
+                        console.log('Found requested ride with driver:', rideId);
+                        restoreActiveRide(rideId, ride);
                         return;
                     }
                 }
@@ -3427,7 +3426,7 @@ function checkActiveRide(uid) {
         });
 }
 
-// ENHANCED: Restore active ride after app refresh with complete state restoration
+// Restore active ride after app refresh
 function restoreActiveRide(rideId, ride) {
     console.log('Restoring active ride:', rideId);
     
@@ -3438,16 +3437,7 @@ function restoreActiveRide(rideId, ride) {
     
     updateUIForActiveRide();
     
-    // Restore pickup and destination markers on map
-    if (ride.pickupLat && ride.pickupLng) {
-        updatePickupLocation(ride.pickupLat, ride.pickupLng);
-    }
-    
-    if (ride.destLat && ride.destLng) {
-        updateDestinationMarker(ride.destLat, ride.destLng, ride.destination);
-    }
-    
-    if (ride.status === 'requested') {
+    if (ride.status === 'requested' && !ride.driverId) {
         document.getElementById('searchingAnimation').style.display = 'flex';
         document.getElementById('rideStatus').style.display = 'flex';
         document.getElementById('statusDot').className = 'status-dot searching';
@@ -3456,59 +3446,15 @@ function restoreActiveRide(rideId, ride) {
         listenForDriverAssignment(rideId);
     } 
     else if (ride.driverId && (ride.status === 'accepted' || ride.status === 'arrived' || ride.status === 'started' || ride.status === 'picked_up')) {
-        console.log('Restoring driver assignment for ride:', rideId);
-        
-        // Restore driver details
-        database.ref('users/' + ride.driverId).once('value')
-            .then(driverSnapshot => {
-                const driver = driverSnapshot.val();
-                if (driver) {
-                    document.getElementById('driverName').textContent = driver.name || 'Driver';
-                    document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
-                    document.getElementById('driverRating').textContent = driver.rating || '4.5';
-                    
-                    if (driver.vehicle) {
-                        document.getElementById('vehicleDetails').textContent = 
-                            `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
-                    }
-                    
-                    updateDriverAvatarWithImage(driver, ride);
-                    updateDriverVehicleDisplay(driver, ride);
-                    updateDriverDetailsCard(driver);
-                    
-                    if (ride.status === 'accepted') {
-                        document.getElementById('statusText').textContent = 'Driver on the way';
-                        document.getElementById('statusDot').className = 'status-dot arriving';
-                    } else if (ride.status === 'arrived') {
-                        document.getElementById('statusText').textContent = 'Driver arrived';
-                        document.getElementById('statusDot').className = 'status-dot riding';
-                    } else if (ride.status === 'started' || ride.status === 'picked_up') {
-                        document.getElementById('statusText').textContent = 'Trip in progress';
-                        document.getElementById('statusDot').className = 'status-dot riding';
-                    }
-                    
-                    // Add driver marker if we have driver location
-                    if (ride.driverLat && ride.driverLng) {
-                        addDriverMarker(ride.driverLat, ride.driverLng);
-                    }
-                    
-                    // Add chat with driver button
-                    addChatWithDriverButton(rideId, driver);
-                    
-                    // Start tracking driver location
-                    trackDriverLocation(ride.driverId);
-                    
-                    // Start listening for driver messages
-                    startDriverMessageListener(rideId);
-                    
-                    showNotification(`Active ride restored. Driver ${driver.name} is ${ride.status === 'accepted' ? 'on the way' : ride.status}`);
-                }
-            })
-            .catch(error => {
-                console.error('Error restoring driver details:', error);
-            });
-        
+        console.log('Ride has driver, updating UI');
+        handleDriverAssignment(ride);
         updateRideStatusDisplay(ride.status);
+        
+        if (ride.driverId) {
+            trackDriverLocation(ride.driverId);
+        }
+        
+        startDriverMessageListener(rideId);
         
         if (sosConfig && sosConfig.contact1) {
             document.getElementById('sosButton').style.display = 'flex';
@@ -3516,6 +3462,7 @@ function restoreActiveRide(rideId, ride) {
     }
     
     activeRideRestored = true;
+    showNotification('Active ride restored');
 }
 
 // Load SOS configuration
@@ -3545,6 +3492,7 @@ function setupWalletBalanceListener(uid) {
         if (newBalance !== walletBalance) {
             walletBalance = newBalance;
             updateWalletBalanceUI();
+            showNotification(`Wallet balance updated: K${walletBalance.toFixed(2)}`);
         }
     }, error => {
         console.error('Error listening to wallet balance:', error);
@@ -3560,17 +3508,22 @@ function updateWalletBalanceUI() {
 
 // Map initialization
 function initializeMap() {
-    passengerMap = L.map('map').setView([-15.4167, 28.2833], 13);
+    // Set initial view to a central Zambia location
+    passengerMap = L.map('map').setView([-14.5, 28], 7);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
     }).addTo(passengerMap);
     
-    popupRideMap = L.map('popupRideMap').setView([-15.4167, 28.2833], 13);
+    // Initialize popup map
+    popupRideMap = L.map('popupRideMap').setView([-14.5, 28], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
     }).addTo(popupRideMap);
     
+    // Refresh passenger position
     refreshPassengerPosition();
 }
 
@@ -3588,100 +3541,66 @@ function determineCurrentCity(lat, lng) {
             return;
         }
         
-        // Method 2: Use enhanced reverse geocoding with multiple providers
-        fetchEnhancedCityData(lat, lng)
-            .then(city => {
-                if (city && city !== "Unknown Location") {
-                    currentCity = city;
-                    console.log(`City detected via enhanced geocoding: ${currentCity}`);
-                    resolve(currentCity);
+        // Method 2: Try to find the nearest Zambian city
+        const nearestCity = findNearestZambianCity(lat, lng);
+        if (nearestCity) {
+            console.log(`Nearest Zambian city: ${nearestCity}`);
+            currentCity = nearestCity;
+            resolve(currentCity);
+            return;
+        }
+        
+        // Method 3: Use Nominatim reverse geocoding with enhanced parameters
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10&addressdetails=1&accept-language=en`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.address) {
+                    const detectedCity = extractCityFromAddress(data.address);
+                    
+                    if (detectedCity && detectedCity !== "Unknown Location") {
+                        currentCity = detectedCity;
+                        console.log(`City detected via Nominatim: ${currentCity}`);
+                        resolve(currentCity);
+                    } else {
+                        const fallbackCity = extractCityFromDisplayName(data.display_name);
+                        currentCity = fallbackCity || "Unknown Location";
+                        console.log(`City detected via fallback: ${currentCity}`);
+                        resolve(currentCity);
+                    }
                 } else {
-                    // Method 3: Use proximity fallback
-                    currentCity = determineCityByProximity(lat, lng) || "Lusaka";
-                    console.log(`City detected via proximity fallback: ${currentCity}`);
+                    currentCity = "Unknown Location";
+                    console.log(`No city data found`);
                     resolve(currentCity);
                 }
             })
             .catch(error => {
-                console.error('Error in enhanced city detection:', error);
-                currentCity = determineCityByProximity(lat, lng) || "Lusaka";
-                console.log(`City detected via error fallback: ${currentCity}`);
+                console.error('Error in city detection:', error);
+                currentCity = "Unknown Location";
                 resolve(currentCity);
             });
     });
 }
 
-// Enhanced city detection with multiple geocoding providers
-function fetchEnhancedCityData(lat, lng) {
-    return new Promise((resolve) => {
-        // Try multiple geocoding endpoints
-        const endpoints = [
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`,
-            `https://geocode.xyz/${lat},${lng}?json=1`,
-            `https://api.opencagedata.com/geocode/v1/json?q=${lat}+${lng}&key=b2c76e70d7e046de80c836e52a4e36fe`
-        ];
-        
-        let attempts = 0;
-        
-        function tryEndpoint(index) {
-            if (index >= endpoints.length) {
-                resolve("Unknown Location");
-                return;
-            }
-            
-            fetch(endpoints[index])
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Endpoint ${index} failed: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    const city = extractCityFromGeocodingData(data, index);
-                    if (city && city !== "Unknown Location") {
-                        resolve(city);
-                    } else {
-                        tryEndpoint(index + 1);
-                    }
-                })
-                .catch(error => {
-                    console.error(`Geocoding endpoint ${index} error:`, error);
-                    tryEndpoint(index + 1);
-                });
-        }
-        
-        tryEndpoint(0);
-    });
-}
-
-// Extract city from different geocoding provider responses
-function extractCityFromGeocodingData(data, providerIndex) {
-    if (!data) return null;
+// NEW: Find nearest Zambian city
+function findNearestZambianCity(lat, lng) {
+    let nearestCity = null;
+    let shortestDistance = Infinity;
     
-    switch(providerIndex) {
-        case 0: // OpenStreetMap Nominatim
-            if (data.address) {
-                return extractCityFromAddress(data.address);
-            }
-            break;
-            
-        case 1: // Geocode.xyz
-            if (data.city && data.city !== "Null Island") {
-                return normalizeCityName(data.city);
-            }
-            break;
-            
-        case 2: // OpenCage
-            if (data.results && data.results.length > 0) {
-                const components = data.results[0].components;
-                if (components.city) return normalizeCityName(components.city);
-                if (components.town) return normalizeCityName(components.town);
-                if (components.village) return normalizeCityName(components.village);
-            }
-            break;
+    for (const [city, boundary] of Object.entries(cityBoundaries)) {
+        const distance = calculateDistance(lat, lng, boundary.lat, boundary.lng);
+        if (distance < shortestDistance) {
+            shortestDistance = distance;
+            nearestCity = city;
+        }
     }
     
-    return null;
+    // If within 100km of a city, return it
+    return shortestDistance <= 100000 ? nearestCity : null;
 }
 
 // Check if coordinates fall within known city boundaries
@@ -3715,14 +3634,32 @@ function extractCityFromAddress(address) {
     return null;
 }
 
+// Extract city from display name with pattern matching
+function extractCityFromDisplayName(displayName) {
+    if (!displayName) return "Unknown Location";
+    
+    const nameLower = displayName.toLowerCase();
+    
+    for (const city of zambianCities) {
+        if (nameLower.includes(city.toLowerCase())) {
+            return city;
+        }
+    }
+    
+    for (const [alias, actualCity] of Object.entries(cityAliases)) {
+        if (nameLower.includes(alias)) {
+            return actualCity;
+        }
+    }
+    
+    return "Unknown Location";
+}
+
 // Normalize city names for consistent matching
 function normalizeCityName(cityName) {
     if (!cityName) return "";
     
     const normalized = cityName.toString().trim();
-    
-    // Remove common suffixes
-    let cleanName = normalized.replace(/\s+(city|town|village|area|district)$/i, '');
     
     const variations = {
         'lusaka city': 'Lusaka',
@@ -3738,31 +3675,33 @@ function normalizeCityName(cityName) {
         'kasama town': 'Kasama',
         'solwezi town': 'Solwezi',
         'kapiri mposhi town': 'Kapiri Mposhi',
-        'chililabombwe town': 'Chililabombwe',
-        'mazabuka town': 'Mazabuka',
-        'mongu town': 'Mongu',
-        'kafue town': 'Kafue'
+        'chililabombwe town': 'Chililabombwe'
     };
     
-    return variations[cleanName.toLowerCase()] || 
-           zambianCities.find(city => city.toLowerCase() === cleanName.toLowerCase()) || 
-           normalized;
-}
-
-// Determine city by proximity to known city centers
-function determineCityByProximity(lat, lng) {
-    let closestCity = null;
-    let shortestDistance = Infinity;
+    const lowerName = normalized.toLowerCase();
     
-    for (const [city, center] of Object.entries(cityBoundaries)) {
-        const distance = calculateDistance(lat, lng, center.lat, center.lng);
-        if (distance < shortestDistance) {
-            shortestDistance = distance;
-            closestCity = city;
+    // First check variations
+    if (variations[lowerName]) {
+        return variations[lowerName];
+    }
+    
+    // Then check exact match
+    const exactMatch = zambianCities.find(city => 
+        city.toLowerCase() === lowerName
+    );
+    
+    if (exactMatch) {
+        return exactMatch;
+    }
+    
+    // Finally, check if it contains a city name
+    for (const city of zambianCities) {
+        if (lowerName.includes(city.toLowerCase())) {
+            return city;
         }
     }
     
-    return shortestDistance <= 100000 ? closestCity : "Unknown Location";
+    return normalized;
 }
 
 // ENHANCED: Update pickup location with precise address details
@@ -3780,12 +3719,11 @@ function updatePickupLocation(lat, lng) {
     }).addTo(passengerMap)
         .bindPopup('Pickup Location');
         
-    // Get formatted address with the specific format: House number or building name → Road → Area → City
-    getFormattedAddress(lat, lng, 'pickupLocation');
+    getPreciseAddress(lat, lng, 'pickupLocation');
 }
 
-// ENHANCED: Get formatted address in the specific format
-function getFormattedAddress(lat, lng, elementId) {
+// ENHANCED: Get precise address format (House number or building name, Road, Area, City)
+function getPreciseAddress(lat, lng, elementId) {
     fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`)
         .then(response => {
             if (!response.ok) {
@@ -3795,8 +3733,9 @@ function getFormattedAddress(lat, lng, elementId) {
         })
         .then(data => {
             if (data && data.address) {
-                const formattedAddress = buildFormattedAddress(data.address);
-                document.getElementById(elementId).value = formattedAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                const address = data.address;
+                const preciseAddress = buildPreciseAddress(address);
+                document.getElementById(elementId).value = preciseAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
             } else {
                 document.getElementById(elementId).value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
             }
@@ -3807,51 +3746,47 @@ function getFormattedAddress(lat, lng, elementId) {
         });
 }
 
-// NEW: Build formatted address in specific format: House number or building name → Road → Area → City
-function buildFormattedAddress(address) {
+// Build precise address without city, province, or country
+function buildPreciseAddress(address) {
     const addressParts = [];
     
-    // 1. House number or building name
+    // House number or building name
     if (address.house_number || address.housenumber) {
         addressParts.push(address.house_number || address.housenumber);
-    } else if (address.building) {
-        addressParts.push(address.building);
-    } else if (address.amenity) {
-        addressParts.push(address.amenity);
+    }
+    if (address.building) {
+        if (!addressParts.length) addressParts.push(address.building);
     }
     
-    // 2. Road
+    // Road/Street
     if (address.road) {
         addressParts.push(address.road);
     }
     
-    // 3. Area (Suburb/Neighbourhood/Quarter)
+    // Area/Suburb
     if (address.suburb) {
         addressParts.push(address.suburb);
     } else if (address.neighbourhood) {
         addressParts.push(address.neighbourhood);
-    } else if (address.quarter) {
-        addressParts.push(address.quarter);
     } else if (address.residential) {
         addressParts.push(address.residential);
+    } else if (address.quarter) {
+        addressParts.push(address.quarter);
     }
     
-    // 4. City
+    // City
     if (address.city) {
         addressParts.push(address.city);
     } else if (address.town) {
         addressParts.push(address.town);
     } else if (address.village) {
         addressParts.push(address.village);
-    } else if (address.municipality) {
-        addressParts.push(address.municipality);
     }
     
-    // Filter out empty parts and join with →
     const filteredParts = addressParts.filter(part => part && part.trim().length > 0);
     
     if (filteredParts.length > 0) {
-        return filteredParts.join(' → ');
+        return filteredParts.join(', ');
     }
     
     return null;
@@ -3881,15 +3816,15 @@ function getFullAddress(lat, lng) {
     });
 }
 
-// ENHANCED: Optimized search function with better caching and fallback mechanisms
+// ENHANCED: Optimized search function with caching and debouncing
 function searchPlacesEnhanced(query, searchType = 'destination') {
-    if (!query || query.trim().length < 2) {
+    if (!query || query.length < 2) {
         hideSearchSuggestions(searchType);
         return;
     }
     
     const suggestionsContainer = document.getElementById(`${searchType}Suggestions`);
-    const cacheKey = `${searchType}:${query.toLowerCase().trim()}`;
+    const cacheKey = `${searchType}:${query.toLowerCase()}`;
     
     // Check cache first
     const cached = searchCache.get(cacheKey);
@@ -3912,254 +3847,163 @@ function searchPlacesEnhanced(query, searchType = 'destination') {
     searchDebounceTimers[searchType] = setTimeout(() => {
         const processedQuery = preprocessSearchQuery(query);
         
-        // Try multiple search strategies
-        performMultiStrategySearch(processedQuery, searchType, cacheKey);
-    }, 300); // 300ms debounce
-}
-
-// Perform search with multiple strategies
-function performMultiStrategySearch(query, searchType, cacheKey) {
-    const strategies = [
-        searchWithCurrentCityPriority,
-        searchWithZambiaScope,
-        searchWithFallbackPlaces,
-        searchWithGeocodingFallback
-    ];
-    
-    let currentStrategyIndex = 0;
-    
-    function tryNextStrategy() {
-        if (currentStrategyIndex >= strategies.length) {
-            showNoResultsMessage(query, searchType);
-            return;
-        }
-        
-        strategies[currentStrategyIndex](query, searchType, cacheKey)
-            .then(success => {
-                if (!success && currentStrategyIndex < strategies.length - 1) {
-                    currentStrategyIndex++;
-                    setTimeout(tryNextStrategy, 100); // Small delay between strategies
-                }
-            })
-            .catch(error => {
-                console.error('Search strategy error:', error);
-                currentStrategyIndex++;
-                setTimeout(tryNextStrategy, 100);
-            });
-    }
-    
-    tryNextStrategy();
-}
-
-// Strategy 1: Search with current city priority
-function searchWithCurrentCityPriority(query, searchType, cacheKey) {
-    return new Promise((resolve) => {
-        let searchQuery = query;
-        
-        if (currentCity && currentCity !== "Unknown Location") {
-            searchQuery = `${query}, ${currentCity}, Zambia`;
-        } else {
-            searchQuery = `${query}, Zambia`;
-        }
-        
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=15&dedupe=1&countrycodes=zm&bounded=1`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Search API error: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.length > 0) {
-                    const enhancedResults = enhanceSearchResults(data, query);
-                    
-                    // Cache the results
-                    searchCache.set(cacheKey, {
-                        results: enhancedResults,
-                        timestamp: Date.now(),
-                        strategy: 'city-priority'
-                    });
-                    
-                    displaySearchResults(enhancedResults, searchType);
-                    resolve(true);
-                } else {
-                    resolve(false);
-                }
-            })
-            .catch(error => {
-                console.error('Search with city priority error:', error);
-                resolve(false);
-            });
-    });
-}
-
-// Strategy 2: Search with Zambia scope only
-function searchWithZambiaScope(query, searchType, cacheKey) {
-    return new Promise((resolve) => {
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=15&dedupe=1&countrycodes=zm`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Search API error: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.length > 0) {
-                    const enhancedResults = enhanceSearchResults(data, query);
-                    
-                    searchCache.set(cacheKey, {
-                        results: enhancedResults,
-                        timestamp: Date.now(),
-                        strategy: 'zambia-scope'
-                    });
-                    
-                    displaySearchResults(enhancedResults, searchType);
-                    resolve(true);
-                } else {
-                    resolve(false);
-                }
-            })
-            .catch(error => {
-                console.error('Search with Zambia scope error:', error);
-                resolve(false);
-            });
-    });
-}
-
-// Strategy 3: Search with fallback places database
-function searchWithFallbackPlaces(query, searchType, cacheKey) {
-    return new Promise((resolve) => {
-        const searchTerm = query.toLowerCase();
-        let results = [];
-        
-        // Search in our local places database
-        Object.keys(zambianPlaces).forEach(city => {
-            zambianPlaces[city].forEach(place => {
-                if (place.toLowerCase().includes(searchTerm)) {
-                    results.push({
-                        display_name: `${place}, ${city}, Zambia`,
-                        lat: cityBoundaries[city]?.lat || -15.4167,
-                        lon: cityBoundaries[city]?.lng || 28.2833,
-                        type: 'place',
-                        importance: 0.5,
-                        city: city,
-                        isCurrentCity: city === currentCity
-                    });
-                }
-            });
-        });
-        
-        // Search for city names
-        zambianCities.forEach(city => {
-            if (city.toLowerCase().includes(searchTerm)) {
-                results.push({
-                    display_name: `${city}, Zambia`,
-                    lat: cityBoundaries[city]?.lat || -15.4167,
-                    lon: cityBoundaries[city]?.lng || 28.2833,
-                    type: 'city',
-                    importance: 0.8,
-                    city: city,
-                    isCurrentCity: city === currentCity
-                });
-            }
-        });
-        
-        if (results.length > 0) {
-            const enhancedResults = enhanceSearchResults(results, query);
+        // First, check if it's a known common place
+        const commonPlace = findCommonPlace(processedQuery);
+        if (commonPlace) {
+            console.log('Found common place:', commonPlace.name);
+            const enhancedResults = [{
+                ...commonPlace,
+                display_name: commonPlace.name,
+                lat: commonPlace.lat.toString(),
+                lon: commonPlace.lng.toString(),
+                displayLat: commonPlace.lat,
+                displayLon: commonPlace.lng,
+                distance: userLocation ? calculateDistance(
+                    userLocation.lat, userLocation.lng,
+                    commonPlace.lat, commonPlace.lng
+                ) : 0,
+                city: commonPlace.city,
+                isCurrentCity: commonPlace.city === currentCity,
+                priority: 0, // Highest priority for common places
+                relevanceScore: 100,
+                displayName: commonPlace.name
+            }];
             
             searchCache.set(cacheKey, {
                 results: enhancedResults,
-                timestamp: Date.now(),
-                strategy: 'fallback-database'
+                timestamp: Date.now()
             });
             
             displaySearchResults(enhancedResults, searchType);
-            resolve(true);
-        } else {
-            resolve(false);
+            return;
         }
-    });
+        
+        // Build search query with current city priority
+        let searchQueries = [];
+        
+        // Query 1: Search within current city if we have one
+        if (currentCity && currentCity !== "Unknown Location" && currentCity !== "Detecting...") {
+            searchQueries.push(`${processedQuery}, ${currentCity}, Zambia`);
+        }
+        
+        // Query 2: Search within Zambia broadly
+        searchQueries.push(`${processedQuery}, Zambia`);
+        
+        // Query 3: Search without country restriction (fallback)
+        searchQueries.push(processedQuery);
+        
+        // Try each query in order
+        trySearchQueries(searchQueries, 0, processedQuery, searchType, cacheKey);
+        
+    }, 400); // 400ms debounce
 }
 
-// Strategy 4: Search with geocoding fallback
-function searchWithGeocodingFallback(query, searchType, cacheKey) {
-    return new Promise((resolve) => {
-        // Try a broader search without country restriction
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=10&dedupe=1`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Search API error: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data && data.length > 0) {
-                    // Filter for Zambian results or results near Zambia
-                    const zambianResults = data.filter(place => {
-                        const displayName = place.display_name.toLowerCase();
-                        return displayName.includes('zambia') || 
-                               displayName.includes('lusaka') ||
-                               displayName.includes('kitwe') ||
-                               displayName.includes('ndola');
-                    });
-                    
-                    if (zambianResults.length > 0) {
-                        const enhancedResults = enhanceSearchResults(zambianResults, query);
-                        
-                        searchCache.set(cacheKey, {
-                            results: enhancedResults,
-                            timestamp: Date.now(),
-                            strategy: 'geocoding-fallback'
-                        });
-                        
-                        displaySearchResults(enhancedResults, searchType);
-                        resolve(true);
-                    } else {
-                        resolve(false);
-                    }
-                } else {
-                    resolve(false);
-                }
-            })
-            .catch(error => {
-                console.error('Geocoding fallback search error:', error);
-                resolve(false);
-            });
-    });
-}
-
-// Enhance search results with additional data
-function enhanceSearchResults(results, query) {
-    return results
-        .filter(place => place.display_name && place.lat && place.lon)
-        .map(place => {
-            const distance = userLocation ? calculateDistance(
-                userLocation.lat, userLocation.lng,
-                parseFloat(place.lat), parseFloat(place.lon)
-            ) : 0;
-            
-            const placeCity = extractCityFromPlace(place) || currentCity || "Unknown";
-            
-            return {
-                ...place,
-                displayLat: parseFloat(place.lat),
-                displayLon: parseFloat(place.lon),
-                distance,
-                city: placeCity,
-                isCurrentCity: placeCity === currentCity,
-                priority: placeCity === currentCity ? 1 : 2,
-                relevanceScore: calculateRelevanceScore(place, query, placeCity),
-                displayName: formatDisplayName(place.display_name, placeCity)
-            };
-        })
-        .sort((a, b) => {
-            // Sort by relevance score first
-            if (b.relevanceScore !== a.relevanceScore) {
-                return b.relevanceScore - a.relevanceScore;
+// Try multiple search queries until we get results
+function trySearchQueries(queries, index, originalQuery, searchType, cacheKey) {
+    if (index >= queries.length) {
+        showNoResultsMessage(originalQuery, searchType);
+        return;
+    }
+    
+    const searchQuery = queries[index];
+    console.log(`Trying search query ${index + 1}/${queries.length}: ${searchQuery}`);
+    
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=15&dedupe=1&countrycodes=zm&addressdetails=1`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Search API error: ${response.status}`);
             }
-            // Then by distance
-            return a.distance - b.distance;
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.length > 0) {
+                const enhancedResults = data
+                    .filter(place => place.display_name && place.lat && place.lon)
+                    .map(place => {
+                        const distance = userLocation ? calculateDistance(
+                            userLocation.lat, userLocation.lng,
+                            parseFloat(place.lat), parseFloat(place.lon)
+                        ) : 0;
+                        
+                        const placeCity = extractCityFromPlace(place) || currentCity || "Unknown";
+                        
+                        return {
+                            ...place,
+                            displayLat: parseFloat(place.lat),
+                            displayLon: parseFloat(place.lon),
+                            distance,
+                            city: placeCity,
+                            isCurrentCity: placeCity === currentCity,
+                            priority: placeCity === currentCity ? 1 : 2,
+                            relevanceScore: calculateRelevanceScore(place, originalQuery, placeCity),
+                            displayName: formatDisplayName(place.display_name, placeCity)
+                        };
+                    })
+                    .sort((a, b) => {
+                        // Sort by relevance score first
+                        if (b.relevanceScore !== a.relevanceScore) {
+                            return b.relevanceScore - a.relevanceScore;
+                        }
+                        // Then by distance
+                        if (userLocation) {
+                            return a.distance - b.distance;
+                        }
+                        // Then by whether it's in current city
+                        if (a.isCurrentCity !== b.isCurrentCity) {
+                            return a.isCurrentCity ? -1 : 1;
+                        }
+                        return 0;
+                    });
+                
+                // Cache the results
+                searchCache.set(cacheKey, {
+                    results: enhancedResults,
+                    timestamp: Date.now()
+                });
+                
+                displaySearchResults(enhancedResults, searchType);
+            } else {
+                // Try next query
+                trySearchQueries(queries, index + 1, originalQuery, searchType, cacheKey);
+            }
+        })
+        .catch(error => {
+            console.error('Search error:', error);
+            // Try next query
+            trySearchQueries(queries, index + 1, originalQuery, searchType, cacheKey);
         });
+}
+
+// Find common Zambian places
+function findCommonPlace(query) {
+    const queryLower = query.toLowerCase();
+    
+    // Check exact matches first
+    for (const [placeName, placeInfo] of Object.entries(commonZambianPlaces)) {
+        if (placeName.toLowerCase() === queryLower) {
+            return { name: placeName, ...placeInfo };
+        }
+    }
+    
+    // Check partial matches
+    for (const [placeName, placeInfo] of Object.entries(commonZambianPlaces)) {
+        if (placeName.toLowerCase().includes(queryLower) || queryLower.includes(placeName.toLowerCase())) {
+            return { name: placeName, ...placeInfo };
+        }
+    }
+    
+    // Check city names
+    for (const city of zambianCities) {
+        if (city.toLowerCase() === queryLower) {
+            // Return the city center
+            const boundary = cityBoundaries[city];
+            if (boundary) {
+                return { name: city, city: city, lat: boundary.lat, lng: boundary.lng };
+            }
+        }
+    }
+    
+    return null;
 }
 
 // Get cached search results based on search type
@@ -4194,7 +4038,7 @@ function displaySearchResults(results, searchType) {
         return;
     }
     
-    const uniqueResults = removeDuplicatePlaces(results).slice(0, 8);
+    const uniqueResults = removeDuplicatePlaces(results).slice(0, 10); // Show more results
     
     uniqueResults.forEach((result, index) => {
         const suggestionItem = document.createElement('div');
@@ -4205,7 +4049,7 @@ function displaySearchResults(results, searchType) {
         const placeIcon = getPlaceIcon(placeType);
         
         const cityBadge = result.isCurrentCity ? '' : 
-            `<span class="city-badge">${result.city}</span>`;
+            `<span class="city-badge" style="font-size: 0.6rem; background: var(--light-gray); padding: 2px 4px; border-radius: 4px; margin-left: 4px;">${result.city}</span>`;
         
         const distanceText = userLocation && result.distance > 0 ? 
             `${(result.distance / 1000).toFixed(1)} km away` : '';
@@ -4222,7 +4066,7 @@ function displaySearchResults(results, searchType) {
                 <div class="suggestion-address">${getShortAddress(result.display_name)}</div>
                 <div class="suggestion-distance">${distanceText}</div>
             </div>
-            ${result.isCurrentCity ? '<div class="current-city-indicator">📍 Current City</div>' : ''}
+            ${result.isCurrentCity ? '<div class="current-city-indicator" style="font-size: 0.6rem; color: var(--primary-orange);">📍 Current City</div>' : ''}
         `;
         
         suggestionItem.addEventListener('click', function() {
@@ -4233,13 +4077,6 @@ function displaySearchResults(results, searchType) {
     });
     
     suggestionsContainer.style.display = 'block';
-    suggestionsContainer.style.opacity = '0';
-    
-    // Smooth fade in
-    setTimeout(() => {
-        suggestionsContainer.style.opacity = '1';
-        suggestionsContainer.style.transition = 'opacity 0.3s ease';
-    }, 10);
 }
 
 // Handle search result selection based on search type
@@ -4258,9 +4095,7 @@ function handleSearchResultSelection(result, searchType) {
                                  searchType === 'scheduleSomeoneDestination' ? '' : ''));
     
     if (inputField) {
-        // Format the address in the specific format
-        const formattedAddress = formatAddressForInput(result.display_name);
-        inputField.value = formattedAddress;
+        inputField.value = result.display_name;
     }
     
     hideSearchSuggestions(searchType);
@@ -4344,30 +4179,6 @@ function handleSearchResultSelection(result, searchType) {
             showNotification(`Recipient destination set to ${result.displayName}`);
             break;
     }
-}
-
-// Format address for input field
-function formatAddressForInput(fullAddress) {
-    if (!fullAddress) return '';
-    
-    const parts = fullAddress.split(',');
-    const relevantParts = [];
-    
-    for (let i = 0; i < parts.length; i++) {
-        const part = parts[i].trim();
-        const partLower = part.toLowerCase();
-        
-        // Stop when we hit country or obvious administrative boundaries
-        if (partLower === 'zambia' || 
-            partLower.includes('province') ||
-            partLower.includes('region')) {
-            break;
-        }
-        
-        relevantParts.push(part);
-    }
-    
-    return relevantParts.join(' → ');
 }
 
 // Update manual pickup location (when user searches for pickup)
@@ -4525,7 +4336,7 @@ function setupSearchInputListener(searchType, inputId, suggestionsId) {
             searchDebounceTimers[searchType] = setTimeout(() => {
                 lastQuery = query;
                 searchPlacesEnhanced(query, searchType);
-            }, 300);
+            }, 400);
         } else if (query.length < 2) {
             hideSearchSuggestions(searchType);
             lastQuery = '';
@@ -4560,10 +4371,7 @@ function setupSearchInputListener(searchType, inputId, suggestionsId) {
 function hideSearchSuggestions(searchType) {
     const suggestionsContainer = document.getElementById(`${searchType}Suggestions`);
     if (suggestionsContainer) {
-        suggestionsContainer.style.opacity = '0';
-        setTimeout(() => {
-            suggestionsContainer.style.display = 'none';
-        }, 300);
+        suggestionsContainer.style.display = 'none';
     }
     
     if (searchDebounceTimers[searchType]) {
@@ -4586,21 +4394,20 @@ function hideAllSearchSuggestions() {
     });
 }
 
-// Show no results message
+// ENHANCED: Show no results message
 function showNoResultsMessage(query = '', searchType = 'destination') {
     const suggestionsContainer = document.getElementById(`${searchType}Suggestions`);
     
     if (suggestionsContainer) {
         suggestionsContainer.innerHTML = '<div class="no-places">No places found. Try a different search term.</div>';
-        suggestionsContainer.style.display = 'block';
     }
 }
 
 // Preprocess search query for better matching
 function preprocessSearchQuery(query) {
-    let processed = query.trim().toLowerCase();
+    let processed = query.trim();
     
-    // Remove common stop words
+    // Remove common filler words but keep important ones
     const stopWords = ['the', 'a', 'an', 'in', 'on', 'at', 'to', 'for', 'of', 'and', 'or', 'but'];
     stopWords.forEach(word => {
         const regex = new RegExp(`\\b${word}\\b`, 'gi');
@@ -4609,7 +4416,24 @@ function preprocessSearchQuery(query) {
     
     processed = processed.replace(/\s+/g, ' ').trim();
     
-    // Expand common abbreviations
+    // Handle Zambian place name variations
+    const zambianVariations = {
+        'unza': 'University of Zambia',
+        'cbu': 'Copperbelt University',
+        'manda': 'Manda Hill',
+        'levy': 'Levy Mall',
+        'eastpark': 'East Park Mall',
+        'arcades': 'Arcades Shopping Mall',
+        'vicfalls': 'Victoria Falls'
+    };
+    
+    Object.keys(zambianVariations).forEach(variation => {
+        if (processed.toLowerCase().includes(variation)) {
+            processed = processed.toLowerCase().replace(variation, zambianVariations[variation].toLowerCase());
+        }
+    });
+    
+    // Expand abbreviations
     const abbreviations = {
         'st': 'street',
         'ave': 'avenue',
@@ -4618,34 +4442,14 @@ function preprocessSearchQuery(query) {
         'hwy': 'highway',
         'ln': 'lane',
         'dr': 'drive',
-        'pl': 'place',
-        'ct': 'court',
-        'ter': 'terrace',
-        'cir': 'circle',
-        'sq': 'square',
-        'expy': 'expressway',
-        'tpke': 'turnpike'
+        'hosp': 'hospital',
+        'univ': 'university',
+        'sch': 'school'
     };
     
     Object.keys(abbreviations).forEach(abbr => {
         const regex = new RegExp(`\\b${abbr}\\b`, 'gi');
         processed = processed.replace(regex, abbreviations[abbr]);
-    });
-    
-    // Handle Zambian specific terms
-    const zambianTerms = {
-        'jct': 'junction',
-        'mkt': 'market',
-        'hosp': 'hospital',
-        'uni': 'university',
-        'sch': 'school',
-        'mall': 'shopping mall',
-        'airport': 'international airport'
-    };
-    
-    Object.keys(zambianTerms).forEach(term => {
-        const regex = new RegExp(`\\b${term}\\b`, 'gi');
-        processed = processed.replace(regex, zambianTerms[term]);
     });
     
     return processed;
@@ -4654,77 +4458,64 @@ function preprocessSearchQuery(query) {
 // Calculate relevance score for search results
 function calculateRelevanceScore(place, query, city) {
     let score = 0;
-    const placeName = place.display_name.toLowerCase();
+    const placeName = (place.display_name || '').toLowerCase();
     const queryLower = query.toLowerCase();
-    const cityLower = city.toLowerCase();
     
-    // Exact match boost
-    if (placeName === queryLower) {
-        score += 50;
-    }
-    
-    // Contains query boost
+    // Exact match bonus
     if (placeName.includes(queryLower)) {
         score += 20;
     }
     
     // Word-by-word matching
     const queryWords = queryLower.split(' ');
+    const placeWords = placeName.split(' ');
+    
     queryWords.forEach(word => {
-        if (word.length > 2 && placeName.includes(word)) {
-            score += 5;
+        if (word.length > 2) {
+            if (placeName.includes(word)) {
+                score += 10;
+            }
+            // Check for word boundaries
+            if (placeName.includes(` ${word} `) || placeName.startsWith(`${word} `) || placeName.endsWith(` ${word}`)) {
+                score += 5;
+            }
         }
     });
     
-    // Current city boost
+    // City matching bonus
     if (city === currentCity) {
         score += 15;
     }
     
-    // Type-based scoring
+    // Type bonuses
     if (place.type === 'administrative' || place.class === 'boundary') {
-        score += 2;
+        score -= 5; // Reduce score for administrative boundaries
     }
     
-    if (place.type === 'amenity' || place.class === 'amenity') {
-        score += 8;
+    if (place.type === 'amenity' || place.class === 'shop' || place.type === 'tourism') {
+        score += 8; // Increase score for amenities, shops, and tourism
     }
     
-    if (place.type === 'shop' || place.class === 'shop') {
-        score += 6;
-    }
-    
-    if (place.type === 'tourism' || place.class === 'tourism') {
-        score += 7;
-    }
-    
-    // Importance factor
+    // Importance from Nominatim
     if (place.importance) {
         score += place.importance * 10;
     }
     
-    // Distance penalty for far away places
+    // Distance penalty if too far
     if (userLocation) {
         const distance = calculateDistance(
             userLocation.lat, userLocation.lng,
             parseFloat(place.lat), parseFloat(place.lon)
         );
-        if (distance > 50000) { // 50km
-            score -= 5;
-        } else if (distance > 20000) { // 20km
-            score -= 2;
-        } else if (distance < 5000) { // 5km
-            score += 5;
+        if (distance > 50000) { // More than 50km
+            score -= 10;
+        } else if (distance > 100000) { // More than 100km
+            score -= 20;
+        } else {
+            // Closer is better
+            score += Math.max(0, 10 - (distance / 5000));
         }
     }
-    
-    // Popular places boost (based on common Zambian places)
-    const popularTerms = ['mall', 'market', 'hospital', 'university', 'airport', 'hotel', 'restaurant'];
-    popularTerms.forEach(term => {
-        if (placeName.includes(term)) {
-            score += 3;
-        }
-    });
     
     return Math.max(0, score);
 }
@@ -4732,21 +4523,11 @@ function calculateRelevanceScore(place, query, city) {
 // Extract city from place data
 function extractCityFromPlace(place) {
     if (place.address) {
-        return extractCityFromAddress(place.address);
+        const cityFromAddress = extractCityFromAddress(place.address);
+        if (cityFromAddress) return cityFromAddress;
     }
     
-    if (place.display_name) {
-        const parts = place.display_name.split(',');
-        for (let i = parts.length - 1; i >= 0; i--) {
-            const part = parts[i].trim();
-            const normalized = normalizeCityName(part);
-            if (zambianCities.includes(normalized)) {
-                return normalized;
-            }
-        }
-    }
-    
-    return "Unknown";
+    return extractCityFromDisplayName(place.display_name);
 }
 
 // Format display name for better UX
@@ -4756,20 +4537,12 @@ function formatDisplayName(fullName, city) {
     const parts = fullName.split(',');
     const relevantParts = [];
     
-    for (let i = 0; i < parts.length; i++) {
+    // Keep the first 2-3 parts which usually contain the specific location
+    for (let i = 0; i < Math.min(3, parts.length); i++) {
         const part = parts[i].trim();
-        const partLower = part.toLowerCase();
-        
-        // Stop when we hit administrative boundaries
-        if (zambianCities.some(c => c.toLowerCase() === partLower) ||
-            partLower === 'zambia' ||
-            partLower.includes('province') ||
-            partLower.includes('region') ||
-            partLower.includes('district')) {
-            break;
+        if (part) {
+            relevantParts.push(part);
         }
-        
-        relevantParts.push(part);
     }
     
     return relevantParts.join(', ') || fullName;
@@ -4780,24 +4553,28 @@ function getShortAddress(fullAddress) {
     if (!fullAddress) return '';
     
     const parts = fullAddress.split(',');
-    // Take first 2-3 parts for brevity
-    return parts.slice(0, Math.min(3, parts.length)).join(', ');
+    // Take first 2 parts for short address
+    return parts.slice(0, Math.min(2, parts.length)).join(', ');
 }
 
-// Remove duplicate places with improved logic
+// ENHANCED: Remove duplicate places with improved logic
 function removeDuplicatePlaces(places) {
     const seen = new Set();
-    return places.filter(place => {
-        const coordKey = `${place.lat.toFixed(6)}-${place.lon.toFixed(6)}`;
-        const nameKey = place.display_name.substring(0, 50).toLowerCase();
+    const uniquePlaces = [];
+    
+    places.forEach(place => {
+        // Create a composite key
+        const coordKey = `${place.lat}-${place.lon}`;
+        const nameKey = (place.display_name || '').substring(0, 30).toLowerCase().replace(/[^a-z0-9]/g, '');
         const uniqueKey = `${coordKey}-${nameKey}`;
         
-        if (seen.has(uniqueKey)) {
-            return false;
+        if (!seen.has(uniqueKey)) {
+            seen.add(uniqueKey);
+            uniquePlaces.push(place);
         }
-        seen.add(uniqueKey);
-        return true;
     });
+    
+    return uniquePlaces;
 }
 
 // ENHANCED: Refresh passenger position with improved city detection
@@ -4808,8 +4585,10 @@ function refreshPassengerPosition() {
             const lng = position.coords.longitude;
             userLocation = { lat, lng };
             
+            // Center map on user location
             passengerMap.setView([lat, lng], 16);
             
+            // Update or create current location marker
             if (currentLocationMarker) {
                 currentLocationMarker.setLatLng([lat, lng]);
             } else {
@@ -4823,22 +4602,27 @@ function refreshPassengerPosition() {
                     .bindPopup('Your location');
             }
             
+            // Update pickup location
             updatePickupLocation(lat, lng);
             
+            // Detect current city
+            showNotification('Detecting your location...');
             determineCurrentCity(lat, lng).then(city => {
                 console.log("Final detected city:", city);
+                currentCity = city;
                 if (currentScreen === 'home') {
                     showNotification(`Location detected in ${city}`);
                     updateCitySpecificUI(city);
                 }
             }).catch(error => {
                 console.error('City detection failed:', error);
-                currentCity = "Lusaka";
+                currentCity = "Unknown Location";
                 if (currentScreen === 'home') {
-                    showNotification('Using default location: Lusaka');
+                    showNotification('Unable to detect city. Using general location.');
                 }
             });
             
+            // Start continuous location tracking if not already started
             if (!locationWatchId) {
                 startLocationTracking();
             }
@@ -4851,12 +4635,12 @@ function refreshPassengerPosition() {
             handleGeolocationError(error);
         }, {
             enableHighAccuracy: true,
-            timeout: 15000,
+            timeout: 20000, // 20 seconds timeout
             maximumAge: 30000
         });
     } else {
         showNotification('Geolocation is not supported by this browser.');
-        currentCity = "Lusaka";
+        currentCity = "Unknown Location";
     }
 }
 
@@ -4882,7 +4666,7 @@ function handleGeolocationError(error) {
         showNotification(errorMessage);
     }
     
-    currentCity = currentCity || "Lusaka";
+    currentCity = currentCity || "Unknown Location";
 }
 
 // Update city-specific UI elements
@@ -4893,11 +4677,17 @@ function updateCitySpecificUI(city) {
     }
     
     console.log(`UI updated for city: ${city}`);
+    
+    // Update the pickup location field with city context
+    if (userLocation) {
+        getPreciseAddress(userLocation.lat, userLocation.lng, 'pickupLocation');
+    }
 }
 
-// Calculate distance between two coordinates
+// ORIGINAL FUNCTIONS (preserved with enhancements)
+
 function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // metres
+    const R = 6371e3; // Earth's radius in meters
     const φ1 = lat1 * Math.PI / 180;
     const φ2 = lat2 * Math.PI / 180;
     const Δφ = (lat2 - lat1) * Math.PI / 180;
@@ -4908,44 +4698,53 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
               Math.sin(Δλ/2) * Math.sin(Δλ/2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
-    return R * c;
+    return R * c; // Distance in meters
 }
 
-// Forward geocode a query
 function forwardGeocode(query) {
     return new Promise(resolve => {
-        if (!query || query.trim().length < 2) {
+        if (!query || query.length < 2) {
             resolve([]);
             return;
         }
         
-        const searchQuery = `${query}, Zambia`;
+        // First check common places
+        const commonPlace = findCommonPlace(query.toLowerCase());
+        if (commonPlace) {
+            resolve([{
+                display_name: commonPlace.name,
+                lat: commonPlace.lat.toString(),
+                lon: commonPlace.lng.toString()
+            }]);
+            return;
+        }
+        
+        // Try with current city first
+        let searchQuery = query;
+        if (currentCity && currentCity !== "Unknown Location" && currentCity !== "Detecting...") {
+            searchQuery = `${query}, ${currentCity}, Zambia`;
+        } else {
+            searchQuery = `${query}, Zambia`;
+        }
         
         fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&countrycodes=zm`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Forward geocoding error: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data && data.length > 0) {
-                    // Filter by distance if we have user location
-                    if (userLocation) {
-                        const filteredResults = data.filter(result => {
-                            const distance = calculateDistance(
-                                userLocation.lat, userLocation.lng,
-                                parseFloat(result.lat), parseFloat(result.lon)
-                            );
-                            return distance <= 100000; // Within 100km
-                        });
-                        
-                        if (filteredResults.length > 0) {
-                            resolve(filteredResults);
-                        } else {
-                            // If nothing within 100km, return the first result
-                            resolve(data.slice(0, 1));
-                        }
-                    } else {
-                        resolve(data);
-                    }
+                    resolve(data);
                 } else {
-                    resolve([]);
+                    // Try without city constraint
+                    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`)
+                        .then(response => response.json())
+                        .then(fallbackData => {
+                            resolve(fallbackData || []);
+                        })
+                        .catch(() => resolve([]));
                 }
             })
             .catch(error => {
@@ -4955,99 +4754,87 @@ function forwardGeocode(query) {
     });
 }
 
-// ENHANCED: Update fare estimate with better calculation
+// ENHANCED: Update fare estimate - automatically calculates when destination is set
 function updateFareEstimate() {
     const destination = document.getElementById('destinationLocation').value;
     
-    if (destination && destination.length > 3 && userLocation) {
-        console.log('Calculating fare for destination:', destination);
-        
-        forwardGeocode(destination).then(results => {
-            if (results.length > 0) {
-                const destLat = parseFloat(results[0].lat);
-                const destLng = parseFloat(results[0].lon);
-                
-                const distance = calculateDistance(
-                    userLocation.lat, userLocation.lng,
-                    destLat, destLng
-                );
-                
-                console.log('Distance calculated:', distance, 'meters');
-                
-                // Calculate fare based on distance
-                let baseFare = calculateFareFromDistance(distance);
-                
-                // Apply vehicle type multiplier
-                switch(selectedVehicleType) {
-                    case 'car':
-                        baseFare = baseFare;
-                        break;
-                    case 'bike':
-                        baseFare = baseFare * 0.7;
-                        break;
-                    case 'bicycle':
-                        baseFare = baseFare * 0.5;
-                        break;
-                }
-                
-                // Apply promo code discount
-                if (appliedPromoCode) {
-                    baseFare = baseFare * 0.8; // 20% discount
-                }
-                
-                document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
-                
-                // Calculate ETA (assuming average speed of 30km/h in city)
-                const etaMinutes = Math.max(5, Math.ceil((distance / 1000) / 30 * 60));
-                document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
-                
-                document.getElementById('requestRideBtn').disabled = false;
-                
-                rideFare = baseFare;
-                
-                console.log('Fare calculated:', baseFare, 'ETA:', etaMinutes);
-            } else {
-                console.log('No geocoding results for destination');
-                resetFareEstimate();
+    if (!destination || destination.length < 3 || !userLocation) {
+        document.getElementById('estimatedFare').textContent = 'K0.00';
+        document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+        document.getElementById('requestRideBtn').disabled = true;
+        return;
+    }
+    
+    // Show calculating message
+    document.getElementById('estimatedFare').textContent = 'Calculating...';
+    document.getElementById('etaDisplay').textContent = 'Estimating...';
+    
+    forwardGeocode(destination).then(results => {
+        if (results.length > 0) {
+            const destLat = parseFloat(results[0].lat);
+            const destLng = parseFloat(results[0].lon);
+            
+            const distance = calculateDistance(
+                userLocation.lat, userLocation.lng,
+                destLat, destLng
+            );
+            
+            // Convert distance to kilometers
+            const distanceKm = distance / 1000;
+            
+            // Calculate base fare based on distance
+            let baseFare = 23; // Minimum fare
+            
+            if (distanceKm > 0) {
+                // Add distance-based fare: K5 per km
+                baseFare += Math.ceil(distanceKm * 5);
             }
-        }).catch(error => {
-            console.error('Error calculating fare:', error);
-            resetFareEstimate();
-        });
-    } else {
-        resetFareEstimate();
-    }
-}
-
-// Calculate fare from distance
-function calculateFareFromDistance(distance) {
-    const distanceKm = distance / 1000;
-    
-    // Base fare structure for Zambia
-    let fare = 23; // Minimum fare
-    
-    if (distanceKm > 0) {
-        // Additional charge per kilometer
-        const perKmCharge = 5; // K5 per km
-        fare += Math.ceil(distanceKm * perKmCharge);
-    }
-    
-    // Add time-based component (estimated)
-    const estimatedTimeHours = distanceKm / 30; // 30km/h average
-    fare += Math.ceil(estimatedTimeHours * 10); // K10 per hour
-    
-    // Ensure minimum fare
-    fare = Math.max(fare, 23);
-    
-    return fare;
-}
-
-// Reset fare estimate
-function resetFareEstimate() {
-    document.getElementById('estimatedFare').textContent = 'K0.00';
-    document.getElementById('etaDisplay').textContent = 'ETA: -- min';
-    document.getElementById('requestRideBtn').disabled = true;
-    rideFare = 0;
+            
+            // Vehicle type multiplier
+            switch(selectedVehicleType) {
+                case 'car':
+                    // Car is standard price
+                    break;
+                case 'bike':
+                    baseFare = baseFare * 0.7; // 30% cheaper than car
+                    break;
+                case 'bicycle':
+                    baseFare = baseFare * 0.5; // 50% cheaper than car
+                    break;
+            }
+            
+            // Apply promo code discount if any
+            if (appliedPromoCode) {
+                baseFare = baseFare * 0.8; // 20% discount for promo codes
+            }
+            
+            // Ensure minimum fare
+            baseFare = Math.max(15, baseFare);
+            
+            // Update UI
+            document.getElementById('estimatedFare').textContent = `K${baseFare.toFixed(2)}`;
+            
+            // Calculate ETA: Assume average speed of 30km/h in city
+            const etaMinutes = Math.ceil((distanceKm / 30) * 60);
+            document.getElementById('etaDisplay').textContent = `ETA: ${etaMinutes} min`;
+            
+            document.getElementById('requestRideBtn').disabled = false;
+            
+            // Store fare for later use
+            rideFare = baseFare;
+            
+            console.log(`Fare calculated: K${baseFare.toFixed(2)} for ${distanceKm.toFixed(1)}km, ETA: ${etaMinutes}min`);
+        } else {
+            document.getElementById('estimatedFare').textContent = 'K0.00';
+            document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+            document.getElementById('requestRideBtn').disabled = true;
+        }
+    }).catch(error => {
+        console.error('Error calculating fare:', error);
+        document.getElementById('estimatedFare').textContent = 'K0.00';
+        document.getElementById('etaDisplay').textContent = 'ETA: -- min';
+        document.getElementById('requestRideBtn').disabled = true;
+    });
 }
 
 // Calculate schedule ride fare
@@ -5067,59 +4854,67 @@ function calculateScheduleRideFare(scheduleType) {
             pickupLocation = document.getElementById('scheduleSomeonePickup').value;
             destinationLocation = document.getElementById('scheduleSomeoneDestination').value;
             break;
+        default:
+            return;
     }
     
-    if (pickupLocation && pickupLocation.length > 3 && destinationLocation && destinationLocation.length > 3) {
-        Promise.all([
-            forwardGeocode(pickupLocation),
-            forwardGeocode(destinationLocation)
-        ]).then(([pickupResults, destinationResults]) => {
-            if (pickupResults.length > 0 && destinationResults.length > 0) {
-                const pickupLat = parseFloat(pickupResults[0].lat);
-                const pickupLng = parseFloat(pickupResults[0].lon);
-                const destLat = parseFloat(destinationResults[0].lat);
-                const destLng = parseFloat(destinationResults[0].lon);
-                
-                const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
-                
-                let baseFare = calculateFareFromDistance(distance);
-                
-                let fareElement, etaElement, buttonElement;
-                
-                switch(scheduleType) {
-                    case 'ride-now':
-                        fareElement = document.getElementById('scheduleEstimatedFare');
-                        etaElement = document.getElementById('scheduleEtaDisplay');
-                        buttonElement = document.getElementById('scheduleRideNowBtn');
-                        break;
-                    case 'delivery':
-                        fareElement = document.getElementById('scheduleDeliveryFare');
-                        etaElement = document.getElementById('scheduleDeliveryEtaDisplay');
-                        buttonElement = document.getElementById('scheduleDeliveryBtn');
-                        baseFare = baseFare * 0.8; // 20% discount for delivery
-                        break;
-                    case 'schedule-for-someone':
-                        fareElement = document.getElementById('scheduleSomeoneFare');
-                        etaElement = document.getElementById('scheduleSomeoneEtaDisplay');
-                        buttonElement = document.getElementById('scheduleForSomeoneBtn');
-                        break;
-                }
-                
-                if (fareElement) {
-                    fareElement.textContent = `K${baseFare.toFixed(2)}`;
-                }
-                
-                const etaMinutes = Math.max(5, Math.ceil((distance / 1000) / 30 * 60));
-                if (etaElement) {
-                    etaElement.textContent = `ETA: ${etaMinutes} min`;
-                }
-                
-                if (buttonElement) {
-                    buttonElement.disabled = false;
-                }
-            }
-        });
+    if (!pickupLocation || !destinationLocation) {
+        return;
     }
+    
+    Promise.all([
+        forwardGeocode(pickupLocation),
+        forwardGeocode(destinationLocation)
+    ]).then(([pickupResults, destinationResults]) => {
+        if (pickupResults.length > 0 && destinationResults.length > 0) {
+            const pickupLat = parseFloat(pickupResults[0].lat);
+            const pickupLng = parseFloat(pickupResults[0].lon);
+            const destLat = parseFloat(destinationResults[0].lat);
+            const destLng = parseFloat(destinationResults[0].lon);
+            
+            const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
+            const distanceKm = distance / 1000;
+            
+            let baseFare = 23;
+            
+            if (distanceKm > 0) {
+                baseFare += Math.ceil(distanceKm * 5);
+            }
+            
+            // Adjust for delivery
+            if (scheduleType === 'delivery') {
+                baseFare = baseFare * 0.8;
+            }
+            
+            let fareElement, etaElement;
+            
+            switch(scheduleType) {
+                case 'ride-now':
+                    fareElement = document.getElementById('scheduleEstimatedFare');
+                    etaElement = document.getElementById('scheduleEtaDisplay');
+                    break;
+                case 'delivery':
+                    fareElement = document.getElementById('scheduleDeliveryFare');
+                    etaElement = document.getElementById('scheduleDeliveryEtaDisplay');
+                    break;
+                case 'schedule-for-someone':
+                    fareElement = document.getElementById('scheduleSomeoneFare');
+                    etaElement = document.getElementById('scheduleSomeoneEtaDisplay');
+                    break;
+            }
+            
+            if (fareElement) {
+                fareElement.textContent = `K${baseFare.toFixed(2)}`;
+            }
+            
+            const etaMinutes = Math.ceil((distanceKm / 30) * 60);
+            if (etaElement) {
+                etaElement.textContent = `ETA: ${etaMinutes} min`;
+            }
+        }
+    }).catch(error => {
+        console.error('Error calculating schedule fare:', error);
+    });
 }
 
 function updateDestinationMarker(lat, lng, name) {
@@ -5142,7 +4937,7 @@ function updateDestinationMarker(lat, lng, name) {
             [userLocation.lat, userLocation.lng],
             [lat, lng]
         );
-        passengerMap.fitBounds(bounds, { padding: [12, 12] });
+        passengerMap.fitBounds(bounds, { padding: [50, 50] });
     }
 }
 
@@ -5151,8 +4946,14 @@ function drawRoute(startLat, startLng, endLat, endLng) {
         passengerMap.removeLayer(routePolyline);
     }
     
+    // Try OSRM routing first
     fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('OSRM routing failed');
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.routes && data.routes.length > 0) {
                 const route = data.routes[0];
@@ -5165,11 +4966,15 @@ function drawRoute(startLat, startLng, endLat, endLng) {
                     dashArray: '8, 8'
                 }).addTo(passengerMap);
                 
-                passengerMap.fitBounds(routePolyline.getBounds(), { padding: [12, 12] });
+                // Fit map to show the entire route
+                passengerMap.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+            } else {
+                throw new Error('No route found');
             }
         })
         .catch(error => {
-            console.error('Error fetching route:', error);
+            console.error('Error fetching route from OSRM:', error);
+            // Fallback: draw a straight line
             routePolyline = L.polyline([
                 [startLat, startLng],
                 [endLat, endLng]
@@ -5179,6 +4984,12 @@ function drawRoute(startLat, startLng, endLat, endLng) {
                 opacity: 0.7,
                 dashArray: '8, 8'
             }).addTo(passengerMap);
+            
+            const bounds = L.latLngBounds(
+                [startLat, startLng],
+                [endLat, endLng]
+            );
+            passengerMap.fitBounds(bounds, { padding: [50, 50] });
         });
 }
 
@@ -5192,13 +5003,20 @@ function requestRide() {
         return;
     }
     
-    if (!currentLocationMarker && !pickupMarker) {
+    if (!userLocation && !pickupMarker) {
         showNotification('Unable to determine your location. Please try again.');
         return;
     }
     
-    const pickupLatLng = pickupMarker ? pickupMarker.getLatLng() : currentLocationMarker.getLatLng();
+    const pickupLatLng = pickupMarker ? pickupMarker.getLatLng() : 
+                        (userLocation ? { lat: userLocation.lat, lng: userLocation.lng } : null);
     
+    if (!pickupLatLng) {
+        showNotification('Please set a pickup location');
+        return;
+    }
+    
+    // Get package details if applicable
     if (document.getElementById('packageForm').classList.contains('active')) {
         packageDetails = {
             receiverName: document.getElementById('receiverName').value,
@@ -5227,12 +5045,17 @@ function requestRide() {
             pickupLatLng.lat, pickupLatLng.lng,
             destLat, destLng
         );
+        const distanceKm = distance / 1000;
         
-        let baseFare = calculateFareFromDistance(distance);
+        // Calculate fare (same logic as updateFareEstimate)
+        let baseFare = 23;
+        
+        if (distanceKm > 0) {
+            baseFare += Math.ceil(distanceKm * 5);
+        }
         
         switch(selectedVehicleType) {
             case 'car':
-                baseFare = baseFare;
                 break;
             case 'bike':
                 baseFare = baseFare * 0.7;
@@ -5246,6 +5069,8 @@ function requestRide() {
             baseFare = baseFare * 0.8;
         }
         
+        baseFare = Math.max(15, baseFare);
+        
         const rideId = database.ref().child('rides').push().key;
         
         const rideRequest = {
@@ -5255,14 +5080,14 @@ function requestRide() {
             passengerPhone: userData.phone || 'Not provided',
             pickupLocation: fullPickupAddress,
             pickupDisplayLocation: pickupLocation,
-            destination: destinationLocation,
+            destination: destinationResults[0].display_name || destinationLocation,
             pickupLat: pickupLatLng.lat,
             pickupLng: pickupLatLng.lng,
             destLat: destLat,
             destLng: destLng,
             rideType: selectedVehicleType,
             fare: baseFare,
-            distance: (distance / 1000).toFixed(2) + ' km',
+            distance: distanceKm.toFixed(2) + ' km',
             status: 'requested',
             timestamp: firebase.database.ServerValue.TIMESTAMP,
             updatedAt: firebase.database.ServerValue.TIMESTAMP,
@@ -5340,8 +5165,13 @@ function scheduleRide(scheduleType) {
         const destLng = parseFloat(destinationResults[0].lon);
         
         const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
+        const distanceKm = distance / 1000;
         
-        let baseFare = calculateFareFromDistance(distance);
+        let baseFare = 23;
+        
+        if (distanceKm > 0) {
+            baseFare += Math.ceil(distanceKm * 5);
+        }
         
         // Adjust fare for delivery
         if (scheduleType === 'delivery') {
@@ -5364,7 +5194,7 @@ function scheduleRide(scheduleType) {
             destLng: destLng,
             rideType: vehicleType || 'car',
             fare: baseFare,
-            distance: (distance / 1000).toFixed(2) + ' km',
+            distance: distanceKm.toFixed(2) + ' km',
             scheduledTime: scheduledDateTime.getTime(),
             status: 'scheduled',
             scheduleType: scheduleType,
@@ -5451,13 +5281,13 @@ function cancelScheduleForm() {
     activeScheduleOption = null;
 }
 
-// Show payment selection for all ride types
+// ENHANCED: Show payment selection for all ride types
 function showPaymentSelection(fare = null) {
     const calculatedFare = fare || rideFare;
     
     document.getElementById('paymentWalletBalance').textContent = `Balance: K${walletBalance.toFixed(2)}`;
     
-    if (walletBalance < calculatedFare) {
+    if (walletBalance < calculatedFare && selectedPaymentType === 'wallet') {
         document.getElementById('insufficientBalance').style.display = 'block';
         document.getElementById('confirmPaymentBtn').disabled = true;
     } else {
@@ -5472,7 +5302,7 @@ function closePaymentSelection() {
     document.getElementById('paymentSelectionPopup').classList.add('hidden');
 }
 
-// Fast ride submission after payment confirmation
+// ENHANCED: Fast ride submission after payment confirmation
 function submitRideRequest() {
     if (!currentRideRequestData) {
         showNotification('No ride request data found. Please try again.');
@@ -5483,6 +5313,11 @@ function submitRideRequest() {
     
     if (selectedPaymentType === 'wallet') {
         const newBalance = walletBalance - rideRequest.fare;
+        
+        if (newBalance < 0) {
+            showNotification('Insufficient wallet balance. Please select another payment method.');
+            return;
+        }
         
         database.ref('users/' + currentUser.uid).update({
             walletBalance: newBalance
@@ -5551,25 +5386,29 @@ function submitRideRequest() {
 }
 
 function updateUIForActiveRide() {
-    document.getElementById('rideRequestForm').style.display = 'none';
+    if (!currentRide) return;
     
+    document.getElementById('rideRequestForm').style.display = 'none';
     document.getElementById('rideInfoPanel').style.display = 'block';
     
-    if (currentRide) {
-        document.getElementById('currentPickupLocation').textContent = currentRide.pickupDisplayLocation || currentRide.pickupLocation;
-        document.getElementById('currentDestinationLocation').textContent = currentRide.destination;
-        
-        const baseFare = currentRide.fare || 0;
-        const discount = appliedPromoCode ? baseFare * 0.2 : 0;
-        const totalFare = baseFare - discount;
-        
-        document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
-        document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
-        document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
+    document.getElementById('currentPickupLocation').textContent = currentRide.pickupDisplayLocation || currentRide.pickupLocation;
+    document.getElementById('currentDestinationLocation').textContent = currentRide.destination;
+    
+    const baseFare = currentRide.fare || 0;
+    const discount = appliedPromoCode ? baseFare * 0.2 : 0;
+    const totalFare = baseFare - discount;
+    
+    document.getElementById('baseFare').textContent = `K${baseFare.toFixed(2)}`;
+    document.getElementById('discountFare').textContent = `-K${discount.toFixed(2)}`;
+    document.getElementById('totalFare').textContent = `K${totalFare.toFixed(2)}`;
+    
+    // Show driver details if available
+    if (currentRide.driverId) {
+        loadDriverDetails(currentRide.driverId);
     }
 }
 
-// ENHANCED: Driver assignment handler
+// ENHANCED: Driver assignment handler with image support and vehicle display
 function listenForDriverAssignment(rideId) {
     if (driverAssignmentListener) {
         driverAssignmentListener();
@@ -5592,13 +5431,10 @@ function listenForDriverAssignment(rideId) {
             handleRideCancellation(ride);
         } else if (ride.status === 'arrived') {
             showNotification('Your driver has arrived at the pickup location.');
-            updateRideStatusDisplay('arrived');
         } else if (ride.status === 'picked_up') {
             showNotification('You have been picked up. Enjoy your ride!');
-            updateRideStatusDisplay('picked_up');
         } else if (ride.status === 'started') {
             showNotification('Your trip has started.');
-            updateRideStatusDisplay('started');
         }
     }, error => {
         console.error('Error listening for driver assignment:', error);
@@ -5606,40 +5442,10 @@ function listenForDriverAssignment(rideId) {
     });
 }
 
-// Update ride status display
-function updateRideStatusDisplay(status) {
-    const rideStatus = document.getElementById('rideStatus');
-    const statusDot = document.getElementById('statusDot');
-    const statusText = document.getElementById('statusText');
-    
-    if (!rideStatus || !statusDot || !statusText) return;
-    
-    switch(status) {
-        case 'requested':
-            statusDot.className = 'status-dot searching';
-            statusText.textContent = 'Searching for driver';
-            break;
-        case 'accepted':
-            statusDot.className = 'status-dot arriving';
-            statusText.textContent = 'Driver on the way';
-            break;
-        case 'arrived':
-            statusDot.className = 'status-dot riding';
-            statusText.textContent = 'Driver arrived';
-            break;
-        case 'picked_up':
-        case 'started':
-            statusDot.className = 'status-dot riding';
-            statusText.textContent = 'Trip in progress';
-            break;
-        case 'completed':
-            rideStatus.style.display = 'none';
-            break;
-    }
-}
-
-// Handle driver assignment with image support
+// ENHANCED: Handle driver assignment with image support and vehicle display
 function handleDriverAssignment(ride) {
+    console.log('Driver assigned to ride:', ride.driverId);
+    
     document.getElementById('searchingAnimation').style.display = 'none';
     
     document.getElementById('statusDot').className = 'status-dot arriving';
@@ -5648,52 +5454,58 @@ function handleDriverAssignment(ride) {
     document.getElementById('estimatedTime').style.display = 'flex';
     document.getElementById('timeText').textContent = '5 min';
     
-    database.ref('users/' + ride.driverId).once('value')
-        .then(driverSnapshot => {
-            const driver = driverSnapshot.val();
-            if (driver) {
-                document.getElementById('driverName').textContent = driver.name || 'Driver';
-                document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
-                document.getElementById('driverRating').textContent = driver.rating || '4.5';
-                
-                if (driver.vehicle) {
-                    document.getElementById('vehicleDetails').textContent = 
-                        `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
-                }
-                
-                updateDriverAvatarWithImage(driver, ride);
-                updateDriverVehicleDisplay(driver, ride);
-                updateDriverDetailsCard(driver);
-                addChatWithDriverButton(ride.id, driver);
-                
-                // Add driver marker if location is available
-                if (ride.driverLat && ride.driverLng) {
-                    addDriverMarker(ride.driverLat, ride.driverLng);
-                }
-                
-                // Draw route from driver to pickup
-                if (ride.driverLat && ride.driverLng && ride.pickupLat && ride.pickupLng) {
-                    drawRoute(ride.driverLat, ride.driverLng, ride.pickupLat, ride.pickupLng);
-                }
-                
-                trackDriverLocation(ride.driverId);
-                showNotification(`Driver ${driver.name} is on the way!`);
-                startDriverMessageListener(ride.id);
-            }
-        });
+    // Load driver details
+    loadDriverDetails(ride.driverId);
+    
+    // Add driver marker if we have location
+    if (ride.driverLat && ride.driverLng) {
+        addDriverMarker(ride.driverLat, ride.driverLng);
+        drawRoute(ride.driverLat, ride.driverLng, ride.pickupLat, ride.pickupLng);
+        trackDriverLocation(ride.driverId);
+    }
+    
+    showNotification(`Driver ${ride.driverName || 'is'} on the way!`);
+    startDriverMessageListener(ride.id);
     
     listenForRideStatusUpdates(ride.id);
 }
 
+// Load driver details from Firebase
+function loadDriverDetails(driverId) {
+    database.ref('users/' + driverId).once('value')
+        .then(driverSnapshot => {
+            const driver = driverSnapshot.val();
+            if (driver) {
+                updateDriverUI(driver);
+                updateDriverDetailsCard(driver);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading driver details:', error);
+        });
+}
+
+// Update driver UI elements
+function updateDriverUI(driver) {
+    document.getElementById('driverName').textContent = driver.name || 'Driver';
+    document.getElementById('driverPhone').textContent = driver.phone || 'N/A';
+    document.getElementById('driverRating').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
+    
+    if (driver.vehicle) {
+        document.getElementById('vehicleDetails').textContent = 
+            `${driver.vehicle.type || 'Vehicle'} - ${driver.vehicle.licensePlate || 'ABC123'}`;
+    }
+    
+    updateDriverAvatarWithImage(driver);
+    updateDriverVehicleDisplay(driver);
+    addChatWithDriverButton(currentRide.id, driver);
+}
+
 // Update driver avatar with profile image
-function updateDriverAvatarWithImage(driver, ride) {
+function updateDriverAvatarWithImage(driver) {
     const driverAvatar = document.getElementById('driverAvatar');
     
-    if (ride.driverProfileImage) {
-        driverProfileImage = ride.driverProfileImage;
-        driverAvatar.innerHTML = `<img src="${driverProfileImage}" class="driver-profile-image" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-    } 
-    else if (driver.images && driver.images.profilePhoto) {
+    if (driver.images && driver.images.profilePhoto) {
         driverProfileImage = driver.images.profilePhoto;
         driverAvatar.innerHTML = `<img src="${driverProfileImage}" class="driver-profile-image" alt="Driver" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
     }
@@ -5705,7 +5517,7 @@ function updateDriverAvatarWithImage(driver, ride) {
 }
 
 // Update driver vehicle display with vehicle image and details
-function updateDriverVehicleDisplay(driver, ride) {
+function updateDriverVehicleDisplay(driver) {
     const vehicleImageSection = document.getElementById('vehicleImageSection');
     
     if (!vehicleImageSection) {
@@ -5731,27 +5543,7 @@ function updateDriverVehicleDisplay(driver, ride) {
     
     const vehicleImageContainer = document.getElementById('vehicleImageContainer');
     
-    if (ride.vehicleImage) {
-        driverVehicleImage = ride.vehicleImage;
-        vehicleImageContainer.innerHTML = `
-            <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">
-            <div class="vehicle-details-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.7rem;">
-                <div class="vehicle-detail">
-                    <strong>Type:</strong> ${driver.vehicle?.type || 'N/A'}
-                </div>
-                <div class="vehicle-detail">
-                    <strong>Model:</strong> ${driver.vehicle?.model || 'N/A'}
-                </div>
-                <div class="vehicle-detail">
-                    <strong>Color:</strong> ${driver.vehicle?.color || 'N/A'}
-                </div>
-                <div class="vehicle-detail">
-                    <strong>Plate:</strong> ${driver.vehicle?.licensePlate || 'N/A'}
-                </div>
-            </div>
-        `;
-    } 
-    else if (driver.images && driver.images.vehicleFront) {
+    if (driver.images && driver.images.vehicleFront) {
         driverVehicleImage = driver.images.vehicleFront;
         vehicleImageContainer.innerHTML = `
             <img id="vehicleFrontImage" class="vehicle-image" src="${driverVehicleImage}" alt="Vehicle" style="width: 100%; height: 150px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;">
@@ -5830,7 +5622,9 @@ function startDriverMessageListener(rideId) {
             if (isChatPopupOpen() && currentChatRideId === rideId) {
                 displayChatMessage(message);
                 const chatMessages = document.getElementById('chatMessages');
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
             }
         }
     });
@@ -5921,6 +5715,8 @@ function createChatPopup() {
 // Load chat messages from Firebase
 function loadChatMessages(rideId) {
     const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    
     chatMessages.innerHTML = '<div class="loading-text">Loading messages...</div>';
     
     database.ref('chats/' + rideId).orderByChild('timestamp').once('value')
@@ -5956,13 +5752,16 @@ function startChatListener(rideId) {
         displayChatMessage(message);
         
         const chatMessages = document.getElementById('chatMessages');
-        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (chatMessages) {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
     });
 }
 
 // Display chat message with enhanced styling
 function displayChatMessage(message) {
     const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
     
     if (chatMessages.querySelector('.loading-text') || chatMessages.querySelector('.no-places')) {
         chatMessages.innerHTML = '';
@@ -6023,7 +5822,10 @@ function sendChatMessage() {
 
 // Enhanced Close chat popup function
 function closeChatPopup() {
-    document.getElementById('chatPopup').classList.add('hidden');
+    const chatPopup = document.getElementById('chatPopup');
+    if (chatPopup) {
+        chatPopup.classList.add('hidden');
+    }
     
     if (chatListener) {
         chatListener();
@@ -6035,18 +5837,20 @@ function closeChatPopup() {
 
 function updateDriverDetailsCard(driver) {
     const driverDetailsCard = document.getElementById('driverDetailsCard');
-    driverDetailsCard.style.display = 'block';
-    
-    document.getElementById('driverFullName').textContent = driver.name || 'Driver';
-    document.getElementById('driverContactPhone').textContent = driver.phone || 'Not available';
-    document.getElementById('driverRatingValue').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
-    document.getElementById('driverExperience').textContent = driver.experience || '2 years';
-    
-    if (driver.vehicle) {
-        document.getElementById('vehicleType').textContent = driver.vehicle.type || 'Car';
-        document.getElementById('vehicleModel').textContent = driver.vehicle.model || 'Not specified';
-        document.getElementById('vehicleLicense').textContent = driver.vehicle.licensePlate || 'Not available';
-        document.getElementById('vehicleColor').textContent = driver.vehicle.color || 'Not specified';
+    if (driverDetailsCard) {
+        driverDetailsCard.style.display = 'block';
+        
+        document.getElementById('driverFullName').textContent = driver.name || 'Driver';
+        document.getElementById('driverContactPhone').textContent = driver.phone || 'Not available';
+        document.getElementById('driverRatingValue').textContent = driver.rating ? `${driver.rating} ★` : '4.5 ★';
+        document.getElementById('driverExperience').textContent = driver.experience || '2 years';
+        
+        if (driver.vehicle) {
+            document.getElementById('vehicleType').textContent = driver.vehicle.type || 'Car';
+            document.getElementById('vehicleModel').textContent = driver.vehicle.model || 'Not specified';
+            document.getElementById('vehicleLicense').textContent = driver.vehicle.licensePlate || 'Not available';
+            document.getElementById('vehicleColor').textContent = driver.vehicle.color || 'Not specified';
+        }
     }
 }
 
@@ -6071,7 +5875,7 @@ function updateDriverETA(driverLat, driverLng) {
             userLocation.lat, userLocation.lng
         );
         
-        const etaMinutes = Math.max(2, Math.ceil((distance / 1000) / 30 * 60));
+        const etaMinutes = Math.ceil((distance / 1000) / 30 * 60);
         document.getElementById('timeText').textContent = `${etaMinutes} min`;
     }
 }
@@ -6317,7 +6121,7 @@ function updateDriverRating(driverId, newRating) {
                 });
             }
             
-            // Include the new rating
+            // Add new rating
             totalRating += newRating;
             ratingCount++;
             
@@ -6466,37 +6270,37 @@ function applyReferralCode(referralCode) {
                 
                 appliedPromoCode = referralCode;
                 showNotification('Referral code applied! 50% discount will be applied to your ride.');
-            updateFareEstimate();
-            
-            document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
-            document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
-            document.getElementById('applyPromoBtn').classList.remove('btn-promo');
-            document.getElementById('applyPromoBtn').classList.add('btn-success');
-            
-            const newBalance = (referrer.walletBalance || 0) + 25;
-            database.ref('users/' + referrerId).update({
-                walletBalance: newBalance
-            })
-            .then(() => {
-                console.log(`Rewarded ${referrer.name} with K25 for referral`);
-            });
-            
-            database.ref('referrals').push().set({
-                referrerId: referrerId,
-                referredUserId: currentUser.uid,
-                referralCode: referralCode,
-                timestamp: firebase.database.ServerValue.TIMESTAMP,
-                rewardAmount: 25
-            });
-        } else {
-            showNotification('Invalid referral code. Please check and try again.');
-            document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
-        }
-    })
-    .catch(error => {
-        console.error('Error applying referral code:', error);
-        showNotification('Error applying referral code. Please try again.');
-    });
+                updateFareEstimate();
+                
+                document.getElementById('promoCode').style.borderColor = 'var(--success-green)';
+                document.getElementById('applyPromoBtn').innerHTML = '<i class="fas fa-check"></i> Applied';
+                document.getElementById('applyPromoBtn').classList.remove('btn-promo');
+                document.getElementById('applyPromoBtn').classList.add('btn-success');
+                
+                const newBalance = (referrer.walletBalance || 0) + 25;
+                database.ref('users/' + referrerId).update({
+                    walletBalance: newBalance
+                })
+                .then(() => {
+                    console.log(`Rewarded ${referrer.name} with K25 for referral`);
+                });
+                
+                database.ref('referrals').push().set({
+                    referrerId: referrerId,
+                    referredUserId: currentUser.uid,
+                    referralCode: referralCode,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    rewardAmount: 25
+                });
+            } else {
+                showNotification('Invalid referral code. Please check and try again.');
+                document.getElementById('promoCode').style.borderColor = 'var(--error-red)';
+            }
+        })
+        .catch(error => {
+            console.error('Error applying referral code:', error);
+            showNotification('Error applying referral code. Please try again.');
+        });
 }
 
 function resetUIAfterRide() {
@@ -6700,7 +6504,7 @@ function addPaymentMethod() {
     showNotification('Payment method feature coming soon!');
 }
 
-// Load ride history with scheduled rides
+// ENHANCED: Load ride history with scheduled rides
 function loadRideHistory() {
     if (currentUser) {
         const filter = document.getElementById('historyFilter').value;
@@ -6987,7 +6791,7 @@ function getStatusText(status) {
     return statusMap[status] || status;
 }
 
-// Show ride details popup with chat history and receipt
+// ENHANCED: Show ride details popup with chat history and receipt
 function showRideDetailsPopup(rideId) {
     // Check if it's a scheduled ride
     if (rideId.startsWith('scheduled_')) {
@@ -7136,6 +6940,8 @@ function showScheduledRideDetails(scheduleId) {
 // Load ride chat history
 function loadRideChatHistory(rideId) {
     const chatMessages = document.getElementById('historyChatMessages');
+    if (!chatMessages) return;
+    
     chatMessages.innerHTML = '<div class="loading-text">Loading chat history...</div>';
     document.getElementById('popupChatSection').classList.remove('hidden');
     
@@ -7280,42 +7086,6 @@ function viewRideChat(rideId, ride) {
     }
 }
 
-function updatePopupRideMap(ride) {
-    popupRideMap.setView([ride.pickupLat, ride.pickupLng], 13);
-    
-    // Add markers
-    L.marker([ride.pickupLat, ride.pickupLng]).addTo(popupRideMap)
-        .bindPopup('Pickup Location');
-    
-    L.marker([ride.destLat, ride.destLng]).addTo(popupRideMap)
-        .bindPopup('Destination');
-    
-    // Draw route
-    drawPopupRoute(ride.pickupLat, ride.pickupLng, ride.destLat, ride.destLng);
-}
-
-function drawPopupRoute(startLat, startLng, endLat, endLng) {
-    fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                L.polyline(routeCoordinates, {
-                    color: '#FF6B35',
-                    weight: 4,
-                    opacity: 0.7
-                }).addTo(popupRideMap);
-                
-                popupRideMap.fitBounds(L.latLngBounds(routeCoordinates));
-            }
-        })
-        .catch(error => {
-            console.error('Error fetching route for popup:', error);
-        });
-}
-
 function updateDriverProgress(status) {
     const progressElement = document.getElementById('popupDriverProgress');
     
@@ -7364,6 +7134,7 @@ function setRating(rating) {
 
 function showRideCompletion(ride) {
     document.getElementById('finalFare').textContent = `K${ride.fare.toFixed(2)}`;
+    switchScreen('rideCompletionScreen');
     showNotification('Ride completed. Please complete payment and rating.');
     
     if (driverMarker) {
@@ -7535,27 +7306,28 @@ function startLocationTracking() {
             const lng = position.coords.longitude;
             userLocation = { lat, lng };
             
+            // Update database with passenger location
             database.ref('passengerLocations/' + currentUser.uid).set({
                 latitude: lat,
                 longitude: lng,
                 timestamp: firebase.database.ServerValue.TIMESTAMP
             });
             
+            // Update current location marker
             if (currentLocationMarker) {
                 currentLocationMarker.setLatLng([lat, lng]);
             }
             
-            if (destinationMarker) {
-                const destination = document.getElementById('destinationLocation').value;
-                if (destination) {
-                    updateFareEstimate();
-                }
+            // Update fare estimate if destination is set
+            const destination = document.getElementById('destinationLocation').value;
+            if (destination) {
+                updateFareEstimate();
             }
         }, error => {
             console.error('Location tracking error:', error);
         }, {
             enableHighAccuracy: true,
-            timeout: 5000,
+            timeout: 10000,
             maximumAge: 30000
         });
     }
@@ -7646,7 +7418,7 @@ function refreshHomeScreen() {
     showNotification('Home screen refreshed');
 }
 
-// Schedule Ride Functions
+// NEW: Schedule Ride Functions
 
 // Toggle Schedule Ride Options
 function toggleScheduleRideOptions() {
@@ -7812,38 +7584,53 @@ function calculateRecipientDeliveryFee() {
     const pickupLocation = document.getElementById('recipientPickupLocation').value;
     const destinationLocation = document.getElementById('recipientDestinationLocation').value;
     
-    if (pickupLocation.length > 3 && destinationLocation.length > 3) {
-        Promise.all([
-            forwardGeocode(pickupLocation),
-            forwardGeocode(destinationLocation)
-        ]).then(([pickupResults, destinationResults]) => {
-            if (pickupResults.length > 0 && destinationResults.length > 0) {
-                const pickupLat = parseFloat(pickupResults[0].lat);
-                const pickupLng = parseFloat(pickupResults[0].lon);
-                const destLat = parseFloat(destinationResults[0].lat);
-                const destLng = parseFloat(destinationResults[0].lon);
-                
-                const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
-                
-                let baseFare = calculateFareFromDistance(distance);
-                
-                document.getElementById('recipientDeliveryFee').textContent = `K${baseFare.toFixed(2)}`;
-                
-                const etaMinutes = Math.max(5, Math.ceil((distance / 1000) / 30 * 60));
-                document.getElementById('recipientEtaDisplay').textContent = `ETA: ${etaMinutes} min`;
-                
-                document.getElementById('orderForSomeoneBtn').disabled = false;
-                
-                updateRecipientPickupMarker(pickupLat, pickupLng, pickupResults[0].display_name);
-                updateRecipientDestinationMarker(destLat, destLng, destinationResults[0].display_name);
-                drawRoute(pickupLat, pickupLng, destLat, destLng);
-            }
-        });
-    } else {
+    if (!pickupLocation || !destinationLocation) {
         document.getElementById('recipientDeliveryFee').textContent = 'K0.00';
         document.getElementById('recipientEtaDisplay').textContent = 'ETA: -- min';
         document.getElementById('orderForSomeoneBtn').disabled = true;
+        return;
     }
+    
+    Promise.all([
+        forwardGeocode(pickupLocation),
+        forwardGeocode(destinationLocation)
+    ]).then(([pickupResults, destinationResults]) => {
+        if (pickupResults.length > 0 && destinationResults.length > 0) {
+            const pickupLat = parseFloat(pickupResults[0].lat);
+            const pickupLng = parseFloat(pickupResults[0].lon);
+            const destLat = parseFloat(destinationResults[0].lat);
+            const destLng = parseFloat(destinationResults[0].lon);
+            
+            const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
+            const distanceKm = distance / 1000;
+            
+            let baseFare = 23;
+            
+            if (distanceKm > 0) {
+                baseFare += Math.ceil(distanceKm * 5);
+            }
+            
+            document.getElementById('recipientDeliveryFee').textContent = `K${baseFare.toFixed(2)}`;
+            
+            const etaMinutes = Math.ceil((distanceKm / 30) * 60);
+            document.getElementById('recipientEtaDisplay').textContent = `ETA: ${etaMinutes} min`;
+            
+            document.getElementById('orderForSomeoneBtn').disabled = false;
+            
+            updateRecipientPickupMarker(pickupLat, pickupLng, pickupResults[0].display_name);
+            updateRecipientDestinationMarker(destLat, destLng, destinationResults[0].display_name);
+            drawRoute(pickupLat, pickupLng, destLat, destLng);
+        } else {
+            document.getElementById('recipientDeliveryFee').textContent = 'K0.00';
+            document.getElementById('recipientEtaDisplay').textContent = 'ETA: -- min';
+            document.getElementById('orderForSomeoneBtn').disabled = true;
+        }
+    }).catch(error => {
+        console.error('Error calculating recipient delivery fee:', error);
+        document.getElementById('recipientDeliveryFee').textContent = 'K0.00';
+        document.getElementById('recipientEtaDisplay').textContent = 'ETA: -- min';
+        document.getElementById('orderForSomeoneBtn').disabled = true;
+    });
 }
 
 // Submit Order for Someone Else
@@ -7874,8 +7661,13 @@ function submitOrderForSomeone() {
         const destLng = parseFloat(destinationResults[0].lon);
         
         const distance = calculateDistance(pickupLat, pickupLng, destLat, destLng);
+        const distanceKm = distance / 1000;
         
-        let baseFare = calculateFareFromDistance(distance);
+        let baseFare = 23;
+        
+        if (distanceKm > 0) {
+            baseFare += Math.ceil(distanceKm * 5);
+        }
         
         const rideId = database.ref().child('rides').push().key;
         
@@ -7892,7 +7684,7 @@ function submitOrderForSomeone() {
             destLng: destLng,
             rideType: 'car',
             fare: baseFare,
-            distance: (distance / 1000).toFixed(2) + ' km',
+            distance: distanceKm.toFixed(2) + ' km',
             status: 'requested',
             timestamp: firebase.database.ServerValue.TIMESTAMP,
             updatedAt: firebase.database.ServerValue.TIMESTAMP,
@@ -7957,51 +7749,66 @@ function calculateExpressDeliveryFee() {
     const shopLocation = document.getElementById('shopLocation').value;
     const deliveryDestination = document.getElementById('deliveryDestination').value;
     
-    if (shopLocation.length > 3 && deliveryDestination.length > 3) {
-        Promise.all([
-            forwardGeocode(shopLocation),
-            forwardGeocode(deliveryDestination)
-        ]).then(([shopResults, destinationResults]) => {
-            if (shopResults.length > 0 && destinationResults.length > 0) {
-                const shopLat = parseFloat(shopResults[0].lat);
-                const shopLng = parseFloat(shopResults[0].lon);
-                const destLat = parseFloat(destinationResults[0].lat);
-                const destLng = parseFloat(destinationResults[0].lon);
-                
-                const distance = calculateDistance(shopLat, shopLng, destLat, destLng);
-                
-                let baseFare = calculateFareFromDistance(distance);
-                
-                const vehicleType = document.querySelector('.express-delivery-form .vehicle-option.selected').getAttribute('data-type');
-                switch(vehicleType) {
-                    case 'car':
-                        baseFare = baseFare;
-                        break;
-                    case 'bike':
-                        baseFare = baseFare * 0.7;
-                        break;
-                    case 'bicycle':
-                        baseFare = baseFare * 0.5;
-                        break;
-                }
-                
-                document.getElementById('expressDeliveryFee').textContent = `K${baseFare.toFixed(2)}`;
-                
-                const etaMinutes = Math.max(5, Math.ceil((distance / 1000) / 30 * 60));
-                document.getElementById('expressDeliveryEtaDisplay').textContent = `ETA: ${etaMinutes} min`;
-                
-                document.getElementById('expressDeliveryBtn').disabled = false;
-                
-                updateShopLocationMarker(shopLat, shopLng, shopResults[0].display_name);
-                updateDeliveryDestinationMarker(destLat, destLng, destinationResults[0].display_name);
-                drawRoute(shopLat, shopLng, destLat, destLng);
-            }
-        });
-    } else {
+    if (!shopLocation || !deliveryDestination) {
         document.getElementById('expressDeliveryFee').textContent = 'K0.00';
         document.getElementById('expressDeliveryEtaDisplay').textContent = 'ETA: -- min';
         document.getElementById('expressDeliveryBtn').disabled = true;
+        return;
     }
+    
+    Promise.all([
+        forwardGeocode(shopLocation),
+        forwardGeocode(deliveryDestination)
+    ]).then(([shopResults, destinationResults]) => {
+        if (shopResults.length > 0 && destinationResults.length > 0) {
+            const shopLat = parseFloat(shopResults[0].lat);
+            const shopLng = parseFloat(shopResults[0].lon);
+            const destLat = parseFloat(destinationResults[0].lat);
+            const destLng = parseFloat(destinationResults[0].lon);
+            
+            const distance = calculateDistance(shopLat, shopLng, destLat, destLng);
+            const distanceKm = distance / 1000;
+            
+            let baseFare = 23;
+            
+            if (distanceKm > 0) {
+                baseFare += Math.ceil(distanceKm * 5);
+            }
+            
+            const vehicleType = document.querySelector('.express-delivery-form .vehicle-option.selected')?.getAttribute('data-type') || 'car';
+            switch(vehicleType) {
+                case 'car':
+                    baseFare = baseFare;
+                    break;
+                case 'bike':
+                    baseFare = baseFare * 0.7;
+                    break;
+                case 'bicycle':
+                    baseFare = baseFare * 0.5;
+                    break;
+            }
+            
+            document.getElementById('expressDeliveryFee').textContent = `K${baseFare.toFixed(2)}`;
+            
+            const etaMinutes = Math.ceil((distanceKm / 30) * 60);
+            document.getElementById('expressDeliveryEtaDisplay').textContent = `ETA: ${etaMinutes} min`;
+            
+            document.getElementById('expressDeliveryBtn').disabled = false;
+            
+            updateShopLocationMarker(shopLat, shopLng, shopResults[0].display_name);
+            updateDeliveryDestinationMarker(destLat, destLng, destinationResults[0].display_name);
+            drawRoute(shopLat, shopLng, destLat, destLng);
+        } else {
+            document.getElementById('expressDeliveryFee').textContent = 'K0.00';
+            document.getElementById('expressDeliveryEtaDisplay').textContent = 'ETA: -- min';
+            document.getElementById('expressDeliveryBtn').disabled = true;
+        }
+    }).catch(error => {
+        console.error('Error calculating express delivery fee:', error);
+        document.getElementById('expressDeliveryFee').textContent = 'K0.00';
+        document.getElementById('expressDeliveryEtaDisplay').textContent = 'ETA: -- min';
+        document.getElementById('expressDeliveryBtn').disabled = true;
+    });
 }
 
 // Submit Express Delivery
@@ -8012,7 +7819,7 @@ function submitExpressDelivery() {
     const deliveryAmount = document.getElementById('deliveryAmount').value;
     const deliveryInstructions = document.getElementById('deliveryInstructions').value;
     const deliveryDestination = document.getElementById('deliveryDestination').value;
-    const vehicleType = document.querySelector('.express-delivery-form .vehicle-option.selected').getAttribute('data-type');
+    const vehicleType = document.querySelector('.express-delivery-form .vehicle-option.selected')?.getAttribute('data-type') || 'car';
     
     if (!shopName || !shopLocation || !deliveryDestination) {
         showNotification('Please fill in all required fields.');
@@ -8034,8 +7841,13 @@ function submitExpressDelivery() {
         const destLng = parseFloat(destinationResults[0].lon);
         
         const distance = calculateDistance(shopLat, shopLng, destLat, destLng);
+        const distanceKm = distance / 1000;
         
-        let baseFare = calculateFareFromDistance(distance);
+        let baseFare = 23;
+        
+        if (distanceKm > 0) {
+            baseFare += Math.ceil(distanceKm * 5);
+        }
         
         switch(vehicleType) {
             case 'car':
@@ -8064,7 +7876,7 @@ function submitExpressDelivery() {
             destLng: destLng,
             rideType: vehicleType,
             fare: baseFare,
-            distance: (distance / 1000).toFixed(2) + ' km',
+            distance: distanceKm.toFixed(2) + ' km',
             status: 'requested',
             timestamp: firebase.database.ServerValue.TIMESTAMP,
             updatedAt: firebase.database.ServerValue.TIMESTAMP,
@@ -8464,24 +8276,16 @@ function setupEventListeners() {
     setInterval(() => {
         if (currentScreen === 'home') {
             // Refresh search cache periodically
-            const now = Date.now();
-            for (const [key, value] of searchCache.entries()) {
-                if (now - value.timestamp > CACHE_TTL) {
-                    searchCache.delete(key);
+            if (searchCache.size > 100) {
+                const now = Date.now();
+                for (const [key, value] of searchCache.entries()) {
+                    if (now - value.timestamp > CACHE_TTL) {
+                        searchCache.delete(key);
+                    }
                 }
             }
         }
     }, 60000); // Clean cache every minute
-    
-    // Handle window resize
-    window.addEventListener('resize', function() {
-        if (passengerMap) {
-            passengerMap.invalidateSize();
-        }
-        if (popupRideMap) {
-            popupRideMap.invalidateSize();
-        }
-    });
 }
 
 // Initialize enhanced app features
@@ -8499,7 +8303,7 @@ function initializeApp() {
                     console.error("Periodic city detection failed:", error);
                 });
         }
-    }, 300000); // Update every 5 minutes
+    }, 300000); // Every 5 minutes
     
     // Handle app visibility changes
     document.addEventListener('visibilitychange', function() {
@@ -8513,16 +8317,6 @@ function initializeApp() {
         console.log("Jubel Passenger App fully loaded with enhanced features");
         showNotification('Jubel Passenger App Ready');
     });
-    
-    // Initialize search cache cleanup
-    setInterval(() => {
-        const now = Date.now();
-        for (const [key, value] of searchCache.entries()) {
-            if (now - value.timestamp > CACHE_TTL) {
-                searchCache.delete(key);
-            }
-        }
-    }, 300000); // Clean cache every 5 minutes
 }
 
 // Handle offline/online status
@@ -8530,11 +8324,6 @@ window.addEventListener('online', function() {
     showNotification('Connection restored.');
     if (currentScreen === 'home') {
         setTimeout(refreshPassengerPosition, 1000);
-    }
-    
-    // Re-establish Firebase listeners if needed
-    if (currentUser && currentRide) {
-        listenForDriverAssignment(currentRide.id);
     }
 });
 
@@ -8547,4 +8336,5 @@ initializeApp();
     </script>
 </body>
 </html>
+
 
