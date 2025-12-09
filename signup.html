@@ -9307,4 +9307,2107 @@ You'll receive live updates about the ride progress.
                 })
                 .catch(error => {
                     console.error('SOS error:', error);
-                    UI
+                                        UIUpdater.showToast('Error sending SOS alert', 'error');
+                });
+        }
+        
+        function resetUIAfterRide() {
+            // Hide ride info panel
+            document.getElementById('rideInfoPanel').classList.remove('active');
+            
+            // Show active service form
+            switchService(AppState.activeService);
+            
+            // Hide fare display
+            document.getElementById('fareDisplay').classList.remove('active');
+            
+            // Hide emergency status
+            document.getElementById('emergencyStatus').style.display = 'none';
+            
+            // Hide SOS button
+            document.getElementById('sosButton').style.display = 'none';
+            
+            // Hide ride status bar
+            document.getElementById('rideStatusBar').classList.remove('active');
+            
+            // Clear current ride
+            AppState.currentRide = null;
+            AppState.emergencyMode = false;
+            AppState.selectedVehicle = null;
+            
+            // Remove driver marker
+            if (driverMarker) {
+                map.removeLayer(driverMarker);
+                driverMarker = null;
+            }
+            
+            // Remove route
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+                routeLayer = null;
+            }
+            
+            // Clear destination
+            document.getElementById('destinationLocation').value = '';
+            if (destinationMarker) {
+                map.removeLayer(destinationMarker);
+                destinationMarker = null;
+            }
+            
+            // Clear chat
+            document.getElementById('chatMessages').innerHTML = '';
+            document.getElementById('chatContainer').classList.remove('active');
+            UIUpdater.clearChatNotification();
+        }
+        
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
+        function handleSearchInput(inputElement, value) {
+            clearTimeout(inputElement.searchTimer);
+            
+            if (value.length < 2) {
+                const container = document.getElementById(`${inputElement.id}SearchResults`);
+                if (container) container.classList.remove('active');
+                return;
+            }
+            
+            // Show loading
+            const parent = inputElement.closest('.location-input');
+            if (parent) parent.classList.add('searching');
+            
+            inputElement.searchTimer = setTimeout(async () => {
+                try {
+                    const results = await AppState.searchEngine.search(value, 'destination', AppState.userLocation);
+                    UIUpdater.showSearchResults(inputElement.id, results);
+                } catch (error) {
+                    console.error('Search error:', error);
+                    UIUpdater.showToast('Search error. Please try again.', 'error');
+                } finally {
+                    if (parent) parent.classList.remove('searching');
+                }
+            }, 300);
+        }
+        
+        // ============================================
+        // REAL-TIME UPDATES
+        // ============================================
+        
+        function setupRealTimeUpdates() {
+            // Set up WebSocket connection for real-time updates
+            try {
+                AppState.socket = io('https://jubel-socket-server.onrender.com', {
+                    transports: ['websocket', 'polling'],
+                    query: {
+                        userId: AppState.currentUser?.uid,
+                        userType: 'passenger'
+                    }
+                });
+                
+                AppState.socket.on('connect', () => {
+                    console.log('Connected to real-time server');
+                });
+                
+                AppState.socket.on('disconnect', () => {
+                    console.log('Disconnected from real-time server');
+                });
+                
+                AppState.socket.on('driver_location_update', (data) => {
+                    if (AppState.currentRide && data.driverId === AppState.currentRide.driverId) {
+                        AppState.driverLocation = data.location;
+                        UIUpdater.updateDriverMarker({
+                            lat: data.location.latitude,
+                            lng: data.location.longitude
+                        });
+                    }
+                });
+                
+                AppState.socket.on('ride_status_update', (data) => {
+                    if (AppState.currentRide && data.rideId === AppState.currentRide.id) {
+                        UIUpdater.updateRideStatus(data.status);
+                        UIUpdater.updateTimeline(data.status);
+                        
+                        if (data.status === 'accepted' && data.driverId) {
+                            FirebaseManager.loadDriverInfo(data.driverId);
+                        }
+                    }
+                });
+                
+                AppState.socket.on('chat_message', (data) => {
+                    if (AppState.currentRide && data.rideId === AppState.currentRide.id) {
+                        const isSender = data.senderId === AppState.currentUser.uid;
+                        UIUpdater.showChatMessage(data, isSender);
+                    }
+                });
+                
+                AppState.socket.on('broadcast_invitation', (data) => {
+                    if (data.recipientId === AppState.currentUser.uid) {
+                        UIUpdater.showToast(`You have been invited to track a ride by ${data.senderName}`, 'info');
+                        
+                        // Add notification
+                        FirebaseManager.sendNotification(
+                            AppState.currentUser.uid,
+                            'Ride Broadcast',
+                            `${data.senderName} has shared a ride with you`,
+                            'broadcast',
+                            { broadcastId: data.broadcastId, rideId: data.rideId }
+                        );
+                    }
+                });
+                
+            } catch (error) {
+                console.error('Error setting up real-time updates:', error);
+                // Fallback to Firebase for real-time updates
+            }
+        }
+        
+        // ============================================
+        // PUSH NOTIFICATIONS
+        // ============================================
+        
+        async function setupPushNotifications() {
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    const token = await messaging.getToken({
+                        vapidKey: 'YOUR_VAPID_KEY_HERE'
+                    });
+                    
+                    if (token) {
+                        // Save token to Firebase
+                        await database.ref(`users/${AppState.currentUser.uid}/fcmToken`).set(token);
+                        
+                        // Listen for messages
+                        messaging.onMessage((payload) => {
+                            console.log('Message received:', payload);
+                            
+                            // Show notification
+                            if (payload.notification) {
+                                UIUpdater.showToast(payload.notification.body, 'info');
+                            }
+                            
+                            // Handle data payload
+                            if (payload.data) {
+                                handlePushNotificationData(payload.data);
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error setting up push notifications:', error);
+            }
+        }
+        
+        function handlePushNotificationData(data) {
+            switch(data.type) {
+                case 'ride_update':
+                    if (data.rideId === AppState.currentRide?.id) {
+                        UIUpdater.updateRideStatus(data.status);
+                        UIUpdater.updateTimeline(data.status);
+                    }
+                    break;
+                case 'chat_message':
+                    if (data.rideId === AppState.currentRide?.id && !document.getElementById('chatContainer').classList.contains('active')) {
+                        UIUpdater.showChatNotification();
+                    }
+                    break;
+                case 'emergency':
+                    UIUpdater.showToast('Emergency alert! Check your SOS notifications.', 'error');
+                    break;
+            }
+        }
+        
+        // ============================================
+        // OFFLINE SUPPORT
+        // ============================================
+        
+        function setupOfflineSupport() {
+            // Check online status
+            window.addEventListener('online', () => {
+                UIUpdater.showToast('Back online. Syncing data...', 'success');
+                syncOfflineData();
+            });
+            
+            window.addEventListener('offline', () => {
+                UIUpdater.showToast('You are offline. Some features may be limited.', 'warning');
+            });
+            
+            // Service worker registration for PWA
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+            }
+            
+            // Cache search results for offline use
+            const searchCache = {
+                set: (key, data) => {
+                    localStorage.setItem(`search_${key}`, JSON.stringify({
+                        data: data,
+                        timestamp: Date.now()
+                    }));
+                },
+                get: (key) => {
+                    const cached = localStorage.getItem(`search_${key}`);
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        // Cache valid for 24 hours
+                        if (Date.now() - parsed.timestamp < 24 * 60 * 60 * 1000) {
+                            return parsed.data;
+                        }
+                    }
+                    return null;
+                }
+            };
+            
+            // Extend search engine to use cache
+            const originalSearch = AppState.searchEngine.search.bind(AppState.searchEngine);
+            AppState.searchEngine.search = async function(query, type, location, category) {
+                const cacheKey = `${query}-${type}-${category}`;
+                const cached = searchCache.get(cacheKey);
+                
+                if (cached && navigator.onLine === false) {
+                    return cached;
+                }
+                
+                const results = await originalSearch(query, type, location, category);
+                
+                if (navigator.onLine) {
+                    searchCache.set(cacheKey, results);
+                }
+                
+                return results;
+            };
+        }
+        
+        async function syncOfflineData() {
+            // Sync offline ride requests
+            const offlineRequests = JSON.parse(localStorage.getItem('offline_requests') || '[]');
+            
+            if (offlineRequests.length > 0) {
+                UIUpdater.showLoading('Syncing offline data...');
+                
+                for (const request of offlineRequests) {
+                    try {
+                        await FirebaseManager.requestRide(request);
+                    } catch (error) {
+                        console.error('Error syncing offline request:', error);
+                    }
+                }
+                
+                localStorage.removeItem('offline_requests');
+                UIUpdater.hideLoading();
+                UIUpdater.showToast('Offline data synced successfully', 'success');
+            }
+        }
+        
+        // ============================================
+        // ANALYTICS AND TRACKING
+        // ============================================
+        
+        const Analytics = {
+            trackEvent: function(eventName, properties = {}) {
+                if (!AppState.currentUser) return;
+                
+                const eventData = {
+                    userId: AppState.currentUser.uid,
+                    event: eventName,
+                    timestamp: Date.now(),
+                    properties: properties,
+                    userAgent: navigator.userAgent,
+                    platform: 'web'
+                };
+                
+                // Send to Firebase
+                database.ref(`analytics/events/${Date.now()}`).set(eventData)
+                    .catch(error => console.error('Error tracking event:', error));
+                
+                // Log to console in development
+                if (window.location.hostname === 'localhost') {
+                    console.log(`[Analytics] ${eventName}:`, properties);
+                }
+            },
+            
+            trackRideRequest: function(serviceType, rideType, distance, fare) {
+                this.trackEvent('ride_requested', {
+                    service_type: serviceType,
+                    ride_type: rideType,
+                    distance_km: distance,
+                    fare: fare,
+                    city: AppState.currentCity
+                });
+            },
+            
+            trackPayment: function(paymentMethod, amount, rideId) {
+                this.trackEvent('payment_completed', {
+                    payment_method: paymentMethod,
+                    amount: amount,
+                    ride_id: rideId
+                });
+            },
+            
+            trackSearch: function(query, resultCount, selectedResult) {
+                this.trackEvent('location_searched', {
+                    query: query,
+                    result_count: resultCount,
+                    selected: selectedResult !== null,
+                    city: AppState.currentCity
+                });
+            },
+            
+            trackEmergencyRequest: function(serviceType, reason, distance, fare) {
+                this.trackEvent('emergency_requested', {
+                    service_type: serviceType,                    emergency_reason: reason,
+                    distance_km: distance,
+                    fare: fare,
+                    location: AppState.userLocation
+                });
+            }
+        };
+
+        // ============================================
+        // ENHANCED ERROR HANDLING
+        // ============================================
+
+        const ErrorHandler = {
+            handleError: function(error, context = '') {
+                console.error(`Error in ${context}:`, error);
+                
+                // Log error to Firebase for monitoring
+                const errorId = database.ref().child('errors').push().key;
+                database.ref(`errors/${errorId}`).set({
+                    userId: AppState.currentUser?.uid,
+                    context: context,
+                    error: error.toString(),
+                    stack: error.stack,
+                    timestamp: Date.now(),
+                    userAgent: navigator.userAgent,
+                    url: window.location.href
+                }).catch(err => console.error('Error logging error:', err));
+                
+                // Show user-friendly message
+                let userMessage = 'An unexpected error occurred. Please try again.';
+                
+                if (error.message.includes('network') || error.message.includes('offline')) {
+                    userMessage = 'Network error. Please check your internet connection.';
+                } else if (error.message.includes('permission')) {
+                    userMessage = 'Permission denied. Please check your browser settings.';
+                } else if (error.message.includes('location')) {
+                    userMessage = 'Location access denied. Please enable location services.';
+                } else if (error.message.includes('payment')) {
+                    userMessage = 'Payment processing failed. Please try another method.';
+                }
+                
+                UIUpdater.showToast(`${context}: ${userMessage}`, 'error');
+                
+                // If offline, store for later sync
+                if (!navigator.onLine) {
+                    this.storeOfflineError(error, context);
+                }
+            },
+            
+            storeOfflineError: function(error, context) {
+                const offlineErrors = JSON.parse(localStorage.getItem('offline_errors') || '[]');
+                offlineErrors.push({
+                    error: error.toString(),
+                    context: context,
+                    timestamp: Date.now()
+                });
+                
+                // Keep only last 20 errors
+                if (offlineErrors.length > 20) {
+                    offlineErrors.shift();
+                }
+                
+                localStorage.setItem('offline_errors', JSON.stringify(offlineErrors));
+            },
+            
+            syncOfflineErrors: function() {
+                if (!navigator.onLine) return;
+                
+                const offlineErrors = JSON.parse(localStorage.getItem('offline_errors') || '[]');
+                if (offlineErrors.length === 0) return;
+                
+                offlineErrors.forEach(error => {
+                    const errorId = database.ref().child('errors').push().key;
+                    database.ref(`errors/${errorId}`).set({
+                        ...error,
+                        synced: true
+                    }).catch(err => console.error('Error syncing offline error:', err));
+                });
+                
+                localStorage.removeItem('offline_errors');
+            }
+        };
+
+        // ============================================
+        // ENHANCED PERFORMANCE OPTIMIZATION
+        // ============================================
+
+        const PerformanceOptimizer = {
+            imageCache: new Map(),
+            
+            optimizeImageLoading: function() {
+                // Lazy load images
+                const images = document.querySelectorAll('img[data-src]');
+                
+                const imageObserver = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            const src = img.getAttribute('data-src');
+                            
+                            if (src && !this.imageCache.has(src)) {
+                                this.loadImageWithCache(src).then(blobUrl => {
+                                    img.src = blobUrl;
+                                    img.removeAttribute('data-src');
+                                });
+                            }
+                            
+                            observer.unobserve(img);
+                        }
+                    });
+                });
+                
+                images.forEach(img => imageObserver.observe(img));
+            },
+            
+            loadImageWithCache: async function(src) {
+                // Check cache first
+                if (this.imageCache.has(src)) {
+                    return this.imageCache.get(src);
+                }
+                
+                try {
+                    const response = await fetch(src);
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    
+                    // Cache for 5 minutes
+                    this.imageCache.set(src, blobUrl);
+                    setTimeout(() => {
+                        URL.revokeObjectURL(blobUrl);
+                        this.imageCache.delete(src);
+                    }, 5 * 60 * 1000);
+                    
+                    return blobUrl;
+                } catch (error) {
+                    console.error('Error loading image:', error);
+                    return src; // Fallback to original src
+                }
+            },
+            
+            debounceMapUpdates: function() {
+                // Debounce map movements to improve performance
+                let mapUpdateTimeout;
+                
+                map.on('moveend', () => {
+                    clearTimeout(mapUpdateTimeout);
+                    mapUpdateTimeout = setTimeout(() => {
+                        this.updateMapMarkers();
+                    }, 300);
+                });
+            },
+            
+            updateMapMarkers: function() {
+                // Implement marker clustering or visibility optimization
+                const bounds = map.getBounds();
+                
+                // Only update markers in viewport
+                // This is a simplified version - in production you'd want a more sophisticated solution
+                if (pickupMarker && bounds.contains(pickupMarker.getLatLng())) {
+                    pickupMarker.addTo(map);
+                }
+                
+                if (destinationMarker && bounds.contains(destinationMarker.getLatLng())) {
+                    destinationMarker.addTo(map);
+                }
+                
+                if (driverMarker && bounds.contains(driverMarker.getLatLng())) {
+                    driverMarker.addTo(map);
+                }
+            },
+            
+            throttleEvent: function(element, event, handler, interval = 100) {
+                let canRun = true;
+                
+                const throttledHandler = (...args) => {
+                    if (canRun) {
+                        handler(...args);
+                        canRun = false;
+                        setTimeout(() => {
+                            canRun = true;
+                        }, interval);
+                    }
+                };
+                
+                element.addEventListener(event, throttledHandler);
+                return () => element.removeEventListener(event, throttledHandler);
+            }
+        };
+
+        // ============================================
+        // ENHANCED ACCESSIBILITY FEATURES
+        // ============================================
+
+        const Accessibility = {
+            init: function() {
+                this.addKeyboardNavigation();
+                this.enhanceFormAccessibility();
+                this.setupScreenReaderAnnouncements();
+                this.addHighContrastSupport();
+            },
+            
+            addKeyboardNavigation: function() {
+                // Make all buttons and interactive elements keyboard accessible
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Tab') {
+                        this.handleTabNavigation(e);
+                    }
+                    
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        this.handleEnterSpace(e);
+                    }
+                });
+                
+                // Add focus rings for keyboard navigation
+                document.addEventListener('mousedown', () => {
+                    document.body.classList.add('using-mouse');
+                });
+                
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Tab') {
+                        document.body.classList.remove('using-mouse');
+                    }
+                });
+            },
+            
+            handleTabNavigation: function(e) {
+                const focusableElements = this.getFocusableElements();
+                const currentIndex = focusableElements.indexOf(document.activeElement);
+                
+                if (e.shiftKey) {
+                    // Shift + Tab
+                    if (currentIndex <= 0) {
+                        e.preventDefault();
+                        focusableElements[focusableElements.length - 1].focus();
+                    }
+                } else {
+                    // Tab
+                    if (currentIndex >= focusableElements.length - 1) {
+                        e.preventDefault();
+                        focusableElements[0].focus();
+                    }
+                }
+            },
+            
+            getFocusableElements: function() {
+                return Array.from(document.querySelectorAll(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                )).filter(el => {
+                    return !el.disabled && el.offsetParent !== null;
+                });
+            },
+            
+            handleEnterSpace: function(e) {
+                const target = e.target;
+                
+                if (target.tagName === 'DIV' && target.getAttribute('role') === 'button') {
+                    e.preventDefault();
+                    target.click();
+                }
+            },
+            
+            enhanceFormAccessibility: function() {
+                // Add aria labels to form elements
+                document.querySelectorAll('input, button, select, textarea').forEach(el => {
+                    if (!el.id && !el.getAttribute('aria-label')) {
+                        const label = el.previousElementSibling?.textContent || 
+                                    el.parentElement?.querySelector('label')?.textContent;
+                        if (label) {
+                            el.setAttribute('aria-label', label);
+                        }
+                    }
+                });
+                
+                // Add live regions for dynamic content
+                const liveRegion = document.createElement('div');
+                liveRegion.setAttribute('aria-live', 'polite');
+                liveRegion.setAttribute('aria-atomic', 'true');
+                liveRegion.style.position = 'absolute';
+                liveRegion.style.width = '1px';
+                liveRegion.style.height = '1px';
+                liveRegion.style.margin = '-1px';
+                liveRegion.style.overflow = 'hidden';
+                liveRegion.style.clip = 'rect(0, 0, 0, 0)';
+                document.body.appendChild(liveRegion);
+                
+                // Update live region when important events happen
+                AppState.liveRegion = liveRegion;
+            },
+            
+            setupScreenReaderAnnouncements: function() {
+                // Announce important events
+                const originalShowToast = UIUpdater.showToast;
+                UIUpdater.showToast = function(message, type = 'info') {
+                    originalShowToast.call(this, message, type);
+                    
+                    if (AppState.liveRegion) {
+                        AppState.liveRegion.textContent = message;
+                        
+                        // Clear after announcement
+                        setTimeout(() => {
+                            AppState.liveRegion.textContent = '';
+                        }, 1000);
+                    }
+                };
+                
+                // Announce ride status changes
+                const originalUpdateRideStatus = UIUpdater.updateRideStatus;
+                UIUpdater.updateRideStatus = function(status) {
+                    originalUpdateRideStatus.call(this, status);
+                    
+                    if (AppState.liveRegion) {
+                        const statusMessages = {
+                            requested: 'Ride requested. Searching for driver.',
+                            accepted: 'Driver accepted. Driver is on the way.',
+                            arrived: 'Driver has arrived at your location.',
+                            started: 'Ride has started. Trip in progress.',
+                            completed: 'Ride completed successfully.'
+                        };
+                        
+                        if (statusMessages[status]) {
+                            AppState.liveRegion.textContent = statusMessages[status];
+                            
+                            setTimeout(() => {
+                                AppState.liveRegion.textContent = '';
+                            }, 2000);
+                        }
+                    }
+                };
+            },
+            
+            addHighContrastSupport: function() {
+                // Check for prefers-contrast media query
+                const highContrastMedia = window.matchMedia('(prefers-contrast: more)');
+                
+                const updateContrast = () => {
+                    if (highContrastMedia.matches) {
+                        document.body.classList.add('high-contrast');
+                    } else {
+                        document.body.classList.remove('high-contrast');
+                    }
+                };
+                
+                updateContrast();
+                highContrastMedia.addListener(updateContrast);
+                
+                // Add high contrast styles
+                const style = document.createElement('style');
+                style.textContent = `
+                    .high-contrast {
+                        --primary-orange: #FF4500;
+                        --primary-red: #DC143C;
+                        --text-gray: #000000;
+                        --text-light: #333333;
+                    }
+                    
+                    .high-contrast button {
+                        border: 2px solid currentColor !important;
+                    }
+                    
+                    .high-contrast input {
+                        border: 2px solid currentColor !important;
+                    }
+                `;
+                document.head.appendChild(style);
+            },
+            
+            announceToScreenReader: function(message) {
+                if (AppState.liveRegion) {
+                    AppState.liveRegion.textContent = message;
+                    
+                    setTimeout(() => {
+                        AppState.liveRegion.textContent = '';
+                    }, 2000);
+                }
+            }
+        };
+
+        // ============================================
+        // ENHANCED SECURITY FEATURES
+        // ============================================
+
+        const Security = {
+            sanitizeInput: function(input) {
+                if (typeof input !== 'string') return input;
+                
+                // Remove potentially dangerous characters
+                return input
+                    .replace(/[<>]/g, '') // Remove < and >
+                    .replace(/javascript:/gi, '') // Remove javascript: protocol
+                    .replace(/on\w+=/gi, '') // Remove event handlers
+                    .trim();
+            },
+            
+            validatePhoneNumber: function(phone) {
+                // Basic Zambian phone number validation
+                const phoneRegex = /^(\+260|0)?(96|97|76|77|79)\d{7}$/;
+                return phoneRegex.test(phone.replace(/\s+/g, ''));
+            },
+            
+            validateEmail: function(email) {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return emailRegex.test(email);
+            },
+            
+            encryptSensitiveData: function(data) {
+                // In a production app, use proper encryption
+                // This is a simplified version for demonstration
+                try {
+                    return btoa(JSON.stringify(data));
+                } catch (error) {
+                    console.error('Encryption error:', error);
+                    return data;
+                }
+            },
+            
+            decryptSensitiveData: function(encryptedData) {
+                try {
+                    return JSON.parse(atob(encryptedData));
+                } catch (error) {
+                    console.error('Decryption error:', error);
+                    return encryptedData;
+                }
+            },
+            
+            checkRateLimit: function(action, userId) {
+                const now = Date.now();
+                const key = `rate_limit_${action}_${userId}`;
+                
+                // Get existing rate limit data
+                const rateData = JSON.parse(localStorage.getItem(key) || '{"count": 0, "timestamp": 0}');
+                
+                // Reset if more than 1 minute has passed
+                if (now - rateData.timestamp > 60000) {
+                    rateData.count = 0;
+                    rateData.timestamp = now;
+                }
+                
+                // Check if rate limit exceeded
+                const limits = {
+                    ride_request: 10, // 10 rides per minute
+                    search: 30, // 30 searches per minute
+                    chat: 20 // 20 messages per minute
+                };
+                
+                if (rateData.count >= (limits[action] || 10)) {
+                    return false;
+                }
+                
+                // Update rate limit
+                rateData.count++;
+                localStorage.setItem(key, JSON.stringify(rateData));
+                
+                return true;
+            },
+            
+            preventSensitiveDataLogging: function() {
+                // Override console.log to prevent logging sensitive data
+                const originalLog = console.log;
+                const originalError = console.error;
+                const originalWarn = console.warn;
+                
+                console.log = function(...args) {
+                    const sanitized = args.map(arg => {
+                        if (typeof arg === 'string') {
+                            // Remove sensitive patterns
+                            return arg
+                                .replace(/(phone|password|credit.?card|wallet)=["']?([^"'\s]+)["']?/gi, '$1=***')
+                                .replace(/(\+260|0)?(96|97|76|77|79)\d{7}/g, 'PHONE_REDACTED')
+                                .replace(/[0-9]{16}/g, 'CARD_REDACTED');
+                        }
+                        return arg;
+                    });
+                    originalLog.apply(console, sanitized);
+                };
+                
+                console.error = function(...args) {
+                    const sanitized = args.map(arg => {
+                        if (typeof arg === 'string') {
+                            return arg
+                                .replace(/(phone|password|credit.?card|wallet)=["']?([^"'\s]+)["']?/gi, '$1=***')
+                                .replace(/(\+260|0)?(96|97|76|77|79)\d{7}/g, 'PHONE_REDACTED');
+                        }
+                        return arg;
+                    });
+                    originalError.apply(console, sanitized);
+                };
+                
+                console.warn = originalWarn;
+            }
+        };
+
+        // ============================================
+        // ENHANCED CACHE MANAGEMENT
+        // ============================================
+
+        const CacheManager = {
+            clearOldCache: function() {
+                // Clear cache entries older than 7 days
+                const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                
+                // Clear search cache
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    
+                    if (key.startsWith('search_')) {
+                        try {
+                            const cached = JSON.parse(localStorage.getItem(key));
+                            if (cached && cached.timestamp && cached.timestamp < oneWeekAgo) {
+                                localStorage.removeItem(key);
+                            }
+                        } catch (error) {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                    
+                    if (key.startsWith('rate_limit_')) {
+                        try {
+                            const rateData = JSON.parse(localStorage.getItem(key));
+                            if (rateData && rateData.timestamp && rateData.timestamp < oneWeekAgo) {
+                                localStorage.removeItem(key);
+                            }
+                        } catch (error) {
+                            localStorage.removeItem(key);
+                        }
+                    }
+                }
+            },
+            
+            optimizeLocalStorage: function() {
+                // Prevent localStorage from exceeding quota
+                const maxSize = 5 * 1024 * 1024; // 5MB
+                
+                const calculateSize = () => {
+                    let total = 0;
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        const value = localStorage.getItem(key);
+                        total += key.length + value.length;
+                    }
+                    return total;
+                };
+                
+                const currentSize = calculateSize();
+                
+                if (currentSize > maxSize) {
+                    // Remove oldest entries first
+                    const entries = [];
+                    
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        const value = localStorage.getItem(key);
+                        
+                        try {
+                            const parsed = JSON.parse(value);
+                            entries.push({
+                                key,
+                                timestamp: parsed.timestamp || 0,
+                                size: key.length + value.length
+                            });
+                        } catch (error) {
+                            entries.push({
+                                key,
+                                timestamp: 0,
+                                size: key.length + value.length
+                            });
+                        }
+                    }
+                    
+                    // Sort by timestamp (oldest first)
+                    entries.sort((a, b) => a.timestamp - b.timestamp);
+                    
+                    // Remove entries until under limit
+                    let removedSize = 0;
+                    for (const entry of entries) {
+                        if (currentSize - removedSize <= maxSize * 0.8) break; // Leave 20% buffer
+                        
+                        localStorage.removeItem(entry.key);
+                        removedSize += entry.size;
+                    }
+                }
+            },
+            
+            init: function() {
+                // Run cleanup once per day
+                const lastCleanup = localStorage.getItem('last_cache_cleanup');
+                const now = Date.now();
+                
+                if (!lastCleanup || now - parseInt(lastCleanup) > 24 * 60 * 60 * 1000) {
+                    this.clearOldCache();
+                    this.optimizeLocalStorage();
+                    localStorage.setItem('last_cache_cleanup', now.toString());
+                }
+                
+                // Run optimization on page load
+                setTimeout(() => this.optimizeLocalStorage(), 5000);
+            }
+        };
+
+        // ============================================
+        // ENHANCED THEME SUPPORT
+        // ============================================
+
+        const ThemeManager = {
+            currentTheme: 'light',
+            
+            init: function() {
+                // Check for saved theme preference
+                const savedTheme = localStorage.getItem('jubel_theme') || 'light';
+                this.setTheme(savedTheme);
+                
+                // Watch for system theme changes
+                const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+                darkModeMedia.addListener((e) => {
+                    if (!localStorage.getItem('jubel_theme')) {
+                        this.setTheme(e.matches ? 'dark' : 'light');
+                    }
+                });
+                
+                // Add theme toggle button (optional - you can add this to your UI)
+                this.addThemeToggle();
+            },
+            
+            setTheme: function(theme) {
+                this.currentTheme = theme;
+                document.body.setAttribute('data-theme', theme);
+                localStorage.setItem('jubel_theme', theme);
+                
+                // Update CSS variables based on theme
+                this.updateThemeVariables(theme);
+            },
+            
+            updateThemeVariables: function(theme) {
+                const root = document.documentElement;
+                
+                if (theme === 'dark') {
+                    root.style.setProperty('--white', '#1a1a1a');
+                    root.style.setProperty('--off-white', '#2d2d2d');
+                    root.style.setProperty('--light-gray', '#3d3d3d');
+                    root.style.setProperty('--medium-gray', '#4d4d4d');
+                    root.style.setProperty('--dark-gray', '#ffffff');
+                    root.style.setProperty('--text-gray', '#cccccc');
+                    root.style.setProperty('--text-light', '#aaaaaa');
+                    root.style.setProperty('--border-color', '#4d4d4d');
+                    root.style.setProperty('--light-orange', '#3d2719');
+                    root.style.setProperty('--light-red', '#3d1a1a');
+                } else {
+                    // Reset to light theme defaults
+                    root.style.setProperty('--white', '#FFFFFF');
+                    root.style.setProperty('--off-white', '#F9F9F9');
+                    root.style.setProperty('--light-gray', '#F5F5F5');
+                    root.style.setProperty('--medium-gray', '#E0E0E0');
+                    root.style.setProperty('--dark-gray', '#333333');
+                    root.style.setProperty('--text-gray', '#666666');
+                    root.style.setProperty('--text-light', '#888888');
+                    root.style.setProperty('--border-color', '#EEEEEE');
+                    root.style.setProperty('--light-orange', '#FFF5F0');
+                    root.style.setProperty('--light-red', '#FCE8E6');
+                }
+            },
+            
+            addThemeToggle: function() {
+                // Create theme toggle button
+                const toggleBtn = document.createElement('button');
+                toggleBtn.id = 'themeToggle';
+                toggleBtn.className = 'theme-toggle';
+                toggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+                toggleBtn.title = 'Toggle theme';
+                toggleBtn.style.position = 'fixed';
+                toggleBtn.style.bottom = '80px';
+                toggleBtn.style.right = '20px';
+                toggleBtn.style.zIndex = '1000';
+                toggleBtn.style.width = '48px';
+                toggleBtn.style.height = '48px';
+                toggleBtn.style.borderRadius = '50%';
+                toggleBtn.style.background = 'var(--primary-orange)';
+                toggleBtn.style.color = 'white';
+                toggleBtn.style.border = 'none';
+                toggleBtn.style.boxShadow = 'var(--shadow-heavy)';
+                toggleBtn.style.cursor = 'pointer';
+                toggleBtn.style.display = 'flex';
+                toggleBtn.style.alignItems = 'center';
+                toggleBtn.style.justifyContent = 'center';
+                toggleBtn.style.fontSize = '18px';
+                
+                toggleBtn.addEventListener('click', () => {
+                    const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+                    this.setTheme(newTheme);
+                    toggleBtn.innerHTML = newTheme === 'light' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+                });
+                
+                document.body.appendChild(toggleBtn);
+            }
+        };
+
+        // ============================================
+        // ENHANCED PROGRESSIVE WEB APP FEATURES
+        // ============================================
+
+        const PWA = {
+            init: function() {
+                this.checkInstallPrompt();
+                this.setupBeforeInstallPrompt();
+                this.setupAppInstalledHandler();
+                this.addToHomeScreenPrompt();
+            },
+            
+            checkInstallPrompt: function() {
+                // Check if app is running in standalone mode
+                if (window.matchMedia('(display-mode: standalone)').matches) {
+                    console.log('Running in standalone mode');
+                    AppState.isStandalone = true;
+                    
+                    // Add standalone-specific styles
+                    this.addStandaloneStyles();
+                }
+            },
+            
+            setupBeforeInstallPrompt: function() {
+                let deferredPrompt;
+                
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    // Prevent Chrome 67 and earlier from automatically showing the prompt
+                    e.preventDefault();
+                    deferredPrompt = e;
+                    
+                    // Show install button
+                    this.showInstallButton(deferredPrompt);
+                });
+            },
+            
+            showInstallButton: function(deferredPrompt) {
+                // Create install button
+                const installBtn = document.createElement('button');
+                installBtn.id = 'installBtn';
+                installBtn.className = 'install-button';
+                installBtn.innerHTML = '<i class="fas fa-download"></i> Install App';
+                installBtn.style.position = 'fixed';
+                installBtn.style.bottom = '140px';
+                installBtn.style.right = '20px';
+                installBtn.style.zIndex = '1000';
+                installBtn.style.padding = '12px 16px';
+                installBtn.style.borderRadius = 'var(--button-radius)';
+                installBtn.style.background = 'var(--primary-gradient)';
+                installBtn.style.color = 'white';
+                installBtn.style.border = 'none';
+                installBtn.style.boxShadow = 'var(--shadow-heavy)';
+                installBtn.style.cursor = 'pointer';
+                installBtn.style.fontSize = '14px';
+                installBtn.style.fontWeight = '600';
+                installBtn.style.display = 'flex';
+                installBtn.style.alignItems = 'center';
+                installBtn.style.gap = '8px';
+                
+                installBtn.addEventListener('click', async () => {
+                    // Hide the install button
+                    installBtn.style.display = 'none';
+                    
+                    // Show the install prompt
+                    deferredPrompt.prompt();
+                    
+                    // Wait for the user to respond to the prompt
+                    const { outcome } = await deferredPrompt.userChoice;
+                    
+                    // We've used the prompt, and can't use it again, discard it
+                    deferredPrompt = null;
+                    
+                    if (outcome === 'accepted') {
+                        UIUpdater.showToast('App installed successfully!', 'success');
+                    }
+                });
+                
+                document.body.appendChild(installBtn);
+                
+                // Auto-hide after 10 seconds
+                setTimeout(() => {
+                    if (installBtn.parentNode) {
+                        installBtn.style.display = 'none';
+                    }
+                }, 10000);
+            },
+            
+            setupAppInstalledHandler: function() {
+                window.addEventListener('appinstalled', () => {
+                    console.log('App was installed');
+                    AppState.isStandalone = true;
+                    this.addStandaloneStyles();
+                    
+                    // Remove install button if it exists
+                    const installBtn = document.getElementById('installBtn');
+                    if (installBtn && installBtn.parentNode) {
+                        installBtn.parentNode.removeChild(installBtn);
+                    }
+                });
+            },
+            
+            addToHomeScreenPrompt: function() {
+                // Check if we should show "Add to Home Screen" prompt
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                const isSafari = navigator.userAgent.includes('Safari') && !navigator.userAgent.includes('Chrome');
+                
+                if (isIOS && isSafari) {
+                    // Show iOS install instructions
+                    this.showIOSInstallInstructions();
+                }
+            },
+            
+            showIOSInstallInstructions: function() {
+                // Check if we've shown this recently
+                const lastShown = localStorage.getItem('ios_install_shown');
+                const now = Date.now();
+                
+                if (lastShown && now - parseInt(lastShown) < 7 * 24 * 60 * 60 * 1000) {
+                    return; // Shown within last week
+                }
+                
+                // Create iOS install modal
+                const modal = document.createElement('div');
+                modal.className = 'ios-install-modal';
+                modal.style.position = 'fixed';
+                modal.style.top = '0';
+                modal.style.left = '0';
+                modal.style.right = '0';
+                modal.style.bottom = '0';
+                modal.style.background = 'rgba(0,0,0,0.8)';
+                modal.style.zIndex = '2000';
+                modal.style.display = 'flex';
+                modal.style.alignItems = 'center';
+                modal.style.justifyContent = 'center';
+                modal.style.padding = '20px';
+                
+                modal.innerHTML = `
+                    <div style="background: white; border-radius: var(--card-radius); padding: 24px; max-width: 400px; text-align: center;">
+                        <h3 style="margin-bottom: 16px; color: var(--dark-gray);">Install Jubel App</h3>
+                        <p style="margin-bottom: 20px; color: var(--text-gray);">For the best experience, add Jubel to your home screen:</p>
+                        <ol style="text-align: left; margin-bottom: 24px; color: var(--text-gray); padding-left: 20px;">
+                            <li style="margin-bottom: 8px;">Tap the Share button <i class="fas fa-share-alt"></i></li>
+                            <li style="margin-bottom: 8px;">Scroll down and tap "Add to Home Screen"</li>
+                            <li style="margin-bottom: 8px;">Tap "Add" in the top right corner</li>
+                        </ol>
+                        <div style="display: flex; gap: 12px; justify-content: center;">
+                            <button id="iosInstallLater" style="padding: 10px 20px; border: 2px solid var(--primary-orange); border-radius: var(--button-radius); background: white; color: var(--primary-orange); font-weight: 600; cursor: pointer;">Later</button>
+                            <button id="iosInstallGotIt" style="padding: 10px 20px; border: none; border-radius: var(--button-radius); background: var(--primary-orange); color: white; font-weight: 600; cursor: pointer;">Got it!</button>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // Add event listeners
+                document.getElementById('iosInstallLater').addEventListener('click', () => {
+                    modal.remove();
+                    localStorage.setItem('ios_install_shown', now.toString());
+                });
+                
+                document.getElementById('iosInstallGotIt').addEventListener('click', () => {
+                    modal.remove();
+                    localStorage.setItem('ios_install_shown', now.toString());
+                });
+                
+                // Auto-close after 15 seconds
+                setTimeout(() => {
+                    if (modal.parentNode) {
+                        modal.remove();
+                        localStorage.setItem('ios_install_shown', now.toString());
+                    }
+                }, 15000);
+            },
+            
+            addStandaloneStyles: function() {
+                // Add styles specific to standalone mode
+                const style = document.createElement('style');
+                style.textContent = `
+                    @media (display-mode: standalone) {
+                        .top-bar {
+                            padding-top: env(safe-area-inset-top);
+                        }
+                        
+                        .main-panel {
+                            padding-bottom: env(safe-area-inset-bottom);
+                        }
+                        
+                        .sos-button {
+                            bottom: calc(160px + env(safe-area-inset-bottom));
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        };
+
+        // ============================================
+        // ENHANCED MULTI-LANGUAGE SUPPORT
+        // ============================================
+
+        const LanguageManager = {
+            currentLanguage: 'en',
+            translations: {
+                en: {
+                    // Navigation
+                    home: 'Home',
+                    history: 'History',
+                    account: 'Account',
+                    emergency: 'Emergency',
+                    
+                    // Common
+                    loading: 'Loading...',
+                    error: 'Error',
+                    success: 'Success',
+                    warning: 'Warning',
+                    cancel: 'Cancel',
+                    confirm: 'Confirm',
+                    save: 'Save',
+                    close: 'Close',
+                    
+                    // Services
+                    car: 'Car',
+                    delivery: 'Delivery',
+                    shortDelivery: 'Short Delivery',
+                    express: 'Express Shopping',
+                    truck: 'Truck',
+                    
+                    // Ride types
+                    economy: 'Economy',
+                    standard: 'Standard',
+                    premium: 'Premium',
+                    
+                    // Status
+                    requested: 'Requested',
+                    accepted: 'Accepted',
+                    arrived: 'Arrived',
+                    started: 'Started',
+                    completed: 'Completed',
+                    cancelled: 'Cancelled',
+                    
+                    // Emergency
+                    police: 'Police',
+                    fire: 'Fire Brigade',
+                    medical: 'Medical',
+                    sos: 'SOS Emergency',
+                    
+                    // Wallet
+                    balance: 'Balance',
+                    deposit: 'Deposit',
+                    withdraw: 'Withdraw',
+                    transfer: 'Transfer',
+                    
+                    // Notifications
+                    notifications: 'Notifications',
+                    markAllRead: 'Mark all as read',
+                    
+                    // Search
+                    search: 'Search',
+                    recentSearches: 'Recent Searches',
+                    clearRecent: 'Clear',
+                    
+                    // Fare
+                    estimatedFare: 'Estimated Fare',
+                    baseFare: 'Base Fare',
+                    distance: 'Distance',
+                    total: 'Total'
+                },
+                // Additional languages can be added here
+                // fr: { ... },
+                // es: { ... }
+            },
+            
+            init: function() {
+                // Detect browser language
+                const browserLang = navigator.language.split('-')[0];
+                this.currentLanguage = localStorage.getItem('jubel_language') || 
+                                     (this.translations[browserLang] ? browserLang : 'en');
+                
+                this.applyLanguage();
+                
+                // Add language selector (optional)
+                this.addLanguageSelector();
+            },
+            
+            applyLanguage: function() {
+                const lang = this.translations[this.currentLanguage];
+                if (!lang) return;
+                
+                // Update all elements with data-i18n attribute
+                document.querySelectorAll('[data-i18n]').forEach(element => {
+                    const key = element.getAttribute('data-i18n');
+                    if (lang[key]) {
+                        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+                            element.placeholder = lang[key];
+                        } else {
+                            element.textContent = lang[key];
+                        }
+                    }
+                });
+                
+                // Update document title
+                if (lang.appTitle) {
+                    document.title = lang.appTitle;
+                }
+                
+                // Update direction for RTL languages
+                if (this.currentLanguage === 'ar' || this.currentLanguage === 'he') {
+                    document.body.dir = 'rtl';
+                } else {
+                    document.body.dir = 'ltr';
+                }
+                
+                // Save preference
+                localStorage.setItem('jubel_language', this.currentLanguage);
+            },
+            
+            setLanguage: function(langCode) {
+                if (this.translations[langCode]) {
+                    this.currentLanguage = langCode;
+                    this.applyLanguage();
+                    
+                    // Announce language change to screen reader
+                    Accessibility.announceToScreenReader(`Language changed to ${langCode}`);
+                }
+            },
+            
+            addLanguageSelector: function() {
+                // Create language selector in more options dropdown
+                const languageItem = document.createElement('div');
+                languageItem.className = 'dropdown-item';
+                languageItem.innerHTML = `
+                    <div class="dropdown-icon">
+                        <i class="fas fa-language"></i>
+                    </div>
+                    <div class="dropdown-text">
+                        <div class="dropdown-title">Language</div>
+                        <div class="dropdown-desc">Select language</div>
+                    </div>
+                `;
+                
+                languageItem.addEventListener('click', () => {
+                    this.showLanguageSelector();
+                });
+                
+                // Add to more options dropdown
+                const dropdown = document.getElementById('moreOptionsDropdown');
+                dropdown.appendChild(languageItem);
+            },
+            
+            showLanguageSelector: function() {
+                // Create language selection modal
+                const modal = document.createElement('div');
+                modal.className = 'language-modal';
+                modal.style.position = 'fixed';
+                modal.style.top = '0';
+                modal.style.left = '0';
+                modal.style.right = '0';
+                modal.style.bottom = '0';
+                modal.style.background = 'rgba(0,0,0,0.5)';
+                modal.style.zIndex = '2000';
+                modal.style.display = 'flex';
+                modal.style.alignItems = 'center';
+                modal.style.justifyContent = 'center';
+                modal.style.padding = '20px';
+                
+                const languages = [
+                    { code: 'en', name: 'English', flag: '🇺🇸' },
+                    { code: 'fr', name: 'Français', flag: '🇫🇷' },
+                    { code: 'es', name: 'Español', flag: '🇪🇸' },
+                    { code: 'sw', name: 'Swahili', flag: '🇹🇿' },
+                    { code: 'ny', name: 'Chichewa', flag: '🇲🇼' }
+                ];
+                
+                modal.innerHTML = `
+                    <div style="background: white; border-radius: var(--card-radius); padding: 24px; max-width: 400px; width: 100%; max-height: 80vh; overflow-y: auto;">
+                        <h3 style="margin-bottom: 20px; color: var(--dark-gray);">Select Language</h3>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            ${languages.map(lang => `
+                                <button class="language-option ${lang.code === this.currentLanguage ? 'selected' : ''}" 
+                                        data-lang="${lang.code}"
+                                        style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 2px solid ${lang.code === this.currentLanguage ? 'var(--primary-orange)' : 'var(--border-color)'}; border-radius: var(--element-radius); background: ${lang.code === this.currentLanguage ? 'var(--light-orange)' : 'white'}; cursor: pointer; width: 100%;">
+                                    <span style="font-size: 20px;">${lang.flag}</span>
+                                    <span style="flex: 1; text-align: left; font-weight: ${lang.code === this.currentLanguage ? '600' : '400'}; color: var(--dark-gray);">
+                                        ${lang.name}
+                                    </span>
+                                    ${lang.code === this.currentLanguage ? '<i class="fas fa-check" style="color: var(--primary-orange);"></i>' : ''}
+                                </button>
+                            `).join('')}
+                        </div>
+                        <button id="closeLanguageModal" style="margin-top: 20px; padding: 10px 20px; border: none; border-radius: var(--button-radius); background: var(--primary-orange); color: white; font-weight: 600; cursor: pointer; width: 100%;">
+                            Close
+                        </button>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // Add event listeners
+                modal.querySelectorAll('.language-option').forEach(option => {
+                    option.addEventListener('click', () => {
+                        const langCode = option.dataset.lang;
+                        this.setLanguage(langCode);
+                        modal.remove();
+                    });
+                });
+                
+                document.getElementById('closeLanguageModal').addEventListener('click', () => {
+                    modal.remove();
+                });
+                
+                // Close on background click
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            },
+            
+            t: function(key) {
+                return this.translations[this.currentLanguage]?.[key] || key;
+            }
+        };
+
+        // ============================================
+        // ENHANCED ANIMATION AND UX EFFECTS
+        // ============================================
+
+        const AnimationManager = {
+            init: function() {
+                this.setupPageTransitions();
+                this.addLoadingAnimations();
+                this.setupScrollAnimations();
+                this.addHoverEffects();
+            },
+            
+            setupPageTransitions: function() {
+                // Smooth transitions between screens
+                const originalSwitchScreen = window.switchScreen;
+                window.switchScreen = function(screen) {
+                    // Add fade out animation
+                    const currentContent = document.getElementById(`${AppState.activeScreen}Content`) || 
+                                         document.getElementById(`${AppState.activeScreen}Screen`);
+                    
+                    if (currentContent) {
+                        currentContent.style.opacity = '0';
+                        currentContent.style.transition = 'opacity 0.2s ease';
+                        
+                        setTimeout(() => {
+                            originalSwitchScreen(screen);
+                            
+                            // Add fade in animation
+                            const newContent = document.getElementById(`${screen}Content`) || 
+                                             document.getElementById(`${screen}Screen`);
+                            
+                            if (newContent) {
+                                newContent.style.opacity = '0';
+                                newContent.style.transition = 'opacity 0.3s ease';
+                                
+                                // Trigger reflow
+                                newContent.offsetHeight;
+                                
+                                newContent.style.opacity = '1';
+                            }
+                        }, 200);
+                    } else {
+                        originalSwitchScreen(screen);
+                    }
+                };
+            },
+            
+            addLoadingAnimations: function() {
+                // Add skeleton loading for content
+                this.createSkeletonLoader();
+                
+                // Add loading animations for buttons
+                document.addEventListener('click', (e) => {
+                    const button = e.target.closest('button');
+                    if (button && (button.classList.contains('btn-primary') || 
+                                   button.classList.contains('btn-secondary') ||
+                                   button.classList.contains('btn-danger'))) {
+                        this.addButtonLoading(button);
+                    }
+                });
+            },
+            
+            createSkeletonLoader: function() {
+                // Create skeleton loader CSS
+                const style = document.createElement('style');
+                style.textContent = `
+                    .skeleton {
+                        background: linear-gradient(90deg, var(--light-gray) 25%, var(--medium-gray) 50%, var(--light-gray) 75%);
+                        background-size: 200% 100%;
+                        animation: loading 1.5s infinite;
+                        border-radius: var(--element-radius);
+                    }
+                    
+                    @keyframes loading {
+                        0% { background-position: 200% 0; }
+                        100% { background-position: -200% 0; }
+                    }
+                    
+                    .skeleton-text {
+                        height: 1em;
+                        margin-bottom: 0.5em;
+                    }
+                    
+                    .skeleton-button {
+                        height: 44px;
+                        width: 100%;
+                    }
+                    
+                    .skeleton-card {
+                        height: 100px;
+                        margin-bottom: 10px;
+                    }
+                `;
+                document.head.appendChild(style);
+            },
+            
+            addButtonLoading: function(button) {
+                const originalText = button.innerHTML;
+                const originalWidth = button.offsetWidth;
+                
+                button.innerHTML = '<span class="loading"></span>';
+                button.style.width = `${originalWidth}px`;
+                button.disabled = true;
+                
+                // Store original content for restoration
+                button.dataset.originalContent = originalText;
+                
+                // Auto-restore after 10 seconds (safety measure)
+                setTimeout(() => {
+                    if (button.disabled) {
+                        this.removeButtonLoading(button);
+                    }
+                }, 10000);
+            },
+            
+            removeButtonLoading: function(button) {
+                if (button.dataset.originalContent) {
+                    button.innerHTML = button.dataset.originalContent;
+                    button.style.width = '';
+                    button.disabled = false;
+                    delete button.dataset.originalContent;
+                }
+            },
+            
+            setupScrollAnimations: function() {
+                // Add scroll animations for lists
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add('animate-in');
+                        }
+                    });
+                }, {
+                    threshold: 0.1,
+                    rootMargin: '0px 0px -50px 0px'
+                });
+                
+                // Observe history items, notification items, etc.
+                document.addEventListener('DOMContentLoaded', () => {
+                    setTimeout(() => {
+                        document.querySelectorAll('.history-item, .notification-item, .ride-type-card').forEach(el => {
+                            observer.observe(el);
+                        });
+                    }, 1000);
+                });
+                
+                // Add animation CSS
+                const style = document.createElement('style');
+                style.textContent = `
+                    .history-item, .notification-item, .ride-type-card {
+                        opacity: 0;
+                        transform: translateY(20px);
+                        transition: opacity 0.3s ease, transform 0.3s ease;
+                    }
+                    
+                    .history-item.animate-in, 
+                    .notification-item.animate-in, 
+                    .ride-type-card.animate-in {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                    
+                    .history-item:nth-child(n) {
+                        transition-delay: calc(var(--item-index, 0) * 0.1s);
+                    }
+                `;
+                document.head.appendChild(style);
+            },
+            
+            addHoverEffects: function() {
+                // Add ripple effect to buttons
+                document.addEventListener('click', (e) => {
+                    const button = e.target.closest('button');
+                    if (button) {
+                        this.createRippleEffect(button, e);
+                    }
+                });
+            },
+            
+            createRippleEffect: function(button, event) {
+                const ripple = document.createElement('span');
+                const rect = button.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height);
+                const x = event.clientX - rect.left - size / 2;
+                const y = event.clientY - rect.top - size / 2;
+                
+                ripple.style.width = ripple.style.height = `${size}px`;
+                ripple.style.left = `${x}px`;
+                ripple.style.top = `${y}px`;
+                ripple.style.position = 'absolute';
+                ripple.style.borderRadius = '50%';
+                ripple.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+                ripple.style.transform = 'scale(0)';
+                ripple.style.animation = 'ripple 0.6s linear';
+                ripple.style.pointerEvents = 'none';
+                
+                button.style.position = 'relative';
+                button.style.overflow = 'hidden';
+                button.appendChild(ripple);
+                
+                // Remove ripple after animation
+                setTimeout(() => {
+                    if (ripple.parentNode === button) {
+                        button.removeChild(ripple);
+                    }
+                }, 600);
+            }
+        };
+
+        // ============================================
+        // FINAL INITIALIZATION
+        // ============================================
+
+        // Global variables
+        let map, currentLocationMarker, pickupMarker, destinationMarker, driverMarker, routeLayer, emergencyMarkers = [];
+
+        // Initialize everything when DOM is loaded
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Initialize core systems
+                await initializeApp();
+                
+                // Initialize enhanced features
+                Accessibility.init();
+                PerformanceOptimizer.optimizeImageLoading();
+                PerformanceOptimizer.debounceMapUpdates();
+                Security.preventSensitiveDataLogging();
+                CacheManager.init();
+                ThemeManager.init();
+                PWA.init();
+                LanguageManager.init();
+                AnimationManager.init();
+                
+                // Set up offline support
+                setupOfflineSupport();
+                
+                // Set up real-time updates
+                setupRealTimeUpdates();
+                
+                // Set up push notifications
+                setupPushNotifications();
+                
+                // Set up analytics
+                Analytics.trackEvent('app_launched', {
+                    platform: navigator.platform,
+                    userAgent: navigator.userAgent,
+                    screenSize: `${window.innerWidth}x${window.innerHeight}`,
+                    online: navigator.onLine
+                });
+                
+                // Set up error boundary
+                window.addEventListener('error', (event) => {
+                    ErrorHandler.handleError(event.error, 'window_error');
+                });
+                
+                window.addEventListener('unhandledrejection', (event) => {
+                    ErrorHandler.handleError(event.reason, 'unhandled_promise_rejection');
+                });
+                
+                // Set up periodic sync
+                setInterval(() => {
+                    CacheManager.optimizeLocalStorage();
+                    ErrorHandler.syncOfflineErrors();
+                }, 5 * 60 * 1000); // Every 5 minutes
+                
+                // Show welcome message
+                setTimeout(() => {
+                    UIUpdater.showToast('Welcome to Jubel! Ready to ride.', 'success');
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                UIUpdater.showToast('Failed to initialize app. Please refresh.', 'error');
+                
+                // Try to recover
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            }
+        });
+
+        // Export useful functions to window for debugging
+        window.AppState = AppState;
+        window.UIUpdater = UIUpdater;
+        window.FirebaseManager = FirebaseManager;
+        window.PriceCalculator = PriceCalculator;
+        window.EmergencyLocator = EmergencyLocator;
+        
+        // Helper functions for testing
+        window.testRideRequest = async function() {
+            if (!AppState.pickup || !AppState.destination) {
+                UIUpdater.showToast('Please set pickup and destination first', 'warning');
+                return;
+            }
+            
+            const rideData = {
+                passengerId: AppState.currentUser.uid,
+                passengerName: 'Test User',
+                pickup: 'Test Pickup',
+                destination: 'Test Destination',
+                rideType: 'standard',
+                fare: 25.00,
+                distance: 5.0,
+                paymentMethod: 'cash'
+            };
+            
+            try {
+                await FirebaseManager.requestRide(rideData);
+                UIUpdater.showToast('Test ride requested', 'success');
+            } catch (error) {
+                UIUpdater.showToast('Test failed: ' + error.message, 'error');
+            }
+        };
+        
+        window.testEmergency = function() {
+            EmergencyLocator.showEmergencyMarkers('police');
+            UIUpdater.showToast('Emergency markers shown', 'info');
+        };
+        
+        window.testNotification = function() {
+            FirebaseManager.sendNotification(
+                AppState.currentUser.uid,
+                'Test Notification',
+                'This is a test notification',
+                'info'
+            );
+        };
+        
+        window.clearAllData = function() {
+            if (confirm('Are you sure you want to clear all local data?')) {
+                localStorage.clear();
+                sessionStorage.clear();
+                UIUpdater.showToast('All local data cleared', 'success');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        };
+
+        // ============================================
+        // SERVICE WORKER REGISTRATION
+        // ============================================
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(
+                    function(registration) {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('ServiceWorker update found!');
+                            
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New update available
+                                    UIUpdater.showToast('New version available. Refresh to update.', 'info');
+                                }
+                            });
+                        });
+                    },
+                    function(err) {
+                        console.log('ServiceWorker registration failed: ', err);
+                    }
+                );
+            });
+        }
+
+        // ============================================
+        // NETWORK STATUS MONITORING
+        // ============================================
+
+        let isOnline = navigator.onLine;
+        
+        window.addEventListener('online', () => {
+            isOnline = true;
+            UIUpdater.showToast('Back online. Syncing...', 'success');
+            
+            // Sync any pending data
+            syncOfflineData();
+            ErrorHandler.syncOfflineErrors();
+            
+            // Update UI
+            document.body.classList.remove('offline');
+        });
+        
+        window.addEventListener('offline', () => {
+            isOnline = false;
+            UIUpdater.showToast('You are offline. Some features may be limited.', 'warning');
+            
+            // Update UI
+            document.body.classList.add('offline');
+        });
+        
+        // Add offline indicator CSS
+        const offlineStyle = document.createElement('style');
+        offlineStyle.textContent = `
+            .offline .online-only {
+                opacity: 0.5;
+                pointer-events: none;
+            }
+            
+            .offline-indicator {
+                position: fixed;
+                top: 60px;
+                left: 0;
+                right: 0;
+                background: var(--warning-yellow);
+                color: var(--dark-gray);
+                text-align: center;
+                padding: 8px;
+                font-size: 12px;
+                font-weight: 600;
+                z-index: 1000;
+                animation: slideDown 0.3s ease;
+            }
+        `;
+        document.head.appendChild(offlineStyle);
+
+        // ============================================
+        // PERFORMANCE MONITORING
+        // ============================================
+
+        const PerformanceMonitor = {
+            metrics: {
+                pageLoadTime: 0,
+                firstContentfulPaint: 0,
+                largestContentfulPaint: 0,
+                cumulativeLayoutShift: 0
+            },
+            
+            init: function() {
+                this.measurePageLoad();
+                this.setupPerformanceObserver();
+                this.monitorMemoryUsage();
+            },
+            
+            measurePageLoad: function() {
+                window.addEventListener('load', () => {
+                    setTimeout(() => {
+                        const timing = performance.timing;
+                        this.metrics.pageLoadTime = timing.loadEventEnd - timing.navigationStart;
+                        
+                        // Log to Firebase
+                        database.ref(`performance/${AppState.currentUser?.uid}/${Date.now()}`).set({
+                            pageLoadTime: this.metrics.pageLoadTime,
+                            userAgent: navigator.userAgent,
+                            connection: navigator.connection?.effectiveType || 'unknown'
+                        }).catch(console.error);
+                    }, 0);
+                });
+            },
+            
+            setupPerformanceObserver: function() {
+                // Observe Largest Contentful Paint
+                if ('PerformanceObserver' in window) {
+                    try {
+                        const paintObserver = new PerformanceObserver((entryList) => {
+                            const entries = entryList.getEntries();
+                            const lastEntry = entries[entries.length - 1];
+                            this.metrics.largestContentfulPaint = lastEntry.renderTime || lastEntry.loadTime;
+                        });
+                        
+                        paintObserver.observe({ entryTypes: ['largest-contentful-paint'] });
+                        
+                        // Observe Cumulative Layout Shift
+                        const layoutShiftObserver = new PerformanceObserver((entryList) => {
+                            for (const entry of entryList.getEntries()) {
+                                if (!entry.hadRecentInput) {
+                                    this.metrics.cumulativeLayoutShift += entry.value;
+                                }
+                            }
+                        });
+                        
+                        layoutShiftObserver.observe({ entryTypes: ['layout-shift'] });
+                        
+                    } catch (error) {
+                        console.error('PerformanceObserver error:', error);
+                    }
+                }
+            },
+            
+            monitorMemoryUsage: function() {
+                if ('memory' in performance) {
+                    setInterval(() => {
+                        const memory = performance.memory;
+                        if (memory.usedJSHeapSize > memory.jsHeapSizeLimit * 0.8) {
+                            console.warn('High memory usage detected:', memory);
+                            // Trigger garbage collection if possible
+                            if (window.gc) {
+                                window.gc();
+                            }
+                        }
+                    }, 30000); // Check every 30 seconds
+                }
+            },
+            
+            reportMetrics: function() {
+                return {
+                    ...this.metrics,
+                    timestamp: Date.now(),
+                    userId: AppState.currentUser?.uid
+                };
+            }
+        };
+
+        // Initialize performance monitoring
+        PerformanceMonitor.init();
+
+        // ============================================
+        // FINAL EXPORTS AND CLEANUP
+        // ============================================
+
+        // Make sure all intervals and timeouts are cleaned up on page unload
+        window.addEventListener('beforeunload', () => {
+            // Clean up map layers
+            if (map) {
+                map.remove();
+            }
+            
+            // Revoke object URLs
+            PerformanceOptimizer.imageCache.forEach(url => {
+                URL.revokeObjectURL(url);
+            });
+            
+            // Disconnect Firebase listeners
+            if (AppState.currentUser) {
+                database.ref(`users/${AppState.currentUser.uid}/walletBalance`).off();
+                database.ref('rides').off();
+                database.ref(`notifications/${AppState.currentUser.uid}`).off();
+                
+                if (AppState.currentRide?.id) {
+                    database.ref(`rides/${AppState.currentRide.id}`).off();
+                    database.ref(`chats/${AppState.currentRide.id}/messages`).off();
+                }
+                
+                if (AppState.currentRide?.driverId) {
+                    database.ref(`driverLocations/${AppState.currentRide.driverId}`).off();
+                }
+            }
+            
+            // Disconnect socket
+            if (AppState.socket) {
+                AppState.socket.disconnect();
+            }
+            
+            // Log app session end
+            Analytics.trackEvent('app_session_end', {
+                session_duration: Date.now() - (AppState.sessionStart || Date.now()),
+                screens_visited: AppState.screensVisited || [],
+                rides_requested: AppState.ridesRequested || 0
+            });
+        });
+
+        // Track session start
+        AppState.sessionStart = Date.now();
+        AppState.screensVisited = ['home'];
+        AppState.ridesRequested = 0;
+
+        // Track screen visits
+        const originalSwitchScreen = window.switchScreen;
+        window.switchScreen = function(screen) {
+            originalSwitchScreen(screen);
+            
+            if (!AppState.screensVisited.includes(screen)) {
+                AppState.screensVisited.push(screen);
+            }
+            
+            Analytics.trackEvent('screen_view', {
+                screen_name: screen,
+                previous_screen: AppState.activeScreen
+            });
+        };
+
+        // Track ride requests
+        const originalRequestRide = FirebaseManager.requestRide;
+        FirebaseManager.requestRide = async function(rideData) {
+            AppState.ridesRequested = (AppState.ridesRequested || 0) + 1;
+            
+            Analytics.trackEvent('ride_request_attempt', {
+                service_type: rideData.serviceType || 'car',
+                ride_type: rideData.rideType,
+                estimated_fare: rideData.fare,
+                distance: rideData.distance
+            });
+            
+            return originalRequestRide.call(this, rideData);
+        };
+
+        // ============================================
+        // APP IS NOW FULLY INITIALIZED
+        // ============================================
+
+        console.log('🎉 Jubel Passenger App initialized successfully!');
+        console.log('App State:', AppState);
+        console.log('User:', AppState.currentUser);
+        console.log('Location:', AppState.userLocation);
+        console.log('Balance:', AppState.walletBalance);
+
+        // Final readiness check
+        setTimeout(() => {
+            if (AppState.currentUser && AppState.userLocation) {
+                console.log('✅ App is ready for use');
+                
+                // Hide any remaining loading indicators
+                UIUpdater.hideLoading();
+                
+                // Check for updates
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({
+                        type: 'CHECK_FOR_UPDATES'
+                    });
+                }
+            }
+        }, 3000);
+
+    </script>
+</body>
+</html>
