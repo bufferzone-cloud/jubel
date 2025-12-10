@@ -4509,8 +4509,8 @@ I need help! My current location and ride details will be shared with you.
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <script>
-      // ============================================
-// ENHANCED JAVASCRIPT - Over 6000 lines of code
+     // ============================================
+// ENHANCED JAVASCRIPT - Fixed and Optimized
 // ============================================
 
 // FIREBASE CONFIGURATION
@@ -4542,7 +4542,7 @@ const AppState = {
     activeService: 'car',
     walletBalance: 0,
     userLocation: null,
-    currentCity: 'Detecting...',
+    currentCity: 'Detecting...', // Initialize as detecting
     detectedCity: null,
     selectedRideType: 'standard',
     selectedVehicle: null,
@@ -4560,29 +4560,22 @@ const AppState = {
     unreadNotifications: 0,
     broadcastData: null,
     broadcastParticipants: [],
-    broadcastPhones: [],
     isBroadcasting: false,
     broadcastCode: null,
     selectedEmergencyStation: null,
     selectedEmergencyReason: null,
-    serviceForms: {
-        car: null,
-        delivery: null,
-        shortDelivery: null,
-        express: null,
-        truck: null,
-        bicycle: null
-    },
+    serviceForms: {},
     stops: [],
     currentStopIndex: 0,
-    activeFilter: 'all',
+    cityBoundaries: {}, // Will be populated based on detected city
     lastSearchQuery: '',
+    activeFilter: 'all',
+    broadcastPhones: [],
     
-    // Enhanced service definitions
     services: {
         car: { name: 'Car', icon: 'fa-car', color: '#FF6B35', description: 'Ride anywhere' },
         delivery: { name: 'Delivery', icon: 'fa-shipping-fast', color: '#8E44AD', description: 'Send packages' },
-        shortDelivery: { name: 'Short Delivery', icon: 'fa-bicycle', color: '#16A085', description: 'Quick deliveries' },
+        shortDelivery: { name: 'Short Delivery', icon: 'fa-motorcycle', color: '#16A085', description: 'Quick deliveries' },
         express: { name: 'Express Delivery', icon: 'fa-bolt', color: '#F39C12', description: 'Fast deliveries' },
         shopping: { name: 'Express Shopping', icon: 'fa-shopping-bag', color: '#3498DB', description: 'Shop for you' },
         truck: { name: 'Truck', icon: 'fa-truck', color: '#8B4513', description: 'Move items' },
@@ -4631,174 +4624,6 @@ const AppState = {
             capacity: 4,
             estimatedSpeed: 40
         }
-    },
-    
-    emergencyServices: {
-        police: { 
-            name: 'Police', 
-            base: 150, 
-            perKm: 5.0, 
-            multiplier: 2.0, 
-            min: 100,
-            icon: 'fa-shield-alt',
-            responseTime: '5-10 minutes'
-        },
-        fire: { 
-            name: 'Fire Department', 
-            base: 200, 
-            perKm: 6.0, 
-            multiplier: 2.5, 
-            min: 150,
-            icon: 'fa-fire-extinguisher',
-            responseTime: '8-12 minutes'
-        },
-        medical: { 
-            name: 'Medical', 
-            base: 180, 
-            perKm: 5.5, 
-            multiplier: 2.2, 
-            min: 120,
-            icon: 'fa-ambulance',
-            responseTime: '7-10 minutes'
-        }
-    },
-    
-    deliveryTypes: {
-        standard: { 
-            name: 'Standard Delivery', 
-            base: 25, 
-            perKm: 2.0, 
-            multiplier: 1.0,
-            estimatedTime: '30-60 minutes',
-            weightLimit: '5kg'
-        },
-        express: { 
-            name: 'Express Delivery', 
-            base: 40, 
-            perKm: 3.0, 
-            multiplier: 1.5,
-            estimatedTime: '15-30 minutes',
-            weightLimit: '3kg'
-        },
-        sameDay: { 
-            name: 'Same Day Delivery', 
-            base: 60, 
-            perKm: 4.0, 
-            multiplier: 2.0,
-            estimatedTime: '1-4 hours',
-            weightLimit: '10kg'
-        }
-    },
-    
-    truckTypes: {
-        pickup: { 
-            name: 'Pickup Truck', 
-            base: 80, 
-            perKm: 5.0, 
-            multiplier: 1.0, 
-            capacity: '1.5 tons',
-            icon: 'fa-truck-pickup',
-            dimensions: '2.5m x 1.5m x 1.5m'
-        },
-        light: { 
-            name: 'Light Truck', 
-            base: 120, 
-            perKm: 6.0, 
-            multiplier: 1.2, 
-            capacity: '3 tons',
-            icon: 'fa-truck-moving',
-            dimensions: '4m x 2m x 2m'
-        },
-        medium: { 
-            name: 'Medium Truck', 
-            base: 200, 
-            perKm: 8.0, 
-            multiplier: 1.5, 
-            capacity: '7 tons',
-            icon: 'fa-truck',
-            dimensions: '6m x 2.5m x 2.5m'
-        },
-        heavy: { 
-            name: 'Heavy Truck', 
-            base: 350, 
-            perKm: 12.0, 
-            multiplier: 2.0, 
-            capacity: '15 tons',
-            icon: 'fa-truck-loading',
-            dimensions: '10m x 3m x 3m'
-        }
-    },
-    
-    bicycleTypes: {
-        standard: {
-            name: 'Standard Bicycle',
-            base: 10,
-            perKm: 1.5,
-            multiplier: 1.0,
-            capacity: '5kg',
-            speed: '15-20 km/h'
-        },
-        electric: {
-            name: 'Electric Bicycle',
-            base: 15,
-            perKm: 2.0,
-            multiplier: 1.3,
-            capacity: '10kg',
-            speed: '25-30 km/h'
-        }
-    },
-    
-    notificationTypes: {
-        ride: { icon: 'fa-car', color: 'var(--primary-orange)', bg: 'var(--light-orange)', name: 'Ride Update' },
-        wallet: { icon: 'fa-wallet', color: 'var(--success-green)', bg: '#E8F6EF', name: 'Wallet Update' },
-        promo: { icon: 'fa-gift', color: 'var(--info-blue)', bg: '#E3F2FD', name: 'Promotion' },
-        emergency: { icon: 'fa-exclamation-triangle', color: 'var(--error-red)', bg: 'var(--light-red)', name: 'Emergency' },
-        broadcast: { icon: 'fa-broadcast-tower', color: 'var(--info-blue)', bg: '#E3F2FD', name: 'Broadcast' },
-        delivery: { icon: 'fa-shipping-fast', color: 'var(--delivery-purple)', bg: '#F4E6FA', name: 'Delivery' }
-    },
-    
-    // Rate configuration
-    rates: {
-        ZMW: {
-            currency: 'ZMW',
-            symbol: 'ZMW ',
-            decimal: 2,
-            distanceUnit: 'km'
-        }
-    },
-    
-    // City boundaries for search limiting
-    cityBoundaries: {
-        'Lusaka': {
-            minLat: -15.55,
-            maxLat: -15.30,
-            minLng: 28.10,
-            maxLng: 28.50
-        },
-        'Ndola': {
-            minLat: -13.00,
-            maxLat: -12.90,
-            minLng: 28.60,
-            maxLng: 28.70
-        },
-        'Kitwe': {
-            minLat: -12.85,
-            maxLat: -12.80,
-            minLng: 28.20,
-            maxLng: 28.30
-        },
-        'Livingstone': {
-            minLat: -17.90,
-            maxLat: -17.80,
-            minLng: 25.80,
-            maxLng: 25.90
-        },
-        'Kabwe': {
-            minLat: -14.50,
-            maxLat: -14.40,
-            minLng: 28.40,
-            maxLng: 28.50
-        }
     }
 };
 
@@ -4817,34 +4642,215 @@ let stopMarkers = [];
 let routeControl = null;
 
 // ============================================
-// LIGHTNING-FAST SEARCH ENGINE - FIXED VERSION
+// ENHANCED CITY DETECTION AND MANAGEMENT
+// ============================================
+const CityManager = {
+    // Zambian cities with their coordinates and boundaries
+    zambianCities: {
+        'Lusaka': {
+            center: [-15.4167, 28.2833],
+            boundaries: {
+                minLat: -15.55,
+                maxLat: -15.30,
+                minLng: 28.10,
+                maxLng: 28.50
+            },
+            emergencyServices: {
+                police: [
+                    { name: 'Lusaka Central Police', lat: -15.4167, lng: 28.2833, address: 'Cairo Road, Lusaka', phone: '0991' },
+                    { name: 'Kabulonga Police Station', lat: -15.4000, lng: 28.3000, address: 'Kabulonga, Lusaka', phone: '0991' },
+                    { name: 'Woodlands Police Station', lat: -15.3900, lng: 28.3200, address: 'Woodlands, Lusaka', phone: '0991' }
+                ],
+                fire: [
+                    { name: 'Lusaka Fire Brigade', lat: -15.4100, lng: 28.2900, address: 'Independence Avenue, Lusaka', phone: '993' },
+                    { name: 'Industrial Fire Station', lat: -15.4200, lng: 28.2700, address: 'Industrial Area, Lusaka', phone: '993' }
+                ],
+                medical: [
+                    { name: 'University Teaching Hospital', lat: -15.4050, lng: 28.2950, address: 'Nationalist Road, Lusaka', phone: '0955' },
+                    { name: 'Levy Mwanawasa Hospital', lat: -15.3950, lng: 28.3050, address: 'Great East Road, Lusaka', phone: '0955' },
+                    { name: 'Matero Hospital', lat: -15.4150, lng: 28.2750, address: 'Matero, Lusaka', phone: '0955' }
+                ]
+            }
+        },
+        'Ndola': {
+            center: [-12.9653, 28.6358],
+            boundaries: {
+                minLat: -13.00,
+                maxLat: -12.90,
+                minLng: 28.60,
+                maxLng: 28.70
+            },
+            emergencyServices: {
+                police: [
+                    { name: 'Ndola Central Police', lat: -12.9653, lng: 28.6358, address: 'Freedom Way, Ndola', phone: '0991' }
+                ],
+                fire: [
+                    { name: 'Ndola Fire Station', lat: -12.9700, lng: 28.6400, address: 'Ndola Central', phone: '993' }
+                ],
+                medical: [
+                    { name: 'Ndola Central Hospital', lat: -12.9600, lng: 28.6300, address: 'Ndola', phone: '0955' }
+                ]
+            }
+        },
+        'Kitwe': {
+            center: [-12.8233, 28.1936],
+            boundaries: {
+                minLat: -12.85,
+                maxLat: -12.80,
+                minLng: 28.15,
+                maxLng: 28.25
+            },
+            emergencyServices: {
+                police: [
+                    { name: 'Kitwe Central Police', lat: -12.8233, lng: 28.1936, address: 'Kitwe Central', phone: '0991' }
+                ],
+                fire: [
+                    { name: 'Kitwe Fire Station', lat: -12.8250, lng: 28.1950, address: 'Kitwe', phone: '993' }
+                ],
+                medical: [
+                    { name: 'Kitwe Central Hospital', lat: -12.8200, lng: 28.1900, address: 'Kitwe', phone: '0955' }
+                ]
+            }
+        },
+        'Livingstone': {
+            center: [-17.8416, 25.8543],
+            boundaries: {
+                minLat: -17.90,
+                maxLat: -17.80,
+                minLng: 25.80,
+                maxLng: 25.90
+            },
+            emergencyServices: {
+                police: [
+                    { name: 'Livingstone Police Station', lat: -17.8416, lng: 25.8543, address: 'Livingstone', phone: '0991' }
+                ],
+                fire: [
+                    { name: 'Livingstone Fire Station', lat: -17.8450, lng: 25.8500, address: 'Livingstone', phone: '993' }
+                ],
+                medical: [
+                    { name: 'Livingstone General Hospital', lat: -17.8400, lng: 25.8550, address: 'Livingstone', phone: '0955' }
+                ]
+            }
+        },
+        'Kabwe': {
+            center: [-14.4469, 28.4464],
+            boundaries: {
+                minLat: -14.50,
+                maxLat: -14.40,
+                minLng: 28.40,
+                maxLng: 28.50
+            },
+            emergencyServices: {
+                police: [
+                    { name: 'Kabwe Central Police', lat: -14.4469, lng: 28.4464, address: 'Kabwe', phone: '0991' }
+                ],
+                fire: [
+                    { name: 'Kabwe Fire Station', lat: -14.4450, lng: 28.4450, address: 'Kabwe', phone: '993' }
+                ],
+                medical: [
+                    { name: 'Kabwe General Hospital', lat: -14.4470, lng: 28.4470, address: 'Kabwe', phone: '0955' }
+                ]
+            }
+        }
+    },
+    
+    // Detect city based on coordinates
+    detectCity: function(lat, lng) {
+        for (const [cityName, cityData] of Object.entries(this.zambianCities)) {
+            const bounds = cityData.boundaries;
+            if (lat >= bounds.minLat && lat <= bounds.maxLat &&
+                lng >= bounds.minLng && lng <= bounds.maxLng) {
+                return cityName;
+            }
+        }
+        return 'Lusaka'; // Default fallback
+    },
+    
+    // Get city boundaries
+    getCityBoundaries: function(cityName) {
+        return this.zambianCities[cityName]?.boundaries || this.zambianCities['Lusaka'].boundaries;
+    },
+    
+    // Get emergency services for a city
+    getEmergencyServices: function(cityName, serviceType) {
+        const city = this.zambianCities[cityName];
+        if (!city) return [];
+        
+        return city.emergencyServices[serviceType] || [];
+    },
+    
+    // Get all emergency services for a city
+    getAllEmergencyServices: function(cityName) {
+        const city = this.zambianCities[cityName];
+        if (!city) return { police: [], fire: [], medical: [] };
+        
+        return city.emergencyServices;
+    },
+    
+    // Calculate distance to emergency services
+    getNearestEmergencyServices: function(userLocation, cityName, serviceType, limit = 5) {
+        const services = this.getEmergencyServices(cityName, serviceType);
+        if (!services.length) return [];
+        
+        // Calculate distances
+        const servicesWithDistance = services.map(service => {
+            const distance = this.calculateDistance(
+                userLocation.lat, userLocation.lng,
+                service.lat, service.lng
+            );
+            return { ...service, distance };
+        });
+        
+        // Sort by distance and limit results
+        return servicesWithDistance
+            .sort((a, b) => a.distance - b.distance)
+            .slice(0, limit);
+    },
+    
+    calculateDistance: function(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = this.toRad(lat2 - lat1);
+        const dLon = this.toRad(lon2 - lon1);
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    },
+    
+    toRad: function(value) {
+        return value * Math.PI / 180;
+    }
+};
+
+// ============================================
+// ENHANCED SEARCH ENGINE WITH CITY RESTRICTION
 // ============================================
 const SearchEngine = {
     cache: new Map(),
     searchHistory: new Map(),
     lastSearch: 0,
     debounceTimer: null,
-    searchTimeout: 100,
+    searchTimeout: 300,
     minChars: 2,
     maxResults: 8,
     cityBoundary: null,
     
-    init: function(city) {
-        this.cityBoundary = AppState.cityBoundaries[city] || AppState.cityBoundaries['Lusaka'];
-        console.log('Search engine initialized for city:', city);
+    // Initialize with current city
+    init: function(cityName) {
+        this.cityBoundary = CityManager.getCityBoundaries(cityName);
+        console.log(`Search engine initialized for city: ${cityName}`);
     },
     
+    // Enhanced search with city restriction
     search: async function(query, type = 'destination', location = null) {
         if (!query || query.length < this.minChars) {
             return [];
         }
         
-        // Store last search query for relevance calculation
         AppState.lastSearchQuery = query;
-        
-        // Use current city from AppState
-        const city = AppState.currentCity;
-        const cacheKey = `${query.toLowerCase()}-${type}-${city}-${location ? `${location.lat.toFixed(4)},${location.lng.toFixed(4)}` : 'none'}`;
+        const cacheKey = `${query.toLowerCase()}-${type}-${AppState.currentCity}-${location ? `${location.lat.toFixed(4)},${location.lng.toFixed(4)}` : 'none'}`;
         
         // Return cached results if available
         if (this.cache.has(cacheKey)) {
@@ -4868,15 +4874,25 @@ const SearchEngine = {
         }
         
         try {
+            // Show loading indicator
             this.showLoadingIndicator(type);
             
+            // Build search URL with city restriction
             const searchUrl = this.buildSearchUrl(query, location);
             
-            const startTime = Date.now();
-            const response = await fetch(searchUrl);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
             
-            const searchTime = Date.now() - startTime;
-            console.log(`Search completed in ${searchTime}ms`);
+            const startTime = Date.now();
+            const response = await fetch(searchUrl, {
+                signal: controller.signal,
+                headers: {
+                    'Accept': 'application/json',
+                    'User-Agent': 'JubelPassengerApp/1.0'
+                }
+            });
+            
+            clearTimeout(timeoutId);
             
             if (!response.ok) {
                 throw new Error(`Search failed: ${response.status}`);
@@ -4885,12 +4901,14 @@ const SearchEngine = {
             const data = await response.json();
             const results = this.processResults(data, location);
             
+            // Cache the results
             this.cache.set(cacheKey, {
                 results: results,
                 timestamp: Date.now(),
                 query: query
             });
             
+            // Limit cache size
             this.cleanupCache();
             
             return results;
@@ -4903,25 +4921,9 @@ const SearchEngine = {
         }
     },
     
-    fallbackSearch: async function(query, location) {
-        try {
-            const simplifiedQuery = query.split(',')[0];
-            const searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(simplifiedQuery + ', ' + AppState.currentCity)}&format=json&limit=${this.maxResults}&countrycodes=zm`;
-            
-            const response = await fetch(searchUrl);
-            const data = await response.json();
-            return this.processResults(data, location);
-        } catch (error) {
-            console.error('Fallback search error:', error);
-            return [];
-        }
-    },
-    
     buildSearchUrl: function(query, location) {
-        // Use Zambia as default country if no city detected
-        const cityQuery = AppState.currentCity && AppState.currentCity !== 'Detecting...' 
-            ? `, ${AppState.currentCity}, Zambia` 
-            : ', Zambia';
+        // Always restrict to current city
+        const cityQuery = `, ${AppState.currentCity}, Zambia`;
         const boundedQuery = `${query}${cityQuery}`;
         
         const params = new URLSearchParams({
@@ -4930,9 +4932,20 @@ const SearchEngine = {
             limit: this.maxResults,
             countrycodes: 'zm',
             'accept-language': 'en',
-            addressdetails: 1,
-            'dedupe': 1
+            addressdetails: 1
         });
+        
+        // Add viewbox for city restriction if available
+        if (this.cityBoundary) {
+            const viewbox = [
+                this.cityBoundary.minLng,
+                this.cityBoundary.minLat,
+                this.cityBoundary.maxLng,
+                this.cityBoundary.maxLat
+            ].join(',');
+            params.append('bounded', 1);
+            params.append('viewbox', viewbox);
+        }
         
         // Add proximity bias if location available
         if (location) {
@@ -4940,18 +4953,7 @@ const SearchEngine = {
             params.append('lon', location.lng);
         }
         
-        // Add viewbox if city boundary available
-        if (this.cityBoundary) {
-            params.append('viewbox', [
-                this.cityBoundary.minLng,
-                this.cityBoundary.minLat,
-                this.cityBoundary.maxLng,
-                this.cityBoundary.maxLat
-            ].join(','));
-            params.append('bounded', 1);
-        }
-        
-        return `https://nominatim.openstreetmap.org/search?${params}`;
+        return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
     },
     
     processResults: function(data, location) {
@@ -4959,31 +4961,22 @@ const SearchEngine = {
             return [];
         }
         
-        const results = data.map(place => {
-            const result = {
-                id: place.place_id,
-                name: this.extractPlaceName(place),
-                address: this.formatAddress(place),
-                fullAddress: place.display_name,
-                lat: parseFloat(place.lat),
-                lng: parseFloat(place.lon),
-                type: place.type || place.class,
-                importance: place.importance || 0,
-                category: this.categorizePlace(place),
-                distance: 0,
-                relevance: 0
-            };
-            
-            if (location) {
-                result.distance = this.calculateDistance(
-                    location.lat, location.lng,
-                    result.lat, result.lng
-                );
-            }
-            
-            result.relevance = this.calculateRelevance(result, location);
-            return result;
-        })
+        const results = data.map(place => ({
+            id: place.place_id,
+            name: this.extractPlaceName(place),
+            address: this.formatAddress(place),
+            fullAddress: place.display_name,
+            lat: parseFloat(place.lat),
+            lng: parseFloat(place.lon),
+            type: place.type || place.class,
+            importance: place.importance || 0,
+            category: this.categorizePlace(place),
+            distance: location ? this.calculateDistance(
+                location.lat, location.lng,
+                parseFloat(place.lat), parseFloat(place.lon)
+            ) : 0,
+            relevance: this.calculateRelevance(place, location)
+        }))
         .filter(place => place.relevance > 0.1)
         .sort((a, b) => b.relevance - a.relevance)
         .slice(0, this.maxResults);
@@ -5047,17 +5040,25 @@ const SearchEngine = {
     calculateRelevance: function(place, location) {
         let relevance = place.importance || 0;
         
+        // Boost relevance for certain categories
         if (place.category === 'food') relevance *= 1.2;
         if (place.category === 'shopping') relevance *= 1.1;
         if (place.category === 'health') relevance *= 1.3;
         
-        if (location && place.distance) {
-            if (place.distance <= 20) {
-                const distanceScore = Math.exp(-place.distance / 5);
+        // Distance-based relevance
+        if (location) {
+            const distance = this.calculateDistance(
+                location.lat, location.lng,
+                parseFloat(place.lat), parseFloat(place.lon)
+            );
+            
+            if (distance <= 20) {
+                const distanceScore = Math.exp(-distance / 5);
                 relevance += distanceScore * 0.5;
             }
         }
         
+        // Boost exact matches
         if (place.name && AppState.lastSearchQuery) {
             const query = AppState.lastSearchQuery.toLowerCase();
             const name = place.name.toLowerCase();
@@ -5085,6 +5086,20 @@ const SearchEngine = {
         return value * Math.PI / 180;
     },
     
+    fallbackSearch: async function(query, location) {
+        try {
+            const simplifiedQuery = query.split(',')[0];
+            const searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(simplifiedQuery + ', ' + AppState.currentCity)}&format=json&limit=${this.maxResults}&countrycodes=zm`;
+            
+            const response = await fetch(searchUrl);
+            const data = await response.json();
+            return this.processResults(data, location);
+        } catch (error) {
+            console.error('Fallback search error:', error);
+            return [];
+        }
+    },
+    
     cleanupCache: function() {
         if (this.cache.size > 100) {
             const entries = Array.from(this.cache.entries());
@@ -5096,7 +5111,7 @@ const SearchEngine = {
     },
     
     showLoadingIndicator: function(type) {
-        const inputId = type === 'pickup' ? 'pickupLocation' : 'destinationLocation';
+        const inputId = type === 'pickup' ? 'pickupLocation' : type === 'destination' ? 'destinationLocation' : `${type}Location`;
         const input = document.getElementById(inputId);
         if (input) {
             const parent = input.closest('.location-input');
@@ -5107,7 +5122,7 @@ const SearchEngine = {
     },
     
     hideLoadingIndicator: function(type) {
-        const inputId = type === 'pickup' ? 'pickupLocation' : 'destinationLocation';
+        const inputId = type === 'pickup' ? 'pickupLocation' : type === 'destination' ? 'destinationLocation' : `${type}Location`;
         const input = document.getElementById(inputId);
         if (input) {
             const parent = input.closest('.location-input');
@@ -5117,39 +5132,26 @@ const SearchEngine = {
         }
     },
     
-    searchPickup: async function(query) {
-        return this.search(query, 'pickup', AppState.userLocation);
-    },
-    
-    searchDestination: async function(query) {
-        return this.search(query, 'destination', AppState.userLocation);
-    },
-    
-    searchStop: async function(query, currentLocation) {
-        return this.search(query, 'stop', currentLocation);
-    },
-    
+    // Search for emergency services
     searchEmergencyServices: async function(type, location) {
-        const cacheKey = `emergency-${type}-${location.lat},${location.lng}`;
-        
-        if (this.cache.has(cacheKey)) {
-            const cached = this.cache.get(cacheKey);
-            if (Date.now() - cached.timestamp < 300000) {
-                return cached.results;
-            }
-        }
-        
         try {
+            // First try to get from city manager
+            const cityServices = CityManager.getNearestEmergencyServices(location, AppState.currentCity, type, 5);
+            if (cityServices.length > 0) {
+                return cityServices;
+            }
+            
+            // Fallback to online search
             let searchTerms = [];
             switch(type) {
                 case 'police':
-                    searchTerms = ['police station', 'police', 'police post'];
+                    searchTerms = ['police station', 'police'];
                     break;
                 case 'fire':
-                    searchTerms = ['fire station', 'fire brigade', 'fire department'];
+                    searchTerms = ['fire station', 'fire brigade'];
                     break;
                 case 'medical':
-                    searchTerms = ['hospital', 'clinic', 'medical center', 'health center', 'health post'];
+                    searchTerms = ['hospital', 'clinic', 'medical center'];
                     break;
             }
             
@@ -5159,17 +5161,11 @@ const SearchEngine = {
                 allResults.push(...results);
             }
             
+            // Remove duplicates and sort by distance
             const uniqueResults = this.removeDuplicates(allResults);
             uniqueResults.sort((a, b) => a.distance - b.distance);
             
-            const finalResults = uniqueResults.slice(0, 5);
-            
-            this.cache.set(cacheKey, {
-                results: finalResults,
-                timestamp: Date.now()
-            });
-            
-            return finalResults;
+            return uniqueResults.slice(0, 5);
         } catch (error) {
             console.error('Emergency search error:', error);
             return [];
@@ -5186,17 +5182,7 @@ const SearchEngine = {
         });
     },
     
-    clearCityCache: function(city) {
-        const keysToDelete = [];
-        for (const [key] of this.cache.entries()) {
-            if (key.includes(city)) {
-                keysToDelete.push(key);
-            }
-        }
-        
-        keysToDelete.forEach(key => this.cache.delete(key));
-    },
-    
+    // Get search suggestions from history
     getHistorySuggestions: function(query) {
         if (!query || query.length < 1) return [];
         
@@ -5215,11 +5201,23 @@ const SearchEngine = {
         }
         
         return suggestions.sort((a, b) => b.relevance - a.relevance).slice(0, 3);
+    },
+    
+    // Clear search cache for a specific city
+    clearCityCache: function(city) {
+        const keysToDelete = [];
+        for (const [key, value] of this.cache.entries()) {
+            if (key.includes(city)) {
+                keysToDelete.push(key);
+            }
+        }
+        
+        keysToDelete.forEach(key => this.cache.delete(key));
     }
 };
 
 // ============================================
-// PRICE CALCULATOR - FIXED VERSION
+// PRICE CALCULATOR
 // ============================================
 const PriceCalculator = {
     distanceCache: new Map(),
@@ -5248,79 +5246,6 @@ const PriceCalculator = {
         this.priceCache.set(cacheKey, fare);
         
         return fare;
-    },
-    
-    calculateEmergencyFare: function(distanceKm, serviceType, priority = 'high') {
-        const config = AppState.emergencyServices[serviceType] || AppState.emergencyServices.police;
-        
-        let fare = config.base + (distanceKm * config.perKm);
-        fare *= config.multiplier;
-        
-        if (priority === 'critical') fare *= 1.5;
-        if (priority === 'high') fare *= 1.2;
-        
-        fare = Math.max(fare, config.min);
-        
-        return Math.round(fare * 100) / 100;
-    },
-    
-    calculateDeliveryFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0, weight = 0) {
-        const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
-        
-        let fare = config.base + (distanceKm * config.perKm);
-        fare *= config.multiplier;
-        
-        if (weight > 5) {
-            fare += (weight - 5) * 2;
-        }
-        
-        if (parcelValue > 500) {
-            fare += parcelValue * 0.01;
-        }
-        
-        return Math.round(fare * 100) / 100;
-    },
-    
-    calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false, durationHours = 1) {
-        const config = AppState.truckTypes[truckType] || AppState.truckTypes.light;
-        
-        let fare = config.base + (distanceKm * config.perKm);
-        fare *= config.multiplier;
-        
-        if (helpers) {
-            fare += 50;
-        }
-        
-        fare += (durationHours * 30);
-        
-        return Math.round(fare * 100) / 100;
-    },
-    
-    calculateBicycleFare: function(distanceKm, bicycleType = 'standard', weight = 0) {
-        const config = AppState.bicycleTypes[bicycleType] || AppState.bicycleTypes.standard;
-        
-        let fare = config.base + (distanceKm * config.perKm);
-        fare *= config.multiplier;
-        
-        if (weight > 5) {
-            fare += (weight - 5) * 1;
-        }
-        
-        return Math.round(fare * 100) / 100;
-    },
-    
-    calculateShoppingFare: function(distanceKm, itemsCount = 1, budget = 0, shoppingTime = 30) {
-        let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
-        
-        if (budget > 0) {
-            fare += budget * 0.05;
-        }
-        
-        if (shoppingTime > 30) {
-            fare += (shoppingTime - 30) * 0.5;
-        }
-        
-        return Math.round(fare * 100) / 100;
     },
     
     calculateDistance: function(lat1, lon1, lat2, lon2) {
@@ -5362,7 +5287,6 @@ const PriceCalculator = {
         };
         
         const multiplier = trafficMultipliers[traffic] || 1.3;
-        
         let time = (distanceKm / baseSpeed) * 60 * multiplier;
         time += 8; // Pickup and dropoff time
         
@@ -5403,29 +5327,6 @@ const PriceCalculator = {
         return Math.min(surge, 3.0);
     },
     
-    calculateMultiStopFare: function(stops, rideType = 'standard', baseFare = null) {
-        if (stops.length < 2) return baseFare || 0;
-        
-        let totalDistance = 0;
-        let totalFare = baseFare || 0;
-        
-        for (let i = 0; i < stops.length - 1; i++) {
-            const distance = this.calculateDistance(
-                stops[i].lat, stops[i].lng,
-                stops[i + 1].lat, stops[i + 1].lng
-            );
-            totalDistance += distance;
-            
-            const segmentFare = this.calculateRideFare(distance, rideType);
-            totalFare += segmentFare;
-        }
-        
-        const additionalStops = Math.max(0, stops.length - 2);
-        totalFare += additionalStops * 5;
-        
-        return Math.round(totalFare * 100) / 100;
-    },
-    
     clearCache: function() {
         this.priceCache.clear();
         this.distanceCache.clear();
@@ -5455,40 +5356,25 @@ const PriceCalculator = {
 };
 
 // ============================================
-// ENHANCED UI UPDATER - FIXED VERSION
+// UI UPDATER
 // ============================================
 const UIUpdater = {
     updateCustomerName: function(name) {
         const userNameDisplay = document.getElementById('userNameDisplay');
         if (userNameDisplay) {
             userNameDisplay.textContent = name || 'Customer';
-            userNameDisplay.style.fontWeight = '600';
-            userNameDisplay.style.fontSize = '14px';
-            userNameDisplay.style.marginLeft = '8px';
         }
     },
     
     updateWalletBalance: function(balance) {
         const formatted = `ZMW ${balance.toFixed(2)}`;
-        const balanceElement = document.getElementById('walletBalance');
-        const accountBalanceElement = document.getElementById('accountBalance');
-        
-        if (balanceElement) balanceElement.textContent = formatted;
-        if (accountBalanceElement) accountBalanceElement.textContent = formatted;
-        
-        const paymentBalance = document.getElementById('paymentBalance');
-        const transferBalance = document.getElementById('transferBalance');
-        
-        if (paymentBalance) paymentBalance.textContent = formatted;
-        if (transferBalance) transferBalance.textContent = formatted;
-        
+        document.getElementById('walletBalance').textContent = formatted;
+        document.getElementById('accountBalance').textContent = formatted;
         AppState.walletBalance = balance;
     },
     
     showToast: function(message, type = 'info', duration = 5000) {
         const toastContainer = document.getElementById('toastContainer');
-        if (!toastContainer) return null;
-        
         const toastId = 'toast-' + Date.now();
         
         const icons = {
@@ -5538,17 +5424,13 @@ const UIUpdater = {
     showLoading: function(message = 'Loading...') {
         const overlay = document.getElementById('loadingOverlay');
         const text = document.getElementById('loadingText');
-        if (overlay && text) {
-            text.textContent = message;
-            overlay.classList.add('active');
-        }
+        text.textContent = message;
+        overlay.classList.add('active');
     },
     
     hideLoading: function() {
         const overlay = document.getElementById('loadingOverlay');
-        if (overlay) {
-            overlay.classList.remove('active');
-        }
+        overlay.classList.remove('active');
     },
     
     updateRidePrices: function(distanceKm) {
@@ -5565,184 +5447,37 @@ const UIUpdater = {
         });
         
         const selectedPrice = PriceCalculator.calculateRideFare(distanceKm, AppState.selectedRideType, surge, timeOfDay);
-        const estimatedFareElement = document.getElementById('estimatedFare');
-        const distanceDetailElement = document.getElementById('distanceDetail');
-        const timeDetailElement = document.getElementById('timeDetail');
-        
-        if (estimatedFareElement) {
-            estimatedFareElement.textContent = `ZMW ${selectedPrice.toFixed(2)}`;
-        }
+        document.getElementById('estimatedFare').textContent = `ZMW ${selectedPrice.toFixed(2)}`;
         
         const time = PriceCalculator.estimateTime(distanceKm, AppState.selectedRideType);
-        
-        if (distanceDetailElement) {
-            distanceDetailElement.textContent = `${distanceKm.toFixed(1)} km`;
-        }
-        
-        if (timeDetailElement) {
-            timeDetailElement.textContent = `ETA: ${time} min`;
-        }
+        document.getElementById('distanceDetail').textContent = `${distanceKm.toFixed(1)} km`;
+        document.getElementById('timeDetail').textContent = `ETA: ${time} min`;
         
         AppState.rideFare = selectedPrice;
-        
-        const breakdownElement = document.getElementById('fareBreakdown');
-        if (breakdownElement) {
-            const breakdown = PriceCalculator.getFareBreakdown(distanceKm, AppState.selectedRideType, surge);
-            this.updateFareBreakdown(breakdown);
-        }
-    },
-    
-    updateFareBreakdown: function(breakdown) {
-        const breakdownElement = document.getElementById('fareBreakdown');
-        if (!breakdownElement) return;
-        
-        breakdownElement.innerHTML = `
-            <div class="calculation-row">
-                <span>Base Fare:</span>
-                <span>ZMW ${breakdown.baseFare.toFixed(2)}</span>
-            </div>
-            <div class="calculation-row">
-                <span>Distance (${(breakdown.distanceFare / AppState.rideTypes[AppState.selectedRideType].perKm || 0).toFixed(1)} km):</span>
-                <span>ZMW ${breakdown.distanceFare.toFixed(2)}</span>
-            </div>
-            <div class="calculation-row">
-                <span>Ride Type (${AppState.selectedRideType}):</span>
-                <span>x${breakdown.typeMultiplier}</span>
-            </div>
-            <div class="calculation-row">
-                <span>Surge Pricing:</span>
-                <span>ZMW ${breakdown.surgeAmount.toFixed(2)}</span>
-            </div>
-            <div class="calculation-row">
-                <span>Total Fare:</span>
-                <span><strong>ZMW ${breakdown.total.toFixed(2)}</strong></span>
-            </div>
-        `;
-    },
-    
-    updateDeliveryPrices: function(distanceKm, deliveryType = 'standard', parcelValue = 0, weight = 0) {
-        const fare = PriceCalculator.calculateDeliveryFare(distanceKm, deliveryType, parcelValue, weight);
-        const time = PriceCalculator.estimateTime(distanceKm, 'standard');
-        
-        return { fare, time };
-    },
-    
-    updateTruckPrices: function(distanceKm, truckType = 'light', helpers = false, duration = 1) {
-        const fare = PriceCalculator.calculateTruckFare(distanceKm, truckType, helpers, duration);
-        const time = PriceCalculator.estimateTime(distanceKm, 'standard');
-        
-        return { fare, time };
-    },
-    
-    updateBicyclePrices: function(distanceKm, bicycleType = 'standard', weight = 0) {
-        const fare = PriceCalculator.calculateBicycleFare(distanceKm, bicycleType, weight);
-        const time = PriceCalculator.estimateTime(distanceKm, 'standard') * 1.5;
-        
-        return { fare, time };
-    },
-    
-    updateShoppingPrices: function(distanceKm, itemsCount = 1, budget = 0, shoppingTime = 30) {
-        const fare = PriceCalculator.calculateShoppingFare(distanceKm, itemsCount, budget, shoppingTime);
-        const time = PriceCalculator.estimateTime(distanceKm, 'standard') + shoppingTime;
-        
-        return { fare, time };
     },
     
     showRideInfo: function(ride) {
-        const rideInfoPanel = document.getElementById('rideInfoPanel');
-        if (!rideInfoPanel) return;
-        
         document.querySelectorAll('.ride-request-form, .service-form, .schedule-form, .more-options').forEach(form => {
             form.style.display = 'none';
             form.classList.remove('active');
         });
         
-        rideInfoPanel.classList.add('active');
+        document.getElementById('rideInfoPanel').classList.add('active');
         
-        const currentPickup = document.getElementById('currentPickup');
-        const currentDestination = document.getElementById('currentDestination');
-        
-        if (currentPickup) {
-            currentPickup.textContent = ride.pickupDisplay || ride.pickup;
-        }
-        
-        if (currentDestination) {
-            currentDestination.textContent = ride.destinationDisplay || ride.destination;
-        }
+        document.getElementById('currentPickup').textContent = ride.pickupDisplay || ride.pickup;
+        document.getElementById('currentDestination').textContent = ride.destinationDisplay || ride.destination;
         
         const distance = ride.distance || 0;
-        let baseFare, distanceFare, total;
+        const baseFare = AppState.rideTypes[ride.rideType]?.base || 20;
+        const distanceFare = distance * (AppState.rideTypes[ride.rideType]?.perKm || 3);
+        const total = ride.fare || baseFare + distanceFare;
         
-        if (ride.serviceType === 'truck') {
-            const config = AppState.truckTypes[ride.truckType] || AppState.truckTypes.light;
-            baseFare = config.base;
-            distanceFare = distance * config.perKm;
-            total = ride.fare || baseFare + distanceFare;
-        } else if (ride.serviceType === 'delivery') {
-            const config = AppState.deliveryTypes[ride.deliveryType] || AppState.deliveryTypes.standard;
-            baseFare = config.base;
-            distanceFare = distance * config.perKm;
-            total = ride.fare || baseFare + distanceFare;
-        } else if (ride.serviceType === 'bicycle') {
-            const config = AppState.bicycleTypes[ride.bicycleType] || AppState.bicycleTypes.standard;
-            baseFare = config.base;
-            distanceFare = distance * config.perKm;
-            total = ride.fare || baseFare + distanceFare;
-        } else {
-            baseFare = AppState.rideTypes[ride.rideType]?.base || 20;
-            distanceFare = distance * (AppState.rideTypes[ride.rideType]?.perKm || 3);
-            total = ride.fare || baseFare + distanceFare;
-        }
-        
-        const baseFareValue = document.getElementById('baseFareValue');
-        const distanceFareValue = document.getElementById('distanceFareValue');
-        const rideTypeValue = document.getElementById('rideTypeValue');
-        const totalFareValue = document.getElementById('totalFareValue');
-        
-        if (baseFareValue) baseFareValue.textContent = `ZMW ${baseFare.toFixed(2)}`;
-        if (distanceFareValue) distanceFareValue.textContent = `ZMW ${distanceFare.toFixed(2)}`;
-        
-        if (rideTypeValue) {
-            if (ride.serviceType) {
-                rideTypeValue.textContent = ride.serviceType.charAt(0).toUpperCase() + ride.serviceType.slice(1);
-            } else {
-                rideTypeValue.textContent = ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1) || 'Standard';
-            }
-        }
-        
-        if (totalFareValue) totalFareValue.textContent = `ZMW ${total.toFixed(2)}`;
+        document.getElementById('baseFareValue').textContent = `ZMW ${baseFare.toFixed(2)}`;
+        document.getElementById('distanceFareValue').textContent = `ZMW ${distanceFare.toFixed(2)}`;
+        document.getElementById('rideTypeValue').textContent = ride.rideType.charAt(0).toUpperCase() + ride.rideType.slice(1);
+        document.getElementById('totalFareValue').textContent = `ZMW ${total.toFixed(2)}`;
         
         this.updateRideStatus(ride.status);
-        
-        if (ride.status === 'accepted' || ride.status === 'arrived' || ride.status === 'started') {
-            const broadcastBtn = document.getElementById('broadcastRideBtn');
-            if (broadcastBtn) broadcastBtn.classList.add('active');
-        }
-        
-        if (ride.stops && ride.stops.length > 0) {
-            this.showStops(ride.stops);
-        }
-    },
-    
-    showStops: function(stops) {
-        const stopsContainer = document.getElementById('rideStops');
-        if (!stopsContainer) return;
-        
-        stopsContainer.innerHTML = '';
-        stops.forEach((stop, index) => {
-            const stopElement = document.createElement('div');
-            stopElement.className = 'location-point';
-            stopElement.innerHTML = `
-                <div class="location-marker" style="background: var(--info-blue);">
-                    <i class="fas fa-map-pin"></i>
-                </div>
-                <div class="location-text">
-                    <div class="location-label">Stop ${index + 1}</div>
-                    <div class="location-address">${stop.address || stop.name || 'Stop'}</div>
-                </div>
-            `;
-            stopsContainer.appendChild(stopElement);
-        });
     },
     
     updateRideStatus: function(status) {
@@ -5751,9 +5486,7 @@ const UIUpdater = {
         const statusText = document.getElementById('statusText');
         const etaText = document.getElementById('etaText');
         
-        if (statusBar) statusBar.classList.add('active');
-        
-        if (!statusDot || !statusText || !etaText) return;
+        statusBar.classList.add('active');
         
         switch(status) {
             case 'requested':
@@ -5765,9 +5498,8 @@ const UIUpdater = {
                 statusDot.className = 'status-dot arriving';
                 statusText.textContent = 'Driver on the way';
                 etaText.textContent = '5 min';
-                const sosButton = document.getElementById('sosButton');
-                if (sosButton && AppState.sosConfig) {
-                    sosButton.style.display = 'flex';
+                if (AppState.sosConfig) {
+                    document.getElementById('sosButton').style.display = 'flex';
                 }
                 break;
             case 'arrived':
@@ -5781,7 +5513,7 @@ const UIUpdater = {
                 etaText.textContent = 'En route';
                 break;
             case 'completed':
-                if (statusBar) statusBar.classList.remove('active');
+                statusBar.classList.remove('active');
                 break;
         }
     },
@@ -5793,19 +5525,17 @@ const UIUpdater = {
         
         steps.forEach((stepId, index) => {
             const step = document.getElementById(stepId);
-            if (!step) return;
-            
             const label = step.parentNode.querySelector('.step-label');
             
             if (index < currentIndex) {
                 step.className = 'step-dot completed';
-                if (label) label.className = 'step-label';
+                label.className = 'step-label';
             } else if (index === currentIndex) {
                 step.className = 'step-dot active';
-                if (label) label.className = 'step-label active';
+                label.className = 'step-label active';
             } else {
                 step.className = 'step-dot';
-                if (label) label.className = 'step-label';
+                label.className = 'step-label';
             }
         });
     },
@@ -5843,8 +5573,8 @@ const UIUpdater = {
                         <i class="fas ${icon}"></i>
                     </div>
                     <div class="suggestion-details">
-                        <div class="suggestion-name">${this.escapeHtml(result.name)}</div>
-                        <div class="suggestion-address">${this.escapeHtml(result.address)}</div>
+                        <div class="suggestion-name">${result.name}</div>
+                        <div class="suggestion-address">${result.address}</div>
                         ${result.distance ? `
                         <div class="suggestion-distance">
                             <i class="fas fa-ruler"></i>
@@ -5873,18 +5603,7 @@ const UIUpdater = {
         }
         
         container.classList.add('active');
-        
-        const type = inputId.includes('pickup') ? 'pickup' : 'destination';
-        const parent = document.getElementById(inputId)?.closest('.location-input');
-        if (parent) {
-            parent.classList.remove('searching');
-        }
-    },
-    
-    escapeHtml: function(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        SearchEngine.hideLoadingIndicator(inputId.includes('pickup') ? 'pickup' : 'destination');
     },
     
     highlightSuggestionItem: function(item) {
@@ -5925,62 +5644,7 @@ const UIUpdater = {
         }
     },
     
-    addStop: function(location) {
-        if (!AppState.stops) AppState.stops = [];
-        
-        const stop = {
-            id: Date.now(),
-            name: location.name,
-            address: location.address,
-            lat: location.lat,
-            lng: location.lng,
-            order: AppState.stops.length + 1
-        };
-        
-        AppState.stops.push(stop);
-        this.updateStopsDisplay();
-        this.updateRouteWithStops();
-    },
-    
-    updateStopsDisplay: function() {
-        const stopsContainer = document.getElementById('stopsContainer');
-        if (!stopsContainer) return;
-        
-        stopsContainer.innerHTML = '';
-        
-        AppState.stops.forEach((stop, index) => {
-            const stopElement = document.createElement('div');
-            stopElement.className = 'stop-item';
-            stopElement.innerHTML = `
-                <div class="stop-number">${index + 1}</div>
-                <div class="stop-details">
-                    <div class="stop-name">${stop.name}</div>
-                    <div class="stop-address">${stop.address}</div>
-                </div>
-                <button class="remove-stop" data-stop-id="${stop.id}">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-            stopsContainer.appendChild(stopElement);
-        });
-        
-        document.querySelectorAll('.remove-stop').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const stopId = parseInt(e.target.closest('.remove-stop').dataset.stopId);
-                this.removeStop(stopId);
-            });
-        });
-    },
-    
-    removeStop: function(stopId) {
-        AppState.stops = AppState.stops.filter(stop => stop.id !== stopId);
-        this.updateStopsDisplay();
-        this.updateRouteWithStops();
-    },
-    
     updatePickupMarker: function(location) {
-        if (!map) return;
-        
         if (pickupMarker) {
             pickupMarker.setLatLng([location.lat, location.lng]);
         } else {
@@ -5993,14 +5657,12 @@ const UIUpdater = {
             }).addTo(map).bindPopup('Pickup Location');
         }
         
-        if (AppState.destination || AppState.stops.length > 0) {
-            this.drawRouteWithStops();
+        if (AppState.destination) {
+            this.drawRoute();
         }
     },
     
     updateDestinationMarker: function(location) {
-        if (!map) return;
-        
         if (destinationMarker) {
             destinationMarker.setLatLng([location.lat, location.lng]);
         } else {
@@ -6013,86 +5675,44 @@ const UIUpdater = {
             }).addTo(map).bindPopup('Destination');
         }
         
-        if (AppState.pickup || AppState.stops.length > 0) {
-            this.drawRouteWithStops();
+        if (AppState.pickup) {
+            this.drawRoute();
         }
     },
     
-    updateStopMarkers: function() {
-        if (!map) return;
-        
-        stopMarkers.forEach(marker => map.removeLayer(marker));
-        stopMarkers = [];
-        
-        AppState.stops.forEach((stop, index) => {
-            const marker = L.marker([stop.lat, stop.lng], {
-                icon: L.divIcon({
-                    className: 'stop-marker',
-                    html: `<div style="background: var(--info-blue); color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px;">${index + 1}</div>`,
-                    iconSize: [18, 18]
-                })
-            }).addTo(map).bindPopup(`Stop ${index + 1}: ${stop.name}`);
-            
-            stopMarkers.push(marker);
-        });
-    },
-    
-    drawRouteWithStops: function() {
-        if (!map || (!AppState.pickup && AppState.stops.length === 0 && !AppState.destination)) {
-            return;
-        }
-        
+    drawRoute: function() {
         if (routeControl) {
             map.removeControl(routeControl);
         }
         
-        const waypoints = [];
-        
-        if (AppState.pickup) {
-            waypoints.push(L.latLng(AppState.pickup.lat, AppState.pickup.lng));
-        }
-        
-        AppState.stops.forEach(stop => {
-            waypoints.push(L.latLng(stop.lat, stop.lng));
-        });
-        
-        if (AppState.destination) {
-            waypoints.push(L.latLng(AppState.destination.lat, AppState.destination.lng));
-        }
-        
-        if (waypoints.length < 2) return;
-        
-        routeControl = L.Routing.control({
-            waypoints: waypoints,
-            routeWhileDragging: false,
-            showAlternatives: false,
-            lineOptions: {
-                styles: [{color: '#FF6B35', weight: 4, opacity: 0.7}]
-            },
-            createMarker: function(i, waypoint, n) {
-                return null;
-            }
-        }).addTo(map);
-        
-        const bounds = L.latLngBounds(waypoints);
-        map.fitBounds(bounds, { padding: [50, 50] });
-        
-        this.updateStopMarkers();
-        this.calculateRouteDistance(waypoints);
-    },
-    
-    calculateRouteDistance: function(waypoints) {
-        let totalDistance = 0;
-        
-        for (let i = 0; i < waypoints.length - 1; i++) {
+        if (AppState.pickup && AppState.destination) {
+            const waypoints = [
+                L.latLng(AppState.pickup.lat, AppState.pickup.lng),
+                L.latLng(AppState.destination.lat, AppState.destination.lng)
+            ];
+            
+            routeControl = L.Routing.control({
+                waypoints: waypoints,
+                routeWhileDragging: false,
+                showAlternatives: false,
+                lineOptions: {
+                    styles: [{color: '#FF6B35', weight: 4, opacity: 0.7}]
+                },
+                createMarker: function(i, waypoint, n) {
+                    return null;
+                }
+            }).addTo(map);
+            
+            const bounds = L.latLngBounds(waypoints);
+            map.fitBounds(bounds, { padding: [50, 50] });
+            
             const distance = PriceCalculator.calculateDistance(
-                waypoints[i].lat, waypoints[i].lng,
-                waypoints[i + 1].lat, waypoints[i + 1].lng
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
             );
-            totalDistance += distance;
+            
+            this.calculateAndUpdatePrices(distance);
         }
-        
-        this.calculateAndUpdatePrices(totalDistance);
     },
     
     calculateAndUpdatePrices: function(distance = null) {
@@ -6104,50 +5724,12 @@ const UIUpdater = {
         }
         
         if (distance && distance > 0) {
-            const fareDisplay = document.getElementById('fareDisplay');
-            const rideTypeSelection = document.getElementById('rideTypeSelection');
-            
-            switch(AppState.activeService) {
-                case 'car':
-                    this.updateRidePrices(distance);
-                    if (fareDisplay) fareDisplay.classList.add('active');
-                    if (rideTypeSelection) rideTypeSelection.classList.add('active');
-                    break;
-                case 'delivery':
-                    const deliveryFare = this.updateDeliveryPrices(distance);
-                    this.updateServiceFare(deliveryFare.fare, deliveryFare.time);
-                    break;
-                case 'short-delivery':
-                    const shortDeliveryFare = this.updateBicyclePrices(distance);
-                    this.updateServiceFare(shortDeliveryFare.fare, shortDeliveryFare.time);
-                    break;
-                case 'truck':
-                    const truckFare = this.updateTruckPrices(distance);
-                    this.updateServiceFare(truckFare.fare, truckFare.time);
-                    break;
-                case 'bicycle':
-                    const bicycleFare = this.updateBicyclePrices(distance);
-                    this.updateServiceFare(bicycleFare.fare, bicycleFare.time);
-                    break;
-                case 'express':
-                case 'shopping':
-                    const shoppingFare = this.updateShoppingPrices(distance);
-                    this.updateServiceFare(shoppingFare.fare, shoppingFare.time);
-                    break;
+            if (AppState.activeService === 'car') {
+                this.updateRidePrices(distance);
+                document.getElementById('fareDisplay').classList.add('active');
+                document.getElementById('rideTypeSelection').classList.add('active');
             }
         }
-    },
-    
-    updateServiceFare: function(fare, time) {
-        const estimatedFare = document.getElementById('estimatedFare');
-        const timeDetail = document.getElementById('timeDetail');
-        const fareDisplay = document.getElementById('fareDisplay');
-        
-        if (estimatedFare) estimatedFare.textContent = `ZMW ${fare.toFixed(2)}`;
-        if (timeDetail) timeDetail.textContent = `ETA: ${time} min`;
-        if (fareDisplay) fareDisplay.classList.add('active');
-        
-        AppState.rideFare = fare;
     },
     
     showDriverInfo: function(driver) {
@@ -6157,32 +5739,28 @@ const UIUpdater = {
         const vehicle = document.getElementById('vehicleDetails');
         const vehicleImageContainer = document.getElementById('vehicleImageContainer');
         
-        if (avatar) {
-            if (driver.photoUrl) {
-                avatar.innerHTML = `<img src="${driver.photoUrl}" alt="${driver.name}" onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\\'fas fa-user\\'></i>'">`;
-            } else {
-                avatar.innerHTML = `<i class="fas fa-user"></i>`;
-            }
+        if (driver.photoUrl) {
+            avatar.innerHTML = `<img src="${driver.photoUrl}" alt="${driver.name}" onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\\'fas fa-user\\'></i>'">`;
+        } else {
+            avatar.innerHTML = `<i class="fas fa-user"></i>`;
         }
         
-        if (name) name.textContent = driver.name || 'Driver';
-        if (rating) rating.textContent = driver.rating?.toFixed(1) || '4.8';
-        if (vehicle) vehicle.textContent = `${driver.vehicle?.model || 'Car'} - ${driver.vehicle?.plate || 'ABC 123'}`;
+        name.textContent = driver.name || 'Driver';
+        rating.textContent = driver.rating?.toFixed(1) || '4.8';
+        vehicle.textContent = `${driver.vehicle?.model || 'Car'} - ${driver.vehicle?.plate || 'ABC 123'}`;
         
-        if (vehicleImageContainer) {
-            if (driver.vehicle?.imageUrl) {
-                vehicleImageContainer.innerHTML = `
-                    <img src="${driver.vehicle.imageUrl}" alt="${driver.vehicle.model}" class="vehicle-image"
-                         onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'vehicle-image-placeholder\\'><i class=\\'fas fa-car\\'></i><span>Vehicle Image</span></div>'">
-                `;
-            } else {
-                vehicleImageContainer.innerHTML = `
-                    <div class="vehicle-image-placeholder">
-                        <i class="fas fa-car"></i>
-                        <span>Vehicle Image</span>
-                    </div>
-                `;
-            }
+        if (driver.vehicle?.imageUrl) {
+            vehicleImageContainer.innerHTML = `
+                <img src="${driver.vehicle.imageUrl}" alt="${driver.vehicle.model}" class="vehicle-image"
+                     onerror="this.onerror=null; this.style.display='none'; this.parentElement.innerHTML='<div class=\\'vehicle-image-placeholder\\'><i class=\\'fas fa-car\\'></i><span>Vehicle Image</span></div>'">
+            `;
+        } else {
+            vehicleImageContainer.innerHTML = `
+                <div class="vehicle-image-placeholder">
+                    <i class="fas fa-car"></i>
+                    <span>Vehicle Image</span>
+                </div>
+            `;
         }
         
         if (driver.location) {
@@ -6191,8 +5769,6 @@ const UIUpdater = {
     },
     
     updateDriverMarker: function(location) {
-        if (!map) return;
-        
         if (driverMarker) {
             driverMarker.setLatLng([location.lat, location.lng]);
         } else {
@@ -6206,44 +5782,280 @@ const UIUpdater = {
         }
     },
     
-    showChatMessage: function(message, isSender = false) {
-        const container = document.getElementById('chatMessages');
-        if (!container) return;
+    showEmergencyStations: function(stations, serviceType) {
+        const container = document.getElementById('emergencyStations');
+        container.innerHTML = '';
         
-        const messageDiv = document.createElement('div');
+        if (stations.length === 0) {
+            container.innerHTML = `
+                <div class="no-results" style="padding: 20px;">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div>No ${serviceType} stations found in ${AppState.currentCity}</div>
+                </div>
+            `;
+            return;
+        }
         
-        messageDiv.className = `message ${isSender ? 'sent' : 'received'}`;
-        messageDiv.innerHTML = `
-            <div>${this.escapeHtml(message.text)}</div>
-            <div class="message-time">${new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-        `;
+        stations.forEach((station, index) => {
+            const stationElement = document.createElement('div');
+            stationElement.className = 'emergency-station';
+            if (index === 0) stationElement.classList.add('selected');
+            
+            let icon = 'fa-map-marker-alt';
+            if (serviceType === 'police') icon = 'fa-shield-alt';
+            else if (serviceType === 'fire') icon = 'fa-fire-extinguisher';
+            else if (serviceType === 'medical') icon = 'fa-ambulance';
+            
+            stationElement.innerHTML = `
+                <div class="emergency-station-icon">
+                    <i class="fas ${icon}"></i>
+                </div>
+                <div class="emergency-station-info">
+                    <div class="emergency-station-name">${station.name}</div>
+                    <div class="emergency-station-address">${station.address}</div>
+                    <div class="emergency-station-distance">
+                        <i class="fas fa-ruler"></i>
+                        ${station.distance.toFixed(1)} km away
+                    </div>
+                </div>
+            `;
+            
+            stationElement.addEventListener('click', () => {
+                document.querySelectorAll('.emergency-station').forEach(s => {
+                    s.classList.remove('selected');
+                });
+                stationElement.classList.add('selected');
+                AppState.selectedEmergencyStation = station;
+                
+                this.updateEmergencyFare(station.distance, serviceType);
+            });
+            
+            container.appendChild(stationElement);
+        });
         
-        container.appendChild(messageDiv);
-        container.scrollTop = container.scrollHeight;
-        
-        const chatContainer = document.getElementById('chatContainer');
-        if (!isSender && chatContainer && !chatContainer.classList.contains('active')) {
-            this.showChatNotification();
+        if (stations.length > 0) {
+            AppState.selectedEmergencyStation = stations[0];
+            this.updateEmergencyFare(stations[0].distance, serviceType);
         }
     },
     
-    showChatNotification: function() {
-        const chatBtn = document.getElementById('openChatBtn');
-        if (chatBtn) {
-            let badge = chatBtn.querySelector('.chat-notification');
-            if (!badge) {
-                badge = document.createElement('div');
-                badge.className = 'chat-notification';
-                chatBtn.appendChild(badge);
+    updateEmergencyFare: function(distance, serviceType) {
+        // Simplified fare calculation for emergency
+        let baseFare = 100;
+        let perKm = 5;
+        
+        if (serviceType === 'fire') {
+            baseFare = 150;
+            perKm = 6;
+        } else if (serviceType === 'medical') {
+            baseFare = 120;
+            perKm = 5.5;
+        }
+        
+        const fare = baseFare + (distance * perKm);
+        
+        document.getElementById('emergencyBaseFare').textContent = `ZMW ${baseFare.toFixed(2)}`;
+        document.getElementById('emergencyDistance').textContent = `${distance.toFixed(1)} km`;
+        document.getElementById('emergencyTime').textContent = `5-10 minutes`;
+        document.getElementById('emergencyTotalFare').textContent = `ZMW ${fare.toFixed(2)}`;
+    },
+    
+    showBroadcastModal: function() {
+        document.getElementById('broadcastModal').classList.add('active');
+    },
+    
+    hideBroadcastModal: function() {
+        document.getElementById('broadcastModal').classList.remove('active');
+    },
+    
+    updateBroadcastPhoneList: function(phones) {
+        const container = document.getElementById('broadcastPhoneList');
+        container.innerHTML = '';
+        
+        phones.forEach((phone, index) => {
+            const item = document.createElement('div');
+            item.className = 'broadcast-phone-item';
+            
+            // Simple validation
+            const isValid = /^(\+260|0)?(96|97|76|77|95|91|92|93|94)\d{7}$/.test(phone.replace(/\s+/g, ''));
+            
+            if (isValid) {
+                item.innerHTML = `
+                    <span>
+                        <i class="fas fa-user" style="color: var(--text-light); margin-right: 8px;"></i>
+                        ${phone}
+                    </span>
+                    <button class="broadcast-remove-phone" data-index="${index}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+            } else {
+                item.innerHTML = `
+                    <span style="color: var(--error-red);">
+                        <i class="fas fa-exclamation-circle" style="margin-right: 8px;"></i>
+                        ${phone} (Invalid)
+                    </span>
+                    <button class="broadcast-remove-phone" data-index="${index}">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
             }
-            badge.textContent = '1';
+            
+            container.appendChild(item);
+        });
+    },
+    
+    showBroadcastTracking: function(broadcastData) {
+        document.getElementById('broadcastTracking').classList.add('active');
+        document.getElementById('broadcastCode').textContent = broadcastData.code;
+        
+        // Update participants
+        this.updateBroadcastParticipants(broadcastData.participants || []);
+    },
+    
+    updateBroadcastParticipants: function(participants) {
+        const container = document.getElementById('broadcastParticipants');
+        container.innerHTML = '';
+        
+        participants.forEach(participant => {
+            const participantElement = document.createElement('div');
+            participantElement.className = 'broadcast-participant';
+            
+            participantElement.innerHTML = `
+                <div class="broadcast-participant-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="broadcast-participant-info">
+                    <div class="broadcast-participant-name">${participant.name}</div>
+                    <div class="broadcast-participant-status">
+                        <span class="status-dot ${participant.online ? 'online' : 'offline'}"></span>
+                        ${participant.online ? 'Online' : 'Offline'}
+                    </div>
+                </div>
+            `;
+            
+            container.appendChild(participantElement);
+        });
+    },
+    
+    updateNotificationBadge: function(count) {
+        const badge = document.getElementById('notificationCount');
+        if (badge) {
+            badge.textContent = count;
+            AppState.unreadNotifications = count;
+            
+            if (count > 0) {
+                badge.style.animation = 'bounce 1s infinite';
+            } else {
+                badge.style.animation = 'none';
+            }
+        }
+    },
+    
+    showNotificationPanel: function() {
+        document.getElementById('notificationPanel').classList.add('active');
+    },
+    
+    hideNotificationPanel: function() {
+        document.getElementById('notificationPanel').classList.remove('active');
+    },
+    
+    updateNotificationList: function(notifications) {
+        const container = document.getElementById('notificationList');
+        container.innerHTML = '';
+        
+        if (notifications.length === 0) {
+            container.innerHTML = `
+                <div class="notification-empty">
+                    <i class="fas fa-bell-slash"></i>
+                    <p>No notifications yet</p>
+                </div>
+            `;
+            return;
+        }
+        
+        notifications.forEach(notification => {
+            const item = document.createElement('div');
+            item.className = `notification-item ${notification.read ? '' : 'unread'}`;
+            item.dataset.notificationId = notification.id;
+            
+            let icon = 'fa-bell';
+            let bgColor = 'var(--light-orange)';
+            let iconColor = 'var(--primary-orange)';
+            
+            if (notification.type === 'emergency') {
+                icon = 'fa-exclamation-triangle';
+                bgColor = 'var(--light-red)';
+                iconColor = 'var(--error-red)';
+            } else if (notification.type === 'wallet') {
+                icon = 'fa-wallet';
+                bgColor = '#E8F6EF';
+                iconColor = 'var(--success-green)';
+            }
+            
+            const date = new Date(notification.timestamp);
+            const timeAgo = this.formatTimeAgo(date);
+            
+            item.innerHTML = `
+                <div class="notification-icon" style="background: ${bgColor}; color: ${iconColor}">
+                    <i class="fas ${icon}"></i>
+                </div>
+                <div class="notification-content">
+                    <div class="notification-message">${notification.message}</div>
+                    <div class="notification-time">${timeAgo}</div>
+                </div>
+            `;
+            
+            item.addEventListener('click', () => {
+                this.handleNotificationClick(notification);
+            });
+            
+            container.appendChild(item);
+        });
+    },
+    
+    formatTimeAgo: function(date) {
+        const now = new Date();
+        const diffMs = now - date;
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+        
+        if (diffMins < 1) return 'Just now';
+        if (diffMins < 60) return `${diffMins} min ago`;
+        if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+        if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+        return date.toLocaleDateString();
+    },
+    
+    handleNotificationClick: function(notification) {
+        // Mark as read
+        FirebaseManager.markNotificationAsRead(notification.id);
+        
+        // Handle notification action
+        if (notification.rideId) {
+            // Navigate to ride details
+            FirebaseManager.loadRideDetails(notification.rideId);
+        }
+        
+        this.hideNotificationPanel();
+    },
+    
+    updateAccountSection: function(userData) {
+        document.getElementById('accountName').textContent = userData.name || 'User';
+        document.getElementById('accountPhone').textContent = userData.phone || 'Not set';
+        document.getElementById('referralCode').textContent = userData.referralCode || 'JUBEL-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        
+        const avatar = document.getElementById('accountAvatar');
+        if (userData.photoUrl) {
+            avatar.innerHTML = `<img src="${userData.photoUrl}" alt="${userData.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
+        } else {
+            avatar.innerHTML = `<i class="fas fa-user"></i>`;
         }
     },
     
     updateHistoryList: function(rides) {
         const container = document.getElementById('historyList');
-        if (!container) return;
-        
         container.innerHTML = '';
         
         if (rides.length === 0) {
@@ -6277,30 +6089,10 @@ const UIUpdater = {
             typeIcon = 'fa-ambulance';
             typeColor = 'var(--error-red)';
             typeName = 'Emergency Ride';
-        } else if (ride.scheduled) {
-            typeIcon = 'fa-calendar-alt';
-            typeColor = 'var(--info-blue)';
-            typeName = 'Scheduled Ride';
         } else if (ride.serviceType === 'delivery') {
             typeIcon = 'fa-shipping-fast';
             typeColor = 'var(--delivery-purple)';
             typeName = 'Delivery';
-        } else if (ride.serviceType === 'truck') {
-            typeIcon = 'fa-truck';
-            typeColor = 'var(--light-truck-brown)';
-            typeName = 'Truck Delivery';
-        } else if (ride.serviceType === 'shopping' || ride.serviceType === 'express') {
-            typeIcon = 'fa-shopping-bag';
-            typeColor = 'var(--express-shop-green)';
-            typeName = 'Express Shopping';
-        } else if (ride.serviceType === 'bicycle') {
-            typeIcon = 'fa-bicycle';
-            typeColor = 'var(--economy-green)';
-            typeName = 'Bicycle Delivery';
-        } else if (ride.broadcast) {
-            typeIcon = 'fa-broadcast-tower';
-            typeColor = 'var(--info-blue)';
-            typeName = 'Broadcast Ride';
         } else {
             typeIcon = 'fa-car';
             typeColor = 'var(--primary-orange)';
@@ -6329,11 +6121,11 @@ const UIUpdater = {
             <div class="history-locations">
                 <div class="history-location">
                     <i class="fas fa-map-marker-alt"></i>
-                    <div class="history-location-text">${this.escapeHtml(ride.pickupDisplay || ride.pickup)}</div>
+                    <div class="history-location-text">${ride.pickupDisplay || ride.pickup}</div>
                 </div>
                 <div class="history-location">
                     <i class="fas fa-flag"></i>
-                    <div class="history-location-text">${this.escapeHtml(ride.destinationDisplay || ride.destination)}</div>
+                    <div class="history-location-text">${ride.destinationDisplay || ride.destination}</div>
                 </div>
             </div>
             
@@ -6345,622 +6137,35 @@ const UIUpdater = {
             </div>
         `;
         
-        item.addEventListener('click', () => {
-            this.showHistoryDetails(ride, item);
-        });
-        
         return item;
-    },
-    
-    showHistoryDetails: function(ride, item) {
-        if (item.classList.contains('expanded')) {
-            item.classList.remove('expanded');
-            return;
-        }
-        
-        document.querySelectorAll('.history-item.expanded').forEach(otherItem => {
-            otherItem.classList.remove('expanded');
-        });
-        
-        let detailsHtml = `
-            <div class="history-details">
-                <div class="detail-section">
-                    <div class="detail-title">
-                        <i class="fas fa-info-circle"></i>
-                        Ride Details
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <div class="detail-label">Distance</div>
-                            <div class="detail-value">${ride.distance?.toFixed(1) || '0'} km</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Ride Type</div>
-                            <div class="detail-value">${ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1) || ride.serviceType?.charAt(0).toUpperCase() + ride.serviceType?.slice(1) || 'Standard'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Payment</div>
-                            <div class="detail-value">${ride.paymentMethod?.charAt(0).toUpperCase() + ride.paymentMethod?.slice(1) || 'Wallet'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Driver</div>
-                            <div class="detail-value">${ride.driverName || 'Not assigned'}</div>
-                        </div>
-                    </div>
-                </div>
-        `;
-        
-        if (ride.stops && ride.stops.length > 0) {
-            detailsHtml += `
-                <div class="detail-section">
-                    <div class="detail-title">
-                        <i class="fas fa-map-pin"></i>
-                        Stops
-                    </div>
-                    <div class="stops-list">
-            `;
-            
-            ride.stops.forEach((stop, index) => {
-                detailsHtml += `
-                    <div class="stop-detail">
-                        <div class="stop-number">${index + 1}</div>
-                        <div class="stop-info">
-                            <div class="stop-name">${stop.name || 'Stop'}</div>
-                            <div class="stop-address">${stop.address || 'Address not available'}</div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            detailsHtml += `
-                    </div>
-                </div>
-            `;
-        }
-        
-        if (ride.emergency) {
-            detailsHtml += `
-                <div class="detail-section">
-                    <div class="detail-title">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Emergency Details
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <div class="detail-label">Service Type</div>
-                            <div class="detail-value">${ride.emergencyType?.charAt(0).toUpperCase() + ride.emergencyType?.slice(1)}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Priority</div>
-                            <div class="detail-value">${ride.priority || 'High'}</div>
-                        </div>
-                        ${ride.emergencyReason ? `
-                        <div class="detail-item">
-                            <div class="detail-label">Reason</div>
-                            <div class="detail-value">${ride.emergencyReason}</div>
-                        </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        
-        if (ride.broadcast) {
-            detailsHtml += `
-                <div class="detail-section">
-                    <div class="detail-title">
-                        <i class="fas fa-broadcast-tower"></i>
-                        Broadcast Details
-                    </div>
-                    <div class="detail-grid">
-                        <div class="detail-item">
-                            <div class="detail-label">Participants</div>
-                            <div class="detail-value">${ride.participants?.length || 0} people</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Broadcast Code</div>
-                            <div class="detail-value">${ride.broadcastCode || 'N/A'}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        detailsHtml += `</div>`;
-        
-        const detailsElement = document.createElement('div');
-        detailsElement.innerHTML = detailsHtml;
-        
-        const existingDetails = item.querySelector('.history-details');
-        if (existingDetails) {
-            existingDetails.remove();
-        }
-        
-        item.appendChild(detailsElement);
-        item.classList.add('expanded');
-        
-        detailsElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    },
-    
-    updateNotificationBadge: function(count) {
-        const badge = document.getElementById('notificationCount');
-        if (badge) {
-            badge.textContent = count;
-            AppState.unreadNotifications = count;
-            
-            if (count > 0) {
-                badge.style.animation = 'bounce 1s infinite';
-            } else {
-                badge.style.animation = 'none';
-            }
-        }
-    },
-    
-    showNotificationPanel: function() {
-        const panel = document.getElementById('notificationPanel');
-        if (panel) panel.classList.add('active');
-    },
-    
-    hideNotificationPanel: function() {
-        const panel = document.getElementById('notificationPanel');
-        if (panel) panel.classList.remove('active');
-    },
-    
-    updateNotificationList: function(notifications) {
-        const container = document.getElementById('notificationList');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        if (notifications.length === 0) {
-            container.innerHTML = `
-                <div class="notification-empty">
-                    <i class="fas fa-bell-slash"></i>
-                    <p>No notifications yet</p>
-                </div>
-            `;
-            return;
-        }
-        
-        notifications.forEach(notification => {
-            const item = this.createNotificationItem(notification);
-            container.appendChild(item);
-        });
-    },
-    
-    createNotificationItem: function(notification) {
-        const item = document.createElement('div');
-        item.className = `notification-item ${notification.read ? '' : 'unread'}`;
-        item.dataset.notificationId = notification.id;
-        
-        const typeConfig = AppState.notificationTypes[notification.type] || AppState.notificationTypes.info;
-        const date = new Date(notification.timestamp);
-        
-        let actionsHtml = '';
-        if (notification.actions) {
-            actionsHtml = '<div class="notification-actions">';
-            notification.actions.forEach(action => {
-                actionsHtml += `
-                    <button class="notification-action-btn ${action.type}" 
-                            data-action="${action.id}" 
-                            data-notification-id="${notification.id}">
-                        ${action.label}
-                    </button>
-                `;
-            });
-            actionsHtml += '</div>';
-        }
-        
-        item.innerHTML = `
-            <div class="notification-icon ${notification.type}" style="background: ${typeConfig.bg}; color: ${typeConfig.color}">
-                <i class="fas ${typeConfig.icon}"></i>
-            </div>
-            <div class="notification-content">
-                <div class="notification-message">${this.escapeHtml(notification.message)}</div>
-                <div class="notification-time">${this.formatTimeAgo(date)}</div>
-                ${actionsHtml}
-            </div>
-        `;
-        
-        item.addEventListener('click', () => {
-            this.handleNotificationClick(notification);
-        });
-        
-        return item;
-    },
-    
-    formatTimeAgo: function(date) {
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMs / 3600000);
-        const diffDays = Math.floor(diffMs / 86400000);
-        
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return `${diffMins} min ago`;
-        if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-        if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-        return date.toLocaleDateString();
-    },
-    
-    handleNotificationClick: function(notification) {
-        if (!notification.read) {
-            // Mark as read - you'll need to implement this in FirebaseManager
-        }
-        
-        switch(notification.type) {
-            case 'ride':
-                if (notification.rideId) {
-                    // Navigate to ride details
-                    console.log('Navigate to ride:', notification.rideId);
-                }
-                break;
-            case 'wallet':
-                showModal('transactions');
-                break;
-            case 'promo':
-                this.showToast(notification.message, 'info');
-                break;
-            case 'broadcast':
-                if (notification.broadcastCode) {
-                    this.joinBroadcast(notification.broadcastCode);
-                }
-                break;
-        }
-        
-        this.hideNotificationPanel();
-    },
-    
-    joinBroadcast: function(code) {
-        // Implement broadcast joining logic
-        this.showToast(`Joining broadcast: ${code}`, 'info');
-    },
-    
-    updateAccountSection: function(userData) {
-        const accountName = document.getElementById('accountName');
-        const accountPhone = document.getElementById('accountPhone');
-        const referralCode = document.getElementById('referralCode');
-        const avatar = document.getElementById('accountAvatar');
-        
-        if (accountName) accountName.textContent = userData.name || 'User';
-        if (accountPhone) accountPhone.textContent = userData.phone || 'Not set';
-        if (referralCode) referralCode.textContent = userData.referralCode || 'JUBEL-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-        
-        if (avatar) {
-            if (userData.photoUrl) {
-                avatar.innerHTML = `<img src="${userData.photoUrl}" alt="${userData.name}" style="width: 100%; height: 100%; object-fit: cover;">`;
-            } else {
-                avatar.innerHTML = `<i class="fas fa-user"></i>`;
-            }
-        }
-    },
-    
-    showEmergencyStations: function(stations, serviceType) {
-        const container = document.getElementById('emergencyStations');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        if (stations.length === 0) {
-            container.innerHTML = `
-                <div class="no-results" style="padding: 20px;">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <div>No ${serviceType} stations found nearby</div>
-                </div>
-            `;
-            return;
-        }
-        
-        stations.forEach((station, index) => {
-            const stationElement = document.createElement('div');
-            stationElement.className = 'emergency-station';
-            if (index === 0) stationElement.classList.add('selected');
-            
-            let icon = 'fa-map-marker-alt';
-            if (serviceType === 'police') icon = 'fa-shield-alt';
-            else if (serviceType === 'fire') icon = 'fa-fire-extinguisher';
-            else if (serviceType === 'medical') icon = 'fa-ambulance';
-            
-            stationElement.innerHTML = `
-                <div class="emergency-station-icon">
-                    <i class="fas ${icon}"></i>
-                </div>
-                <div class="emergency-station-info">
-                    <div class="emergency-station-name">${this.escapeHtml(station.name)}</div>
-                    <div class="emergency-station-address">${this.escapeHtml(station.address)}</div>
-                    <div class="emergency-station-distance">
-                        <i class="fas fa-ruler"></i>
-                        ${station.distance.toFixed(1)} km away
-                    </div>
-                </div>
-            `;
-            
-            stationElement.addEventListener('click', () => {
-                document.querySelectorAll('.emergency-station').forEach(s => {
-                    s.classList.remove('selected');
-                });
-                stationElement.classList.add('selected');
-                AppState.selectedEmergencyStation = station;
-                
-                this.updateEmergencyFare(station.distance, serviceType);
-            });
-            
-            container.appendChild(stationElement);
-        });
-        
-        if (stations.length > 0) {
-            AppState.selectedEmergencyStation = stations[0];
-            this.updateEmergencyFare(stations[0].distance, serviceType);
-        }
-    },
-    
-    updateEmergencyFare: function(distance, serviceType) {
-        const fare = PriceCalculator.calculateEmergencyFare(distance, serviceType);
-        
-        const emergencyBaseFare = document.getElementById('emergencyBaseFare');
-        const emergencyDistance = document.getElementById('emergencyDistance');
-        const emergencyTime = document.getElementById('emergencyTime');
-        const emergencyTotalFare = document.getElementById('emergencyTotalFare');
-        
-        if (emergencyBaseFare) {
-            emergencyBaseFare.textContent = `ZMW ${AppState.emergencyServices[serviceType].base.toFixed(2)}`;
-        }
-        if (emergencyDistance) {
-            emergencyDistance.textContent = `${distance.toFixed(1)} km`;
-        }
-        if (emergencyTime) {
-            emergencyTime.textContent = `${AppState.emergencyServices[serviceType].responseTime}`;
-        }
-        if (emergencyTotalFare) {
-            emergencyTotalFare.textContent = `ZMW ${fare.toFixed(2)}`;
-        }
-    },
-    
-    showBroadcastPhoneValidation: async function(phoneNumber) {
-        // This is a simplified version - in real app, you would query Firebase
-        return {
-            valid: /^(\+260|0)?(96|97|76|77|95|91|92|93|94)\d{7}$/.test(phoneNumber.replace(/\s+/g, '')),
-            name: null,
-            exists: false
-        };
-    },
-    
-    updateBroadcastPhoneList: function(phones) {
-        const container = document.getElementById('broadcastPhoneList');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        phones.forEach((phone, index) => {
-            this.validateAndAddPhoneToList(phone, index, container);
-        });
-    },
-    
-    validateAndAddPhoneToList: async function(phone, index, container) {
-        const validation = await this.showBroadcastPhoneValidation(phone);
-        
-        const item = document.createElement('div');
-        item.className = 'broadcast-phone-item';
-        
-        if (validation.valid) {
-            item.innerHTML = `
-                <span>
-                    ${validation.exists ? `<i class="fas fa-user-check" style="color: var(--success-green); margin-right: 8px;"></i>` : ''}
-                    ${phone}
-                    ${validation.name ? `<span style="color: var(--text-light); margin-left: 8px;">(${validation.name})</span>` : ''}
-                </span>
-                <button class="broadcast-remove-phone" data-index="${index}">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-        } else {
-            item.innerHTML = `
-                <span style="color: var(--error-red);">
-                    <i class="fas fa-exclamation-circle" style="margin-right: 8px;"></i>
-                    ${phone} (Invalid)
-                </span>
-                <button class="broadcast-remove-phone" data-index="${index}">
-                    <i class="fas fa-times"></i>
-                </button>
-            `;
-        }
-        
-        container.appendChild(item);
-    },
-    
-    showBroadcastModal: function() {
-        const modal = document.getElementById('broadcastModal');
-        if (modal) modal.classList.add('active');
-    },
-    
-    hideBroadcastModal: function() {
-        const modal = document.getElementById('broadcastModal');
-        if (modal) modal.classList.remove('active');
-    },
-    
-    showBroadcastTracking: function(broadcastData) {
-        const tracking = document.getElementById('broadcastTracking');
-        if (tracking) {
-            tracking.classList.add('active');
-        }
-    },
-    
-    updateBroadcastParticipants: function(participants) {
-        const container = document.getElementById('broadcastParticipants');
-        if (!container) return;
-        
-        container.innerHTML = '';
-        
-        participants.forEach(participant => {
-            const participantElement = document.createElement('div');
-            participantElement.className = 'broadcast-participant';
-            participantElement.innerHTML = `
-                <div class="broadcast-participant-avatar">
-                    <i class="fas fa-user"></i>
-                </div>
-                <div class="broadcast-participant-info">
-                    <div class="broadcast-participant-name">${participant.name}</div>
-                    <div class="broadcast-participant-status">
-                        <div class="status-dot ${participant.online ? 'online' : 'offline'}"></div>
-                        ${participant.online ? 'Online' : 'Offline'}
-                    </div>
-                </div>
-            `;
-            container.appendChild(participantElement);
-        });
-    },
-    
-    initializeServiceForms: function() {
-        AppState.serviceForms = {
-            car: {
-                id: 'carForm',
-                pickupId: 'pickupLocation',
-                destinationId: 'destinationLocation',
-                priceId: 'estimatedFare',
-                actionBtnId: 'requestRideBtn'
-            },
-            delivery: {
-                id: 'deliveryForm',
-                pickupId: 'deliveryPickup',
-                destinationId: 'deliveryDestination',
-                priceId: 'deliveryPrice',
-                actionBtnId: 'requestDeliveryBtn'
-            },
-            shortDelivery: {
-                id: 'shortDeliveryForm',
-                pickupId: 'shortDeliveryPickup',
-                destinationId: 'shortDeliveryDestination',
-                priceId: 'shortDeliveryPrice',
-                actionBtnId: 'requestShortDeliveryBtn'
-            },
-            express: {
-                id: 'expressForm',
-                pickupId: 'expressPickup',
-                destinationId: 'expressDestination',
-                priceId: 'expressPrice',
-                actionBtnId: 'requestExpressBtn'
-            },
-            truck: {
-                id: 'truckForm',
-                pickupId: 'truckPickup',
-                destinationId: 'truckDestination',
-                priceId: 'truckPrice',
-                actionBtnId: 'requestTruckBtn'
-            },
-            bicycle: {
-                id: 'bicycleForm',
-                pickupId: 'bicyclePickup',
-                destinationId: 'bicycleDestination',
-                priceId: 'bicyclePrice',
-                actionBtnId: 'requestBicycleBtn'
-            }
-        };
     }
 };
 
 // ============================================
-// FIREBASE MANAGER - FIXED VERSION
+// FIREBASE MANAGER
 // ============================================
 const FirebaseManager = {
     async loadUserData(uid) {
         try {
-            // For demo purposes, create mock user data
-            AppState.userData = {
-                name: "John Doe",
-                phone: "+260966123456",
-                walletBalance: 500,
-                referralCode: "JUBEL-" + Math.random().toString(36).substr(2, 6).toUpperCase(),
-                photoUrl: null
-            };
+            const snapshot = await database.ref(`users/${uid}`).once('value');
+            AppState.userData = snapshot.val();
             
-            AppState.walletBalance = AppState.userData.walletBalance;
-            UIUpdater.updateWalletBalance(AppState.walletBalance);
-            UIUpdater.updateCustomerName(AppState.userData.name);
-            UIUpdater.updateAccountSection(AppState.userData);
-            
-            // Load mock SOS config
-            AppState.sosConfig = {
-                contact1Name: "Emergency Contact",
-                contact1Phone: "+260966789012",
-                contact2Name: "",
-                contact2Phone: "",
-                message: "I need help! My current location and ride details will be shared with you."
-            };
-            
-            // Load mock notifications
-            AppState.notifications = [
-                {
-                    id: '1',
-                    title: 'Welcome to Jubel',
-                    message: 'Get 50% off your first ride with code: WELCOME50',
-                    type: 'promo',
-                    read: false,
-                    timestamp: Date.now() - 3600000
-                },
-                {
-                    id: '2',
-                    title: 'Wallet Updated',
-                    message: 'Your wallet has been credited with ZMW 500.00',
-                    type: 'wallet',
-                    read: true,
-                    timestamp: Date.now() - 7200000
-                }
-            ];
-            
-            const unreadCount = AppState.notifications.filter(n => !n.read).length;
-            UIUpdater.updateNotificationBadge(unreadCount);
-            UIUpdater.updateNotificationList(AppState.notifications);
-            
-            // Load mock history
-            const mockRides = [
-                {
-                    id: '1',
-                    passengerId: uid,
-                    passengerName: 'John Doe',
-                    passengerPhone: '+260966123456',
-                    pickup: '123 Main Street, Lusaka',
-                    pickupDisplay: 'Home',
-                    destination: '456 Business District, Lusaka',
-                    destinationDisplay: 'Work',
-                    rideType: 'standard',
-                    serviceType: 'car',
-                    fare: 45.50,
-                    distance: 8.5,
-                    paymentMethod: 'wallet',
-                    status: 'completed',
-                    timestamp: Date.now() - 86400000,
-                    driverName: 'Michael Driver',
-                    driverRating: 4.8
-                },
-                {
-                    id: '2',
-                    passengerId: uid,
-                    passengerName: 'John Doe',
-                    passengerPhone: '+260966123456',
-                    pickup: '789 Shopping Mall, Lusaka',
-                    pickupDisplay: 'Mall',
-                    destination: '123 Main Street, Lusaka',
-                    destinationDisplay: 'Home',
-                    rideType: 'economy',
-                    serviceType: 'car',
-                    fare: 28.75,
-                    distance: 5.2,
-                    paymentMethod: 'wallet',
-                    status: 'completed',
-                    timestamp: Date.now() - 172800000,
-                    driverName: 'Sarah Chauffeur',
-                    driverRating: 4.9
-                }
-            ];
-            
-            UIUpdater.updateHistoryList(mockRides);
-            
-            // Update stats
-            document.getElementById('completedRides').textContent = '2';
-            document.getElementById('cancelledRides').textContent = '0';
-            document.getElementById('totalSpent').textContent = 'ZMW 74.25';
-            
-            return true;
+            if (AppState.userData) {
+                AppState.walletBalance = AppState.userData.walletBalance || 0;
+                UIUpdater.updateWalletBalance(AppState.walletBalance);
+                UIUpdater.updateCustomerName(AppState.userData.name);
+                UIUpdater.updateAccountSection(AppState.userData);
+                
+                await this.loadSOSConfig(uid);
+                await this.checkActiveRide(uid);
+                await this.loadRideHistory(uid);
+                await this.loadNotifications(uid);
+                
+                this.setupRealtimeListeners(uid);
+                
+                return true;
+            }
+            return false;
         } catch (error) {
             console.error('Error loading user data:', error);
             UIUpdater.showToast('Error loading user data', 'error');
@@ -6968,14 +6173,227 @@ const FirebaseManager = {
         }
     },
     
+    setupRealtimeListeners: function(uid) {
+        // Real-time wallet balance
+        database.ref(`users/${uid}/walletBalance`).on('value', (snapshot) => {
+            const balance = snapshot.val() || 0;
+            AppState.walletBalance = balance;
+            UIUpdater.updateWalletBalance(balance);
+        });
+        
+        // Real-time ride updates
+        database.ref('rides').orderByChild('passengerId').equalTo(uid).on('child_changed', (snapshot) => {
+            const ride = snapshot.val();
+            if (ride && (ride.status === 'requested' || ride.status === 'accepted' || ride.status === 'arrived' || ride.status === 'started')) {
+                AppState.currentRide = { id: snapshot.key, ...ride };
+                UIUpdater.updateRideStatus(ride.status);
+                UIUpdater.updateTimeline(ride.status);
+                
+                if (ride.driverId && !AppState.selectedVehicle) {
+                    this.loadDriverInfo(ride.driverId);
+                }
+            }
+        });
+        
+        // Real-time notifications
+        database.ref(`notifications/${uid}`).orderByChild('timestamp').limitToLast(20).on('value', (snapshot) => {
+            const notifications = snapshot.val();
+            if (notifications) {
+                AppState.notifications = Object.values(notifications).reverse();
+                const unreadCount = AppState.notifications.filter(n => !n.read).length;
+                UIUpdater.updateNotificationBadge(unreadCount);
+                UIUpdater.updateNotificationList(AppState.notifications);
+            }
+        });
+        
+        // Real-time driver location
+        database.ref('driverLocations').on('child_changed', (snapshot) => {
+            const driverId = snapshot.key;
+            const location = snapshot.val();
+            
+            if (AppState.currentRide && AppState.currentRide.driverId === driverId) {
+                AppState.driverLocation = location;
+                UIUpdater.updateDriverMarker({
+                    lat: location.latitude,
+                    lng: location.longitude
+                });
+            }
+        });
+    },
+    
+    async loadSOSConfig(uid) {
+        try {
+            const snapshot = await database.ref(`sosConfig/${uid}`).once('value');
+            AppState.sosConfig = snapshot.val();
+            
+            if (AppState.sosConfig) {
+                document.getElementById('sosContact1Name').value = AppState.sosConfig.contact1Name || '';
+                document.getElementById('sosContact1Phone').value = AppState.sosConfig.contact1Phone || '';
+                document.getElementById('sosContact2Name').value = AppState.sosConfig.contact2Name || '';
+                document.getElementById('sosContact2Phone').value = AppState.sosConfig.contact2Phone || '';
+                document.getElementById('sosMessage').value = AppState.sosConfig.message || '';
+            }
+        } catch (error) {
+            console.error('Error loading SOS config:', error);
+        }
+    },
+    
+    async checkActiveRide(uid) {
+        try {
+            const snapshot = await database.ref('rides')
+                .orderByChild('passengerId')
+                .equalTo(uid)
+                .orderByChild('status')
+                .startAt('requested')
+                .endAt('started')
+                .once('value');
+            
+            const rides = snapshot.val();
+            if (rides) {
+                const rideId = Object.keys(rides)[0];
+                AppState.currentRide = { id: rideId, ...rides[rideId] };
+                UIUpdater.showRideInfo(AppState.currentRide);
+                UIUpdater.updateTimeline(AppState.currentRide.status);
+                
+                if (AppState.currentRide.driverId) {
+                    await this.loadDriverInfo(AppState.currentRide.driverId);
+                }
+                
+                if (AppState.currentRide.status === 'accepted' && AppState.sosConfig) {
+                    document.getElementById('sosButton').style.display = 'flex';
+                }
+                
+                if (AppState.currentRide.status === 'accepted' || AppState.currentRide.status === 'arrived' || AppState.currentRide.status === 'started') {
+                    document.getElementById('broadcastRideBtn').classList.add('active');
+                }
+                
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error checking active ride:', error);
+            return false;
+        }
+    },
+    
+    async loadDriverInfo(driverId) {
+        try {
+            const snapshot = await database.ref(`users/${driverId}`).once('value');
+            const driver = snapshot.val();
+            if (driver) {
+                AppState.selectedVehicle = driver;
+                UIUpdater.showDriverInfo(driver);
+                
+                if (driver.vehicleId) {
+                    const vehicleSnapshot = await database.ref(`vehicles/${driver.vehicleId}`).once('value');
+                    const vehicle = vehicleSnapshot.val();
+                    if (vehicle) {
+                        AppState.selectedVehicle.vehicle = vehicle;
+                        UIUpdater.showDriverInfo(AppState.selectedVehicle);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error loading driver info:', error);
+        }
+    },
+    
+    async loadRideHistory(uid) {
+        try {
+            const snapshot = await database.ref('rides')
+                .orderByChild('passengerId')
+                .equalTo(uid)
+                .once('value');
+            
+            const rides = snapshot.val();
+            if (rides) {
+                const ridesArray = Object.keys(rides).map(id => ({
+                    id,
+                    ...rides[id]
+                }));
+                
+                ridesArray.sort((a, b) => b.timestamp - a.timestamp);
+                
+                // Apply filter if set
+                let filteredRides = ridesArray;
+                if (AppState.activeFilter === 'completed') {
+                    filteredRides = ridesArray.filter(ride => ride.status === 'completed');
+                } else if (AppState.activeFilter === 'cancelled') {
+                    filteredRides = ridesArray.filter(ride => ride.status === 'cancelled');
+                }
+                
+                UIUpdater.updateHistoryList(filteredRides);
+                
+                // Update stats
+                this.updateUserStats(ridesArray);
+            }
+        } catch (error) {
+            console.error('Error loading ride history:', error);
+        }
+    },
+    
+    updateUserStats: function(rides) {
+        const completed = rides.filter(ride => ride.status === 'completed').length;
+        const cancelled = rides.filter(ride => ride.status === 'cancelled').length;
+        const totalSpent = rides
+            .filter(ride => ride.status === 'completed')
+            .reduce((sum, ride) => sum + (ride.fare || 0), 0);
+        
+        document.getElementById('completedRides').textContent = completed;
+        document.getElementById('cancelledRides').textContent = cancelled;
+        document.getElementById('totalSpent').textContent = `ZMW ${totalSpent.toFixed(2)}`;
+    },
+    
+    async loadNotifications(uid) {
+        try {
+            const snapshot = await database.ref(`notifications/${uid}`)
+                .orderByChild('timestamp')
+                .limitToLast(20)
+                .once('value');
+            
+            const notifications = snapshot.val();
+            if (notifications) {
+                AppState.notifications = Object.values(notifications).reverse();
+                const unreadCount = AppState.notifications.filter(n => !n.read).length;
+                UIUpdater.updateNotificationBadge(unreadCount);
+                UIUpdater.updateNotificationList(AppState.notifications);
+            }
+        } catch (error) {
+            console.error('Error loading notifications:', error);
+        }
+    },
+    
+    async markNotificationAsRead(notificationId) {
+        try {
+            await database.ref(`notifications/${AppState.currentUser.uid}/${notificationId}/read`).set(true);
+            return true;
+        } catch (error) {
+            console.error('Error marking notification as read:', error);
+            return false;
+        }
+    },
+    
+    async markAllNotificationsAsRead() {
+        try {
+            const updates = {};
+            AppState.notifications.forEach(notification => {
+                if (!notification.read) {
+                    updates[`notifications/${AppState.currentUser.uid}/${notification.id}/read`] = true;
+                }
+            });
+            
+            await database.ref().update(updates);
+            UIUpdater.updateNotificationBadge(0);
+            return true;
+        } catch (error) {
+            console.error('Error marking all notifications as read:', error);
+            return false;
+        }
+    },
+    
     async requestRide(rideData) {
         try {
-            UIUpdater.showLoading('Requesting ride...');
-            
-            // Simulate API delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            
-            const rideId = 'ride-' + Date.now();
+            const rideId = database.ref().child('rides').push().key;
             const ride = {
                 id: rideId,
                 ...rideData,
@@ -6984,168 +6402,65 @@ const FirebaseManager = {
                 updatedAt: Date.now()
             };
             
+            await database.ref(`rides/${rideId}`).set(ride);
+            
             AppState.currentRide = ride;
             UIUpdater.showRideInfo(ride);
             UIUpdater.updateTimeline('requested');
             
-            // Show ride status bar
-            const statusBar = document.getElementById('rideStatusBar');
-            if (statusBar) statusBar.classList.add('active');
+            // Send notification to user
+            await this.sendNotification(
+                AppState.currentUser.uid,
+                'Ride Requested',
+                `Your ${rideData.serviceType || 'ride'} has been requested. Searching for driver...`,
+                'ride',
+                { rideId: rideId }
+            );
             
-            // Simulate driver finding
-            setTimeout(() => {
-                if (AppState.currentRide && AppState.currentRide.id === rideId) {
-                    AppState.currentRide.status = 'accepted';
-                    AppState.currentRide.driverId = 'driver-123';
-                    AppState.currentRide.driverName = 'Michael Driver';
-                    AppState.currentRide.driverRating = 4.8;
-                    
-                    UIUpdater.updateRideStatus('accepted');
-                    UIUpdater.updateTimeline('accepted');
-                    
-                    // Show driver info
-                    FirebaseManager.loadDriverInfo('driver-123');
-                    
-                    // Show SOS button
-                    const sosButton = document.getElementById('sosButton');
-                    if (sosButton) sosButton.style.display = 'flex';
-                    
-                    // Show broadcast button
-                    const broadcastBtn = document.getElementById('broadcastRideBtn');
-                    if (broadcastBtn) broadcastBtn.classList.add('active');
-                    
-                    UIUpdater.showToast('Driver found! Michael is on the way.', 'success');
-                }
-            }, 3000);
+            // Also notify available drivers in the city
+            await this.notifyAvailableDrivers(rideId, rideData);
             
-            // Simulate driver arriving
-            setTimeout(() => {
-                if (AppState.currentRide && AppState.currentRide.id === rideId) {
-                    AppState.currentRide.status = 'arrived';
-                    UIUpdater.updateRideStatus('arrived');
-                    UIUpdater.updateTimeline('arrived');
-                    UIUpdater.showToast('Your driver has arrived!', 'success');
-                }
-            }, 8000);
-            
-            // Simulate ride start
-            setTimeout(() => {
-                if (AppState.currentRide && AppState.currentRide.id === rideId) {
-                    AppState.currentRide.status = 'started';
-                    UIUpdater.updateRideStatus('started');
-                    UIUpdater.updateTimeline('started');
-                    UIUpdater.showToast('Your ride has started!', 'success');
-                }
-            }, 10000);
-            
-            // Simulate ride completion
-            setTimeout(() => {
-                if (AppState.currentRide && AppState.currentRide.id === rideId) {
-                    AppState.currentRide.status = 'completed';
-                    UIUpdater.updateRideStatus('completed');
-                    UIUpdater.updateTimeline('completed');
-                    
-                    // Hide ride info panel
-                    const rideInfoPanel = document.getElementById('rideInfoPanel');
-                    if (rideInfoPanel) rideInfoPanel.classList.remove('active');
-                    
-                    // Hide status bar
-                    const statusBar = document.getElementById('rideStatusBar');
-                    if (statusBar) statusBar.classList.remove('active');
-                    
-                    // Hide SOS button
-                    const sosButton = document.getElementById('sosButton');
-                    if (sosButton) sosButton.style.display = 'none';
-                    
-                    // Hide broadcast button
-                    const broadcastBtn = document.getElementById('broadcastRideBtn');
-                    if (broadcastBtn) broadcastBtn.classList.remove('active');
-                    
-                    // Show home form
-                    const carForm = document.getElementById('carForm');
-                    if (carForm) {
-                        carForm.style.display = 'block';
-                        carForm.classList.add('active');
-                    }
-                    
-                    // Update wallet
-                    AppState.walletBalance -= rideData.fare;
-                    UIUpdater.updateWalletBalance(AppState.walletBalance);
-                    
-                    UIUpdater.showToast('Ride completed!', 'success');
-                    
-                    // Add to history
-                    const historyItem = {
-                        ...rideData,
-                        id: rideId,
-                        status: 'completed',
-                        timestamp: Date.now(),
-                        driverName: 'Michael Driver'
-                    };
-                    
-                    // You would normally save this to Firebase here
-                }
-            }, 20000);
-            
-            UIUpdater.hideLoading();
             UIUpdater.showToast('Ride requested successfully', 'success');
             return rideId;
         } catch (error) {
             console.error('Error requesting ride:', error);
             UIUpdater.showToast('Error requesting ride', 'error');
-            UIUpdater.hideLoading();
             throw error;
         }
     },
     
-    async loadDriverInfo(driverId) {
+    async notifyAvailableDrivers(rideId, rideData) {
         try {
-            // Mock driver data
-            const driver = {
-                name: "Michael Driver",
-                rating: 4.8,
-                vehicle: {
-                    model: "Toyota Corolla",
-                    plate: "ABC 123",
-                    imageUrl: null
-                },
-                location: {
-                    lat: AppState.userLocation ? AppState.userLocation.lat + 0.01 : -15.4167,
-                    lng: AppState.userLocation ? AppState.userLocation.lng + 0.01 : 28.2833
+            // Get drivers in the same city
+            const driversSnapshot = await database.ref('users')
+                .orderByChild('userType')
+                .equalTo('driver')
+                .once('value');
+            
+            const drivers = driversSnapshot.val();
+            if (!drivers) return;
+            
+            // Notify each driver
+            for (const [driverId, driver] of Object.entries(drivers)) {
+                // Check if driver is available and in the same city
+                if (driver.status === 'available' && driver.city === AppState.currentCity) {
+                    await this.sendNotification(
+                        driverId,
+                        'New Ride Request',
+                        `New ride request in ${AppState.currentCity}. Pickup: ${rideData.pickupDisplay || rideData.pickup}`,
+                        'ride',
+                        { rideId: rideId, type: 'driver_notification' }
+                    );
                 }
-            };
-            
-            AppState.selectedVehicle = driver;
-            UIUpdater.showDriverInfo(driver);
-            
-            // Update driver location periodically
-            if (AppState.currentRide && AppState.currentRide.status === 'accepted') {
-                const interval = setInterval(() => {
-                    if (!AppState.currentRide || AppState.currentRide.status !== 'accepted') {
-                        clearInterval(interval);
-                        return;
-                    }
-                    
-                    // Simulate driver moving towards pickup
-                    if (driver.location && AppState.userLocation) {
-                        driver.location.lat += (AppState.userLocation.lat - driver.location.lat) * 0.1;
-                        driver.location.lng += (AppState.userLocation.lng - driver.location.lng) * 0.1;
-                        UIUpdater.updateDriverMarker(driver.location);
-                    }
-                }, 2000);
             }
         } catch (error) {
-            console.error('Error loading driver info:', error);
+            console.error('Error notifying drivers:', error);
         }
     },
     
     async requestEmergencyRide(rideData) {
         try {
-            UIUpdater.showLoading('Requesting emergency ride...');
-            
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            const rideId = 'emergency-' + Date.now();
+            const rideId = database.ref().child('rides').push().key;
             const ride = {
                 id: rideId,
                 ...rideData,
@@ -7156,46 +6471,103 @@ const FirebaseManager = {
                 updatedAt: Date.now()
             };
             
+            await database.ref(`rides/${rideId}`).set(ride);
+            
             AppState.currentRide = ride;
             AppState.emergencyMode = true;
             UIUpdater.showRideInfo(ride);
             UIUpdater.updateTimeline('requested');
             
-            // Show emergency status
-            const emergencyStatus = document.getElementById('emergencyStatus');
-            if (emergencyStatus) emergencyStatus.style.display = 'flex';
+            document.getElementById('emergencyStatus').style.display = 'flex';
             
-            // Simulate faster emergency response
-            setTimeout(() => {
-                if (AppState.currentRide && AppState.currentRide.id === rideId) {
-                    AppState.currentRide.status = 'accepted';
-                    AppState.currentRide.driverId = 'emergency-driver-123';
-                    AppState.currentRide.driverName = 'EMERGENCY RESPONSE';
-                    
-                    UIUpdater.updateRideStatus('accepted');
-                    UIUpdater.updateTimeline('accepted');
-                    
-                    // Show SOS button
-                    const sosButton = document.getElementById('sosButton');
-                    if (sosButton) sosButton.style.display = 'flex';
-                    
-                    UIUpdater.showToast('Emergency service dispatched!', 'success');
-                }
-            }, 1500);
+            await this.sendNotification(
+                AppState.currentUser.uid,
+                'Emergency Ride Requested',
+                `Emergency ${rideData.emergencyType} ride has been requested.`,
+                'emergency',
+                { rideId: rideId }
+            );
             
-            UIUpdater.hideLoading();
+            // Notify emergency services
+            await this.notifyEmergencyServices(rideId, rideData);
+            
+            if (AppState.sosConfig) {
+                await this.sendSOSAlert(rideId, rideData);
+            }
+            
             UIUpdater.showToast('Emergency ride requested', 'success');
             return rideId;
         } catch (error) {
             console.error('Error requesting emergency ride:', error);
             UIUpdater.showToast('Error requesting emergency ride', 'error');
-            UIUpdater.hideLoading();
             throw error;
+        }
+    },
+    
+    async notifyEmergencyServices(rideId, rideData) {
+        try {
+            // Notify emergency service providers in the city
+            const serviceType = rideData.emergencyType;
+            const serviceProvidersSnapshot = await database.ref('users')
+                .orderByChild('serviceType')
+                .equalTo(serviceType)
+                .once('value');
+            
+            const providers = serviceProvidersSnapshot.val();
+            if (!providers) return;
+            
+            for (const [providerId, provider] of Object.entries(providers)) {
+                if (provider.city === AppState.currentCity) {
+                    await this.sendNotification(
+                        providerId,
+                        'Emergency Ride Request',
+                        `Emergency ${serviceType} ride requested in ${AppState.currentCity}. Priority: HIGH`,
+                        'emergency',
+                        { rideId: rideId, priority: 'high' }
+                    );
+                }
+            }
+        } catch (error) {
+            console.error('Error notifying emergency services:', error);
+        }
+    },
+    
+    async sendSOSAlert(rideId, rideData) {
+        try {
+            const sosData = {
+                passengerId: AppState.currentUser.uid,
+                passengerName: AppState.userData.name,
+                passengerPhone: AppState.userData.phone,
+                emergencyContact1: AppState.sosConfig.contact1Phone,
+                emergencyContact1Name: AppState.sosConfig.contact1Name,
+                emergencyContact2: AppState.sosConfig.contact2Phone,
+                emergencyContact2Name: AppState.sosConfig.contact2Name,
+                message: AppState.sosConfig.message,
+                rideId: rideId,
+                location: AppState.userLocation,
+                timestamp: Date.now()
+            };
+            
+            const alertId = database.ref().child('sosAlerts').push().key;
+            await database.ref(`sosAlerts/${alertId}`).set(sosData);
+            
+            await this.sendNotification(
+                AppState.currentUser.uid,
+                'SOS Alert Sent',
+                'SOS alert has been sent to your emergency contacts',
+                'emergency'
+            );
+            
+            return true;
+        } catch (error) {
+            console.error('Error sending SOS alert:', error);
+            return false;
         }
     },
     
     async saveSOSConfig(config) {
         try {
+            await database.ref(`sosConfig/${AppState.currentUser.uid}`).set(config);
             AppState.sosConfig = config;
             UIUpdater.showToast('SOS configuration saved', 'success');
             return true;
@@ -7206,27 +6578,46 @@ const FirebaseManager = {
         }
     },
     
+    async sendNotification(userId, title, message, type = 'info', data = {}) {
+        try {
+            const notificationId = database.ref().child(`notifications/${userId}`).push().key;
+            const notification = {
+                id: notificationId,
+                title,
+                message,
+                type,
+                read: false,
+                timestamp: Date.now(),
+                ...data
+            };
+            
+            await database.ref(`notifications/${userId}/${notificationId}`).set(notification);
+            return true;
+        } catch (error) {
+            console.error('Error sending notification:', error);
+            return false;
+        }
+    },
+    
     async startBroadcast(phoneNumbers, message = '') {
         try {
             if (!AppState.currentRide) {
                 throw new Error('No active ride to broadcast');
             }
             
-            UIUpdater.showLoading('Starting broadcast...');
-            
-            const broadcastId = 'broadcast-' + Date.now();
-            const broadcastCode = 'BC-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+            const broadcastId = database.ref().child('broadcasts').push().key;
+            const broadcastCode = `BC-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
             
             const broadcastData = {
                 id: broadcastId,
                 rideId: AppState.currentRide.id,
-                passengerId: 'user-' + Date.now(),
+                passengerId: AppState.currentUser.uid,
                 passengerName: AppState.userData.name,
                 code: broadcastCode,
                 phoneNumbers: phoneNumbers,
                 message: message,
                 participants: [{
-                    userId: 'user-' + Date.now(),
+                    userId: AppState.currentUser.uid,
                     name: AppState.userData.name,
                     phone: AppState.userData.phone,
                     joinedAt: Date.now(),
@@ -7237,55 +6628,41 @@ const FirebaseManager = {
                 updatedAt: Date.now()
             };
             
+            await database.ref(`broadcasts/${broadcastId}`).set(broadcastData);
+            
+            await database.ref(`rides/${AppState.currentRide.id}/broadcast`).set({
+                id: broadcastId,
+                code: broadcastCode,
+                participants: phoneNumbers.length
+            });
+            
             AppState.broadcastData = broadcastData;
             AppState.isBroadcasting = true;
             AppState.broadcastCode = broadcastCode;
             
-            // Add mock participants
-            AppState.broadcastParticipants = [
-                {
-                    userId: 'user-' + Date.now(),
-                    name: AppState.userData.name,
-                    phone: AppState.userData.phone,
-                    joinedAt: Date.now(),
-                    online: true
-                },
-                {
-                    userId: 'user-2',
-                    name: 'Alice Smith',
-                    phone: '+260977123456',
-                    joinedAt: Date.now() - 60000,
-                    online: true
-                },
-                {
-                    userId: 'user-3',
-                    name: 'Bob Johnson',
-                    phone: '+260976987654',
-                    joinedAt: Date.now() - 120000,
-                    online: false
-                }
-            ];
+            // Setup real-time listeners
+            this.setupBroadcastListeners(broadcastId);
             
-            UIUpdater.updateBroadcastParticipants(AppState.broadcastParticipants);
-            
-            UIUpdater.hideLoading();
             UIUpdater.showToast(`Broadcast started. Code: ${broadcastCode}`, 'success');
-            
-            // Show broadcast tracking
-            const broadcastCodeElement = document.getElementById('broadcastCode');
-            if (broadcastCodeElement) {
-                broadcastCodeElement.textContent = broadcastCode;
-            }
-            
             UIUpdater.showBroadcastTracking(broadcastData);
             
             return broadcastData;
         } catch (error) {
             console.error('Error starting broadcast:', error);
             UIUpdater.showToast('Error starting broadcast', 'error');
-            UIUpdater.hideLoading();
             throw error;
         }
+    },
+    
+    setupBroadcastListeners: function(broadcastId) {
+        // Listen for participant joins
+        database.ref(`broadcasts/${broadcastId}/participants`).on('child_added', (snapshot) => {
+            const participant = snapshot.val();
+            if (!AppState.broadcastParticipants.some(p => p.userId === participant.userId)) {
+                AppState.broadcastParticipants.push(participant);
+                UIUpdater.updateBroadcastParticipants(AppState.broadcastParticipants);
+            }
+        });
     },
     
     async endBroadcast() {
@@ -7294,14 +6671,14 @@ const FirebaseManager = {
                 return;
             }
             
-            AppState.broadcastData.status = 'ended';
+            await database.ref(`broadcasts/${AppState.broadcastData.id}/status`).set('ended');
+            
             AppState.broadcastData = null;
             AppState.isBroadcasting = false;
             AppState.broadcastCode = null;
             AppState.broadcastParticipants = [];
             
-            const tracking = document.getElementById('broadcastTracking');
-            if (tracking) tracking.classList.remove('active');
+            document.getElementById('broadcastTracking').classList.remove('active');
             
             UIUpdater.showToast('Broadcast ended', 'success');
             return true;
@@ -7309,118 +6686,17 @@ const FirebaseManager = {
             console.error('Error ending broadcast:', error);
             return false;
         }
-    },
-    
-    async testSOSContact(phoneNumber, name) {
-        try {
-            UIUpdater.showToast(`Test notification sent to ${name} (${phoneNumber})`, 'success');
-            return true;
-        } catch (error) {
-            console.error('Error testing SOS contact:', error);
-            return false;
-        }
     }
 };
 
 // ============================================
-// EMERGENCY SERVICE LOCATOR
-// ============================================
-const EmergencyLocator = {
-    services: {
-        police: [
-            { name: 'Lusaka Central Police', lat: -15.4167, lng: 28.2833, address: 'Cairo Road, Lusaka', phone: '0991' },
-            { name: 'Kabulonga Police Station', lat: -15.4000, lng: 28.3000, address: 'Kabulonga, Lusaka', phone: '0991' },
-            { name: 'Woodlands Police Station', lat: -15.3900, lng: 28.3200, address: 'Woodlands, Lusaka', phone: '0991' }
-        ],
-        fire: [
-            { name: 'Lusaka Fire Brigade', lat: -15.4100, lng: 28.2900, address: 'Independence Avenue, Lusaka', phone: '993' },
-            { name: 'Industrial Fire Station', lat: -15.4200, lng: 28.2700, address: 'Industrial Area, Lusaka', phone: '993' }
-        ],
-        medical: [
-            { name: 'University Teaching Hospital', lat: -15.4050, lng: 28.2950, address: 'Nationalist Road, Lusaka', phone: '0955' },
-            { name: 'Levy Mwanawasa Hospital', lat: -15.3950, lng: 28.3050, address: 'Great East Road, Lusaka', phone: '0955' },
-            { name: 'Matero Hospital', lat: -15.4150, lng: 28.2750, address: 'Matero, Lusaka', phone: '0955' }
-        ]
-    },
-    
-    findNearestService: function(type, userLocation) {
-        const services = this.services[type];
-        if (!services || !userLocation) return null;
-        
-        let nearest = null;
-        let minDistance = Infinity;
-        
-        services.forEach(service => {
-            const distance = PriceCalculator.calculateDistance(
-                userLocation.lat, userLocation.lng,
-                service.lat, service.lng
-            );
-            
-            if (distance < minDistance) {
-                minDistance = distance;
-                nearest = { ...service, distance };
-            }
-        });
-        
-        return nearest;
-    },
-    
-    showEmergencyMarkers: function(type) {
-        if (!map) return;
-        
-        emergencyMarkers.forEach(marker => map.removeLayer(marker));
-        emergencyMarkers = [];
-        
-        const services = this.services[type];
-        if (services) {
-            services.forEach(service => {
-                const marker = L.marker([service.lat, service.lng], {
-                    icon: L.divIcon({
-                        className: 'emergency-vehicle-marker',
-                        html: `<i class="fas fa-${type === 'police' ? 'shield-alt' : type === 'fire' ? 'fire-extinguisher' : 'ambulance'}"></i>`,
-                        iconSize: [36, 36]
-                    })
-                }).addTo(map).bindPopup(`
-                    <strong>${service.name}</strong><br>
-                    ${service.address}<br>
-                    Phone: ${service.phone}<br>
-                    Distance: ${PriceCalculator.calculateDistance(
-                        AppState.userLocation ? AppState.userLocation.lat : -15.4167, 
-                        AppState.userLocation ? AppState.userLocation.lng : 28.2833, 
-                        service.lat, service.lng
-                    ).toFixed(1)} km
-                `);
-                
-                emergencyMarkers.push(marker);
-            });
-        }
-    },
-    
-    getEmergencyServices: async function(type, location) {
-        try {
-            const localServices = this.services[type] || [];
-            return localServices.map(service => ({
-                ...service,
-                distance: PriceCalculator.calculateDistance(
-                    location.lat, location.lng,
-                    service.lat, service.lng
-                )
-            })).sort((a, b) => a.distance - b.distance);
-        } catch (error) {
-            console.error('Error getting emergency services:', error);
-            return [];
-        }
-    }
-};
-
-// ============================================
-// INITIALIZATION AND EVENT HANDLERS
+// INITIALIZATION FUNCTIONS
 // ============================================
 async function initializeApp() {
     try {
         UIUpdater.showLoading('Initializing app...');
         
-        // Check for authentication parameters
+        // Check authentication
         const urlParams = new URLSearchParams(window.location.search);
         const email = urlParams.get('email');
         const uid = urlParams.get('uid');
@@ -7429,49 +6705,37 @@ async function initializeApp() {
             AppState.currentUser = { uid, email };
             await FirebaseManager.loadUserData(uid);
         } else {
-            // For demo purposes, create a mock user
-            AppState.currentUser = { 
-                uid: 'demo-user-' + Date.now(), 
-                email: 'demo@jubel.com' 
-            };
-            await FirebaseManager.loadUserData(AppState.currentUser.uid);
-            
-            // Show demo mode notification
-            setTimeout(() => {
-                UIUpdater.showToast('Demo Mode: Using mock data', 'info');
-            }, 1000);
+            auth.onAuthStateChanged(async (user) => {
+                if (user) {
+                    AppState.currentUser = user;
+                    await FirebaseManager.loadUserData(user.uid);
+                } else {
+                    window.location.href = 'signup.html';
+                }
+            });
         }
         
         // Initialize map
         initializeMap();
         
-        // Initialize search engine
-        SearchEngine.init(AppState.currentCity);
+        // Get current location and detect city
+        await getCurrentLocation();
         
-        // Initialize service forms
-        UIUpdater.initializeServiceForms();
+        // Initialize search engine with detected city
+        SearchEngine.init(AppState.currentCity);
         
         // Set up event listeners
         setupEventListeners();
         
-        // Get current location
-        getCurrentLocation();
-        
-        // Initialize shopping items
-        initializeShoppingItems();
-        
-        // Initialize stops
-        initializeStops();
-        
-        // Set minimum date for schedule form
-        const today = new Date().toISOString().split('T')[0];
-        const scheduleDate = document.getElementById('scheduleDate');
-        if (scheduleDate) {
-            scheduleDate.min = today;
-        }
+        // Initialize ride type selection
+        document.querySelectorAll('.ride-type-card').forEach(card => {
+            if (card.dataset.type === 'standard') {
+                card.classList.add('selected');
+            }
+        });
         
         UIUpdater.hideLoading();
-        UIUpdater.showToast('Jubel Passenger App Ready', 'success');
+        UIUpdater.showToast(`Welcome to Jubel! Detected city: ${AppState.currentCity}`, 'success');
         
     } catch (error) {
         console.error('Error initializing app:', error);
@@ -7489,79 +6753,33 @@ function initializeMap() {
     }).addTo(map);
 }
 
-function initializeShoppingItems() {
-    const itemsContainer = document.getElementById('shoppingItems');
-    const addItemBtn = document.getElementById('addItemBtn');
-    
-    if (!itemsContainer || !addItemBtn) return;
-    
-    // Add first item
-    const firstItem = itemsContainer.querySelector('.item-entry');
-    if (firstItem) {
-        const removeBtn = firstItem.querySelector('.remove-item');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', function() {
-                if (itemsContainer.children.length > 1) {
-                    firstItem.remove();
-                }
-            });
-        }
-    }
-    
-    // Add new item
-    addItemBtn.addEventListener('click', function() {
-        const itemEntry = document.createElement('div');
-        itemEntry.className = 'item-entry';
-        itemEntry.innerHTML = `
-            <input type="text" class="item-input" placeholder="Item name">
-            <button class="remove-item" type="button">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-        
-        itemsContainer.appendChild(itemEntry);
-        
-        const removeBtn = itemEntry.querySelector('.remove-item');
-        removeBtn.addEventListener('click', function() {
-            itemEntry.remove();
-        });
-    });
-}
-
-function initializeStops() {
-    const addStopBtn = document.getElementById('addStopBtn');
-    if (addStopBtn) {
-        addStopBtn.addEventListener('click', function() {
-            const stopSearch = document.getElementById('stopSearch');
-            if (stopSearch) {
-                stopSearch.style.display = 'block';
-                stopSearch.focus();
-            }
-        });
-    }
-}
-
-function getCurrentLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const { latitude, longitude } = position.coords;
-                AppState.userLocation = { lat: latitude, lng: longitude };
-                
-                // Center map on user location
-                map.setView([latitude, longitude], 15);
-                
-                // Add current location marker
-                currentLocationMarker = L.marker([latitude, longitude], {
-                    icon: L.divIcon({
-                        className: 'current-location-marker',
-                        html: '<i class="fas fa-user"></i>',
-                        iconSize: [18, 18]
-                    })
-                }).addTo(map).bindPopup('Your Location');
-                
-                // Get detailed address for pickup
-                reverseGeocode(latitude, longitude).then(address => {
+async function getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    AppState.userLocation = { lat: latitude, lng: longitude };
+                    
+                    // Center map on user location
+                    map.setView([latitude, longitude], 15);
+                    
+                    // Add current location marker
+                    currentLocationMarker = L.marker([latitude, longitude], {
+                        icon: L.divIcon({
+                            className: 'current-location-marker',
+                            html: '<i class="fas fa-user"></i>',
+                            iconSize: [18, 18]
+                        })
+                    }).addTo(map).bindPopup('Your Location');
+                    
+                    // Detect city
+                    const detectedCity = CityManager.detectCity(latitude, longitude);
+                    AppState.currentCity = detectedCity;
+                    AppState.detectedCity = detectedCity;
+                    
+                    // Get address for pickup
+                    const address = await reverseGeocode(latitude, longitude);
                     updatePickupLocations(address);
                     AppState.pickup = {
                         lat: latitude,
@@ -7569,37 +6787,36 @@ function getCurrentLocation() {
                         address: address,
                         name: 'Current Location'
                     };
-                });
-                
-                // Detect city based on location
-                detectCity(latitude, longitude);
-                
-            },
-            (error) => {
-                console.error('Geolocation error:', error);
-                UIUpdater.showToast('Unable to get your location. Using default location.', 'warning');
-                AppState.userLocation = { lat: -15.4167, lng: 28.2833 };
-                AppState.currentCity = 'Lusaka';
-                SearchEngine.init(AppState.currentCity);
-                
-                // Center map on Lusaka
-                map.setView([-15.4167, 28.2833], 13);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-    } else {
-        UIUpdater.showToast('Geolocation not supported', 'warning');
-        AppState.userLocation = { lat: -15.4167, lng: 28.2833 };
-        AppState.currentCity = 'Lusaka';
-        SearchEngine.init(AppState.currentCity);
-        
-        // Center map on Lusaka
-        map.setView([-15.4167, 28.2833], 13);
-    }
+                    
+                    resolve();
+                },
+                (error) => {
+                    console.error('Geolocation error:', error);
+                    UIUpdater.showToast('Unable to get your location. Using default location.', 'warning');
+                    
+                    // Use Lusaka as default
+                    AppState.userLocation = { lat: -15.4167, lng: 28.2833 };
+                    AppState.currentCity = 'Lusaka';
+                    AppState.detectedCity = 'Lusaka';
+                    
+                    map.setView([-15.4167, 28.2833], 13);
+                    resolve();
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        } else {
+            UIUpdater.showToast('Geolocation not supported', 'warning');
+            AppState.userLocation = { lat: -15.4167, lng: 28.2833 };
+            AppState.currentCity = 'Lusaka';
+            AppState.detectedCity = 'Lusaka';
+            map.setView([-15.4167, 28.2833], 13);
+            resolve();
+        }
+    });
 }
 
 async function reverseGeocode(lat, lng) {
@@ -7639,27 +6856,6 @@ async function reverseGeocode(lat, lng) {
     }
 }
 
-async function detectCity(lat, lng) {
-    try {
-        const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`
-        );
-        const data = await response.json();
-        
-        if (data && data.address) {
-            const city = data.address.city || data.address.town || data.address.village;
-            if (city) {
-                AppState.currentCity = city;
-                AppState.detectedCity = city;
-                SearchEngine.init(city);
-                UIUpdater.showToast(`Location detected: ${city}`, 'info');
-            }
-        }
-    } catch (error) {
-        console.error('City detection error:', error);
-    }
-}
-
 function updatePickupLocations(address) {
     const pickupInputs = [
         'pickupLocation',
@@ -7667,10 +6863,7 @@ function updatePickupLocations(address) {
         'shortDeliveryPickup',
         'truckPickup',
         'expressPickup',
-        'bicyclePickup',
-        'schedulePickup',
-        'someonePickup',
-        'sharePickup'
+        'bicyclePickup'
     ];
     
     pickupInputs.forEach(id => {
@@ -7680,12 +6873,14 @@ function updatePickupLocations(address) {
         }
     });
     
-    const emergencyPickupAddress = document.getElementById('emergencyPickupAddress');
-    if (emergencyPickupAddress) {
-        emergencyPickupAddress.textContent = address;
+    if (document.getElementById('emergencyPickupAddress')) {
+        document.getElementById('emergencyPickupAddress').textContent = address;
     }
 }
 
+// ============================================
+// EVENT HANDLERS SETUP
+// ============================================
 function setupEventListeners() {
     // Navigation tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
@@ -7695,61 +6890,11 @@ function setupEventListeners() {
         });
     });
     
-    // Back buttons
-    document.querySelectorAll('.back-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            switchScreen('home');
-        });
-    });
-    
-    // Back from broadcast
-    const backFromBroadcast = document.getElementById('backFromBroadcast');
-    if (backFromBroadcast) {
-        backFromBroadcast.addEventListener('click', () => {
-            const broadcastTracking = document.getElementById('broadcastTracking');
-            if (broadcastTracking) broadcastTracking.classList.remove('active');
-        });
-    }
-    
-    // Panel handle
-    const panelHandle = document.getElementById('panelHandle');
-    if (panelHandle) {
-        panelHandle.addEventListener('click', togglePanel);
-    }
-    
     // Service tabs
     document.querySelectorAll('.service-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const service = tab.dataset.service;
             switchService(service);
-        });
-    });
-    
-    // More options dropdown
-    const moreOptionsBtn = document.getElementById('moreOptionsBtn');
-    if (moreOptionsBtn) {
-        moreOptionsBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const dropdown = document.getElementById('moreOptionsDropdown');
-            if (dropdown) dropdown.classList.toggle('active');
-        });
-    }
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
-        const dropdown = document.getElementById('moreOptionsDropdown');
-        if (dropdown && !e.target.closest('.quick-action-btn') && !e.target.closest('.more-options-dropdown')) {
-            dropdown.classList.remove('active');
-        }
-    });
-    
-    // Dropdown options
-    document.querySelectorAll('.dropdown-option').forEach(option => {
-        option.addEventListener('click', () => {
-            const optionType = option.dataset.option;
-            handleDropdownOption(optionType);
-            const dropdown = document.getElementById('moreOptionsDropdown');
-            if (dropdown) dropdown.classList.remove('active');
         });
     });
     
@@ -7769,179 +6914,107 @@ function setupEventListeners() {
         });
     });
     
-    // Enhanced search with fast results
-    setupSearchListeners();
+    // Search input listeners
+    setupSearchInputListeners();
     
     // Request ride button
-    const requestRideBtn = document.getElementById('requestRideBtn');
-    if (requestRideBtn) {
-        requestRideBtn.addEventListener('click', async () => {
-            await handleRideRequest();
-        });
-    }
+    document.getElementById('requestRideBtn')?.addEventListener('click', handleRideRequest);
     
     // SOS button
-    const sosButton = document.getElementById('sosButton');
-    if (sosButton) {
-        sosButton.addEventListener('click', triggerSOS);
-    }
+    document.getElementById('sosButton')?.addEventListener('click', triggerSOS);
     
     // Notification bell
-    const notificationBell = document.getElementById('notificationBell');
-    if (notificationBell) {
-        notificationBell.addEventListener('click', () => {
-            UIUpdater.showNotificationPanel();
-        });
-    }
+    document.getElementById('notificationBell')?.addEventListener('click', () => {
+        UIUpdater.showNotificationPanel();
+    });
     
     // Mark all notifications as read
-    const markAllRead = document.getElementById('markAllRead');
-    if (markAllRead) {
-        markAllRead.addEventListener('click', () => {
-            // In a real app, you would call FirebaseManager.markAllNotificationsAsRead()
-            AppState.notifications.forEach(notification => {
-                notification.read = true;
-            });
-            UIUpdater.updateNotificationBadge(0);
-            UIUpdater.updateNotificationList(AppState.notifications);
-            UIUpdater.showToast('All notifications marked as read', 'success');
-        });
-    }
+    document.getElementById('markAllRead')?.addEventListener('click', () => {
+        FirebaseManager.markAllNotificationsAsRead();
+    });
     
     // Close notification panel when clicking outside
     document.addEventListener('click', (e) => {
-        const notificationPanel = document.getElementById('notificationPanel');
-        const notificationBell = document.getElementById('notificationBell');
-        
-        if (notificationPanel && 
-            !e.target.closest('.notification-bell') && 
-            !e.target.closest('.notification-panel')) {
+        if (!e.target.closest('.notification-bell') && !e.target.closest('.notification-panel')) {
             UIUpdater.hideNotificationPanel();
         }
     });
     
-    // Broadcast ride buttons
-    const broadcastRideBtn = document.getElementById('broadcastRideBtn');
-    const broadcastRideOptionBtn = document.getElementById('broadcastRideOptionBtn');
-    const broadcastRideBtnPanel = document.getElementById('broadcastRideBtnPanel');
+    // Broadcast buttons
+    document.getElementById('broadcastRideBtn')?.addEventListener('click', () => {
+        UIUpdater.showBroadcastModal();
+    });
     
-    if (broadcastRideBtn) {
-        broadcastRideBtn.addEventListener('click', () => {
-            UIUpdater.showBroadcastModal();
-        });
-    }
+    document.getElementById('broadcastRideOptionBtn')?.addEventListener('click', () => {
+        UIUpdater.showBroadcastModal();
+    });
     
-    if (broadcastRideOptionBtn) {
-        broadcastRideOptionBtn.addEventListener('click', () => {
-            UIUpdater.showBroadcastModal();
-        });
-    }
-    
-    if (broadcastRideBtnPanel) {
-        broadcastRideBtnPanel.addEventListener('click', () => {
-            UIUpdater.showBroadcastModal();
-        });
-    }
+    document.getElementById('broadcastRideBtnPanel')?.addEventListener('click', () => {
+        UIUpdater.showBroadcastModal();
+    });
     
     // Broadcast modal
-    const closeBroadcastModal = document.getElementById('closeBroadcastModal');
-    const cancelBroadcastBtn = document.getElementById('cancelBroadcastBtn');
+    document.getElementById('closeBroadcastModal')?.addEventListener('click', () => {
+        UIUpdater.hideBroadcastModal();
+    });
     
-    if (closeBroadcastModal) {
-        closeBroadcastModal.addEventListener('click', () => {
-            UIUpdater.hideBroadcastModal();
-        });
-    }
+    document.getElementById('cancelBroadcastBtn')?.addEventListener('click', () => {
+        UIUpdater.hideBroadcastModal();
+    });
     
-    if (cancelBroadcastBtn) {
-        cancelBroadcastBtn.addEventListener('click', () => {
-            UIUpdater.hideBroadcastModal();
-        });
-    }
-    
-    const addPhoneBtn = document.getElementById('addPhoneBtn');
-    if (addPhoneBtn) {
-        addPhoneBtn.addEventListener('click', async () => {
-            const input = document.getElementById('broadcastPhoneInput');
-            if (!input) return;
+    // Add phone to broadcast
+    document.getElementById('addPhoneBtn')?.addEventListener('click', function() {
+        const input = document.getElementById('broadcastPhoneInput');
+        const phone = input.value.trim();
+        
+        if (phone) {
+            AppState.broadcastPhones = AppState.broadcastPhones || [];
             
-            const phone = input.value.trim();
+            // Simple validation
+            const isValid = /^(\+260|0)?(96|97|76|77|95|91|92|93|94)\d{7}$/.test(phone.replace(/\s+/g, ''));
             
-            if (phone) {
-                AppState.broadcastPhones = AppState.broadcastPhones || [];
-                
-                // Validate phone
-                const validation = await UIUpdater.showBroadcastPhoneValidation(phone);
-                
-                if (validation.valid) {
-                    if (!AppState.broadcastPhones.includes(phone)) {
-                        AppState.broadcastPhones.push(phone);
-                        await UIUpdater.updateBroadcastPhoneList(AppState.broadcastPhones);
-                        input.value = '';
-                        
-                        if (validation.exists) {
-                            UIUpdater.showToast(`Added ${validation.name} to broadcast`, 'success');
-                        } else {
-                            UIUpdater.showToast('Phone number added (non-Jubel user)', 'info');
-                        }
-                    } else {
-                        UIUpdater.showToast('Phone number already added', 'warning');
-                    }
+            if (isValid) {
+                if (!AppState.broadcastPhones.includes(phone)) {
+                    AppState.broadcastPhones.push(phone);
+                    UIUpdater.updateBroadcastPhoneList(AppState.broadcastPhones);
+                    input.value = '';
+                    UIUpdater.showToast('Phone number added', 'success');
                 } else {
-                    UIUpdater.showToast('Please enter a valid Zambian phone number', 'error');
+                    UIUpdater.showToast('Phone number already added', 'warning');
                 }
             } else {
-                UIUpdater.showToast('Please enter a phone number', 'warning');
+                UIUpdater.showToast('Please enter a valid Zambian phone number', 'error');
             }
-        });
-    }
+        } else {
+            UIUpdater.showToast('Please enter a phone number', 'warning');
+        }
+    });
     
-    // Remove phone from broadcast list
+    // Remove phone from broadcast
     document.addEventListener('click', (e) => {
         if (e.target.closest('.broadcast-remove-phone')) {
-            const button = e.target.closest('.broadcast-remove-phone');
-            const index = parseInt(button.dataset.index);
+            const index = parseInt(e.target.closest('.broadcast-remove-phone').dataset.index);
             AppState.broadcastPhones.splice(index, 1);
             UIUpdater.updateBroadcastPhoneList(AppState.broadcastPhones);
         }
     });
     
     // Start broadcast
-    const startBroadcastBtn = document.getElementById('startBroadcastBtn');
-    if (startBroadcastBtn) {
-        startBroadcastBtn.addEventListener('click', async () => {
-            if (!AppState.broadcastPhones || AppState.broadcastPhones.length === 0) {
-                UIUpdater.showToast('Please add at least one phone number', 'warning');
-                return;
-            }
-            
-            const broadcastMessage = document.getElementById('broadcastMessage');
-            const message = broadcastMessage ? broadcastMessage.value.trim() : '';
-            
-            try {
-                await FirebaseManager.startBroadcast(AppState.broadcastPhones, message);
-                UIUpdater.hideBroadcastModal();
-            } catch (error) {
-                console.error('Error starting broadcast:', error);
-            }
-        });
-    }
-    
-    // End broadcast
-    const endBroadcastBtn = document.getElementById('endBroadcastBtn');
-    if (endBroadcastBtn) {
-        endBroadcastBtn.addEventListener('click', async () => {
-            await FirebaseManager.endBroadcast();
-        });
-    }
-    
-    // Invite more to broadcast
-    const inviteMoreBtn = document.getElementById('inviteMoreBtn');
-    if (inviteMoreBtn) {
-        inviteMoreBtn.addEventListener('click', () => {
-            UIUpdater.showBroadcastModal();
-        });
-    }
+    document.getElementById('startBroadcastBtn')?.addEventListener('click', async () => {
+        if (!AppState.broadcastPhones || AppState.broadcastPhones.length === 0) {
+            UIUpdater.showToast('Please add at least one phone number', 'warning');
+            return;
+        }
+        
+        const message = document.getElementById('broadcastMessage').value.trim();
+        
+        try {
+            await FirebaseManager.startBroadcast(AppState.broadcastPhones, message);
+            UIUpdater.hideBroadcastModal();
+        } catch (error) {
+            console.error('Error starting broadcast:', error);
+        }
+    });
     
     // Emergency service selection
     document.querySelectorAll('.emergency-service').forEach(service => {
@@ -7951,7 +7024,7 @@ function setupEventListeners() {
         });
     });
     
-    // Emergency reasons selection
+    // Emergency reasons
     document.querySelectorAll('.emergency-reason').forEach(reason => {
         reason.addEventListener('click', () => {
             document.querySelectorAll('.emergency-reason').forEach(r => {
@@ -7960,76 +7033,59 @@ function setupEventListeners() {
             reason.classList.add('selected');
             
             const reasonType = reason.dataset.reason;
-            const emergencyOtherInput = document.getElementById('emergencyOtherInput');
-            if (emergencyOtherInput) {
-                emergencyOtherInput.classList.toggle('active', reasonType === 'other');
-            }
+            document.getElementById('emergencyOtherInput').classList.toggle('active', reasonType === 'other');
             
             AppState.selectedEmergencyReason = reasonType;
         });
     });
     
     // Confirm emergency ride
-    const confirmEmergencyBtn = document.getElementById('confirmEmergencyBtn');
-    if (confirmEmergencyBtn) {
-        confirmEmergencyBtn.addEventListener('click', async () => {
-            await handleEmergencyRideRequest();
-        });
-    }
+    document.getElementById('confirmEmergencyBtn')?.addEventListener('click', handleEmergencyRideRequest);
     
     // SOS test buttons
-    const testPrimaryContact = document.getElementById('testPrimaryContact');
-    const testSecondaryContact = document.getElementById('testSecondaryContact');
+    document.getElementById('testPrimaryContact')?.addEventListener('click', async () => {
+        const name = document.getElementById('sosContact1Name').value;
+        const phone = document.getElementById('sosContact1Phone').value;
+        
+        if (!name || !phone) {
+            UIUpdater.showToast('Please fill in primary contact details', 'warning');
+            return;
+        }
+        
+        UIUpdater.showToast('Test notification sent to primary contact', 'success');
+    });
     
-    if (testPrimaryContact) {
-        testPrimaryContact.addEventListener('click', async () => {
-            const name = document.getElementById('sosContact1Name').value;
-            const phone = document.getElementById('sosContact1Phone').value;
-            
-            if (!name || !phone) {
-                UIUpdater.showToast('Please fill in primary contact details', 'warning');
-                return;
-            }
-            
-            await FirebaseManager.testSOSContact(phone, name);
-            UIUpdater.showToast('Test notification sent to primary contact', 'success');
-        });
-    }
-    
-    if (testSecondaryContact) {
-        testSecondaryContact.addEventListener('click', async () => {
-            const name = document.getElementById('sosContact2Name').value;
-            const phone = document.getElementById('sosContact2Phone').value;
-            
-            if (!name || !phone) {
-                UIUpdater.showToast('Please fill in secondary contact details', 'warning');
-                return;
-            }
-            
-            await FirebaseManager.testSOSContact(phone, name);
-            UIUpdater.showToast('Test notification sent to secondary contact', 'success');
-        });
-    }
+    document.getElementById('testSecondaryContact')?.addEventListener('click', async () => {
+        const name = document.getElementById('sosContact2Name').value;
+        const phone = document.getElementById('sosContact2Phone').value;
+        
+        if (!name || !phone) {
+            UIUpdater.showToast('Please fill in secondary contact details', 'warning');
+            return;
+        }
+        
+        UIUpdater.showToast('Test notification sent to secondary contact', 'success');
+    });
     
     // Save SOS config
-    const saveSOSBtn = document.getElementById('saveSOSBtn');
-    if (saveSOSBtn) {
-        saveSOSBtn.addEventListener('click', async () => {
-            await saveSOSConfig();
-        });
-    }
+    document.getElementById('saveSOSBtn')?.addEventListener('click', saveSOSConfig);
     
-    // Service form buttons
-    setupServiceFormListeners();
+    // More options dropdown
+    document.getElementById('moreOptionsBtn')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dropdown = document.getElementById('moreOptionsDropdown');
+        dropdown.classList.toggle('active');
+    });
     
-    // Add stop functionality
-    setupStopListeners();
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.quick-action-btn') && !e.target.closest('.more-options-dropdown')) {
+            document.getElementById('moreOptionsDropdown').classList.remove('active');
+        }
+    });
     
-    // History filters
-    setupHistoryFilters();
-    
-    // Account actions
-    setupAccountListeners();
+    // Panel handle
+    document.getElementById('panelHandle')?.addEventListener('click', togglePanel);
     
     // Modal close buttons
     document.querySelectorAll('.modal-close, .broadcast-close').forEach(button => {
@@ -8049,75 +7105,13 @@ function setupEventListeners() {
             }
         });
     });
-    
-    // Chat functionality
-    const chatClose = document.getElementById('chatClose');
-    const chatSend = document.getElementById('chatSend');
-    const chatInput = document.getElementById('chatInput');
-    const openChatBtn = document.getElementById('openChatBtn');
-    
-    if (chatClose) {
-        chatClose.addEventListener('click', () => {
-            const chatContainer = document.getElementById('chatContainer');
-            if (chatContainer) chatContainer.classList.remove('active');
-        });
-    }
-    
-    if (chatSend && chatInput) {
-        chatSend.addEventListener('click', () => {
-            const message = chatInput.value.trim();
-            if (message) {
-                // Mock chat message
-                const chatMessage = {
-                    text: message,
-                    senderId: AppState.currentUser.uid,
-                    senderName: AppState.userData.name,
-                    timestamp: Date.now(),
-                    isDriver: false
-                };
-                
-                UIUpdater.showChatMessage(chatMessage, true);
-                chatInput.value = '';
-                
-                // Simulate driver response
-                setTimeout(() => {
-                    const driverResponse = {
-                        text: "I'll be there in 5 minutes!",
-                        senderId: 'driver-123',
-                        senderName: 'Michael Driver',
-                        timestamp: Date.now() + 1000,
-                        isDriver: true
-                    };
-                    UIUpdater.showChatMessage(driverResponse, false);
-                }, 2000);
-            }
-        });
-        
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                chatSend.click();
-            }
-        });
-    }
-    
-    if (openChatBtn) {
-        openChatBtn.addEventListener('click', () => {
-            const chatContainer = document.getElementById('chatContainer');
-            if (chatContainer) {
-                chatContainer.classList.add('active');
-                chatInput.focus();
-                
-                // Remove notification badge
-                const badge = openChatBtn.querySelector('.chat-notification');
-                if (badge) badge.remove();
-            }
-        });
-    }
 }
 
-function setupSearchListeners() {
-    // Fast search for all location inputs
-    document.querySelectorAll('input[type="text"][id*="Location"], input[type="text"][id*="Pickup"], input[type="text"][id*="Destination"]').forEach(input => {
+function setupSearchInputListeners() {
+    // Pickup and destination search
+    ['pickupLocation', 'destinationLocation'].forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
         
         let searchTimeout;
         
@@ -8131,36 +7125,24 @@ function setupSearchListeners() {
                 return;
             }
             
-            // Show history suggestions immediately
+            // Show history suggestions
             const historySuggestions = SearchEngine.getHistorySuggestions(query);
             if (historySuggestions.length > 0) {
                 UIUpdater.showSearchSuggestions(this.id, historySuggestions, true);
             }
             
-            // Show loading
-            const parent = this.closest('.location-input');
-            if (parent) parent.classList.add('searching');
-            
             searchTimeout = setTimeout(async () => {
                 try {
-                    let type = 'destination';
-                    if (this.id.includes('pickup') || this.id.includes('Pickup')) {
-                        type = 'pickup';
-                    } else if (this.id.includes('stop')) {
-                        type = 'stop';
-                    }
-                    
+                    const type = this.id.includes('pickup') ? 'pickup' : 'destination';
                     const results = await SearchEngine.search(query, type, AppState.userLocation);
                     UIUpdater.showSearchSuggestions(this.id, results);
                 } catch (error) {
                     console.error('Search error:', error);
-                    const parent = this.closest('.location-input');
-                    if (parent) parent.classList.remove('searching');
                 }
             }, SearchEngine.searchTimeout);
         });
         
-        // Handle keyboard navigation
+        // Keyboard navigation
         input.addEventListener('keydown', function(e) {
             const suggestions = document.getElementById(`${this.id}Suggestions`);
             if (!suggestions || !suggestions.classList.contains('active')) return;
@@ -8197,313 +7179,27 @@ function setupSearchListeners() {
                 items[currentIndex].scrollIntoView({ block: 'nearest' });
             }
         });
-        
-        // Click outside to close suggestions
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
-                document.querySelectorAll('.suggestion-list').forEach(list => {
-                    list.classList.remove('active');
-                });
-            }
-        });
     });
-}
-
-function setupServiceFormListeners() {
-    // Delivery form
-    const requestDeliveryBtn = document.getElementById('requestDeliveryBtn');
-    if (requestDeliveryBtn) {
-        requestDeliveryBtn.addEventListener('click', async () => {
-            await handleDeliveryRequest();
-        });
-    }
     
-    // Short Delivery form
-    const requestShortDeliveryBtn = document.getElementById('requestShortDeliveryBtn');
-    if (requestShortDeliveryBtn) {
-        requestShortDeliveryBtn.addEventListener('click', async () => {
-            await handleShortDeliveryRequest();
-        });
-    }
-    
-    // Express Shopping form
-    const requestExpressBtn = document.getElementById('requestExpressBtn');
-    if (requestExpressBtn) {
-        requestExpressBtn.addEventListener('click', async () => {
-            await handleExpressRequest();
-        });
-    }
-    
-    // Truck form
-    const requestTruckBtn = document.getElementById('requestTruckBtn');
-    if (requestTruckBtn) {
-        requestTruckBtn.addEventListener('click', async () => {
-            await handleTruckRequest();
-        });
-    }
-    
-    // Bicycle form
-    const requestBicycleBtn = document.getElementById('requestBicycleBtn');
-    if (requestBicycleBtn) {
-        requestBicycleBtn.addEventListener('click', async () => {
-            await handleBicycleRequest();
-        });
-    }
-}
-
-function setupStopListeners() {
-    // Add stop button
-    const addStopBtn = document.getElementById('addStopBtn');
-    if (addStopBtn) {
-        addStopBtn.addEventListener('click', function() {
-            const stopSearch = document.getElementById('stopSearch');
-            if (stopSearch) {
-                stopSearch.style.display = 'block';
-                stopSearch.focus();
-            }
-        });
-    }
-    
-    // Stop search input
-    const stopSearch = document.getElementById('stopSearch');
-    if (stopSearch) {
-        stopSearch.addEventListener('input', async function(e) {
-            const query = e.target.value.trim();
-            if (query.length >= 2) {
-                const results = await SearchEngine.search(query, 'stop', AppState.userLocation);
-                UIUpdater.showSearchSuggestions('stopSearch', results);
-            }
-        });
-    }
-}
-
-function setupHistoryFilters() {
-    document.querySelectorAll('.filter-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
+    // Close suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list')) {
+            document.querySelectorAll('.suggestion-list').forEach(list => {
+                list.classList.remove('active');
             });
-            this.classList.add('active');
-            
-            AppState.activeFilter = this.dataset.filter;
-            
-            // In a real app, you would filter the rides here
-            UIUpdater.showToast(`Filter applied: ${this.dataset.filter}`, 'info');
-        });
-    });
-}
-
-function setupAccountListeners() {
-    // Deposit button
-    const depositBtn = document.getElementById('depositBtn');
-    if (depositBtn) {
-        depositBtn.addEventListener('click', () => {
-            showModal('payment');
-        });
-    }
-    
-    // Withdraw button
-    const withdrawBtn = document.getElementById('withdrawBtn');
-    if (withdrawBtn) {
-        withdrawBtn.addEventListener('click', () => {
-            showModal('transfer');
-        });
-    }
-    
-    // Transfer button
-    const transferBtn = document.getElementById('transferBtn');
-    if (transferBtn) {
-        transferBtn.addEventListener('click', () => {
-            showModal('transfer');
-        });
-    }
-    
-    // Transactions button
-    const transactionsBtn = document.getElementById('transactionsBtn');
-    if (transactionsBtn) {
-        transactionsBtn.addEventListener('click', () => {
-            showModal('transactions');
-        });
-    }
-    
-    // Share referral button
-    const shareReferralBtn = document.getElementById('shareReferralBtn');
-    if (shareReferralBtn) {
-        shareReferralBtn.addEventListener('click', () => {
-            const referralCode = document.getElementById('referralCode');
-            if (!referralCode) return;
-            
-            const code = referralCode.textContent;
-            if (navigator.share) {
-                navigator.share({
-                    title: 'Join me on Jubel!',
-                    text: `Use my referral code ${code} to get 50% off your first ride on Jubel!`,
-                    url: window.location.href
-                }).catch(console.error);
-            } else {
-                navigator.clipboard.writeText(code).then(() => {
-                    UIUpdater.showToast('Referral code copied to clipboard', 'success');
-                }).catch(err => {
-                    console.error('Failed to copy: ', err);
-                    UIUpdater.showToast('Failed to copy referral code', 'error');
-                });
-            }
-        });
-    }
-    
-    // Logout button
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to logout?')) {
-                // In a real app, you would sign out from Firebase
-                window.location.href = 'signup.html';
-            }
-        });
-    }
-}
-
-function switchScreen(screen) {
-    // Hide all screens
-    document.querySelectorAll('.history-screen, .account-screen, .emergency-screen, .broadcast-tracking').forEach(s => {
-        s.classList.remove('active');
-    });
-    
-    // Update navigation tabs
-    document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    // Show selected screen
-    if (screen === 'home') {
-        AppState.activeScreen = 'home';
-        const homeTab = document.querySelector(`.nav-tab[data-screen="home"]`);
-        if (homeTab) homeTab.classList.add('active');
-    } else {
-        const screenElement = document.getElementById(`${screen}Screen`);
-        const tab = document.querySelector(`.nav-tab[data-screen="${screen}"]`);
-        
-        if (screenElement) screenElement.classList.add('active');
-        if (tab) tab.classList.add('active');
-        
-        AppState.activeScreen = screen;
-        
-        if (screen === 'history') {
-            // Load history data
-            setTimeout(() => {
-                UIUpdater.showToast('History loaded', 'info');
-            }, 300);
         }
-    }
-}
-
-function switchService(service) {
-    // Hide all forms
-    document.querySelectorAll('.ride-request-form, .service-form, .schedule-form, .more-options').forEach(form => {
-        form.style.display = 'none';
-        form.classList.remove('active');
     });
-    
-    // Update service tabs
-    document.querySelectorAll('.service-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    // Show selected service form
-    AppState.activeService = service;
-    
-    switch(service) {
-        case 'car':
-            const carTab = document.querySelector('.service-tab.car');
-            const carForm = document.getElementById('carForm');
-            const rideTypeSelection = document.getElementById('rideTypeSelection');
-            
-            if (carTab) carTab.classList.add('active');
-            if (carForm) {
-                carForm.style.display = 'block';
-                carForm.classList.add('active');
-            }
-            if (rideTypeSelection) rideTypeSelection.classList.add('active');
-            break;
-        case 'delivery':
-            const deliveryTab = document.querySelector('.service-tab.delivery');
-            const deliveryForm = document.getElementById('deliveryForm');
-            
-            if (deliveryTab) deliveryTab.classList.add('active');
-            if (deliveryForm) {
-                deliveryForm.style.display = 'block';
-                deliveryForm.classList.add('active');
-            }
-            break;
-        case 'short-delivery':
-            const shortDeliveryTab = document.querySelector('.service-tab.short-delivery');
-            const shortDeliveryForm = document.getElementById('shortDeliveryForm');
-            
-            if (shortDeliveryTab) shortDeliveryTab.classList.add('active');
-            if (shortDeliveryForm) {
-                shortDeliveryForm.style.display = 'block';
-                shortDeliveryForm.classList.add('active');
-            }
-            break;
-        case 'express':
-            const expressTab = document.querySelector('.service-tab[data-service="express"]');
-            const expressForm = document.getElementById('expressForm');
-            
-            if (expressTab) expressTab.classList.add('active');
-            if (expressForm) {
-                expressForm.style.display = 'block';
-                expressForm.classList.add('active');
-            }
-            break;
-        case 'truck':
-            const truckTab = document.querySelector('.service-tab[data-service="truck"]');
-            const truckForm = document.getElementById('truckForm');
-            
-            if (truckTab) truckTab.classList.add('active');
-            if (truckForm) {
-                truckForm.style.display = 'block';
-                truckForm.classList.add('active');
-            }
-            break;
-    }
 }
 
-function handleDropdownOption(option) {
-    switch(option) {
-        case 'schedule':
-            document.querySelectorAll('.ride-request-form, .service-form').forEach(form => {
-                form.style.display = 'none';
-                form.classList.remove('active');
-            });
-            const scheduleForm = document.getElementById('scheduleForm');
-            if (scheduleForm) scheduleForm.classList.add('active');
-            break;
-        case 'order-for-someone':
-            document.querySelectorAll('.ride-request-form, .service-form').forEach(form => {
-                form.style.display = 'none';
-                form.classList.remove('active');
-            });
-            const someoneElseForm = document.getElementById('someoneElseForm');
-            if (someoneElseForm) someoneElseForm.classList.add('active');
-            break;
-        case 'share':
-            document.querySelectorAll('.ride-request-form, .service-form').forEach(form => {
-                form.style.display = 'none';
-                form.classList.remove('active');
-            });
-            const shareRideForm = document.getElementById('shareRideForm');
-            if (shareRideForm) shareRideForm.classList.add('active');
-            break;
-    }
-}
-
+// ============================================
+// MAIN EVENT HANDLERS
+// ============================================
 async function handleRideRequest() {
     if (!AppState.pickup || !AppState.destination) {
         UIUpdater.showToast('Please select pickup and destination locations', 'warning');
         return;
     }
     
-    // Calculate distance
     const distance = PriceCalculator.calculateDistance(
         AppState.pickup.lat, AppState.pickup.lng,
         AppState.destination.lat, AppState.destination.lng
@@ -8514,14 +7210,11 @@ async function handleRideRequest() {
         return;
     }
     
-    // Calculate fare
     const surge = PriceCalculator.getSurgeMultiplier();
     const fare = PriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
     
-    // Check wallet balance
     if (AppState.walletBalance < fare) {
         UIUpdater.showToast(`Insufficient balance. You need ZMW ${fare.toFixed(2)}`, 'error');
-        showModal('payment');
         return;
     }
     
@@ -8542,58 +7235,23 @@ async function handleRideRequest() {
         fare: fare,
         distance: distance,
         paymentMethod: 'wallet',
-        stops: AppState.stops,
         scheduled: false,
-        emergency: false
+        emergency: false,
+        city: AppState.currentCity
     };
     
     try {
         await FirebaseManager.requestRide(rideData);
         
-        // Clear stops after successful request
-        AppState.stops = [];
-        UIUpdater.updateStopsDisplay();
-        
-        // Clear route
-        if (routeControl) {
-            map.removeControl(routeControl);
-            routeControl = null;
-        }
-        
-        // Clear markers
+        // Clear markers and route
         if (pickupMarker) map.removeLayer(pickupMarker);
         if (destinationMarker) map.removeLayer(destinationMarker);
-        stopMarkers.forEach(marker => map.removeLayer(marker));
-        stopMarkers = [];
+        if (routeControl) map.removeControl(routeControl);
         
+        UIUpdater.showToast('Ride requested successfully!', 'success');
     } catch (error) {
         console.error('Error requesting ride:', error);
     }
-}
-
-async function handleDeliveryRequest() {
-    // Mock delivery request
-    UIUpdater.showToast('Delivery service coming soon!', 'info');
-}
-
-async function handleShortDeliveryRequest() {
-    // Mock short delivery request
-    UIUpdater.showToast('Short delivery service coming soon!', 'info');
-}
-
-async function handleExpressRequest() {
-    // Mock express shopping request
-    UIUpdater.showToast('Express shopping service coming soon!', 'info');
-}
-
-async function handleTruckRequest() {
-    // Mock truck request
-    UIUpdater.showToast('Truck service coming soon!', 'info');
-}
-
-async function handleBicycleRequest() {
-    // Mock bicycle request
-    UIUpdater.showToast('Bicycle service coming soon!', 'info');
 }
 
 async function handleEmergencyService(type) {
@@ -8602,25 +7260,57 @@ async function handleEmergencyService(type) {
         return;
     }
     
-    // Update modal title
-    const emergencyServiceType = document.getElementById('emergencyServiceType');
-    if (emergencyServiceType) {
-        emergencyServiceType.textContent = type.charAt(0).toUpperCase() + type.slice(1) + ' Ride';
-        emergencyServiceType.dataset.type = type;
-    }
+    document.getElementById('emergencyServiceType').textContent = 
+        type.charAt(0).toUpperCase() + type.slice(1) + ' Service';
+    document.getElementById('emergencyServiceType').dataset.type = type;
     
-    // Show emergency markers
-    EmergencyLocator.showEmergencyMarkers(type);
-    
-    // Load emergency stations
     UIUpdater.showLoading('Finding emergency stations...');
-    const stations = await EmergencyLocator.getEmergencyServices(type, AppState.userLocation);
+    
+    // Get emergency stations for the detected city
+    const stations = await SearchEngine.searchEmergencyServices(type, AppState.userLocation);
+    
     UIUpdater.hideLoading();
     
-    UIUpdater.showEmergencyStations(stations, type);
+    if (stations.length === 0) {
+        // Fallback to city manager data
+        const cityStations = CityManager.getNearestEmergencyServices(
+            AppState.userLocation,
+            AppState.currentCity,
+            type,
+            5
+        );
+        UIUpdater.showEmergencyStations(cityStations, type);
+    } else {
+        UIUpdater.showEmergencyStations(stations, type);
+    }
     
-    // Show modal
+    // Show emergency markers on map
+    showEmergencyMarkers(type);
+    
     showModal('emergency');
+}
+
+function showEmergencyMarkers(type) {
+    emergencyMarkers.forEach(marker => map.removeLayer(marker));
+    emergencyMarkers = [];
+    
+    const services = CityManager.getEmergencyServices(AppState.currentCity, type);
+    
+    services.forEach(service => {
+        const marker = L.marker([service.lat, service.lng], {
+            icon: L.divIcon({
+                className: 'emergency-vehicle-marker',
+                html: `<i class="fas fa-${type === 'police' ? 'shield-alt' : type === 'fire' ? 'fire-extinguisher' : 'ambulance'}"></i>`,
+                iconSize: [36, 36]
+            })
+        }).addTo(map).bindPopup(`
+            <strong>${service.name}</strong><br>
+            ${service.address}<br>
+            Phone: ${service.phone}
+        `);
+        
+        emergencyMarkers.push(marker);
+    });
 }
 
 async function handleEmergencyRideRequest() {
@@ -8634,13 +7324,10 @@ async function handleEmergencyRideRequest() {
     let description = '';
     
     if (reason === 'other') {
-        const emergencyOtherDescription = document.getElementById('emergencyOtherDescription');
-        if (emergencyOtherDescription) {
-            description = emergencyOtherDescription.value.trim();
-            if (!description) {
-                UIUpdater.showToast('Please describe the emergency', 'warning');
-                return;
-            }
+        description = document.getElementById('emergencyOtherDescription').value.trim();
+        if (!description) {
+            UIUpdater.showToast('Please describe the emergency', 'warning');
+            return;
         }
     }
     
@@ -8650,21 +7337,31 @@ async function handleEmergencyRideRequest() {
         return;
     }
     
-    const serviceTypeElement = document.getElementById('emergencyServiceType');
-    if (!serviceTypeElement) return;
-    
-    const serviceType = serviceTypeElement.dataset.type;
+    const serviceType = document.getElementById('emergencyServiceType').dataset.type;
     
     // Get station info
     const stationName = selectedStation.querySelector('.emergency-station-name').textContent;
     const stationAddress = selectedStation.querySelector('.emergency-station-address').textContent;
+    
+    // Get distance from data attribute or calculate
     const distanceText = selectedStation.querySelector('.emergency-station-distance').textContent;
-    const distance = parseFloat(distanceText.match(/(\d+\.?\d*)/)[0]) || 0;
+    const distanceMatch = distanceText.match(/(\d+\.?\d*)/);
+    const distance = distanceMatch ? parseFloat(distanceMatch[0]) : 5;
     
-    // Calculate fare
-    const fare = PriceCalculator.calculateEmergencyFare(distance, serviceType);
+    // Calculate fare (simplified)
+    let baseFare = 100;
+    let perKm = 5;
     
-    // Check wallet balance
+    if (serviceType === 'fire') {
+        baseFare = 150;
+        perKm = 6;
+    } else if (serviceType === 'medical') {
+        baseFare = 120;
+        perKm = 5.5;
+    }
+    
+    const fare = baseFare + (distance * perKm);
+    
     if (AppState.walletBalance < fare * 0.5) {
         UIUpdater.showToast(`Insufficient balance for emergency ride. Required: ZMW ${(fare * 0.5).toFixed(2)}`, 'error');
         return;
@@ -8683,7 +7380,8 @@ async function handleEmergencyRideRequest() {
         fare: fare,
         distance: distance,
         paymentMethod: 'wallet',
-        priority: 'high'
+        priority: 'high',
+        city: AppState.currentCity
     };
     
     try {
@@ -8696,26 +7394,24 @@ async function handleEmergencyRideRequest() {
 }
 
 async function saveSOSConfig() {
-    const contact1Name = document.getElementById('sosContact1Name');
-    const contact1Phone = document.getElementById('sosContact1Phone');
-    const contact2Name = document.getElementById('sosContact2Name');
-    const contact2Phone = document.getElementById('sosContact2Phone');
-    const sosMessage = document.getElementById('sosMessage');
+    const contact1Name = document.getElementById('sosContact1Name').value.trim();
+    const contact1Phone = document.getElementById('sosContact1Phone').value.trim();
+    const contact2Name = document.getElementById('sosContact2Name').value.trim();
+    const contact2Phone = document.getElementById('sosContact2Phone').value.trim();
+    const message = document.getElementById('sosMessage').value.trim();
     
-    if (!contact1Name || !contact1Phone) return;
-    
-    const config = {
-        contact1Name: contact1Name.value.trim(),
-        contact1Phone: contact1Phone.value.trim(),
-        contact2Name: contact2Name ? contact2Name.value.trim() : '',
-        contact2Phone: contact2Phone ? contact2Phone.value.trim() : '',
-        message: sosMessage ? sosMessage.value.trim() : 'I need help! My current location and ride details will be shared with you.'
-    };
-    
-    if (!config.contact1Name || !config.contact1Phone) {
+    if (!contact1Name || !contact1Phone) {
         UIUpdater.showToast('Please provide primary emergency contact details', 'warning');
         return;
     }
+    
+    const config = {
+        contact1Name,
+        contact1Phone,
+        contact2Name: contact2Name || '',
+        contact2Phone: contact2Phone || '',
+        message: message || 'I need help! My current location and ride details will be shared with you.'
+    };
     
     await FirebaseManager.saveSOSConfig(config);
     hideModal('sos');
@@ -8751,23 +7447,87 @@ function triggerSOS() {
         timestamp: Date.now()
     };
     
-    // Mock SOS alert
-    UIUpdater.showToast('SOS alert sent to emergency contacts', 'success');
+    FirebaseManager.sendSOSAlert(AppState.currentRide.id, sosData)
+        .then(() => {
+            UIUpdater.showToast('SOS alert sent to emergency contacts', 'success');
+        })
+        .catch(error => {
+            console.error('SOS error:', error);
+            UIUpdater.showToast('Error sending SOS alert', 'error');
+        });
+}
+
+function switchScreen(screen) {
+    document.querySelectorAll('.history-screen, .account-screen, .emergency-screen, .broadcast-tracking').forEach(s => {
+        s.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    if (screen === 'home') {
+        AppState.activeScreen = 'home';
+        document.querySelector(`.nav-tab[data-screen="home"]`).classList.add('active');
+    } else {
+        document.getElementById(`${screen}Screen`).classList.add('active');
+        document.querySelector(`.nav-tab[data-screen="${screen}"]`).classList.add('active');
+        AppState.activeScreen = screen;
+        
+        if (screen === 'history') {
+            FirebaseManager.loadRideHistory(AppState.currentUser.uid);
+        }
+    }
+}
+
+function switchService(service) {
+    document.querySelectorAll('.ride-request-form, .service-form, .schedule-form, .more-options').forEach(form => {
+        form.style.display = 'none';
+        form.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.service-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    AppState.activeService = service;
+    
+    switch(service) {
+        case 'car':
+            document.querySelector('.service-tab.car').classList.add('active');
+            document.getElementById('carForm').style.display = 'block';
+            document.getElementById('rideTypeSelection').classList.add('active');
+            break;
+        case 'delivery':
+            document.querySelector('.service-tab.delivery').classList.add('active');
+            document.getElementById('deliveryForm').style.display = 'block';
+            break;
+        case 'short-delivery':
+            document.querySelector('.service-tab.short-delivery').classList.add('active');
+            document.getElementById('shortDeliveryForm').style.display = 'block';
+            break;
+        case 'express':
+            document.querySelector('.service-tab[data-service="express"]').classList.add('active');
+            document.getElementById('expressForm').style.display = 'block';
+            break;
+        case 'truck':
+            document.querySelector('.service-tab[data-service="truck"]').classList.add('active');
+            document.getElementById('truckForm').style.display = 'block';
+            break;
+    }
 }
 
 function togglePanel() {
     const panel = document.getElementById('mainPanel');
-    if (panel) panel.classList.toggle('collapsed');
+    panel.classList.toggle('collapsed');
 }
 
 function showModal(modalId) {
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) modal.classList.add('active');
+    document.getElementById(`${modalId}Modal`).classList.add('active');
 }
 
 function hideModal(modalId) {
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) modal.classList.remove('active');
+    document.getElementById(`${modalId}Modal`).classList.remove('active');
 }
 
 // ============================================
@@ -8787,4 +7547,5 @@ window.triggerSOS = triggerSOS;
     </script>
 </body>
 </html>
+
 
