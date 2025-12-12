@@ -5870,7 +5870,8 @@ I need help! My current location and ride details will be shared with you.
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <script>
-       // ============================================
+    <script>
+// ============================================
 // FIREBASE CONFIGURATION
 // ============================================
 const firebaseConfig = {
@@ -5963,7 +5964,20 @@ const AppState = {
         cityBounds: null,
         cityPolygon: null,
         userDetectedAddress: null
-    }
+    },
+    // New states for requested features
+    scheduledRideTimer: null,
+    activeSearchRequest: null,
+    routePolyline: null,
+    routeCoordinates: [],
+    liveUpdateInterval: null,
+    searchPulsingIcons: {
+        car: null,
+        bike: null,
+        truck: null
+    },
+    splitRideFriends: [],
+    maxSplitFriends: 4
 };
 
 // ============================================
@@ -6834,6 +6848,29 @@ const EnhancedLocationManager = {
     
     setupDestinationInput: function(inputElement) {
         const inputId = inputElement.id;
+        
+        // Create suggestions container if it doesn't exist
+        if (!document.getElementById(`${inputId}Suggestions`)) {
+            const suggestionsContainer = document.createElement('div');
+            suggestionsContainer.id = `${inputId}Suggestions`;
+            suggestionsContainer.className = 'suggestion-list';
+            suggestionsContainer.style.cssText = `
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                max-height: 300px;
+                overflow-y: auto;
+                z-index: 1000;
+                display: none;
+                margin-top: 5px;
+            `;
+            
+            inputElement.parentNode.appendChild(suggestionsContainer);
+        }
         
         inputElement.addEventListener('focus', () => {
             this.handleDestinationInputFocus(inputId);
@@ -8094,8 +8131,55 @@ const EnhancedUIUpdater = {
             return;
         }
         
-        // Create a simple polyline for demonstration
-        // In a real app, you would use a routing service like OSRM or Mapbox
+        // Use OSRM routing service for accurate routes
+        this.getRouteFromOSRM(start, end);
+    },
+    
+    getRouteFromOSRM: async function(start, end) {
+        try {
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
+            
+            const response = await fetch(osrmUrl);
+            if (!response.ok) {
+                throw new Error('OSRM routing failed');
+            }
+            
+            const data = await response.json();
+            
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                // Store route coordinates
+                AppState.routeCoordinates = coordinates;
+                
+                // Draw route on map
+                routeLayer = L.polyline(coordinates, {
+                    color: '#FF6B35',
+                    weight: 4,
+                    opacity: 0.7,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                }).addTo(map).bindPopup(`Distance: ${(route.distance / 1000).toFixed(1)} km<br>Duration: ${Math.round(route.duration / 60)} min`);
+                
+                // Fit bounds to show entire route
+                const bounds = L.latLngBounds(coordinates);
+                map.fitBounds(bounds, { padding: [50, 50] });
+                
+                console.log('Route drawn successfully');
+                
+                // Calculate and update price based on actual route distance
+                const distanceKm = route.distance / 1000;
+                this.calculateAndUpdatePrices(distanceKm);
+            }
+        } catch (error) {
+            console.error('Error getting route from OSRM:', error);
+            // Fallback to straight line route
+            this.drawStraightLineRoute(start, end);
+        }
+    },
+    
+    drawStraightLineRoute: function(start, end) {
         routeLayer = L.polyline([
             [start.lat, start.lng],
             [end.lat, end.lng]
@@ -8106,7 +8190,6 @@ const EnhancedUIUpdater = {
             dashArray: '10, 10'
         }).addTo(map);
         
-        // Fit bounds to show entire route
         const bounds = L.latLngBounds(
             [start.lat, start.lng],
             [end.lat, end.lng]
@@ -8114,8 +8197,16 @@ const EnhancedUIUpdater = {
         map.fitBounds(bounds, { padding: [50, 50] });
     },
     
-    calculateAndUpdatePrices: function() {
+    calculateAndUpdatePrices: function(distanceKm = null) {
         if (AppState.pickup && AppState.destination) {
+            // If distance not provided, calculate it
+            if (!distanceKm) {
+                distanceKm = EnhancedPriceCalculator.calculateDistance(
+                    AppState.pickup.lat, AppState.pickup.lng,
+                    AppState.destination.lat, AppState.destination.lng
+                );
+            }
+            
             // Validate distance within city
             const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
                 AppState.pickup.lat, AppState.pickup.lng,
@@ -8128,29 +8219,24 @@ const EnhancedUIUpdater = {
                 return;
             }
             
-            const distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-            
             // Update prices based on active service
             switch(AppState.activeService) {
                 case 'car':
-                    this.updateRidePrices(distance);
+                    this.updateRidePrices(distanceKm);
                     document.getElementById('fareDisplay').classList.add('active');
                     document.getElementById('rideTypeSelection').classList.add('active');
                     break;
                 case 'delivery':
-                    this.updateDeliveryPrices(distance);
+                    this.updateDeliveryPrices(distanceKm);
                     break;
                 case 'short-delivery':
-                    this.updateShortDeliveryPrices(distance);
+                    this.updateShortDeliveryPrices(distanceKm);
                     break;
                 case 'truck':
-                    this.updateTruckPrices(distance);
+                    this.updateTruckPrices(distanceKm);
                     break;
                 case 'express':
-                    this.updateShoppingPrices(distance);
+                    this.updateShoppingPrices(distanceKm);
                     break;
             }
         }
@@ -8860,6 +8946,322 @@ const EnhancedUIUpdater = {
             
             console.log(`City boundary displayed for ${city}`);
         }
+    },
+    
+    // NEW FUNCTION: Show pulsing icon for ride request
+    showRideRequestPulsingIcon: function(serviceType) {
+        const mapContainer = document.getElementById('map');
+        
+        // Remove existing pulsing icons
+        this.removePulsingIcons();
+        
+        let iconClass = 'fa-car';
+        let iconColor = '#FF6B35';
+        let iconSize = '60px';
+        
+        switch(serviceType) {
+            case 'delivery':
+                iconClass = 'fa-shipping-fast';
+                iconColor = '#6B5B95';
+                break;
+            case 'truck':
+                iconClass = 'fa-truck';
+                iconColor = '#8B7355';
+                iconSize = '70px';
+                break;
+            case 'shopping':
+                iconClass = 'fa-shopping-bag';
+                iconColor = '#228B22';
+                break;
+            case 'short-delivery':
+                iconClass = 'fa-bolt';
+                iconColor = '#FFD700';
+                break;
+        }
+        
+        // Create pulsing icon element
+        const pulsingIcon = document.createElement('div');
+        pulsingIcon.className = 'pulsing-request-icon';
+        pulsingIcon.id = `pulsingIcon-${serviceType}`;
+        pulsingIcon.innerHTML = `<i class="fas ${iconClass}"></i>`;
+        pulsingIcon.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: ${iconSize};
+            height: ${iconSize};
+            background: ${iconColor};
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            z-index: 1000;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 20px ${iconColor};
+        `;
+        
+        // Add animation style if not already present
+        if (!document.getElementById('pulseAnimation')) {
+            const style = document.createElement('style');
+            style.id = 'pulseAnimation';
+            style.textContent = `
+                @keyframes pulse {
+                    0% {
+                        transform: translate(-50%, -50%) scale(1);
+                        opacity: 1;
+                    }
+                    50% {
+                        transform: translate(-50%, -50%) scale(1.2);
+                        opacity: 0.8;
+                    }
+                    100% {
+                        transform: translate(-50%, -50%) scale(1);
+                        opacity: 1;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        mapContainer.appendChild(pulsingIcon);
+        
+        // Store reference
+        AppState.searchPulsingIcons[serviceType] = pulsingIcon;
+    },
+    
+    // NEW FUNCTION: Remove pulsing icons
+    removePulsingIcons: function() {
+        Object.values(AppState.searchPulsingIcons).forEach(icon => {
+            if (icon && icon.parentNode) {
+                icon.parentNode.removeChild(icon);
+            }
+        });
+        AppState.searchPulsingIcons = { car: null, bike: null, truck: null };
+    },
+    
+    // NEW FUNCTION: Show scheduled ride timer
+    showScheduledRideTimer: function(scheduledTime) {
+        const timerDisplay = document.getElementById('scheduledRideTimer');
+        if (!timerDisplay) return;
+        
+        timerDisplay.style.display = 'block';
+        
+        // Calculate time difference
+        const updateTimer = () => {
+            const now = new Date().getTime();
+            const timeDiff = scheduledTime - now;
+            
+            if (timeDiff <= 0) {
+                // Time's up - hide timer
+                timerDisplay.style.display = 'none';
+                clearInterval(AppState.scheduledRideTimer);
+                return;
+            }
+            
+            // Calculate hours, minutes, seconds
+            const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+            
+            // Update display
+            timerDisplay.innerHTML = `
+                <div class="timer-header">
+                    <i class="fas fa-clock"></i>
+                    <span>Scheduled Ride</span>
+                    <button class="cancel-schedule-btn" onclick="cancelScheduledRide()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="timer-display">
+                    <div class="timer-segment">
+                        <div class="timer-number">${hours.toString().padStart(2, '0')}</div>
+                        <div class="timer-label">Hours</div>
+                    </div>
+                    <div class="timer-segment">
+                        <div class="timer-number">${minutes.toString().padStart(2, '0')}</div>
+                        <div class="timer-label">Minutes</div>
+                    </div>
+                    <div class="timer-segment">
+                        <div class="timer-number">${seconds.toString().padStart(2, '0')}</div>
+                        <div class="timer-label">Seconds</div>
+                    </div>
+                </div>
+                <div class="timer-message">
+                    Ride will be automatically requested when timer reaches zero
+                </div>
+            `;
+        };
+        
+        // Update immediately
+        updateTimer();
+        
+        // Update every second
+        clearInterval(AppState.scheduledRideTimer);
+        AppState.scheduledRideTimer = setInterval(updateTimer, 1000);
+    },
+    
+    // NEW FUNCTION: Hide scheduled ride timer
+    hideScheduledRideTimer: function() {
+        const timerDisplay = document.getElementById('scheduledRideTimer');
+        if (timerDisplay) {
+            timerDisplay.style.display = 'none';
+        }
+        clearInterval(AppState.scheduledRideTimer);
+    },
+    
+    // NEW FUNCTION: Arrange ride types horizontally
+    arrangeRideTypesHorizontally: function() {
+        const rideTypeSelection = document.getElementById('rideTypeSelection');
+        if (!rideTypeSelection) return;
+        
+        // Remove existing layout classes if any
+        rideTypeSelection.classList.remove('vertical-layout');
+        rideTypeSelection.classList.add('horizontal-layout');
+        
+        // Apply horizontal layout styles
+        rideTypeSelection.style.cssText = `
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 0;
+        `;
+        
+        // Style each ride type card for horizontal layout
+        document.querySelectorAll('.ride-type-card').forEach(card => {
+            card.style.cssText = `
+                flex: 1;
+                min-width: 0;
+                padding: 15px 10px;
+                text-align: center;
+                border-radius: 10px;
+                background: white;
+                border: 2px solid var(--border-light);
+                cursor: pointer;
+                transition: all 0.3s ease;
+            `;
+            
+            // Style selected card
+            if (card.classList.contains('selected')) {
+                card.style.borderColor = 'var(--primary-orange)';
+                card.style.background = 'rgba(255, 107, 53, 0.1)';
+            }
+        });
+    },
+    
+    // NEW FUNCTION: Add split ride friend
+    addSplitRideFriend: async function(referralCode) {
+        if (AppState.splitRideFriends.length >= AppState.maxSplitFriends) {
+            this.showToast(`Maximum ${AppState.maxSplitFriends} friends allowed`, 'warning');
+            return null;
+        }
+        
+        try {
+            // Find user by referral code
+            const usersSnapshot = await database.ref('users').once('value');
+            const users = usersSnapshot.val();
+            let friend = null;
+            
+            for (const [userId, userData] of Object.entries(users)) {
+                if (userData.referralCode === referralCode) {
+                    friend = {
+                        id: userId,
+                        name: userData.name,
+                        phone: userData.phone,
+                        referralCode: referralCode
+                    };
+                    break;
+                }
+            }
+            
+            if (!friend) {
+                this.showToast('User not found with this referral code', 'error');
+                return null;
+            }
+            
+            // Check if already added
+            if (AppState.splitRideFriends.some(f => f.id === friend.id)) {
+                this.showToast('Friend already added', 'warning');
+                return null;
+            }
+            
+            // Add to list
+            AppState.splitRideFriends.push(friend);
+            
+            // Update UI
+            this.updateSplitRideFriendsList();
+            
+            this.showToast(`Added ${friend.name} to the ride`, 'success');
+            return friend;
+        } catch (error) {
+            console.error('Error adding split ride friend:', error);
+            this.showToast('Error adding friend', 'error');
+            return null;
+        }
+    },
+    
+    // NEW FUNCTION: Update split ride friends list
+    updateSplitRideFriendsList: function() {
+        const container = document.getElementById('splitRideFriendsList');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (AppState.splitRideFriends.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state" style="padding: 10px; text-align: center;">
+                    <div style="color: var(--text-light);">No friends added yet</div>
+                </div>
+            `;
+            return;
+        }
+        
+        AppState.splitRideFriends.forEach((friend, index) => {
+            const friendElement = document.createElement('div');
+            friendElement.className = 'split-friend-item';
+            friendElement.innerHTML = `
+                <div class="friend-info">
+                    <div class="friend-avatar">
+                        ${friend.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                        <div class="friend-name">${friend.name}</div>
+                        <div class="friend-phone">${friend.phone}</div>
+                    </div>
+                </div>
+                <button class="remove-friend-btn" data-index="${index}">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            container.appendChild(friendElement);
+        });
+        
+        // Add remove event listeners
+        container.querySelectorAll('.remove-friend-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const index = parseInt(e.currentTarget.dataset.index);
+                this.removeSplitRideFriend(index);
+            });
+        });
+    },
+    
+    // NEW FUNCTION: Remove split ride friend
+    removeSplitRideFriend: function(index) {
+        if (index >= 0 && index < AppState.splitRideFriends.length) {
+            const removedFriend = AppState.splitRideFriends.splice(index, 1)[0];
+            this.updateSplitRideFriendsList();
+            this.showToast(`Removed ${removedFriend.name} from the ride`, 'info');
+        }
+    },
+    
+    // NEW FUNCTION: Clear all split ride friends
+    clearSplitRideFriends: function() {
+        AppState.splitRideFriends = [];
+        this.updateSplitRideFriendsList();
     }
 };
 
@@ -8935,6 +9337,9 @@ const EnhancedFirebaseManager = {
                     AppState.walletBalance = userData.walletBalance || 0;
                     EnhancedUIUpdater.updateWalletBalance(AppState.walletBalance);
                     EnhancedUIUpdater.updateUserInfo(userData);
+                    
+                    // Show real-time indicator
+                    EnhancedUIUpdater.showRealTimeIndicator();
                 }
             })
         );
@@ -9006,14 +9411,49 @@ const EnhancedFirebaseManager = {
                     AppState.unreadNotifications = unreadCount;
                     EnhancedUIUpdater.updateNotificationBadge(unreadCount);
                     EnhancedUIUpdater.updateNotifications(AppState.notifications);
+                    
+                    // Show real-time indicator
+                    EnhancedUIUpdater.showRealTimeIndicator();
                 }
             })
         );
         
-        // Show real-time indicator
-        EnhancedUIUpdater.showRealTimeIndicator();
+        // Listen for driver location updates if active ride exists
+        if (AppState.currentRide?.driverId) {
+            this.listenToDriverLocation(AppState.currentRide.driverId);
+        }
+        
+        // Start live update interval
+        this.startLiveUpdateInterval();
         
         console.log('Real-time sync started successfully');
+    },
+    
+    startLiveUpdateInterval: function() {
+        // Clear existing interval
+        if (AppState.liveUpdateInterval) {
+            clearInterval(AppState.liveUpdateInterval);
+        }
+        
+        // Update every 5 seconds for live data
+        AppState.liveUpdateInterval = setInterval(() => {
+            if (AppState.currentRide?.driverId) {
+                // Refresh driver location
+                this.loadDriverInfo(AppState.currentRide.driverId);
+            }
+            
+            // Refresh notifications
+            if (AppState.currentUser) {
+                this.loadNotifications(AppState.currentUser.uid);
+            }
+            
+            // Update any active search pulsing icons
+            if (AppState.currentRide?.status === 'requested') {
+                EnhancedUIUpdater.showRideRequestPulsingIcon(
+                    AppState.currentRide.serviceType || 'car'
+                );
+            }
+        }, 5000);
     },
     
     stopRealtimeSync: function() {
@@ -9024,6 +9464,12 @@ const EnhancedFirebaseManager = {
             }
         });
         AppState.realtimeListeners = [];
+        
+        // Clear live update interval
+        if (AppState.liveUpdateInterval) {
+            clearInterval(AppState.liveUpdateInterval);
+            AppState.liveUpdateInterval = null;
+        }
     },
     
     async loadSOSConfig(uid) {
@@ -9061,6 +9507,16 @@ const EnhancedFirebaseManager = {
                     ride.status === 'scheduled' || ride.status === 'upcoming'
                 );
                 console.log(`Loaded ${AppState.scheduledRides.length} scheduled rides`);
+                
+                // Check for any scheduled rides that need timers
+                AppState.scheduledRides.forEach(ride => {
+                    if (ride.scheduledTime) {
+                        const timeDiff = ride.scheduledTime - Date.now();
+                        if (timeDiff > 0 && timeDiff < 24 * 60 * 60 * 1000) { // Within 24 hours
+                            EnhancedUIUpdater.showScheduledRideTimer(ride.scheduledTime);
+                        }
+                    }
+                });
             }
         } catch (error) {
             console.error('Error loading scheduled rides:', error);
@@ -9083,6 +9539,13 @@ const EnhancedFirebaseManager = {
                 AppState.currentRide = { id: rideId, ...rides[rideId] };
                 console.log('Active ride found:', rideId);
                 EnhancedUIUpdater.showRideInfo(AppState.currentRide);
+                
+                // Show pulsing icon for active search
+                if (AppState.currentRide.status === 'requested') {
+                    EnhancedUIUpdater.showRideRequestPulsingIcon(
+                        AppState.currentRide.serviceType || 'car'
+                    );
+                }
                 
                 // Listen for ride updates
                 this.listenToRideUpdates(rideId);
@@ -9235,6 +9698,15 @@ const EnhancedFirebaseManager = {
                     if (ride.status === 'cancelled') {
                         this.resetActiveRide();
                     }
+                    
+                    // Update pulsing icon based on status
+                    if (ride.status === 'requested') {
+                        EnhancedUIUpdater.showRideRequestPulsingIcon(
+                            ride.serviceType || 'car'
+                        );
+                    } else {
+                        EnhancedUIUpdater.removePulsingIcons();
+                    }
                 }
             })
         );
@@ -9317,6 +9789,9 @@ const EnhancedFirebaseManager = {
                         };
                         EnhancedUIUpdater.updateDriverTracking(AppState.driverLocation, pickupLocation);
                     }
+                    
+                    // Show real-time indicator
+                    EnhancedUIUpdater.showRealTimeIndicator();
                 }
             })
         );
@@ -9392,6 +9867,9 @@ const EnhancedFirebaseManager = {
             EnhancedUIUpdater.showRideInfo(ride);
             EnhancedUIUpdater.updateTimeline('requested');
             
+            // Show pulsing icon for ride request
+            EnhancedUIUpdater.showRideRequestPulsingIcon(rideData.serviceType || 'car');
+            
             // Listen for updates
             this.listenToRideUpdates(rideId);
             
@@ -9404,6 +9882,11 @@ const EnhancedFirebaseManager = {
             // Start broadcast if it's a broadcast ride
             if (rideData.broadcast && rideData.broadcastRecipients) {
                 await this.startBroadcast(rideId, rideData.broadcastRecipients);
+            }
+            
+            // Add split ride friends if applicable
+            if (rideData.splitFriends && rideData.splitFriends.length > 0) {
+                await this.notifySplitRideFriends(rideId, rideData.splitFriends);
             }
             
             console.log('Ride request completed:', rideId);
@@ -9451,6 +9934,23 @@ const EnhancedFirebaseManager = {
         }
     },
     
+    async notifySplitRideFriends: function(rideId, friends) {
+        try {
+            for (const friend of friends) {
+                await this.sendNotification(
+                    friend.id,
+                    'Ride Split Invitation',
+                    `${AppState.userData.name} has invited you to split a ride`,
+                    'ride',
+                    { rideId: rideId, action: 'view_ride' }
+                );
+            }
+            console.log(`Notified ${friends.length} split ride friends`);
+        } catch (error) {
+            console.error('Error notifying split ride friends:', error);
+        }
+    },
+    
     async requestDelivery(deliveryData) {
         try {
             EnhancedUIUpdater.showLoading('Requesting delivery...');
@@ -9479,6 +9979,9 @@ const EnhancedFirebaseManager = {
             AppState.currentRide = ride;
             EnhancedUIUpdater.showRideInfo(ride);
             EnhancedUIUpdater.updateTimeline('requested');
+            
+            // Show pulsing icon for delivery request
+            EnhancedUIUpdater.showRideRequestPulsingIcon('delivery');
             
             // Listen for updates
             this.listenToRideUpdates(rideId);
@@ -9524,6 +10027,9 @@ const EnhancedFirebaseManager = {
             EnhancedUIUpdater.showRideInfo(ride);
             EnhancedUIUpdater.updateTimeline('requested');
             
+            // Show pulsing icon for truck request
+            EnhancedUIUpdater.showRideRequestPulsingIcon('truck');
+            
             // Listen for updates
             this.listenToRideUpdates(rideId);
             
@@ -9567,6 +10073,9 @@ const EnhancedFirebaseManager = {
             AppState.currentRide = ride;
             EnhancedUIUpdater.showRideInfo(ride);
             EnhancedUIUpdater.updateTimeline('requested');
+            
+            // Show pulsing icon for shopping request
+            EnhancedUIUpdater.showRideRequestPulsingIcon('shopping');
             
             // Listen for updates
             this.listenToRideUpdates(rideId);
@@ -9616,6 +10125,9 @@ const EnhancedFirebaseManager = {
             
             // Show emergency status
             document.getElementById('emergencyStatus').style.display = 'flex';
+            
+            // Show pulsing icon for emergency request
+            EnhancedUIUpdater.showRideRequestPulsingIcon('emergency');
             
             // Listen for updates
             this.listenToRideUpdates(rideId);
@@ -9691,6 +10203,9 @@ const EnhancedFirebaseManager = {
                 updatedAt: Date.now()
             });
             
+            // Remove pulsing icon
+            EnhancedUIUpdater.removePulsingIcons();
+            
             // Notify driver if assigned
             if (AppState.currentRide?.driverId) {
                 await this.sendNotification(
@@ -9737,6 +10252,14 @@ const EnhancedFirebaseManager = {
             
             AppState.scheduledRides.push(ride);
             
+            // Show timer for scheduled ride
+            if (rideData.scheduledTime) {
+                EnhancedUIUpdater.showScheduledRideTimer(rideData.scheduledTime);
+                
+                // Schedule automatic ride request
+                this.scheduleAutomaticRideRequest(rideId, rideData);
+            }
+            
             EnhancedUIUpdater.hideLoading();
             EnhancedUIUpdater.showToast('Ride scheduled successfully', 'success');
             
@@ -9759,6 +10282,93 @@ const EnhancedFirebaseManager = {
             EnhancedUIUpdater.hideLoading();
             EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
             throw error;
+        }
+    },
+    
+    scheduleAutomaticRideRequest: function(rideId, rideData) {
+        const scheduledTime = rideData.scheduledTime;
+        const timeUntilRequest = scheduledTime - Date.now();
+        
+        if (timeUntilRequest <= 0) {
+            // Schedule time has passed, request immediately
+            this.executeScheduledRide(rideId, rideData);
+            return;
+        }
+        
+        // Schedule automatic request
+        setTimeout(async () => {
+            try {
+                console.log('Automatically requesting scheduled ride:', rideId);
+                await this.executeScheduledRide(rideId, rideData);
+                
+                // Remove from scheduled rides
+                await database.ref(`scheduledRides/${rideId}`).update({
+                    status: 'requested'
+                });
+                
+                EnhancedUIUpdater.showToast('Scheduled ride has been requested', 'success');
+            } catch (error) {
+                console.error('Error executing scheduled ride:', error);
+                EnhancedUIUpdater.showToast('Error requesting scheduled ride', 'error');
+            }
+        }, timeUntilRequest);
+    },
+    
+    async executeScheduledRide: function(rideId, rideData) {
+        // Convert scheduled ride to actual ride
+        const actualRideId = database.ref().child('rides').push().key;
+        const ride = {
+            id: actualRideId,
+            ...rideData,
+            status: 'requested',
+            timestamp: Date.now(),
+            updatedAt: Date.now(),
+            passengerId: AppState.currentUser.uid,
+            passengerName: AppState.userData.name,
+            passengerPhone: AppState.userData.phone,
+            city: AppState.currentCity,
+            scheduled: true,
+            scheduledRideId: rideId
+        };
+        
+        await database.ref(`rides/${actualRideId}`).set(ride);
+        
+        AppState.currentRide = ride;
+        EnhancedUIUpdater.showRideInfo(ride);
+        EnhancedUIUpdater.updateTimeline('requested');
+        
+        // Show pulsing icon
+        EnhancedUIUpdater.showRideRequestPulsingIcon(rideData.serviceType || 'car');
+        
+        // Listen for updates
+        this.listenToRideUpdates(actualRideId);
+        
+        // Send notification to drivers
+        await this.notifyAvailableDrivers(ride);
+        
+        console.log('Scheduled ride executed:', actualRideId);
+        return actualRideId;
+    },
+    
+    async cancelScheduledRide: function(rideId) {
+        try {
+            await database.ref(`scheduledRides/${rideId}`).update({
+                status: 'cancelled',
+                cancelledAt: Date.now()
+            });
+            
+            // Remove from local state
+            AppState.scheduledRides = AppState.scheduledRides.filter(ride => ride.id !== rideId);
+            
+            // Hide timer
+            EnhancedUIUpdater.hideScheduledRideTimer();
+            
+            EnhancedUIUpdater.showToast('Scheduled ride cancelled', 'success');
+            return true;
+        } catch (error) {
+            console.error('Error cancelling scheduled ride:', error);
+            EnhancedUIUpdater.showToast('Error cancelling scheduled ride', 'error');
+            return false;
         }
     },
     
@@ -10054,6 +10664,9 @@ const EnhancedFirebaseManager = {
         // Hide emergency status
         document.getElementById('emergencyStatus').style.display = 'none';
         
+        // Remove pulsing icon
+        EnhancedUIUpdater.removePulsingIcons();
+        
         // Update timeline to completed
         EnhancedUIUpdater.updateTimeline('completed');
         
@@ -10250,6 +10863,9 @@ const EnhancedFirebaseManager = {
         
         // Hide broadcast feature
         document.getElementById('broadcastFeature').style.display = 'none';
+        
+        // Remove pulsing icons
+        EnhancedUIUpdater.removePulsingIcons();
         
         // Clear current ride
         AppState.currentRide = null;
@@ -11233,6 +11849,12 @@ async function initializeApp() {
         // Initialize shopping items
         initializeShoppingItems();
         
+        // Arrange ride types horizontally
+        EnhancedUIUpdater.arrangeRideTypesHorizontally();
+        
+        // Initialize split ride friends list
+        EnhancedUIUpdater.updateSplitRideFriendsList();
+        
         // Request notification permission
         await NotificationManager.requestNotificationPermission();
         
@@ -11553,7 +12175,7 @@ function setupEventListeners() {
         EnhancedUIUpdater.showToast('Route cleared', 'info');
     });
     
-    // Request ride button
+    // Request ride button - MODIFIED: Always show payment modal first
     document.getElementById('requestRideBtn')?.addEventListener('click', async () => {
         if (!AppState.pickup || !AppState.destination) {
             EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
@@ -11593,12 +12215,27 @@ function setupEventListeners() {
             return;
         }
         
+        // Store ride data for after payment
+        window.pendingRideData = {
+            pickup: AppState.pickup.address,
+            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+            destination: AppState.destination.address,
+            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+            pickupLat: AppState.pickup.lat,
+            pickupLng: AppState.pickup.lng,
+            destLat: AppState.destination.lat,
+            destLng: AppState.destination.lng,
+            rideType: AppState.selectedRideType,
+            fare: AppState.rideFare,
+            distance: distance
+        };
+        
         // Show payment modal with ride details
         document.getElementById('paymentAmount').textContent = `ZMW ${AppState.rideFare.toFixed(2)}`;
         showModal('payment');
     });
     
-    // Request delivery button
+    // Request delivery button - MODIFIED: Show payment modal first
     document.getElementById('requestDeliveryBtn')?.addEventListener('click', async () => {
         const pickupInput = document.getElementById('deliveryPickup');
         const destinationInput = document.getElementById('deliveryDestination');
@@ -11672,7 +12309,7 @@ function setupEventListeners() {
         };
     });
     
-    // Request truck button
+    // Request truck button - MODIFIED: Show payment modal first
     document.getElementById('requestTruckBtn')?.addEventListener('click', async () => {
         const pickupInput = document.getElementById('truckPickup');
         const destinationInput = document.getElementById('truckDestination');
@@ -11735,7 +12372,7 @@ function setupEventListeners() {
         };
     });
     
-    // Request shopping button
+    // Request shopping button - MODIFIED: Show payment modal first
     document.getElementById('requestShoppingBtn')?.addEventListener('click', async () => {
         const shopName = document.getElementById('shopName');
         const shopLocation = document.getElementById('shopLocation');
@@ -11801,7 +12438,7 @@ function setupEventListeners() {
         };
     });
     
-    // Short delivery button
+    // Short delivery button - MODIFIED: Show payment modal first
     document.getElementById('requestShortDeliveryBtn')?.addEventListener('click', async () => {
         const pickupInput = document.getElementById('shortDeliveryPickup');
         const destinationInput = document.getElementById('shortDeliveryDestination');
@@ -11876,7 +12513,7 @@ function setupEventListeners() {
         document.getElementById('moreOptionsMenu').classList.remove('active');
     });
     
-    // Recent destinations button
+    // Recent destinations button - NEW: Show recent destinations
     document.getElementById('recentDestinationsBtn')?.addEventListener('click', () => {
         EnhancedUIUpdater.showSearchHistory('destinationLocation');
         document.getElementById('moreOptionsMenu').classList.remove('active');
@@ -12068,7 +12705,7 @@ function setupEventListeners() {
         });
     });
     
-    // Confirm payment button
+    // Confirm payment button - MODIFIED: Handle all pending ride types
     document.getElementById('confirmPaymentBtn')?.addEventListener('click', async () => {
         const selectedMethod = document.querySelector('.payment-method.selected');
         if (!selectedMethod) {
@@ -12183,7 +12820,8 @@ function setupEventListeners() {
             rideData = {
                 ...window.pendingShareData,
                 paymentMethod: paymentMethod,
-                status: 'requested'
+                status: 'requested',
+                splitFriends: AppState.splitRideFriends
             };
             
             try {
@@ -12215,25 +12853,10 @@ function setupEventListeners() {
             } catch (error) {
                 EnhancedUIUpdater.showToast('Error processing broadcast request', 'error');
             }
-        } else {
+        } else if (window.pendingRideData) {
             // Regular car ride
-            const distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-            
             rideData = {
-                pickup: AppState.pickup.address,
-                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-                destination: AppState.destination.address,
-                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-                pickupLat: AppState.pickup.lat,
-                pickupLng: AppState.pickup.lng,
-                destLat: AppState.destination.lat,
-                destLng: AppState.destination.lng,
-                rideType: AppState.selectedRideType,
-                fare: AppState.rideFare,
-                distance: distance,
+                ...window.pendingRideData,
                 paymentMethod: paymentMethod,
                 status: 'requested'
             };
@@ -12245,9 +12868,12 @@ function setupEventListeners() {
                 
                 await EnhancedFirebaseManager.requestRide(rideData);
                 hideModal('payment');
+                delete window.pendingRideData;
             } catch (error) {
                 EnhancedUIUpdater.showToast('Error processing ride request', 'error');
             }
+        } else {
+            EnhancedUIUpdater.showToast('No ride data to process', 'error');
         }
     });
     
@@ -12506,7 +13132,7 @@ function setupEventListeners() {
         }
     });
     
-    // Notification bell
+    // Notification bell - NEW: Show notifications panel
     document.getElementById('notificationBell')?.addEventListener('click', () => {
         const panel = document.getElementById('notificationsPanel');
         panel.classList.toggle('active');
@@ -12528,10 +13154,21 @@ function setupEventListeners() {
         document.getElementById('moreOptionsMenu').classList.remove('active');
     });
     
-    // Share ride option
+    // Share ride option - NEW: Include split ride functionality
     document.querySelector('[data-option="shareRide"]')?.addEventListener('click', () => {
         showModal('shareRide');
         document.getElementById('moreOptionsMenu').classList.remove('active');
+    });
+    
+    // NEW: Add split ride friend button
+    document.getElementById('addSplitFriendBtn')?.addEventListener('click', async () => {
+        const friendCode = document.getElementById('friendReferralCode')?.value.trim();
+        if (!friendCode) {
+            EnhancedUIUpdater.showToast('Please enter a referral code', 'warning');
+            return;
+        }
+        
+        await EnhancedUIUpdater.addSplitRideFriend(friendCode);
     });
     
     // Confirm schedule button
@@ -12657,15 +13294,20 @@ function setupEventListeners() {
         hideModal('orderForSomeone');
     });
     
-    // Confirm share ride button
+    // Confirm share ride button - MODIFIED: Include split ride friends
     document.getElementById('confirmShareRideBtn')?.addEventListener('click', async () => {
         const pickup = document.getElementById('sharePickup')?.value;
         const destination = document.getElementById('shareDestination')?.value;
-        const friendCode = document.getElementById('friendReferralCode')?.value;
         const splitPercentage = document.getElementById('splitPercentage')?.value;
         
-        if (!pickup || !destination || !friendCode) {
+        if (!pickup || !destination) {
             EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
+            return;
+        }
+        
+        // Check if friends are added
+        if (AppState.splitRideFriends.length === 0) {
+            EnhancedUIUpdater.showToast('Please add at least one friend to split the ride', 'warning');
             return;
         }
         
@@ -12679,7 +13321,13 @@ function setupEventListeners() {
                 AppState.destination.lat, AppState.destination.lng
             ) : 0;
         
-        const calculations = EnhancedUIUpdater.updateShareRideCalculations(distance, parseInt(splitPercentage));
+        const totalPassengers = AppState.splitRideFriends.length + 1;
+        const calculations = EnhancedPriceCalculator.calculateBroadcastFare(
+            distance, 
+            selectedRideType, 
+            'equal',
+            totalPassengers
+        );
         
         // Show payment modal for your share
         document.getElementById('paymentAmount').textContent = `ZMW ${calculations.yourShare.toFixed(2)}`;
@@ -12696,14 +13344,15 @@ function setupEventListeners() {
             destLat: AppState.destination?.lat,
             destLng: AppState.destination?.lng,
             rideType: selectedRideType,
-            friendReferralCode: friendCode,
             splitPercentage: parseInt(splitPercentage),
             yourShare: calculations.yourShare,
-            friendShare: calculations.friendShare,
-            totalFare: calculations.totalFare,
+            friendShare: calculations.passengerShare,
+            totalFare: calculations.total,
             fare: calculations.yourShare,
             distance: distance,
-            sharedRide: true
+            sharedRide: true,
+            passengerCount: totalPassengers,
+            splitFriends: AppState.splitRideFriends
         };
         
         hideModal('shareRide');
@@ -13130,10 +13779,28 @@ function callEmergencyContact(contactType) {
     }
 }
 
+// NEW FUNCTION: Cancel scheduled ride
+function cancelScheduledRide() {
+    if (confirm('Are you sure you want to cancel this scheduled ride?')) {
+        const scheduledRideId = AppState.scheduledRides[0]?.id;
+        if (scheduledRideId) {
+            EnhancedFirebaseManager.cancelScheduledRide(scheduledRideId)
+                .then(success => {
+                    if (success) {
+                        EnhancedUIUpdater.hideScheduledRideTimer();
+                        EnhancedUIUpdater.showToast('Scheduled ride cancelled', 'success');
+                    }
+                });
+        }
+    }
+}
+
 // ============================================
 // START THE APPLICATION
 // ============================================
 window.addEventListener('load', initializeApp);
+</script>
     </script>
 </body>
 </html>
+
