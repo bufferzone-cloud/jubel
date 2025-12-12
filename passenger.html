@@ -7853,6 +7853,7 @@ const NotificationManager = {
 // ============================================
 // INITIALIZATION
 // ============================================
+
 async function initializeApp() {
     try {
         console.log('Initializing Jubel Passenger App...');
@@ -7865,27 +7866,75 @@ async function initializeApp() {
         EnhancedLocationManager.init();
         
         // Check authentication
-        const urlParams = new URLSearchParams(window.location.search);
-        const email = urlParams.get('email');
-        const uid = urlParams.get('uid');
+        const authInitialized = await checkAndInitializeAuth();
         
-        if (email && uid) {
-            console.log('Authenticated via URL parameters');
-            AppState.currentUser = { uid, email };
-            await EnhancedFirebaseManager.loadUserData(uid);
-        } else {
-            console.log('Checking Firebase auth state...');
-            // Listen for auth state changes
-            auth.onAuthStateChanged(async (user) => {
-                if (user) {
-                    console.log('User authenticated:', user.uid);
-                    AppState.currentUser = user;
-                    await EnhancedFirebaseManager.loadUserData(user.uid);
-                } else {
-                    console.log('No user logged in, redirecting to signup');
-                    window.location.href = 'signup.html';
-                }
-            });
+        if (!authInitialized) {
+            // Redirect will happen in checkAndInitializeAuth
+            return;
+        }
+        
+        // Initialize map
+        initializeMap();
+        
+        // Set up event listeners
+        setupEventListeners();
+        
+        // Get current location
+        getCurrentLocation();
+        
+        // Set minimum date for schedule form
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('scheduleDate').min = today;
+        
+        // Initialize shopping items
+        initializeShoppingItems();
+        
+        // Arrange ride types horizontally
+        EnhancedUIUpdater.arrangeRideTypesHorizontally();
+        
+        // Initialize split ride friends list
+        EnhancedUIUpdater.updateSplitRideFriendsList();
+        
+        // Request notification permission
+        await NotificationManager.requestNotificationPermission();
+        
+        // Start periodic checks
+        NotificationManager.schedulePeriodicChecks();
+        
+        // Start sync interval
+        AppState.syncInterval = setInterval(() => {
+            EnhancedFirebaseManager.syncUserData();
+        }, 60000); // Sync every minute
+        
+        EnhancedUIUpdater.hideLoading();
+        EnhancedUIUpdater.showToast('Jubel Passenger App Ready', 'success');
+        console.log('App initialization completed successfully');
+        
+    } catch (error) {
+        console.error('Error initializing app:', error);
+        EnhancedUIUpdater.hideLoading();
+        EnhancedUIUpdater.showToast('Error initializing app', 'error');
+    }
+}
+
+        
+async function initializeApp() {
+    try {
+        console.log('Initializing Jubel Passenger App...');
+        EnhancedUIUpdater.showLoading('Initializing app...');
+        
+        // Initialize search engine
+        EnhancedSearchEngine.init();
+        
+        // Initialize location manager
+        EnhancedLocationManager.init();
+        
+        // Check authentication
+        const authInitialized = await checkAndInitializeAuth();
+        
+        if (!authInitialized) {
+            // Redirect will happen in checkAndInitializeAuth
+            return;
         }
         
         // Initialize map
@@ -9858,6 +9907,7 @@ window.addEventListener('load', initializeApp);
     </script>
 </body>
 </html>
+
 
 
 
