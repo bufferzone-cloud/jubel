@@ -10136,59 +10136,7 @@ const EnhancedUIUpdater = {
             return;
         }
         
-        // Create a detailed route using OSRM service
-        this.getOSRMRoute(start, end).then(route => {
-            if (route && route.coordinates) {
-                routeLayer = L.polyline(route.coordinates, {
-                    color: '#FF6B35',
-                    weight: 4,
-                    opacity: 0.8,
-                    lineJoin: 'round'
-                }).addTo(map);
-                
-                // Fit bounds to show entire route
-                const bounds = L.latLngBounds(route.coordinates);
-                map.fitBounds(bounds, { padding: [50, 50] });
-                
-                console.log('Route drawn successfully');
-            } else {
-                // Fallback to simple polyline
-                routeLayer = L.polyline([
-                    [start.lat, start.lng],
-                    [end.lat, end.lng]
-                ], {
-                    color: '#FF6B35',
-                    weight: 3,
-                    opacity: 0.7,
-                    dashArray: '10, 10'
-                }).addTo(map);
-                
-                const bounds = L.latLngBounds(
-                    [start.lat, start.lng],
-                    [end.lat, end.lng]
-                );
-                map.fitBounds(bounds, { padding: [50, 50] });
-            }
-        }).catch(error => {
-            console.error('Error drawing route:', error);
-            // Fallback to simple polyline
-            routeLayer = L.polyline([
-                [start.lat, start.lng],
-                [end.lat, end.lng]
-            ], {
-                color: '#FF6B35',
-                weight: 3,
-                opacity: 0.7,
-                dashArray: '10, 10'
-            }).addTo(map);
-            
-            const bounds = L.latLngBounds(
-                [start.lat, start.lng],
-                [end.lat, end.lng]
-            );
-            map.fitBounds(bounds, { padding: [50, 50] });
-        });
-    },
+       
     
     getOSRMRoute: async function(start, end) {
         try {
@@ -11053,19 +11001,7 @@ const EnhancedUIUpdater = {
         this.animatePulsatingMarker();
     },
     
-    animatePulsatingMarker: function() {
-        if (!AppState.isRidePulsating || !AppState.pulsatingMarker) return;
-        
-        AppState.pulsatingInterval = setInterval(() => {
-            const icon = AppState.pulsatingMarker.getElement();
-            if (icon) {
-                const circle = icon.querySelector('.pulsating-circle');
-                if (circle) {
-                    circle.classList.toggle('pulsating');
-                }
-            }
-        }, 1000);
-    },
+   
     
     stopPulsatingMarker: function() {
         AppState.isRidePulsating = false;
@@ -16618,60 +16554,6 @@ function setupHorizontalRideTypes() {
 // ============================================
 // PULSATING RIDE MARKER
 // ============================================
-function startPulsatingMarker(rideType = 'car') {
-    if (!AppState.pickup) return;
-    
-    // Clear existing pulsating marker
-    stopPulsatingMarker();
-    
-    // Determine icon based on ride type
-    let iconHtml = '<i class="fas fa-car"></i>';
-    let pulseColor = '#FF6B35';
-    
-    switch(rideType) {
-        case 'economy':
-            iconHtml = '<i class="fas fa-car-side"></i>';
-            pulseColor = '#4CAF50';
-            break;
-        case 'premium':
-            iconHtml = '<i class="fas fa-crown"></i>';
-            pulseColor = '#FFD700';
-            break;
-        case 'truck':
-            iconHtml = '<i class="fas fa-truck"></i>';
-            pulseColor = '#8B4513';
-            break;
-        case 'delivery':
-            iconHtml = '<i class="fas fa-shipping-fast"></i>';
-            pulseColor = '#9C27B0';
-            break;
-        case 'motorcycle':
-            iconHtml = '<i class="fas fa-motorcycle"></i>';
-            pulseColor = '#2196F3';
-            break;
-    }
-    
-    // Create pulsating marker
-    AppState.pulsatingMarker = L.marker([AppState.pickup.lat, AppState.pickup.lng], {
-        icon: L.divIcon({
-            className: 'pulsating-marker',
-            html: `
-                <div class="pulsating-container">
-                    <div class="pulsating-circle" style="border-color: ${pulseColor}"></div>
-                    <div class="pulsating-icon" style="color: ${pulseColor}">
-                        ${iconHtml}
-                    </div>
-                </div>
-            `,
-            iconSize: [60, 60],
-            iconAnchor: [30, 60]
-        })
-    }).addTo(map);
-    
-    // Start pulsating animation
-    AppState.isRidePulsating = true;
-    animatePulsatingMarker();
-}
 
 function animatePulsatingMarker() {
     if (!AppState.isRidePulsating || !AppState.pulsatingMarker) return;
@@ -16687,62 +16569,12 @@ function animatePulsatingMarker() {
     }, 1000);
 }
 
-function stopPulsatingMarker() {
-    AppState.isRidePulsating = false;
-    
-    if (AppState.pulsatingInterval) {
-        clearInterval(AppState.pulsatingInterval);
-        AppState.pulsatingInterval = null;
-    }
-    
-    if (AppState.pulsatingMarker) {
-        map.removeLayer(AppState.pulsatingMarker);
-        AppState.pulsatingMarker = null;
-    }
-}
+
 
 // ============================================
 // ROUTE DRAWING
 // ============================================
-function drawRouteBetweenPoints(start, end) {
-    if (!map || !start || !end) return;
-    
-    // Clear existing route
-    if (routeLayer) {
-        map.removeLayer(routeLayer);
-        routeLayer = null;
-    }
-    
-    // Use OSRM for route calculation
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`;
-    
-    fetch(osrmUrl)
-        .then(response => response.json())
-        .then(data => {
-            if (data.code === 'Ok' && data.routes[0]) {
-                const coordinates = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                // Draw route on map
-                routeLayer = L.polyline(coordinates, {
-                    color: '#FF6B35',
-                    weight: 4,
-                    opacity: 0.8,
-                    lineJoin: 'round'
-                }).addTo(map);
-                
-                // Fit bounds to show entire route
-                const bounds = L.latLngBounds(coordinates);
-                map.fitBounds(bounds, { padding: [50, 50] });
-            } else {
-                // Fallback to straight line
-                drawStraightRoute(start, end);
-            }
-        })
-        .catch(error => {
-            console.error('Error drawing route:', error);
-            drawStraightRoute(start, end);
-        });
-}
+
 
 function drawStraightRoute(start, end) {
     routeLayer = L.polyline([
@@ -17516,6 +17348,7 @@ window.EnhancedFirebaseManager = EnhancedFirebaseManager;
 </script>
 </body>
 </html>
+
 
 
 
