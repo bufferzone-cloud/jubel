@@ -5616,7 +5616,7 @@ I need help! My current location and ride details will be shared with you.
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-   <script>
+  <script>
 // ============================================
 // FIREBASE CONFIGURATION
 // ============================================
@@ -5673,6 +5673,7 @@ const AppState = {
     },
     realtimeListeners: [],
     rideTypes: {
+        bicycle: { base: 8, perKm: 1.5, multiplier: 0.6, min: 5, icon: 'fa-bicycle' },
         economy: { base: 15, perKm: 2.5, multiplier: 0.8, min: 10, icon: 'fa-car-side' },
         standard: { base: 20, perKm: 3.0, multiplier: 1.0, min: 15, icon: 'fa-car' },
         premium: { base: 30, perKm: 4.0, multiplier: 1.5, min: 25, icon: 'fa-crown' }
@@ -5713,6 +5714,7 @@ const AppState = {
     },
     activeScheduledTimer: null,
     rideRequestPulsingIcons: {
+        bicycle: null,
         car: null,
         bike: null,
         truck: null
@@ -5725,7 +5727,12 @@ const AppState = {
     referralDiscountAmount: 0,
     referralUsed: null,
     splitRideParticipants: [],
-    shareRideInvitations: []
+    shareRideInvitations: [],
+    stops: [],
+    maxStops: 3,
+    rideStops: [],
+    stopMarkers: [],
+    routePolyline: null
 };
 
 // ============================================
@@ -6336,6 +6343,7 @@ const EnhancedLocationManager = {
     init: function() {
         console.log('Enhanced Location Manager initialized');
         this.setupLocationInputs();
+        this.setupStopsFeature();
     },
     
     setupLocationInputs: function() {
@@ -6365,6 +6373,430 @@ const EnhancedLocationManager = {
                 this.setupDestinationInput(input);
             }
         });
+    },
+    
+    setupStopsFeature: function() {
+        const addStopBtn = document.getElementById('addStopBtn');
+        if (addStopBtn) {
+            addStopBtn.addEventListener('click', () => {
+                this.addStop();
+            });
+        }
+        
+        // Initialize stops container
+        const stopsContainer = document.getElementById('stopsContainer');
+        if (stopsContainer) {
+            stopsContainer.innerHTML = '';
+        }
+    },
+    
+    addStop: function() {
+        if (AppState.stops.length >= AppState.maxStops) {
+            EnhancedUIUpdater.showToast(`Maximum ${AppState.maxStops} stops allowed`, 'warning');
+            return;
+        }
+        
+        const stopId = `stop_${Date.now()}`;
+        const stopNumber = AppState.stops.length + 1;
+        
+        const stopElement = document.createElement('div');
+        stopElement.className = 'stop-entry';
+        stopElement.id = stopId;
+        stopElement.innerHTML = `
+            <div class="stop-header">
+                <div class="stop-number">Stop ${stopNumber}</div>
+                <button type="button" class="remove-stop-btn" onclick="EnhancedLocationManager.removeStop('${stopId}')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="location-input">
+                <i class="fas fa-map-marker-alt"></i>
+                <input type="text" class="stop-location-input" 
+                       id="${stopId}_input" 
+                       placeholder="Add stop location" 
+                       autocomplete="off">
+                <div class="stop-suggestions" id="${stopId}_suggestions"></div>
+            </div>
+        `;
+        
+        document.getElementById('stopsContainer').appendChild(stopElement);
+        
+        // Setup stop input
+        const stopInput = document.getElementById(`${stopId}_input`);
+        this.setupStopInput(stopInput, stopId);
+        
+        AppState.stops.push({
+            id: stopId,
+            location: null,
+            address: '',
+            index: stopNumber - 1
+        });
+        
+        console.log(`Stop ${stopNumber} added`);
+    },
+    
+    removeStop: function(stopId) {
+        const stopElement = document.getElementById(stopId);
+        if (stopElement) {
+            stopElement.remove();
+            
+            // Remove from AppState
+            AppState.stops = AppState.stops.filter(stop => stop.id !== stopId);
+            
+            // Update stop numbers
+            this.updateStopNumbers();
+            
+            // Remove marker from map
+            this.removeStopMarker(stopId);
+            
+            // Recalculate route
+            if (AppState.pickup && AppState.destination) {
+                this.calculateRouteWithStops();
+            }
+            
+            console.log('Stop removed:', stopId);
+        }
+    },
+    
+    updateStopNumbers: function() {
+        const stopElements = document.querySelectorAll('.stop-entry');
+        stopElements.forEach((element, index) => {
+            const stopNumber = element.querySelector('.stop-number');
+            if (stopNumber) {
+                stopNumber.textContent = `Stop ${index + 1}`;
+            }
+            
+            // Update AppState
+            const stopId = element.id;
+            const stopIndex = AppState.stops.findIndex(stop => stop.id === stopId);
+            if (stopIndex !== -1) {
+                AppState.stops[stopIndex].index = index;
+            }
+        });
+    },
+    
+    setupStopInput: function(inputElement, stopId) {
+        inputElement.addEventListener('focus', () => {
+            this.handleStopInputFocus(stopId, inputElement);
+        });
+        
+        inputElement.addEventListener('input', (e) => {
+            this.handleStopInputChange(stopId, e.target.value);
+        });
+        
+        inputElement.addEventListener('blur', () => {
+            setTimeout(() => {
+                this.handleStopInputBlur(stopId);
+            }, 200);
+        });
+    },
+    
+    handleStopInputFocus: function(stopId, inputElement) {
+        const parent = inputElement.closest('.location-input');
+        if (parent) {
+            parent.classList.add('active');
+        }
+    },
+    
+    handleStopInputChange: function(stopId, value) {
+        if (!value.trim() || value.length < 2) {
+            const suggestions = document.getElementById(`${stopId}_suggestions`);
+            if (suggestions) {
+                suggestions.style.display = 'none';
+            }
+            return;
+        }
+        
+        clearTimeout(this.searchTimeout);
+        this.searchTimeout = setTimeout(async () => {
+            await this.searchStopLocation(stopId, value);
+        }, 300);
+    },
+    
+    handleStopInputBlur: function(stopId) {
+        const input = document.getElementById(`${stopId}_input`);
+        const parent = input?.closest('.location-input');
+        if (parent) {
+            parent.classList.remove('active');
+            
+            setTimeout(() => {
+                const suggestions = document.getElementById(`${stopId}_suggestions`);
+                if (suggestions) {
+                    suggestions.style.display = 'none';
+                }
+            }, 200);
+        }
+    },
+    
+    async searchStopLocation(stopId, query) {
+        if (!AppState.currentCity) {
+            EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
+            return;
+        }
+        
+        try {
+            const results = await EnhancedSearchEngine.search(
+                query,
+                'stop',
+                AppState.userLocation,
+                AppState.currentCity
+            );
+            
+            this.showStopSuggestions(stopId, results);
+            
+        } catch (error) {
+            console.error('Stop search error:', error);
+        }
+    },
+    
+    showStopSuggestions: function(stopId, results) {
+        const container = document.getElementById(`${stopId}_suggestions`);
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (results.length === 0) {
+            container.innerHTML = `
+                <div class="no-results">
+                    <i class="fas fa-search"></i>
+                    <div>No results found in ${AppState.currentCity}</div>
+                </div>
+            `;
+        } else {
+            results.forEach(result => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.dataset.lat = result.lat;
+                item.dataset.lng = result.lng;
+                item.dataset.address = result.address;
+                item.dataset.name = result.name;
+                
+                item.innerHTML = `
+                    <div class="suggestion-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                    <div class="suggestion-details">
+                        <div class="suggestion-name">${result.name}</div>
+                        <div class="suggestion-address">${result.address}</div>
+                    </div>
+                `;
+                
+                item.addEventListener('click', () => {
+                    this.selectStopLocation(stopId, result);
+                });
+                
+                container.appendChild(item);
+            });
+        }
+        
+        container.style.display = 'block';
+    },
+    
+    selectStopLocation: function(stopId, location) {
+        const input = document.getElementById(`${stopId}_input`);
+        const suggestions = document.getElementById(`${stopId}_suggestions`);
+        
+        if (!input) return;
+        
+        // Validate location is within city
+        if (!EnhancedSearchEngine.validateCoordinatesInCity(location.lat, location.lng, AppState.currentCity)) {
+            EnhancedUIUpdater.showToast(`Location must be within ${AppState.currentCity}`, 'warning');
+            return;
+        }
+        
+        input.value = location.address || location.name;
+        
+        // Update AppState
+        const stopIndex = AppState.stops.findIndex(stop => stop.id === stopId);
+        if (stopIndex !== -1) {
+            AppState.stops[stopIndex].location = location;
+            AppState.stops[stopIndex].address = location.address;
+            
+            // Add marker to map
+            this.addStopMarker(stopId, location);
+            
+            // Recalculate route if pickup and destination are set
+            if (AppState.pickup && AppState.destination) {
+                this.calculateRouteWithStops();
+                EnhancedUIUpdater.calculateAndUpdatePrices();
+            }
+        }
+        
+        if (suggestions) {
+            suggestions.style.display = 'none';
+        }
+        
+        console.log(`Stop location selected: ${location.address}`);
+    },
+    
+    addStopMarker: function(stopId, location) {
+        // Remove existing marker for this stop
+        this.removeStopMarker(stopId);
+        
+        const stopIndex = AppState.stops.findIndex(stop => stop.id === stopId);
+        if (stopIndex === -1) return;
+        
+        const marker = L.marker([location.lat, location.lng], {
+            icon: L.divIcon({
+                className: 'stop-marker',
+                html: `<div class="stop-marker-content">${stopIndex + 1}</div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 30]
+            })
+        }).addTo(map).bindPopup(`Stop ${stopIndex + 1}: ${location.address}`);
+        
+        AppState.stopMarkers.push({
+            id: stopId,
+            marker: marker
+        });
+    },
+    
+    removeStopMarker: function(stopId) {
+        const markerIndex = AppState.stopMarkers.findIndex(m => m.id === stopId);
+        if (markerIndex !== -1) {
+            map.removeLayer(AppState.stopMarkers[markerIndex].marker);
+            AppState.stopMarkers.splice(markerIndex, 1);
+        }
+    },
+    
+    calculateRouteWithStops: async function() {
+        if (!AppState.pickup || !AppState.destination) return;
+        
+        // Clear existing route
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+            routeLayer = null;
+        }
+        
+        // Get all waypoints including stops
+        const waypoints = [];
+        
+        // Start with pickup
+        waypoints.push([AppState.pickup.lat, AppState.pickup.lng]);
+        
+        // Add stops in order
+        const sortedStops = [...AppState.stops]
+            .filter(stop => stop.location)
+            .sort((a, b) => a.index - b.index);
+        
+        sortedStops.forEach(stop => {
+            if (stop.location) {
+                waypoints.push([stop.location.lat, stop.location.lng]);
+            }
+        });
+        
+        // End with destination
+        waypoints.push([AppState.destination.lat, AppState.destination.lng]);
+        
+        // Calculate route with multiple waypoints
+        try {
+            const routeCoordinates = await this.calculateMultiPointRoute(waypoints);
+            
+            if (routeCoordinates.length > 1) {
+                routeLayer = L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 4,
+                    opacity: 0.7,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                }).addTo(map);
+                
+                // Fit map to route bounds
+                const bounds = L.latLngBounds(routeCoordinates);
+                map.fitBounds(bounds, { padding: [50, 50] });
+                
+                // Calculate total distance
+                const totalDistance = this.calculateRouteDistance(routeCoordinates);
+                console.log(`Route distance with stops: ${totalDistance.toFixed(2)} km`);
+                
+                // Update prices
+                EnhancedUIUpdater.calculateAndUpdatePrices();
+                
+                return totalDistance;
+            }
+        } catch (error) {
+            console.error('Error calculating route with stops:', error);
+            
+            // Fallback to direct route
+            routeLayer = L.polyline([
+                [AppState.pickup.lat, AppState.pickup.lng],
+                [AppState.destination.lat, AppState.destination.lng]
+            ], {
+                color: '#FF6B35',
+                weight: 3,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(map);
+        }
+    },
+    
+    calculateMultiPointRoute: async function(waypoints) {
+        if (waypoints.length < 2) return [];
+        
+        let allCoordinates = [];
+        
+        // Calculate route segments between each waypoint
+        for (let i = 0; i < waypoints.length - 1; i++) {
+            const start = waypoints[i];
+            const end = waypoints[i + 1];
+            
+            try {
+                const response = await fetch(
+                    `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`
+                );
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.routes && data.routes.length > 0) {
+                        const segmentCoords = data.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                        allCoordinates = allCoordinates.concat(segmentCoords);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error calculating segment ${i}:`, error);
+                // Add straight line for this segment
+                allCoordinates.push(start, end);
+            }
+        }
+        
+        return allCoordinates;
+    },
+    
+    calculateRouteDistance: function(routeCoordinates) {
+        let totalDistance = 0;
+        
+        for (let i = 0; i < routeCoordinates.length - 1; i++) {
+            const lat1 = routeCoordinates[i][0];
+            const lon1 = routeCoordinates[i][1];
+            const lat2 = routeCoordinates[i + 1][0];
+            const lon2 = routeCoordinates[i + 1][1];
+            
+            totalDistance += EnhancedSearchEngine.calculateDistance(lat1, lon1, lat2, lon2);
+        }
+        
+        return totalDistance;
+    },
+    
+    clearAllStops: function() {
+        // Remove all stop markers from map
+        AppState.stopMarkers.forEach(stopMarker => {
+            map.removeLayer(stopMarker.marker);
+        });
+        AppState.stopMarkers = [];
+        
+        // Clear stops container
+        const stopsContainer = document.getElementById('stopsContainer');
+        if (stopsContainer) {
+            stopsContainer.innerHTML = '';
+        }
+        
+        // Clear AppState stops
+        AppState.stops = [];
+        
+        // Recalculate route without stops
+        if (AppState.pickup && AppState.destination) {
+            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+        }
     },
     
     setupPickupInput: function(inputElement) {
@@ -6717,7 +7149,7 @@ const EnhancedLocationManager = {
         EnhancedUIUpdater.updatePickupMarker(location);
         
         if (AppState.destination) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
+            this.calculateRouteWithStops();
             RideTypeManager.updateRideTypeDisplay();
         }
         
@@ -6750,9 +7182,8 @@ const EnhancedLocationManager = {
         EnhancedUIUpdater.updateDestinationMarker(location);
         
         if (AppState.pickup) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
+            this.calculateRouteWithStops();
             RideTypeManager.updateRideTypeDisplay();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
         }
         
         const suggestions = document.getElementById(`${inputId}Suggestions`);
@@ -6761,10 +7192,6 @@ const EnhancedLocationManager = {
         }
         
         document.getElementById('searchHistory').style.display = 'none';
-        
-        if (AppState.pickup && AppState.destination) {
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-        }
     },
     
     resetPickupEditMode: function() {
@@ -6861,8 +7288,54 @@ const EnhancedPriceCalculator = {
         return EnhancedSearchEngine.calculateDistance(lat1, lon1, lat2, lon2);
     },
     
+    calculateDistanceWithStops: function(pickup, stops, destination) {
+        let totalDistance = 0;
+        
+        // Add distance from pickup to first stop
+        if (stops.length > 0) {
+            totalDistance += this.calculateDistance(
+                pickup.lat, pickup.lng,
+                stops[0].location.lat, stops[0].location.lng
+            );
+        } else {
+            totalDistance += this.calculateDistance(
+                pickup.lat, pickup.lng,
+                destination.lat, destination.lng
+            );
+        }
+        
+        // Add distances between stops
+        for (let i = 0; i < stops.length - 1; i++) {
+            totalDistance += this.calculateDistance(
+                stops[i].location.lat, stops[i].location.lng,
+                stops[i + 1].location.lat, stops[i + 1].location.lng
+            );
+        }
+        
+        // Add distance from last stop to destination
+        if (stops.length > 0) {
+            totalDistance += this.calculateDistance(
+                stops[stops.length - 1].location.lat, stops[stops.length - 1].location.lng,
+                destination.lat, destination.lng
+            );
+        }
+        
+        return totalDistance;
+    },
+    
     estimateTime: function(distanceKm, rideType = 'standard', traffic = null) {
-        const baseSpeed = rideType === 'premium' ? 45 : 35;
+        let baseSpeed;
+        switch(rideType) {
+            case 'bicycle':
+                baseSpeed = 15;
+                break;
+            case 'premium':
+                baseSpeed = 45;
+                break;
+            default:
+                baseSpeed = 35;
+        }
+        
         let baseTime = (distanceKm / baseSpeed) * 60;
         
         if (!traffic) {
@@ -6873,6 +7346,8 @@ const EnhancedPriceCalculator = {
         
         if (rideType === 'premium') {
             baseTime += 2;
+        } else if (rideType === 'bicycle') {
+            baseTime += 10; // Extra time for bicycle
         } else {
             baseTime += 5;
         }
@@ -7014,7 +7489,7 @@ const EnhancedPriceCalculator = {
         return {
             originalFare: originalFare,
             discountAmount: discountAmount,
-            finalFare: finalFare,
+            finalFare: Math.max(finalFare, 5),
             discountApplied: true
         };
     }
@@ -7137,7 +7612,7 @@ const EnhancedUIUpdater = {
     },
     
     updateRidePrices: function(distanceKm) {
-        const types = ['economy', 'standard', 'premium'];
+        const types = ['bicycle', 'economy', 'standard', 'premium'];
         const surge = EnhancedPriceCalculator.getSurgeMultiplier();
         
         types.forEach(type => {
@@ -7203,6 +7678,17 @@ const EnhancedUIUpdater = {
                 <div class="price-breakdown-row">
                     <span>Time of Day:</span>
                     <span>+ZMW ${breakdown.timeAmount.toFixed(2)}</span>
+                </div>
+            `;
+        }
+        
+        // Add stops cost if any
+        if (AppState.stops.length > 0) {
+            const stopsCost = AppState.stops.length * 5;
+            breakdownHTML += `
+                <div class="price-breakdown-row">
+                    <span>Stops (${AppState.stops.length}):</span>
+                    <span>+ZMW ${stopsCost.toFixed(2)}</span>
                 </div>
             `;
         }
@@ -7372,6 +7858,11 @@ const EnhancedUIUpdater = {
         if (ride.broadcast) {
             document.getElementById('broadcastFeature').style.display = 'block';
         }
+        
+        // Show stops if any
+        if (ride.stops && ride.stops.length > 0) {
+            this.showRideStops(ride.stops);
+        }
     },
     
     updateRideStatus: function(status) {
@@ -7417,16 +7908,22 @@ const EnhancedUIUpdater = {
     showPulsingRideIcon: function() {
         this.removePulsingRideIcon();
         
-        const serviceType = AppState.activeService;
         let iconClass = 'fa-car';
+        let iconType = 'car';
         
-        if (serviceType === 'truck' || AppState.currentRide?.serviceType === 'truck') {
+        if (AppState.selectedRideType === 'bicycle') {
+            iconClass = 'fa-bicycle';
+            iconType = 'bicycle';
+        } else if (AppState.activeService === 'truck' || AppState.currentRide?.serviceType === 'truck') {
             iconClass = 'fa-truck';
-        } else if (serviceType === 'delivery' || serviceType === 'short-delivery' || 
+            iconType = 'truck';
+        } else if (AppState.activeService === 'delivery' || AppState.activeService === 'short-delivery' || 
                   AppState.currentRide?.serviceType === 'delivery') {
             iconClass = 'fa-shipping-fast';
-        } else if (serviceType === 'express' || AppState.currentRide?.serviceType === 'shopping') {
+            iconType = 'delivery';
+        } else if (AppState.activeService === 'express' || AppState.currentRide?.serviceType === 'shopping') {
             iconClass = 'fa-shopping-bag';
+            iconType = 'shopping';
         }
         
         const pulsingIcon = document.createElement('div');
@@ -7448,7 +7945,7 @@ const EnhancedUIUpdater = {
         const mapContainer = document.getElementById('map');
         if (mapContainer) {
             mapContainer.appendChild(pulsingIcon);
-            AppState.rideRequestPulsingIcons[iconClass] = pulsingIcon;
+            AppState.rideRequestPulsingIcons[iconType] = pulsingIcon;
         }
     },
     
@@ -7681,7 +8178,7 @@ const EnhancedUIUpdater = {
         map.setView([location.lat, location.lng], 15);
         
         if (AppState.destination) {
-            this.drawRoute(location, AppState.destination);
+            EnhancedLocationManager.calculateRouteWithStops();
         }
     },
     
@@ -7705,7 +8202,7 @@ const EnhancedUIUpdater = {
         }
         
         if (AppState.pickup) {
-            this.drawRoute(AppState.pickup, location);
+            EnhancedLocationManager.calculateRouteWithStops();
         }
     },
     
@@ -7789,6 +8286,22 @@ const EnhancedUIUpdater = {
     
     calculateAndUpdatePrices: function() {
         if (AppState.pickup && AppState.destination) {
+            // Calculate distance with stops if any
+            let distance;
+            if (AppState.stops.length > 0) {
+                const validStops = AppState.stops.filter(stop => stop.location);
+                distance = EnhancedPriceCalculator.calculateDistanceWithStops(
+                    AppState.pickup,
+                    validStops,
+                    AppState.destination
+                );
+            } else {
+                distance = EnhancedPriceCalculator.calculateDistance(
+                    AppState.pickup.lat, AppState.pickup.lng,
+                    AppState.destination.lat, AppState.destination.lng
+                );
+            }
+            
             const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
                 AppState.pickup.lat, AppState.pickup.lng,
                 AppState.destination.lat, AppState.destination.lng,
@@ -7799,11 +8312,6 @@ const EnhancedUIUpdater = {
                 EnhancedUIUpdater.showToast(validation.message, 'warning');
                 return;
             }
-            
-            const distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
             
             switch(AppState.activeService) {
                 case 'car':
@@ -8018,6 +8526,10 @@ const EnhancedUIUpdater = {
             typeIcon = 'fa-shopping-bag';
             typeColor = 'var(--express-shop-green)';
             typeName = 'Express Shopping';
+        } else if (ride.rideType === 'bicycle') {
+            typeIcon = 'fa-bicycle';
+            typeColor = '#4CAF50';
+            typeName = 'Bicycle Ride';
         } else {
             typeIcon = 'fa-car';
             typeColor = 'var(--primary-orange)';
@@ -8480,9 +8992,11 @@ const EnhancedUIUpdater = {
                         <div class="time-label">Seconds</div>
                     </div>
                 </div>
-                <button id="cancelScheduleBtn" class="btn btn-danger">
-                    <i class="fas fa-times"></i> Cancel Schedule
-                </button>
+                <div class="countdown-actions">
+                    <button id="cancelScheduleBtn" class="btn btn-danger">
+                        <i class="fas fa-times"></i> Cancel Schedule
+                    </button>
+                </div>
             `;
             
             document.getElementById('mainPanel').appendChild(countdownContainer);
@@ -8528,10 +9042,15 @@ const EnhancedUIUpdater = {
         
         this.hideScheduleCountdown();
         
-        console.log('Requesting scheduled ride...');
-        
-        if (AppState.pendingPaymentRide) {
-            showPaymentModal(AppState.pendingPaymentRide.serviceType, AppState.pendingPaymentRide.fare, AppState.pendingPaymentRide);
+        // Get the scheduled ride data
+        const scheduledRide = AppState.pendingPaymentRide;
+        if (scheduledRide) {
+            // Remove scheduled property and request the ride
+            delete scheduledRide.scheduled;
+            delete scheduledRide.scheduledTime;
+            
+            // Show payment modal
+            showPaymentModal('car', scheduledRide.fare, scheduledRide);
         }
     },
     
@@ -8543,6 +9062,11 @@ const EnhancedUIUpdater = {
             }
             
             this.hideScheduleCountdown();
+            
+            // Remove from Firebase if it exists
+            if (AppState.pendingPaymentRide?.scheduledRideId) {
+                EnhancedFirebaseManager.cancelScheduledRide(AppState.pendingPaymentRide.scheduledRideId);
+            }
             
             EnhancedUIUpdater.showToast('Scheduled ride cancelled', 'success');
         }
@@ -8574,7 +9098,8 @@ const EnhancedUIUpdater = {
                         name: friendData.name,
                         phone: friendData.phone,
                         avatar: friendData.avatar,
-                        status: 'pending'
+                        status: 'pending',
+                        userId: friendData.id
                     };
                     
                     AppState.shareRideFriends.push(friend);
@@ -8629,6 +9154,7 @@ const EnhancedUIUpdater = {
             container.appendChild(friendElement);
         });
         
+        // Update price calculations
         if (AppState.pickup && AppState.destination) {
             const distance = EnhancedPriceCalculator.calculateDistance(
                 AppState.pickup.lat, AppState.pickup.lng,
@@ -8663,10 +9189,19 @@ const EnhancedUIUpdater = {
         }
     },
     
-    updateReferralDiscount: function(referralCode, discountAmount, finalFare) {
+    updateReferralDiscount: function(referralCode, discountAmount, finalFare, referrerName) {
         document.getElementById('referralCodeInput').value = referralCode;
         document.getElementById('discountAmount').textContent = `-ZMW ${discountAmount.toFixed(2)}`;
         document.getElementById('finalFareAmount').textContent = `ZMW ${finalFare.toFixed(2)}`;
+        
+        // Show referrer name if available
+        if (referrerName) {
+            const referrerInfo = document.getElementById('referrerInfo');
+            if (referrerInfo) {
+                referrerInfo.textContent = `Using ${referrerName}'s referral`;
+                referrerInfo.style.display = 'block';
+            }
+        }
         
         const applyBtn = document.getElementById('applyReferralBtn');
         if (applyBtn) {
@@ -8710,6 +9245,10 @@ const EnhancedUIUpdater = {
                         <div style="display: flex; justify-content: space-between;">
                             <span style="color: var(--text-gray);">Your Share:</span>
                             <span style="font-weight: bold; color: var(--primary-orange);">ZMW ${invitationData.yourShare.toFixed(2)}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 8px;">
+                            <span style="color: var(--text-gray);">Ride Type:</span>
+                            <span>${invitationData.rideType?.charAt(0).toUpperCase() + invitationData.rideType?.slice(1)}</span>
                         </div>
                     </div>
                     
@@ -8770,12 +9309,118 @@ const EnhancedUIUpdater = {
                         <button class="btn btn-primary" style="flex: 1;" onclick="EnhancedFirebaseManager.joinBroadcastRide('${invitationData.broadcastId}')">
                             <i class="fas fa-eye"></i> View Ride
                         </button>
+                        <button class="btn btn-success" style="flex: 1;" onclick="EnhancedFirebaseManager.acceptBroadcastInvitation('${invitationData.broadcastId}')">
+                            <i class="fas fa-check"></i> Join Ride
+                        </button>
                     </div>
                 </div>
             </div>
         `;
         
         document.body.appendChild(invitationModal);
+    },
+    
+    showRideStops: function(stops) {
+        const stopsContainer = document.getElementById('rideStopsContainer');
+        if (!stopsContainer) return;
+        
+        stopsContainer.innerHTML = '';
+        
+        if (stops.length === 0) {
+            stopsContainer.style.display = 'none';
+            return;
+        }
+        
+        stopsContainer.style.display = 'block';
+        
+        stops.forEach((stop, index) => {
+            const stopElement = document.createElement('div');
+            stopElement.className = 'ride-stop-item';
+            stopElement.innerHTML = `
+                <div class="stop-number">${index + 1}</div>
+                <div class="stop-details">
+                    <div class="stop-name">${stop.name || 'Stop'}</div>
+                    <div class="stop-address">${stop.address}</div>
+                </div>
+            `;
+            stopsContainer.appendChild(stopElement);
+        });
+    },
+    
+    showPaymentRequiredModal: function(amount, rideData, friendName = null) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay active';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h3>${friendName ? `Payment for ${friendName}'s Ride` : 'Payment Required'}</h3>
+                    <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div style="font-size: 48px; color: var(--primary-orange); margin-bottom: 10px;">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <h4>Amount to Pay: ZMW ${amount.toFixed(2)}</h4>
+                        ${friendName ? `<p style="color: var(--text-gray);">For your share of ${friendName}'s ride</p>` : ''}
+                    </div>
+                    
+                    <div class="payment-options">
+                        <div class="payment-method wallet selected" data-payment="wallet">
+                            <i class="fas fa-wallet"></i>
+                            <span>Wallet (ZMW ${AppState.walletBalance.toFixed(2)})</span>
+                        </div>
+                        <div class="payment-method cash" data-payment="cash">
+                            <i class="fas fa-money-bill"></i>
+                            <span>Cash</span>
+                        </div>
+                    </div>
+                    
+                    <button id="confirmFriendPaymentBtn" class="btn btn-primary" style="width: 100%; margin-top: 20px;">
+                        <i class="fas fa-check"></i> Confirm Payment
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Setup payment method selection
+        modal.querySelectorAll('.payment-method').forEach(method => {
+            method.addEventListener('click', () => {
+                modal.querySelectorAll('.payment-method').forEach(m => {
+                    m.classList.remove('selected');
+                });
+                method.classList.add('selected');
+            });
+        });
+        
+        // Setup payment confirmation
+        modal.querySelector('#confirmFriendPaymentBtn').addEventListener('click', () => {
+            const selectedMethod = modal.querySelector('.payment-method.selected');
+            if (!selectedMethod) {
+                EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
+                return;
+            }
+            
+            const paymentMethod = selectedMethod.dataset.payment;
+            
+            if (paymentMethod === 'wallet' && AppState.walletBalance < amount) {
+                EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
+                return;
+            }
+            
+            EnhancedFirebaseManager.processFriendPayment(rideData, amount, paymentMethod)
+                .then(() => {
+                    modal.remove();
+                    EnhancedUIUpdater.showToast('Payment processed successfully', 'success');
+                })
+                .catch(error => {
+                    EnhancedUIUpdater.showToast('Error processing payment', 'error');
+                });
+        });
     }
 };
 
@@ -8798,12 +9443,15 @@ const RideTypeManager = {
             margin: 15px 0;
             gap: 10px;
             padding: 0 15px;
+            overflow-x: auto;
+            scrollbar-width: none;
         `;
         
         const rideTypes = [
-            { id: 'economy', name: 'Economy', icon: 'fa-car-side', color: '#4CAF50' },
-            { id: 'standard', name: 'Standard', icon: 'fa-car', color: '#2196F3' },
-            { id: 'premium', name: 'Premium', icon: 'fa-crown', color: '#FF9800' }
+            { id: 'bicycle', name: 'Bicycle', icon: 'fa-bicycle', color: '#4CAF50' },
+            { id: 'economy', name: 'Economy', icon: 'fa-car-side', color: '#2196F3' },
+            { id: 'standard', name: 'Standard', icon: 'fa-car', color: '#FF9800' },
+            { id: 'premium', name: 'Premium', icon: 'fa-crown', color: '#9C27B0' }
         ];
         
         rideTypes.forEach(rideType => {
@@ -8811,7 +9459,7 @@ const RideTypeManager = {
             card.className = 'ride-type-card';
             card.dataset.type = rideType.id;
             card.style.cssText = `
-                flex: 1;
+                min-width: 100px;
                 padding: 15px;
                 background: white;
                 border-radius: 10px;
@@ -8824,6 +9472,7 @@ const RideTypeManager = {
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
+                flex-shrink: 0;
             `;
             
             card.innerHTML = `
@@ -8871,17 +9520,42 @@ const RideTypeManager = {
                 carForm.appendChild(container);
             }
         }
+        
+        // Also add to schedule and share modals
+        const modals = ['scheduleModal', 'shareRideModal', 'orderForSomeoneModal'];
+        modals.forEach(modalId => {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                const modalContainer = container.cloneNode(true);
+                modalContainer.id = `${modalId}RideTypeCards`;
+                const destinationInput = modal.querySelector('input[type="text"]');
+                if (destinationInput) {
+                    destinationInput.parentNode.parentNode.insertBefore(modalContainer, destinationInput.parentNode.nextSibling);
+                }
+            }
+        });
     },
     
     updateRideTypeDisplay: function() {
         if (AppState.pickup && AppState.destination) {
-            const distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
+            // Calculate distance with stops if any
+            let distance;
+            if (AppState.stops.length > 0) {
+                const validStops = AppState.stops.filter(stop => stop.location);
+                distance = EnhancedPriceCalculator.calculateDistanceWithStops(
+                    AppState.pickup,
+                    validStops,
+                    AppState.destination
+                );
+            } else {
+                distance = EnhancedPriceCalculator.calculateDistance(
+                    AppState.pickup.lat, AppState.pickup.lng,
+                    AppState.destination.lat, AppState.destination.lng
+                );
+            }
             
             const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-            const rideTypes = ['economy', 'standard', 'premium'];
+            const rideTypes = ['bicycle', 'economy', 'standard', 'premium'];
             
             rideTypes.forEach(type => {
                 const price = EnhancedPriceCalculator.calculateRideFare(distance, type, surge);
@@ -8922,6 +9596,8 @@ const EnhancedFirebaseManager = {
                 await this.loadRideHistory(uid);
                 
                 await this.loadNotifications(uid);
+                
+                await this.loadWalletTransactions(uid);
                 
                 EnhancedSearchEngine.loadSearchHistory();
                 
@@ -9043,6 +9719,7 @@ const EnhancedFirebaseManager = {
                             const timeUntilRide = ride.scheduledTime - now;
                             if (timeUntilRide <= 3600000) {
                                 EnhancedUIUpdater.showScheduleCountdown(ride.scheduledTime);
+                                AppState.pendingPaymentRide = ride;
                             }
                         }
                     });
@@ -9066,7 +9743,8 @@ const EnhancedFirebaseManager = {
                         pickup: invitation.pickup,
                         destination: invitation.destination,
                         distance: invitation.distance,
-                        yourShare: invitation.yourShare
+                        yourShare: invitation.yourShare,
+                        rideType: invitation.rideType
                     });
                 }
             })
@@ -9090,6 +9768,29 @@ const EnhancedFirebaseManager = {
                         distance: invitation.distance,
                         eta: invitation.eta
                     });
+                }
+            })
+        );
+        
+        const broadcastRidesRef = database.ref('broadcasts')
+            .orderByChild('recipients')
+            .startAt({phone: AppState.userData?.phone})
+            .endAt({phone: AppState.userData?.phone});
+        
+        AppState.realtimeListeners.push(
+            broadcastRidesRef.on('child_added', (snapshot) => {
+                const broadcast = snapshot.val();
+                if (broadcast && broadcast.status === 'active') {
+                    console.log('New broadcast ride available:', broadcast.id);
+                    
+                    // Load the associated ride
+                    this.loadRideDetails(broadcast.rideId)
+                        .then(ride => {
+                            if (ride) {
+                                // Show broadcast ride info
+                                this.showBroadcastRideInfo(ride, broadcast);
+                            }
+                        });
                 }
             })
         );
@@ -9216,6 +9917,28 @@ const EnhancedFirebaseManager = {
         }
     },
     
+    async loadWalletTransactions(uid) {
+        try {
+            const snapshot = await database.ref('transactions')
+                .orderByChild('userId')
+                .equalTo(uid)
+                .once('value');
+            
+            const transactions = snapshot.val();
+            if (transactions) {
+                const transactionsArray = Object.values(transactions)
+                    .sort((a, b) => b.timestamp - a.timestamp);
+                
+                console.log(`Loaded ${transactionsArray.length} wallet transactions`);
+                return transactionsArray;
+            }
+            return [];
+        } catch (error) {
+            console.error('Error loading wallet transactions:', error);
+            return [];
+        }
+    },
+    
     async loadNotifications(uid) {
         try {
             const snapshot = await database.ref(`notifications/${uid}`)
@@ -9262,6 +9985,10 @@ const EnhancedFirebaseManager = {
                 return rides.filter(ride => ride.serviceType === 'truck');
             case 'broadcast':
                 return rides.filter(ride => ride.broadcast);
+            case 'share':
+                return rides.filter(ride => ride.sharedRide);
+            case 'bicycle':
+                return rides.filter(ride => ride.rideType === 'bicycle');
             default:
                 return rides;
         }
@@ -9433,6 +10160,17 @@ const EnhancedFirebaseManager = {
                 throw new Error('Locations must be within city boundaries');
             }
             
+            // Prepare stops data
+            const stopsData = AppState.stops
+                .filter(stop => stop.location)
+                .map(stop => ({
+                    address: stop.address,
+                    name: stop.location.name,
+                    lat: stop.location.lat,
+                    lng: stop.location.lng,
+                    index: stop.index
+                }));
+            
             const rideId = database.ref().child('rides').push().key;
             const ride = {
                 id: rideId,
@@ -9443,7 +10181,9 @@ const EnhancedFirebaseManager = {
                 passengerId: AppState.currentUser.uid,
                 passengerName: AppState.userData.name,
                 passengerPhone: AppState.userData.phone,
-                city: AppState.currentCity
+                city: AppState.currentCity,
+                stops: stopsData,
+                stopsCount: stopsData.length
             };
             
             console.log('Creating ride:', rideId);
@@ -9763,6 +10503,21 @@ const EnhancedFirebaseManager = {
         }
     },
     
+    async cancelScheduledRide(scheduledRideId) {
+        try {
+            await database.ref(`scheduledRides/${scheduledRideId}`).update({
+                status: 'cancelled',
+                cancelledAt: Date.now()
+            });
+            
+            console.log('Scheduled ride cancelled:', scheduledRideId);
+            return true;
+        } catch (error) {
+            console.error('Error cancelling scheduled ride:', error);
+            return false;
+        }
+    },
+    
     async scheduleRide(rideData) {
         try {
             EnhancedUIUpdater.showLoading('Scheduling ride...');
@@ -10008,7 +10763,8 @@ const EnhancedFirebaseManager = {
                 message: message,
                 timestamp: Date.now(),
                 type: 'transfer',
-                status: 'completed'
+                status: 'completed',
+                userId: AppState.currentUser.uid
             };
             
             await database.ref(`transactions/${transactionId}`).set(transaction);
@@ -10110,13 +10866,23 @@ const EnhancedFirebaseManager = {
             actionButtons.appendChild(receiptBtn);
         }
         
+        // Handle wallet payment
         if (ride.paymentMethod === 'wallet') {
             const newBalance = AppState.walletBalance - ride.fare;
             EnhancedUIUpdater.updateWalletBalance(newBalance);
+            
+            // Record transaction
+            this.recordRidePaymentTransaction(ride);
         }
         
+        // Handle referral reward
         if (ride.referredBy) {
             this.handleReferralReward(ride);
+        }
+        
+        // Handle share ride payments
+        if (ride.sharedRide && ride.shareParticipants) {
+            this.handleShareRideCompletion(ride);
         }
         
         this.sendNotification(
@@ -10132,15 +10898,39 @@ const EnhancedFirebaseManager = {
         }, 5000);
     },
     
+    recordRidePaymentTransaction: function(ride) {
+        try {
+            const transactionId = database.ref().child('transactions').push().key;
+            const transaction = {
+                id: transactionId,
+                type: 'ride_payment',
+                amount: ride.fare,
+                description: `Ride from ${ride.pickupDisplay} to ${ride.destinationDisplay}`,
+                rideId: ride.id,
+                rideType: ride.rideType || ride.serviceType,
+                timestamp: Date.now(),
+                status: 'completed',
+                userId: AppState.currentUser.uid
+            };
+            
+            database.ref(`transactions/${transactionId}`).set(transaction);
+            console.log('Ride payment transaction recorded:', transactionId);
+        } catch (error) {
+            console.error('Error recording ride payment transaction:', error);
+        }
+    },
+    
     async handleReferralReward(ride) {
         try {
             const usersSnapshot = await database.ref('users').once('value');
             const users = usersSnapshot.val();
             let referrerId = null;
+            let referrerName = '';
             
             for (const [userId, userData] of Object.entries(users)) {
                 if (userData.referralCode === ride.referredBy) {
                     referrerId = userId;
+                    referrerName = userData.name;
                     break;
                 }
             }
@@ -10155,15 +10945,14 @@ const EnhancedFirebaseManager = {
                 const transactionId = database.ref().child('transactions').push().key;
                 const transaction = {
                     id: transactionId,
-                    senderId: 'system',
-                    senderName: 'Jubel System',
-                    recipientId: referrerId,
-                    recipientName: users[referrerId].name,
+                    type: 'referral_reward',
                     amount: 25,
-                    message: `Referral reward from ${AppState.userData.name}`,
+                    description: `Referral reward from ${AppState.userData.name}`,
+                    referredUserId: AppState.currentUser.uid,
+                    referredUserName: AppState.userData.name,
                     timestamp: Date.now(),
-                    type: 'referral',
-                    status: 'completed'
+                    status: 'completed',
+                    userId: referrerId
                 };
                 
                 await database.ref(`transactions/${transactionId}`).set(transaction);
@@ -10180,6 +10969,36 @@ const EnhancedFirebaseManager = {
             }
         } catch (error) {
             console.error('Error handling referral reward:', error);
+        }
+    },
+    
+    async handleShareRideCompletion(ride) {
+        try {
+            // Process payments for all share participants
+            if (ride.shareParticipantsData) {
+                for (const participant of ride.shareParticipantsData) {
+                    if (participant.userId !== AppState.currentUser.uid && participant.paymentStatus === 'pending') {
+                        // Record transaction for friend's payment
+                        const transactionId = database.ref().child('transactions').push().key;
+                        const transaction = {
+                            id: transactionId,
+                            type: 'share_ride_payment',
+                            amount: participant.amount,
+                            description: `Share ride payment for ${ride.pickupDisplay} to ${ride.destinationDisplay}`,
+                            rideId: ride.id,
+                            friendId: participant.userId,
+                            friendName: participant.name,
+                            timestamp: Date.now(),
+                            status: 'completed',
+                            userId: AppState.currentUser.uid
+                        };
+                        
+                        await database.ref(`transactions/${transactionId}`).set(transaction);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error handling share ride completion:', error);
         }
     },
     
@@ -10209,9 +11028,17 @@ const EnhancedFirebaseManager = {
             doc.text(`Ride Type: ${ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1)}`, 20, 85);
         }
         
-        doc.text('Fare Breakdown:', 20, 95);
+        // Add stops if any
+        if (ride.stops && ride.stops.length > 0) {
+            doc.text(`Stops: ${ride.stops.length}`, 20, 90);
+            ride.stops.forEach((stop, index) => {
+                doc.text(`  ${index + 1}. ${stop.address}`, 25, 95 + (index * 5));
+            });
+        }
         
-        let yPos = 100;
+        doc.text('Fare Breakdown:', 20, ride.stops && ride.stops.length > 0 ? 100 + (ride.stops.length * 5) : 95);
+        
+        let yPos = ride.stops && ride.stops.length > 0 ? 105 + (ride.stops.length * 5) : 100;
         if (ride.serviceType === 'truck') {
             const config = AppState.truckTypes[ride.truckType] || AppState.truckTypes.light;
             doc.text(`Base Fare: ZMW ${config.base.toFixed(2)}`, 30, yPos);
@@ -10226,6 +11053,18 @@ const EnhancedFirebaseManager = {
             doc.text(`Base Fare: ZMW ${(AppState.rideTypes[ride.rideType]?.base || 20).toFixed(2)}`, 30, yPos);
             yPos += 5;
             doc.text(`Distance Fare: ZMW ${((ride.distance || 0) * (AppState.rideTypes[ride.rideType]?.perKm || 3)).toFixed(2)}`, 30, yPos);
+        }
+        
+        // Add stops cost
+        if (ride.stops && ride.stops.length > 0) {
+            yPos += 5;
+            doc.text(`Stops Cost: ZMW ${(ride.stops.length * 5).toFixed(2)}`, 30, yPos);
+        }
+        
+        // Add referral discount if applied
+        if (ride.discountAmount) {
+            yPos += 5;
+            doc.text(`Referral Discount: -ZMW ${ride.discountAmount.toFixed(2)}`, 30, yPos);
         }
         
         yPos += 5;
@@ -10264,10 +11103,14 @@ const EnhancedFirebaseManager = {
         
         document.getElementById('broadcastFeature').style.display = 'none';
         
+        document.getElementById('rideStopsContainer').style.display = 'none';
+        
         AppState.currentRide = null;
         AppState.emergencyMode = false;
         AppState.selectedVehicle = null;
         AppState.driverLocation = null;
+        AppState.stops = [];
+        EnhancedLocationManager.clearAllStops();
         
         if (driverMarker) {
             map.removeLayer(driverMarker);
@@ -10415,24 +11258,107 @@ const EnhancedFirebaseManager = {
             if (broadcast) {
                 const ride = await this.loadRideDetails(broadcast.rideId);
                 if (ride) {
-                    AppState.currentRide = ride;
-                    EnhancedUIUpdater.showRideInfo(ride);
+                    // Show broadcast ride info without joining
+                    this.showBroadcastRideInfo(ride, broadcast);
                     EnhancedUIUpdater.showToast('You are now viewing the broadcast ride', 'success');
-                    
-                    this.listenToRideUpdates(ride.id);
-                    
-                    if (ride.driverId) {
-                        this.listenToDriverLocation(ride.driverId);
-                        this.loadDriverInfo(ride.driverId);
-                    }
-                    
-                    this.listenToChatMessages(ride.id);
                 }
             }
         } catch (error) {
             console.error('Error joining broadcast ride:', error);
             EnhancedUIUpdater.showToast('Error joining broadcast ride', 'error');
         }
+    },
+    
+    showBroadcastRideInfo: function(ride, broadcast) {
+        // Create a special view for broadcast rides
+        const broadcastPanel = document.createElement('div');
+        broadcastPanel.className = 'broadcast-ride-panel active';
+        broadcastPanel.innerHTML = `
+            <div class="broadcast-header">
+                <h3>${broadcast.hostName}'s Ride</h3>
+                <button class="close-broadcast" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="broadcast-content">
+                <div class="broadcast-info">
+                    <div class="info-row">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>${ride.pickupDisplay}</span>
+                    </div>
+                    <div class="info-row">
+                        <i class="fas fa-flag"></i>
+                        <span>${ride.destinationDisplay}</span>
+                    </div>
+                    <div class="info-row">
+                        <i class="fas fa-road"></i>
+                        <span>${ride.distance?.toFixed(1) || '0'} km</span>
+                    </div>
+                    <div class="info-row">
+                        <i class="fas fa-clock"></i>
+                        <span>ETA: ${EnhancedPriceCalculator.estimateTime(ride.distance || 0, ride.rideType)} min</span>
+                    </div>
+                </div>
+                
+                <div class="broadcast-status">
+                    <div class="status-indicator active">
+                        <i class="fas fa-broadcast-tower"></i>
+                        <span>Live Tracking</span>
+                    </div>
+                </div>
+                
+                <div class="broadcast-map" id="broadcastMap" style="height: 200px; margin: 15px 0; border-radius: 10px;"></div>
+                
+                <button class="btn btn-primary" onclick="EnhancedFirebaseManager.acceptBroadcastInvitation('${broadcast.id}')">
+                    <i class="fas fa-check"></i> Join Ride
+                </button>
+            </div>
+        `;
+        
+        document.body.appendChild(broadcastPanel);
+        
+        // Initialize map for broadcast
+        setTimeout(() => {
+            const broadcastMap = L.map('broadcastMap').setView([ride.pickupLat || -15.4167, ride.pickupLng || 28.2833], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(broadcastMap);
+            
+            // Add pickup and destination markers
+            if (ride.pickupLat && ride.pickupLng) {
+                L.marker([ride.pickupLat, ride.pickupLng], {
+                    icon: L.divIcon({
+                        className: 'pickup-marker',
+                        html: '<i class="fas fa-map-marker-alt"></i>',
+                        iconSize: [20, 20]
+                    })
+                }).addTo(broadcastMap).bindPopup('Pickup');
+            }
+            
+            if (ride.destLat && ride.destLng) {
+                L.marker([ride.destLat, ride.destLng], {
+                    icon: L.divIcon({
+                        className: 'destination-marker',
+                        html: '<i class="fas fa-flag"></i>',
+                        iconSize: [20, 20]
+                    })
+                }).addTo(broadcastMap).bindPopup('Destination');
+            }
+            
+            // Draw route
+            if (ride.pickupLat && ride.pickupLng && ride.destLat && ride.destLng) {
+                const routeCoordinates = [
+                    [ride.pickupLat, ride.pickupLng],
+                    [ride.destLat, ride.destLng]
+                ];
+                L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 3
+                }).addTo(broadcastMap);
+                
+                broadcastMap.fitBounds(routeCoordinates);
+            }
+        }, 100);
     },
     
     async updateProfile(profileData) {
@@ -10477,15 +11403,12 @@ const EnhancedFirebaseManager = {
             const transactionId = database.ref().child('transactions').push().key;
             const transaction = {
                 id: transactionId,
-                senderId: 'system',
-                senderName: 'Deposit',
-                recipientId: AppState.currentUser.uid,
-                recipientName: AppState.userData.name,
-                amount: amount,
-                message: 'Wallet deposit',
-                timestamp: Date.now(),
                 type: 'deposit',
-                status: 'completed'
+                amount: amount,
+                description: 'Wallet deposit',
+                timestamp: Date.now(),
+                status: 'completed',
+                userId: AppState.currentUser.uid
             };
             
             await database.ref(`transactions/${transactionId}`).set(transaction);
@@ -10519,15 +11442,12 @@ const EnhancedFirebaseManager = {
             const transactionId = database.ref().child('transactions').push().key;
             const transaction = {
                 id: transactionId,
-                senderId: AppState.currentUser.uid,
-                senderName: AppState.userData.name,
-                recipientId: 'system',
-                recipientName: 'Withdrawal',
-                amount: amount,
-                message: 'Wallet withdrawal',
-                timestamp: Date.now(),
                 type: 'withdrawal',
-                status: 'completed'
+                amount: amount,
+                description: 'Wallet withdrawal',
+                timestamp: Date.now(),
+                status: 'completed',
+                userId: AppState.currentUser.uid
             };
             
             await database.ref(`transactions/${transactionId}`).set(transaction);
@@ -10665,7 +11585,8 @@ const EnhancedFirebaseManager = {
             EnhancedUIUpdater.updateReferralDiscount(
                 referralCode,
                 discountCalculation.discountAmount,
-                discountCalculation.finalFare
+                discountCalculation.finalFare,
+                checkResult.userData.name
             );
             
             return {
@@ -10710,10 +11631,29 @@ const EnhancedFirebaseManager = {
             );
             
             const rideId = database.ref().child('rides').push().key;
+            
+            // Prepare share participants data
+            const shareParticipantsData = [
+                {
+                    userId: AppState.currentUser.uid,
+                    name: AppState.userData.name,
+                    amount: calculation.yourShare,
+                    paymentStatus: rideData.paymentMethod ? 'paid' : 'pending',
+                    paymentMethod: rideData.paymentMethod
+                },
+                ...AppState.shareRideFriends.map(friend => ({
+                    userId: friend.userId,
+                    name: friend.name,
+                    amount: calculation.passengerShare,
+                    paymentStatus: 'pending',
+                    paymentMethod: null
+                }))
+            ];
+            
             const ride = {
                 id: rideId,
                 ...rideData,
-                status: 'pending',
+                status: 'pending_share_payments',
                 timestamp: Date.now(),
                 updatedAt: Date.now(),
                 passengerId: AppState.currentUser.uid,
@@ -10722,6 +11662,7 @@ const EnhancedFirebaseManager = {
                 city: AppState.currentCity,
                 sharedRide: true,
                 shareParticipants: totalPeople,
+                shareParticipantsData: shareParticipantsData,
                 totalFare: calculation.total,
                 yourShare: calculation.yourShare,
                 friendShare: calculation.passengerShare
@@ -10729,14 +11670,15 @@ const EnhancedFirebaseManager = {
             
             await database.ref(`rides/${rideId}`).set(ride);
             
-            AppState.shareRideFriends.forEach(async (friend) => {
+            // Send invitations to all friends
+            const invitationPromises = AppState.shareRideFriends.map(async (friend) => {
                 const invitationId = database.ref().child('shareInvitations').push().key;
                 await database.ref(`shareInvitations/${invitationId}`).set({
                     id: invitationId,
                     rideId: rideId,
                     hostId: AppState.currentUser.uid,
                     hostName: AppState.userData.name,
-                    recipientId: friend.id,
+                    recipientId: friend.userId,
                     recipientPhone: friend.phone,
                     pickup: rideData.pickup,
                     destination: rideData.destination,
@@ -10748,9 +11690,9 @@ const EnhancedFirebaseManager = {
                 });
                 
                 await this.sendNotification(
-                    friend.id,
+                    friend.userId,
                     'Share Ride Invitation',
-                    `${AppState.userData.name} invited you to share a ride to ${rideData.destination}`,
+                    `${AppState.userData.name} invited you to share a ride to ${rideData.destination}. Your share: ZMW ${calculation.passengerShare.toFixed(2)}`,
                     'share',
                     {
                         invitationId: invitationId,
@@ -10759,6 +11701,8 @@ const EnhancedFirebaseManager = {
                     }
                 );
             });
+            
+            await Promise.all(invitationPromises);
             
             EnhancedUIUpdater.hideLoading();
             EnhancedUIUpdater.showToast('Share ride invitations sent', 'success');
@@ -10787,15 +11731,15 @@ const EnhancedFirebaseManager = {
             const ride = rideSnapshot.val();
             
             if (ride) {
-                const updatedParticipants = ride.acceptedParticipants || [];
-                updatedParticipants.push({
-                    userId: AppState.currentUser.uid,
-                    name: AppState.userData.name,
-                    phone: AppState.userData.phone,
-                    status: 'accepted'
+                // Update participant status
+                const updatedParticipants = ride.shareParticipantsData.map(participant => {
+                    if (participant.userId === AppState.currentUser.uid) {
+                        return { ...participant, status: 'accepted' };
+                    }
+                    return participant;
                 });
                 
-                await database.ref(`rides/${invitation.rideId}/acceptedParticipants`).set(updatedParticipants);
+                await database.ref(`rides/${invitation.rideId}/shareParticipantsData`).set(updatedParticipants);
                 
                 await this.sendNotification(
                     invitation.hostId,
@@ -10806,17 +11750,83 @@ const EnhancedFirebaseManager = {
                 
                 EnhancedUIUpdater.showToast('You have accepted the share ride invitation', 'success');
                 
-                if (updatedParticipants.length === ride.shareParticipants - 1) {
-                    showPaymentModal('share', invitation.yourShare, {
+                // Show payment modal for the friend's share
+                EnhancedUIUpdater.showPaymentRequiredModal(
+                    invitation.yourShare,
+                    {
                         ...ride,
-                        paymentType: 'share_participant',
-                        yourShare: invitation.yourShare
-                    });
-                }
+                        invitationId: invitationId
+                    },
+                    invitation.hostName
+                );
             }
         } catch (error) {
             console.error('Error accepting share ride invitation:', error);
             EnhancedUIUpdater.showToast('Error accepting invitation', 'error');
+        }
+    },
+    
+    async processFriendPayment(rideData, amount, paymentMethod) {
+        try {
+            // Update ride with friend's payment
+            const rideSnapshot = await database.ref(`rides/${rideData.id}`).once('value');
+            const ride = rideSnapshot.val();
+            
+            if (ride) {
+                const updatedParticipants = ride.shareParticipantsData.map(participant => {
+                    if (participant.userId === AppState.currentUser.uid) {
+                        return {
+                            ...participant,
+                            paymentStatus: 'paid',
+                            paymentMethod: paymentMethod,
+                            paidAt: Date.now()
+                        };
+                    }
+                    return participant;
+                });
+                
+                await database.ref(`rides/${rideData.id}/shareParticipantsData`).set(updatedParticipants);
+                
+                // Check if all payments are complete
+                const allPaid = updatedParticipants.every(p => p.paymentStatus === 'paid');
+                if (allPaid) {
+                    // Update ride status to requested
+                    await database.ref(`rides/${rideData.id}/status`).set('requested');
+                    await database.ref(`rides/${rideData.id}/updatedAt`).set(Date.now());
+                    
+                    // Notify host
+                    await this.sendNotification(
+                        ride.passengerId,
+                        'All Payments Received',
+                        'All participants have paid their shares. Your ride is now being requested.',
+                        'success'
+                    );
+                }
+                
+                // Record transaction
+                const transactionId = database.ref().child('transactions').push().key;
+                const transaction = {
+                    id: transactionId,
+                    type: 'share_ride_payment',
+                    amount: amount,
+                    description: `Share ride payment for ${ride.pickupDisplay} to ${ride.destinationDisplay}`,
+                    rideId: rideData.id,
+                    hostId: ride.passengerId,
+                    hostName: ride.passengerName,
+                    timestamp: Date.now(),
+                    status: 'completed',
+                    userId: AppState.currentUser.uid
+                };
+                
+                await database.ref(`transactions/${transactionId}`).set(transaction);
+                
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('Error processing friend payment:', error);
+            throw error;
         }
     },
     
@@ -10828,12 +11838,25 @@ const EnhancedFirebaseManager = {
             const invitation = snapshot.val();
             
             if (invitation) {
-                await this.sendNotification(
-                    invitation.hostId,
-                    'Share Ride Rejected',
-                    `${AppState.userData.name} rejected your share ride invitation`,
-                    'warning'
-                );
+                // Update ride to remove participant
+                const rideSnapshot = await database.ref(`rides/${invitation.rideId}`).once('value');
+                const ride = rideSnapshot.val();
+                
+                if (ride) {
+                    const updatedParticipants = ride.shareParticipantsData.filter(
+                        p => p.userId !== AppState.currentUser.uid
+                    );
+                    
+                    await database.ref(`rides/${invitation.rideId}/shareParticipantsData`).set(updatedParticipants);
+                    await database.ref(`rides/${invitation.rideId}/shareParticipants`).set(updatedParticipants.length);
+                    
+                    await this.sendNotification(
+                        invitation.hostId,
+                        'Share Ride Rejected',
+                        `${AppState.userData.name} rejected your share ride invitation`,
+                        'warning'
+                    );
+                }
                 
                 EnhancedUIUpdater.showToast('You have rejected the share ride invitation', 'info');
             }
@@ -11696,6 +12719,8 @@ function setupEventListeners() {
         }
         AppState.destination = null;
         
+        EnhancedLocationManager.clearAllStops();
+        
         EnhancedUIUpdater.showToast('Route cleared', 'info');
     });
     
@@ -11714,10 +12739,21 @@ function setupEventListeners() {
             return;
         }
         
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
+        // Calculate distance with stops
+        let distance;
+        if (AppState.stops.length > 0) {
+            const validStops = AppState.stops.filter(stop => stop.location);
+            distance = EnhancedPriceCalculator.calculateDistanceWithStops(
+                AppState.pickup,
+                validStops,
+                AppState.destination
+            );
+        } else {
+            distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
+        }
         
         if (distance < 0.5) {
             EnhancedUIUpdater.showToast('Minimum ride distance is 0.5 km', 'warning');
@@ -11735,7 +12771,33 @@ function setupEventListeners() {
             return;
         }
         
-        showPaymentModal('car', AppState.rideFare);
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+        
+        // Prepare ride data with stops
+        const rideData = {
+            pickup: AppState.pickup.address,
+            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+            destination: AppState.destination.address,
+            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+            pickupLat: AppState.pickup.lat,
+            pickupLng: AppState.pickup.lng,
+            destLat: AppState.destination.lat,
+            destLng: AppState.destination.lng,
+            rideType: AppState.selectedRideType,
+            fare: fare,
+            distance: distance,
+            stops: AppState.stops
+                .filter(stop => stop.location)
+                .map(stop => ({
+                    address: stop.address,
+                    name: stop.location.name,
+                    lat: stop.location.lat,
+                    lng: stop.location.lng
+                }))
+        };
+        
+        showPaymentModal('car', fare, rideData);
     });
     
     document.getElementById('requestDeliveryBtn')?.addEventListener('click', async () => {
@@ -12226,7 +13288,8 @@ function setupEventListeners() {
                     timestamp: Date.now(),
                     type: 'ride_payment',
                     status: 'completed',
-                    rideId: 'pending'
+                    rideId: 'pending',
+                    userId: AppState.currentUser.uid
                 };
                 
                 await database.ref(`transactions/${transactionId}`).set(transaction);
@@ -12249,6 +13312,7 @@ function setupEventListeners() {
             } else if (rideData.scheduled) {
                 rideId = await EnhancedFirebaseManager.scheduleRide(rideData);
                 AppState.pendingPaymentRide = rideData;
+                AppState.pendingPaymentRide.scheduledRideId = rideId;
             } else {
                 rideId = await EnhancedFirebaseManager.requestRide(rideData);
             }
@@ -12345,802 +13409,100 @@ function setupEventListeners() {
     });
     
     document.getElementById('saveSOSBtn')?.addEventListener('click', async () => {
-        const contact1Name = document.getElementById('sosContact1Name')?.value.trim();
-        const contact1Phone = document.getElementById('sosContact1Phone')?.value.trim();
-        const contact2Name = document.getElementById('sosContact2Name')?.value.trim();
-        const contact2Phone = document.getElementById('sosContact2Phone')?.value.trim();
-        const message = document.getElementById('sosMessage')?.value.trim();
+        const contact1Name = document.getElementById('emergencyContact1Name').value.trim();
+        const contact1Phone = document.getElementById('emergencyContact1Phone').value.trim();
+        const contact2Name = document.getElementById('emergencyContact2Name').value.trim();
+        const contact2Phone = document.getElementById('emergencyContact2Phone').value.trim();
         
         if (!contact1Name || !contact1Phone) {
-            EnhancedUIUpdater.showToast('Please provide primary emergency contact details', 'warning');
+            EnhancedUIUpdater.showToast('Primary emergency contact is required', 'warning');
             return;
         }
         
-        const phoneRegex = /^[0-9\-\+\s\(\)]{10,}$/;
-        if (!phoneRegex.test(contact1Phone)) {
-            EnhancedUIUpdater.showToast('Please enter a valid primary phone number', 'warning');
+        if (contact2Name && !contact2Phone) {
+            EnhancedUIUpdater.showToast('Secondary contact phone is required if name is provided', 'warning');
             return;
         }
         
-        if (contact2Phone && !phoneRegex.test(contact2Phone)) {
-            EnhancedUIUpdater.showToast('Please enter a valid secondary phone number', 'warning');
+        if (contact1Phone && !/^\d{10}$/.test(contact1Phone.replace(/\D/g, ''))) {
+            EnhancedUIUpdater.showToast('Primary contact phone number must be 10 digits', 'warning');
             return;
         }
         
-        const config = {
-            contact1Name,
-            contact1Phone,
+        if (contact2Phone && !/^\d{10}$/.test(contact2Phone.replace(/\D/g, ''))) {
+            EnhancedUIUpdater.showToast('Secondary contact phone number must be 10 digits', 'warning');
+            return;
+        }
+        
+        const sosConfig = {
+            contact1Name: contact1Name,
+            contact1Phone: contact1Phone.replace(/\D/g, ''),
             contact2Name: contact2Name || '',
-            contact2Phone: contact2Phone || '',
-            message: message || 'I need help! My current location and ride details will be shared with you.',
+            contact2Phone: contact2Phone ? contact2Phone.replace(/\D/g, '') : '',
+            message: document.getElementById('sosMessage').value.trim() || 'I need emergency assistance',
             updatedAt: Date.now()
         };
         
-        await EnhancedFirebaseManager.saveSOSConfig(config);
-        hideModal('sos');
-    });
-    
-    document.getElementById('transferBtn')?.addEventListener('click', () => {
-        showModal('transfer');
-    });
-    
-    document.getElementById('confirmTransferBtn')?.addEventListener('click', async () => {
-        const recipientCode = document.getElementById('recipientCode')?.value.trim();
-        const amount = parseFloat(document.getElementById('transferAmount')?.value);
-        const message = document.getElementById('transferMessage')?.value.trim();
-        
-        if (!recipientCode || !amount || amount <= 0) {
-            EnhancedUIUpdater.showToast('Please enter valid transfer details', 'warning');
-            return;
+        try {
+            await EnhancedFirebaseManager.saveSOSConfig(sosConfig);
+            hideModal('sos');
+        } catch (error) {
+            EnhancedUIUpdater.showToast('Error saving SOS configuration', 'error');
         }
-        
-        if (amount > AppState.walletBalance) {
-            EnhancedUIUpdater.showToast('Insufficient balance', 'error');
-            return;
-        }
-        
-        await EnhancedFirebaseManager.transferMoney(recipientCode, amount, message);
-        hideModal('transfer');
     });
     
-    document.getElementById('transactionsBtn')?.addEventListener('click', async () => {
-        showModal('transactions');
-        const transactions = await EnhancedFirebaseManager.loadTransactions(AppState.currentUser.uid);
-        displayTransactions(transactions);
-    });
-    
-    document.querySelectorAll('.filter-btn').forEach(btn => {
+    document.querySelectorAll('.emergency-service-type').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => {
+            const type = btn.dataset.type;
+            document.querySelectorAll('.emergency-service-type').forEach(b => {
                 b.classList.remove('active');
             });
             btn.classList.add('active');
             
-            AppState.activeFilter = btn.dataset.filter;
-            EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+            document.getElementById('emergencyServiceType').dataset.type = type;
+            document.getElementById('emergencyServiceType').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+            
+            EnhancedFirebaseManager.loadEmergencyStations(AppState.currentCity, type);
         });
     });
     
-    document.getElementById('depositBtn')?.addEventListener('click', () => {
-        const amount = prompt('Enter deposit amount (ZMW):');
-        if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
-            const depositAmount = parseFloat(amount);
-            EnhancedFirebaseManager.depositMoney(depositAmount);
-        }
-    });
-    
-    document.getElementById('withdrawBtn')?.addEventListener('click', () => {
-        if (AppState.walletBalance <= 0) {
-            EnhancedUIUpdater.showToast('No balance to withdraw', 'warning');
-            return;
-        }
-        
-        const amount = prompt(`Enter withdrawal amount (ZMW). Available: ZMW ${AppState.walletBalance.toFixed(2)}:`);
-        if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
-            const withdrawalAmount = parseFloat(amount);
-            
-            if (withdrawalAmount > AppState.walletBalance) {
-                EnhancedUIUpdater.showToast('Insufficient balance', 'error');
-                return;
-            }
-            
-            EnhancedFirebaseManager.withdrawMoney(withdrawalAmount);
-        }
-    });
-    
-    document.getElementById('shareReferralBtn')?.addEventListener('click', () => {
-        const code = document.getElementById('referralCode')?.textContent;
-        const text = `Join me on Jubel! Use my referral code ${code} for 50% off your first ride. Download the app now!`;
-        
-        if (navigator.share) {
-            navigator.share({
-                title: 'Jubel Referral',
-                text: text,
-                url: window.location.href
-            }).catch(() => {
-                navigator.clipboard.writeText(text)
-                    .then(() => EnhancedUIUpdater.showToast('Referral code copied', 'success'))
-                    .catch(() => EnhancedUIUpdater.showToast('Error copying code', 'error'));
-            });
-        } else {
-            navigator.clipboard.writeText(text)
-                .then(() => EnhancedUIUpdater.showToast('Referral code copied', 'success'))
-                .catch(() => EnhancedUIUpdater.showToast('Error copying code', 'error'));
-        }
-    });
-    
-    document.getElementById('updateProfileBtn')?.addEventListener('click', () => {
-        showModal('updateProfile');
-        
-        document.getElementById('updateName').value = AppState.userData?.name || '';
-        document.getElementById('updatePhone').value = AppState.userData?.phone || '';
-        document.getElementById('updateEmail').value = AppState.currentUser?.email || '';
-        document.getElementById('updateHomeAddress').value = AppState.userData?.homeAddress || '';
-        document.getElementById('updateWorkAddress').value = AppState.userData?.workAddress || '';
-    });
-    
-    document.getElementById('saveProfileBtn')?.addEventListener('click', async () => {
-        const name = document.getElementById('updateName')?.value.trim();
-        const phone = document.getElementById('updatePhone')?.value.trim();
-        const homeAddress = document.getElementById('updateHomeAddress')?.value.trim();
-        const workAddress = document.getElementById('updateWorkAddress')?.value.trim();
-        
-        if (!name || !phone) {
-            EnhancedUIUpdater.showToast('Please fill in name and phone number', 'warning');
-            return;
-        }
-        
-        const profileData = {
-            name: name,
-            phone: phone,
-            homeAddress: homeAddress,
-            workAddress: workAddress
-        };
-        
-        await EnhancedFirebaseManager.updateProfile(profileData);
-        hideModal('updateProfile');
-    });
-    
-    document.getElementById('logoutBtn')?.addEventListener('click', () => {
-        if (confirm('Are you sure you want to logout?')) {
-            EnhancedFirebaseManager.stopRealtimeSync();
-            
-            if (AppState.syncInterval) {
-                clearInterval(AppState.syncInterval);
-            }
-            
-            auth.signOut().then(() => {
-                window.location.href = 'signup.html';
-            });
-        }
-    });
-    
-    document.getElementById('notificationBell')?.addEventListener('click', () => {
-        const panel = document.getElementById('notificationsPanel');
-        panel.classList.toggle('active');
-    });
-    
-    document.getElementById('notificationsClose')?.addEventListener('click', () => {
-        document.getElementById('notificationsPanel').classList.remove('active');
-    });
-    
-    document.querySelector('[data-option="schedule"]')?.addEventListener('click', () => {
-        showModal('schedule');
-        document.getElementById('moreOptionsMenu').classList.remove('active');
-    });
-    
-    document.querySelector('[data-option="orderForSomeone"]')?.addEventListener('click', () => {
-        showModal('orderForSomeone');
-        document.getElementById('moreOptionsMenu').classList.remove('active');
-    });
-    
-    document.querySelector('[data-option="shareRide"]')?.addEventListener('click', () => {
-        showModal('shareRide');
-        document.getElementById('moreOptionsMenu').classList.remove('active');
-    });
-    
-    document.getElementById('confirmScheduleBtn')?.addEventListener('click', async () => {
-        const pickup = document.getElementById('schedulePickup')?.value;
-        const destination = document.getElementById('scheduleDestination')?.value;
-        const date = document.getElementById('scheduleDate')?.value;
-        const time = document.getElementById('scheduleTime')?.value;
-        const forSomeone = document.getElementById('scheduleForSomeone')?.checked;
-        const recipientName = document.getElementById('recipientName');
-        const recipientPhone = document.getElementById('recipientPhone');
-        
-        if (!pickup || !destination || !date || !time) {
-            EnhancedUIUpdater.showToast('Please fill all schedule details', 'warning');
-            return;
-        }
-        
-        if (forSomeone && (!recipientName?.value || !recipientPhone?.value)) {
-            EnhancedUIUpdater.showToast('Please fill recipient details', 'warning');
-            return;
-        }
-        
-        const scheduledTime = new Date(`${date}T${time}`);
-        if (scheduledTime <= new Date()) {
-            EnhancedUIUpdater.showToast('Please select a future date and time', 'warning');
-            return;
-        }
-        
-        const selectedRideType = document.querySelector('#scheduleModal .ride-type-card.selected')?.dataset.type || 'standard';
-        
-        const distance = AppState.pickup && AppState.destination ? 
-            EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            ) : 0;
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(distance, selectedRideType, surge);
-        
-        const rideData = {
-            pickup: AppState.pickup?.address || pickup,
-            pickupDisplay: AppState.pickup?.fullDisplay || AppState.pickup?.name || pickup,
-            destination: AppState.destination?.address || destination,
-            destinationDisplay: AppState.destination?.fullAddress || AppState.destination?.name || destination,
-            pickupLat: AppState.pickup?.lat,
-            pickupLng: AppState.pickup?.lng,
-            destLat: AppState.destination?.lat,
-            destLng: AppState.destination?.lng,
-            rideType: selectedRideType,
-            fare: fare,
-            distance: distance,
-            scheduled: true,
-            scheduledTime: scheduledTime.getTime(),
-            status: 'scheduled'
-        };
-        
-        if (forSomeone) {
-            rideData.recipientName = recipientName.value;
-            rideData.recipientPhone = recipientPhone.value;
-            rideData.forSomeoneElse = true;
-        }
-        
-        try {
-            await EnhancedFirebaseManager.scheduleRide(rideData);
-            hideModal('schedule');
-            EnhancedUIUpdater.showToast('Ride scheduled successfully', 'success');
-        } catch (error) {
-            EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
-        }
-    });
-    
-    document.getElementById('confirmSomeoneRideBtn')?.addEventListener('click', async () => {
-        const pickup = document.getElementById('someonePickup')?.value;
-        const destination = document.getElementById('someoneDestination')?.value;
-        const name = document.getElementById('someoneName')?.value;
-        const phone = document.getElementById('someonePhone')?.value;
-        const instructions = document.getElementById('someoneInstructions')?.value;
-        
-        if (!pickup || !destination || !name || !phone) {
-            EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-            return;
-        }
-        
-        const selectedRideType = document.querySelector('#orderForSomeoneModal .ride-type-card.selected')?.dataset.type || 'standard';
-        
-        const distance = AppState.pickup && AppState.destination ? 
-            EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            ) : 0;
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(distance, selectedRideType, surge);
-        
-        showPaymentModal('someone', fare, {
-            pickup: AppState.pickup?.address || pickup,
-            pickupDisplay: AppState.pickup?.fullDisplay || AppState.pickup?.name || pickup,
-            destination: AppState.destination?.address || destination,
-            destinationDisplay: AppState.destination?.fullAddress || AppState.destination?.name || destination,
-            pickupLat: AppState.pickup?.lat,
-            pickupLng: AppState.pickup?.lng,
-            destLat: AppState.destination?.lat,
-            destLng: AppState.destination?.lng,
-            rideType: selectedRideType,
-            recipientName: name,
-            recipientPhone: phone,
-            instructions: instructions,
-            fare: fare,
-            distance: distance,
-            forSomeoneElse: true
-        });
-        
-        hideModal('orderForSomeone');
-    });
-    
-    document.getElementById('confirmShareRideBtn')?.addEventListener('click', async () => {
-        const pickup = document.getElementById('sharePickup')?.value;
-        const destination = document.getElementById('shareDestination')?.value;
-        const friendCode = document.getElementById('friendReferralCode')?.value;
-        const splitPercentage = document.getElementById('splitPercentage')?.value;
-        
-        if (!pickup || !destination || !friendCode) {
-            EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-            return;
-        }
-        
-        const selectedRideType = document.querySelector('#shareRideModal .ride-type-card.selected')?.dataset.type || 'standard';
-        
-        const distance = AppState.pickup && AppState.destination ? 
-            EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            ) : 0;
-        
-        const calculations = EnhancedUIUpdater.updateShareRideCalculations(distance, parseInt(splitPercentage));
-        
-        showPaymentModal('share', calculations.yourShare, {
-            pickup: AppState.pickup?.address || pickup,
-            pickupDisplay: AppState.pickup?.fullDisplay || AppState.pickup?.name || pickup,
-            destination: AppState.destination?.address || destination,
-            destinationDisplay: AppState.destination?.fullAddress || AppState.destination?.name || destination,
-            pickupLat: AppState.pickup?.lat,
-            pickupLng: AppState.pickup?.lng,
-            destLat: AppState.destination?.lat,
-            destLng: AppState.destination?.lng,
-            rideType: selectedRideType,
-            friendReferralCode: friendCode,
-            splitPercentage: parseInt(splitPercentage),
-            yourShare: calculations.yourShare,
-            friendShare: calculations.friendShare,
-            totalFare: calculations.totalFare,
-            fare: calculations.yourShare,
-            distance: distance,
-            sharedRide: true
-        });
-        
-        hideModal('shareRide');
-    });
-    
-    document.getElementById('startBroadcastRideBtn')?.addEventListener('click', async () => {
-        const pickup = document.getElementById('broadcastPickup')?.value;
-        const destination = document.getElementById('broadcastDestination')?.value;
-        const passengers = document.getElementById('broadcastPassengers')?.value;
-        const rideType = document.getElementById('broadcastRideType')?.value;
-        const splitType = document.getElementById('broadcastSplitType')?.value;
-        
-        if (!pickup || !destination || !passengers) {
-            EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-            return;
-        }
-        
-        const phoneNumbers = passengers.split(',')
-            .map(phone => phone.trim())
-            .filter(phone => phone.length > 0);
-        
-        if (phoneNumbers.length === 0) {
-            EnhancedUIUpdater.showToast('Please enter at least one passenger phone number', 'warning');
-            return;
-        }
-        
-        const recipients = phoneNumbers.map(phone => ({
-            phone: phone,
-            name: '',
-            status: 'pending'
-        }));
-        
-        const distance = AppState.pickup && AppState.destination ? 
-            EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            ) : 0;
-        
-        const calculation = EnhancedPriceCalculator.calculateBroadcastFare(
-            distance, 
-            rideType, 
-            splitType === 'equal' ? 'equal' : 
-            splitType === 'you_pay_more' ? 'you_pay_more' : 'you_pay_all',
-            recipients.length + 1
-        );
-        
-        showPaymentModal('broadcast', calculation.yourShare, {
-            pickup: AppState.pickup?.address || pickup,
-            pickupDisplay: AppState.pickup?.fullDisplay || AppState.pickup?.name || pickup,
-            destination: AppState.destination?.address || destination,
-            destinationDisplay: AppState.destination?.fullAddress || AppState.destination?.name || destination,
-            pickupLat: AppState.pickup?.lat,
-            pickupLng: AppState.pickup?.lng,
-            destLat: AppState.destination?.lat,
-            destLng: AppState.destination?.lng,
-            rideType: rideType,
-            splitType: splitType,
-            broadcastRecipients: recipients,
-            fare: calculation.yourShare,
-            totalFare: calculation.total,
-            distance: distance,
-            broadcast: true
-        });
+    document.getElementById('shareRideBtn')?.addEventListener('click', () => {
+        showModal('share');
     });
     
     document.getElementById('addShareFriendBtn')?.addEventListener('click', () => {
-        const friendCode = document.getElementById('shareFriendCode')?.value.trim();
-        if (!friendCode) {
+        const friendCode = document.getElementById('shareFriendCode').value.trim();
+        if (friendCode) {
+            const added = EnhancedUIUpdater.addShareFriend(friendCode);
+            if (added) {
+                document.getElementById('shareFriendCode').value = '';
+            }
+        } else {
             EnhancedUIUpdater.showToast('Please enter a referral code', 'warning');
+        }
+    });
+    
+    document.getElementById('requestShareRideBtn')?.addEventListener('click', async () => {
+        if (AppState.shareRideFriends.length === 0) {
+            EnhancedUIUpdater.showToast('Please add at least one friend to share the ride', 'warning');
             return;
         }
         
-        EnhancedUIUpdater.addShareFriend(friendCode);
-    });
-    
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.location-input') && !e.target.closest('.suggestion-list') && !e.target.closest('.search-history')) {
-            document.querySelectorAll('.suggestion-list').forEach(list => {
-                list.style.display = 'none';
-            });
-            const searchHistory = document.getElementById('searchHistory');
-            if (searchHistory) {
-                searchHistory.style.display = 'none';
-            }
+        if (!AppState.pickup || !AppState.destination) {
+            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+            return;
         }
         
-        if (!e.target.closest('.more-options-menu') && !e.target.closest('#moreOptionsBtn')) {
-            const moreOptionsMenu = document.getElementById('moreOptionsMenu');
-            if (moreOptionsMenu) {
-                moreOptionsMenu.classList.remove('active');
-            }
-        }
-        
-        if (!e.target.closest('.notifications-panel') && !e.target.closest('#notificationBell')) {
-            const notificationsPanel = document.getElementById('notificationsPanel');
-            if (notificationsPanel) {
-                notificationsPanel.classList.remove('active');
-            }
-        }
-    });
-    
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            hideAllModals();
-            const moreOptionsMenu = document.getElementById('moreOptionsMenu');
-            if (moreOptionsMenu) {
-                moreOptionsMenu.classList.remove('active');
-            }
-            const notificationsPanel = document.getElementById('notificationsPanel');
-            if (notificationsPanel) {
-                notificationsPanel.classList.remove('active');
-            }
-            const chatContainer = document.getElementById('chatContainer');
-            if (chatContainer) {
-                chatContainer.classList.remove('active');
-            }
-        }
-    });
-    
-    window.addEventListener('beforeunload', () => {
-        EnhancedFirebaseManager.stopRealtimeSync();
-        
-        if (AppState.syncInterval) {
-            clearInterval(AppState.syncInterval);
-        }
-        
-        console.log('App cleanup completed');
-    });
-    
-    console.log('Event listeners setup completed');
-}
-
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-function switchScreen(screen) {
-    console.log(`Switching to screen: ${screen}`);
-    
-    document.querySelectorAll('.history-screen, .account-screen, .emergency-screen').forEach(s => {
-        s.classList.remove('active');
-    });
-    
-    document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    document.getElementById('chatContainer')?.classList.remove('active');
-    document.getElementById('notificationsPanel')?.classList.remove('active');
-    document.getElementById('moreOptionsMenu')?.classList.remove('active');
-    
-    if (screen === 'home') {
-        AppState.activeScreen = 'home';
-        document.querySelector(`.nav-tab[data-screen="home"]`)?.classList.add('active');
-    } else {
-        const screenElement = document.getElementById(`${screen}Screen`);
-        if (screenElement) {
-            screenElement.classList.add('active');
-            document.querySelector(`.nav-tab[data-screen="${screen}"]`)?.classList.add('active');
-            AppState.activeScreen = screen;
-            
-            if (screen === 'history') {
-                EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
-            }
-        }
-    }
-}
-
-function switchService(service) {
-    console.log(`Switching to service: ${service}`);
-    
-    document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => {
-        form.style.display = 'none';
-        form.classList.remove('active');
-    });
-    
-    document.querySelectorAll('.service-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-    
-    AppState.activeService = service;
-    
-    switch(service) {
-        case 'car':
-            document.querySelector('.service-tab.car')?.classList.add('active');
-            document.getElementById('carForm').style.display = 'block';
-            break;
-        case 'delivery':
-            document.querySelector('.service-tab.delivery')?.classList.add('active');
-            document.getElementById('deliveryForm').style.display = 'block';
-            document.getElementById('deliveryForm').classList.add('active');
-            break;
-        case 'short-delivery':
-            document.querySelector('.service-tab.short-delivery')?.classList.add('active');
-            document.getElementById('shortDeliveryForm').style.display = 'block';
-            document.getElementById('shortDeliveryForm').classList.add('active');
-            break;
-        case 'express':
-            document.querySelector('.service-tab[data-service="express"]')?.classList.add('active');
-            document.getElementById('expressForm').style.display = 'block';
-            document.getElementById('expressForm').classList.add('active');
-            break;
-        case 'truck':
-            document.querySelector('.service-tab[data-service="truck"]')?.classList.add('active');
-            document.getElementById('truckForm').style.display = 'block';
-            document.getElementById('truckForm').classList.add('active');
-            break;
-        case 'broadcast':
-            document.getElementById('broadcastForm').style.display = 'block';
-            document.getElementById('broadcastForm').classList.add('active');
-            break;
-    }
-}
-
-function handleMoreOptionSelection(option) {
-    console.log(`More option selected: ${option}`);
-    switch(option) {
-        case 'schedule':
-            showModal('schedule');
-            break;
-        case 'orderForSomeone':
-            showModal('orderForSomeone');
-            break;
-        case 'shareRide':
-            showModal('shareRide');
-            break;
-        case 'broadcast':
-            switchService('broadcast');
-            break;
-    }
-}
-
-function handleEmergencyService(type) {
-    console.log(`Emergency service selected: ${type}`);
-    
-    if (!AppState.userLocation) {
-        EnhancedUIUpdater.showToast('Please allow location access for emergency services', 'warning');
-        return;
-    }
-    
-    if (!AppState.currentCity) {
-        EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
-        return;
-    }
-    
-    EnhancedFirebaseManager.loadEmergencyStations(AppState.currentCity, type)
-        .then(() => {
-            const emergencyServiceType = document.getElementById('emergencyServiceType');
-            if (emergencyServiceType) {
-                emergencyServiceType.textContent = 
-                    type.charAt(0).toUpperCase() + type.slice(1) + ' Ride';
-                emergencyServiceType.dataset.type = type;
-            }
-            
-            EnhancedEmergencyLocator.showEmergencyStationsOnMap(type);
-            
-            showModal('emergency');
-        });
-}
-
-function triggerSOS() {
-    console.log('Triggering SOS');
-    
-    if (!AppState.sosConfig) {
-        EnhancedUIUpdater.showToast('Please setup SOS contacts first', 'warning');
-        return;
-    }
-    
-    if (!AppState.currentRide) {
-        EnhancedUIUpdater.showToast('No active ride to report SOS for', 'warning');
-        return;
-    }
-    
-    if (!confirm('Are you sure you want to send an SOS alert to your emergency contacts?')) {
-        return;
-    }
-    
-    const sosData = {
-        emergencyContact1: AppState.sosConfig.contact1Phone,
-        emergencyContact1Name: AppState.sosConfig.contact1Name,
-        emergencyContact2: AppState.sosConfig.contact2Phone,
-        emergencyContact2Name: AppState.sosConfig.contact2Name,
-        message: AppState.sosConfig.message,
-        location: AppState.userLocation,
-        rideDetails: {
-            pickup: AppState.currentRide.pickupDisplay,
-            destination: AppState.currentRide.destinationDisplay,
-            driver: AppState.currentRide.driverName
-        },
-        city: AppState.currentCity
-    };
-    
-    EnhancedFirebaseManager.sendSOSAlert(AppState.currentRide.id, sosData)
-        .then(() => {
-            EnhancedUIUpdater.showToast('SOS alert sent to emergency contacts', 'success');
-        })
-        .catch(error => {
-            console.error('SOS error:', error);
-            EnhancedUIUpdater.showToast('Error sending SOS alert', 'error');
-        });
-}
-
-function showModal(modalId) {
-    console.log(`Showing modal: ${modalId}`);
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) {
-        modal.classList.add('active');
-        
-        if (modalId === 'payment') {
-            EnhancedUIUpdater.showReferralDiscountSection();
-            
-            const rideData = window.pendingRideData;
-            if (rideData) {
-                document.getElementById('paymentAmount').textContent = `ZMW ${rideData.fare.toFixed(2)}`;
-            }
-        }
-    }
-}
-
-function hideModal(modalId) {
-    console.log(`Hiding modal: ${modalId}`);
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) {
-        modal.classList.remove('active');
-        
-        if (modalId === 'payment') {
-            EnhancedUIUpdater.hideReferralDiscountSection();
-            AppState.referralDiscountApplied = false;
-            AppState.referralDiscountAmount = 0;
-            AppState.referralUsed = null;
-            
-            const applyBtn = document.getElementById('applyReferralBtn');
-            if (applyBtn) {
-                applyBtn.disabled = false;
-                applyBtn.innerHTML = '<i class="fas fa-tag"></i> Apply';
-            }
-            
-            document.getElementById('referralCodeInput').value = '';
-        }
-    }
-}
-
-function hideAllModals() {
-    console.log('Hiding all modals');
-    document.querySelectorAll('.modal-overlay').forEach(modal => {
-        modal.classList.remove('active');
-    });
-}
-
-function togglePanel() {
-    const panel = document.getElementById('mainPanel');
-    panel.classList.toggle('collapsed');
-}
-
-function displayTransactions(transactions) {
-    const container = document.getElementById('transactionsList');
-    if (!container) return;
-    
-    if (transactions.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state" style="padding: 30px 0;">
-                <div class="empty-icon">
-                    <i class="fas fa-receipt"></i>
-                </div>
-                <div class="empty-title">No transactions yet</div>
-                <div class="empty-message">Your wallet transactions will appear here</div>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    transactions.forEach(transaction => {
-        const isSent = transaction.senderId === AppState.currentUser.uid;
-        const isSystem = transaction.senderId === 'system' || transaction.recipientId === 'system';
-        const date = new Date(transaction.timestamp);
-        
-        html += `
-            <div class="history-item" style="margin-bottom: 10px;">
-                <div class="history-header">
-                    <div class="history-type">
-                        <div class="history-icon" style="background: ${isSent ? 'var(--error-red)' : isSystem ? 'var(--info-blue)' : 'var(--success-green)'}">
-                            <i class="fas fa-${isSent ? 'arrow-up' : isSystem ? 'exchange-alt' : 'arrow-down'}"></i>
-                        </div>
-                        <div class="history-type-name">
-                            ${isSent ? 'Money Sent' : isSystem ? transaction.type === 'deposit' ? 'Deposit' : transaction.type === 'withdrawal' ? 'Withdrawal' : 'System' : 'Money Received'}
-                        </div>
-                    </div>
-                    <div class="history-date">
-                        ${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                    </div>
-                </div>
-                
-                <div style="padding: 10px 0;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                        <span style="color: var(--text-gray);">${isSent ? 'To' : isSystem ? 'Type' : 'From'}:</span>
-                        <span style="font-weight: 600;">${isSent ? transaction.recipientName : isSystem ? transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1) : transaction.senderName}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                        <span style="color: var(--text-gray);">Amount:</span>
-                        <span style="font-weight: 700; color: ${isSent ? 'var(--error-red)' : 'var(--success-green)'}">
-                            ${isSent ? '-' : '+'}ZMW ${transaction.amount.toFixed(2)}
-                        </span>
-                    </div>
-                    ${transaction.message ? `
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: var(--text-gray);">Message:</span>
-                        <span style="font-size: 12px;">${transaction.message}</span>
-                    </div>
-                    ` : ''}
-                    ${transaction.rideId ? `
-                    <div style="display: flex; justify-content: space-between; margin-top: 5px;">
-                        <span style="color: var(--text-gray);">Ride ID:</span>
-                        <span style="font-size: 11px;">${transaction.rideId.substring(0, 8)}...</span>
-                    </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
-}
-
-function callEmergencyContact(contactType) {
-    console.log(`Calling emergency contact: ${contactType}`);
-    
-    let phoneNumber = '';
-    
-    if (contactType === 'contact1') {
-        phoneNumber = AppState.sosConfig?.contact1Phone;
-    } else if (contactType === 'contact2') {
-        phoneNumber = AppState.sosConfig?.contact2Phone;
-    }
-    
-    if (phoneNumber) {
-        window.open(`tel:${phoneNumber}`, '_blank');
-    } else {
-        EnhancedUIUpdater.showToast('Phone number not available', 'warning');
-    }
-}
-
-function showPaymentModal(serviceType, amount, rideData = null) {
-    if (rideData) {
-        window.pendingRideData = rideData;
-    } else {
         const distance = EnhancedPriceCalculator.calculateDistance(
             AppState.pickup.lat, AppState.pickup.lng,
             AppState.destination.lat, AppState.destination.lng
         );
         
-        window.pendingRideData = {
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const totalPeople = AppState.shareRideFriends.length + 1;
+        const calculation = EnhancedPriceCalculator.calculateBroadcastFare(distance, AppState.selectedRideType, 'equal', totalPeople);
+        
+        showPaymentModal('share', calculation.total, {
             pickup: AppState.pickup.address,
             pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
             destination: AppState.destination.address,
@@ -13150,23 +13512,1362 @@ function showPaymentModal(serviceType, amount, rideData = null) {
             destLat: AppState.destination.lat,
             destLng: AppState.destination.lng,
             rideType: AppState.selectedRideType,
-            fare: amount,
-            distance: distance
+            fare: calculation.total,
+            distance: distance,
+            sharedRide: true,
+            shareParticipants: totalPeople,
+            shareParticipantsData: [
+                {
+                    userId: AppState.currentUser.uid,
+                    name: AppState.userData.name,
+                    amount: calculation.yourShare,
+                    paymentStatus: 'pending'
+                },
+                ...AppState.shareRideFriends.map(friend => ({
+                    userId: friend.userId,
+                    name: friend.name,
+                    amount: calculation.passengerShare,
+                    paymentStatus: 'pending'
+                }))
+            ]
+        });
+    });
+    
+    document.getElementById('broadcastRideRequestBtn')?.addEventListener('click', async () => {
+        if (!AppState.broadcastRecipients.length) {
+            EnhancedUIUpdater.showToast('Please add recipients for broadcast', 'warning');
+            return;
+        }
+        
+        if (!AppState.pickup || !AppState.destination) {
+            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+            return;
+        }
+        
+        const distance = EnhancedPriceCalculator.calculateDistance(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng
+        );
+        
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+        
+        showPaymentModal('broadcast', fare, {
+            pickup: AppState.pickup.address,
+            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+            destination: AppState.destination.address,
+            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+            pickupLat: AppState.pickup.lat,
+            pickupLng: AppState.pickup.lng,
+            destLat: AppState.destination.lat,
+            destLng: AppState.destination.lng,
+            rideType: AppState.selectedRideType,
+            fare: fare,
+            distance: distance,
+            broadcast: true,
+            broadcastRecipients: AppState.broadcastRecipients
+        });
+    });
+    
+    document.getElementById('addBroadcastRecipientBtn')?.addEventListener('click', () => {
+        const phoneInput = document.getElementById('broadcastRecipientPhone');
+        const nameInput = document.getElementById('broadcastRecipientName');
+        const phone = phoneInput.value.trim();
+        const name = nameInput.value.trim();
+        
+        if (!phone) {
+            EnhancedUIUpdater.showToast('Please enter a phone number', 'warning');
+            return;
+        }
+        
+        if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+            EnhancedUIUpdater.showToast('Phone number must be 10 digits', 'warning');
+            return;
+        }
+        
+        const existingRecipient = AppState.broadcastRecipients.find(r => r.phone === phone);
+        if (existingRecipient) {
+            EnhancedUIUpdater.showToast('Recipient already added', 'warning');
+            return;
+        }
+        
+        AppState.broadcastRecipients.push({
+            phone: phone.replace(/\D/g, ''),
+            name: name || 'Unknown',
+            status: 'pending'
+        });
+        
+        phoneInput.value = '';
+        nameInput.value = '';
+        
+        EnhancedUIUpdater.updateBroadcastRecipients(AppState.broadcastRecipients);
+        EnhancedUIUpdater.showToast('Recipient added', 'success');
+    });
+    
+    document.getElementById('scheduleRideBtn')?.addEventListener('click', () => {
+        const scheduleDate = document.getElementById('scheduleDate').value;
+        const scheduleTime = document.getElementById('scheduleTime').value;
+        
+        if (!scheduleDate || !scheduleTime) {
+            EnhancedUIUpdater.showToast('Please select date and time', 'warning');
+            return;
+        }
+        
+        if (!AppState.pickup || !AppState.destination) {
+            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+            return;
+        }
+        
+        const scheduledTime = new Date(`${scheduleDate}T${scheduleTime}`).getTime();
+        const now = Date.now();
+        
+        if (scheduledTime <= now) {
+            EnhancedUIUpdater.showToast('Scheduled time must be in the future', 'warning');
+            return;
+        }
+        
+        if (scheduledTime - now > 7 * 24 * 60 * 60 * 1000) {
+            EnhancedUIUpdater.showToast('Maximum scheduling is 7 days in advance', 'warning');
+            return;
+        }
+        
+        const distance = EnhancedPriceCalculator.calculateDistance(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng
+        );
+        
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+        
+        showPaymentModal('schedule', fare, {
+            pickup: AppState.pickup.address,
+            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+            destination: AppState.destination.address,
+            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+            pickupLat: AppState.pickup.lat,
+            pickupLng: AppState.pickup.lng,
+            destLat: AppState.destination.lat,
+            destLng: AppState.destination.lng,
+            rideType: AppState.selectedRideType,
+            fare: fare,
+            distance: distance,
+            scheduled: true,
+            scheduledTime: scheduledTime,
+            paymentMethod: 'wallet'
+        });
+    });
+    
+    document.getElementById('someoneElseRideBtn')?.addEventListener('click', async () => {
+        const someoneName = document.getElementById('someoneName').value.trim();
+        const someonePhone = document.getElementById('someonePhone').value.trim();
+        
+        if (!someoneName || !someonePhone) {
+            EnhancedUIUpdater.showToast('Please enter name and phone for the rider', 'warning');
+            return;
+        }
+        
+        if (!AppState.pickup || !AppState.destination) {
+            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+            return;
+        }
+        
+        const distance = EnhancedPriceCalculator.calculateDistance(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng
+        );
+        
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+        
+        showPaymentModal('someone', fare, {
+            pickup: AppState.pickup.address,
+            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+            destination: AppState.destination.address,
+            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+            pickupLat: AppState.pickup.lat,
+            pickupLng: AppState.pickup.lng,
+            destLat: AppState.destination.lat,
+            destLng: AppState.destination.lng,
+            rideType: AppState.selectedRideType,
+            fare: fare,
+            distance: distance,
+            riderName: someoneName,
+            riderPhone: someonePhone,
+            forSomeoneElse: true
+        });
+    });
+    
+    document.getElementById('updateProfileBtn')?.addEventListener('click', async () => {
+        const name = document.getElementById('updateName').value.trim();
+        const phone = document.getElementById('updatePhone').value.trim();
+        const homeAddress = document.getElementById('homeAddress').value.trim();
+        const workAddress = document.getElementById('workAddress').value.trim();
+        
+        if (!name || !phone) {
+            EnhancedUIUpdater.showToast('Name and phone are required', 'warning');
+            return;
+        }
+        
+        if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+            EnhancedUIUpdater.showToast('Phone number must be 10 digits', 'warning');
+            return;
+        }
+        
+        const profileData = {
+            name: name,
+            phone: phone.replace(/\D/g, ''),
+            homeAddress: homeAddress,
+            workAddress: workAddress
         };
+        
+        try {
+            await EnhancedFirebaseManager.updateProfile(profileData);
+            hideModal('profile');
+        } catch (error) {
+            EnhancedUIUpdater.showToast('Error updating profile', 'error');
+        }
+    });
+    
+    document.getElementById('depositBtn')?.addEventListener('click', async () => {
+        const amount = parseFloat(document.getElementById('depositAmount').value);
+        if (!amount || amount <= 0) {
+            EnhancedUIUpdater.showToast('Please enter a valid deposit amount', 'warning');
+            return;
+        }
+        
+        if (amount > 10000) {
+            EnhancedUIUpdater.showToast('Maximum deposit amount is ZMW 10,000', 'warning');
+            return;
+        }
+        
+        try {
+            await EnhancedFirebaseManager.depositMoney(amount);
+            hideModal('wallet');
+        } catch (error) {
+            EnhancedUIUpdater.showToast('Error processing deposit', 'error');
+        }
+    });
+    
+    document.getElementById('withdrawBtn')?.addEventListener('click', async () => {
+        const amount = parseFloat(document.getElementById('withdrawAmount').value);
+        if (!amount || amount <= 0) {
+            EnhancedUIUpdater.showToast('Please enter a valid withdrawal amount', 'warning');
+            return;
+        }
+        
+        try {
+            await EnhancedFirebaseManager.withdrawMoney(amount);
+            hideModal('wallet');
+        } catch (error) {
+            EnhancedUIUpdater.showToast('Error processing withdrawal', 'error');
+        }
+    });
+    
+    document.getElementById('transferBtn')?.addEventListener('click', async () => {
+        const amount = parseFloat(document.getElementById('transferAmount').value);
+        const recipientCode = document.getElementById('recipientCode').value.trim();
+        const message = document.getElementById('transferMessage').value.trim();
+        
+        if (!amount || amount <= 0) {
+            EnhancedUIUpdater.showToast('Please enter a valid transfer amount', 'warning');
+            return;
+        }
+        
+        if (!recipientCode) {
+            EnhancedUIUpdater.showToast('Please enter recipient referral code', 'warning');
+            return;
+        }
+        
+        try {
+            await EnhancedFirebaseManager.transferMoney(recipientCode, amount, message);
+            hideModal('transfer');
+        } catch (error) {
+            EnhancedUIUpdater.showToast('Error processing transfer', 'error');
+        }
+    });
+    
+    document.querySelectorAll('.history-filter').forEach(filter => {
+        filter.addEventListener('click', () => {
+            const filterType = filter.dataset.filter;
+            AppState.activeFilter = filterType;
+            
+            document.querySelectorAll('.history-filter').forEach(f => {
+                f.classList.remove('active');
+            });
+            filter.classList.add('active');
+            
+            EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+        });
+    });
+    
+    document.getElementById('refreshHistoryBtn')?.addEventListener('click', () => {
+        EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+        EnhancedUIUpdater.showToast('History refreshed', 'success');
+    });
+    
+    document.getElementById('clearNotificationsBtn')?.addEventListener('click', async () => {
+        try {
+            if (AppState.currentUser) {
+                await database.ref(`notifications/${AppState.currentUser.uid}`).remove();
+                AppState.notifications = [];
+                AppState.unreadNotifications = 0;
+                EnhancedUIUpdater.updateNotificationBadge(0);
+                EnhancedUIUpdater.updateNotifications([]);
+                EnhancedUIUpdater.showToast('Notifications cleared', 'success');
+            }
+        } catch (error) {
+            console.error('Error clearing notifications:', error);
+            EnhancedUIUpdater.showToast('Error clearing notifications', 'error');
+        }
+    });
+    
+    document.getElementById('syncDataBtn')?.addEventListener('click', () => {
+        EnhancedFirebaseManager.syncUserData();
+    });
+    
+    document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+        try {
+            EnhancedUIUpdater.showLoading('Logging out...');
+            
+            EnhancedFirebaseManager.stopRealtimeSync();
+            
+            if (AppState.syncInterval) {
+                clearInterval(AppState.syncInterval);
+            }
+            
+            await auth.signOut();
+            
+            window.location.href = 'signup.html';
+        } catch (error) {
+            console.error('Error logging out:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Error logging out', 'error');
+        }
+    });
+    
+    document.addEventListener('click', (e) => {
+        const moreOptionsMenu = document.getElementById('moreOptionsMenu');
+        if (moreOptionsMenu && !moreOptionsMenu.contains(e.target) && 
+            !document.getElementById('moreOptionsBtn').contains(e.target)) {
+            moreOptionsMenu.classList.remove('active');
+        }
+        
+        const searchHistory = document.getElementById('searchHistory');
+        if (searchHistory && !searchHistory.contains(e.target)) {
+            const allInputs = Array.from(document.querySelectorAll('input[type="text"]'));
+            if (!allInputs.some(input => input.contains(e.target))) {
+                searchHistory.style.display = 'none';
+            }
+        }
+    });
+    
+    console.log('Event listeners setup completed');
+}
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function switchScreen(screen) {
+    console.log(`Switching to screen: ${screen}`);
+    
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.remove('active');
+    });
+    
+    const targetScreen = document.getElementById(`${screen}Screen`);
+    if (targetScreen) {
+        targetScreen.classList.add('active');
+        AppState.activeScreen = screen;
+        
+        if (screen === 'home') {
+            switchService(AppState.activeService);
+        } else if (screen === 'ride') {
+            if (AppState.currentRide) {
+                EnhancedUIUpdater.showRideInfo(AppState.currentRide);
+            }
+        } else if (screen === 'wallet') {
+            EnhancedFirebaseManager.loadWalletTransactions(AppState.currentUser.uid)
+                .then(transactions => {
+                    updateWalletTransactions(transactions);
+                });
+        } else if (screen === 'history') {
+            EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+        } else if (screen === 'notifications') {
+            EnhancedUIUpdater.updateNotifications(AppState.notifications);
+        } else if (screen === 'profile') {
+            loadProfileData();
+        }
+        
+        document.getElementById('panelHandle').classList.remove('active');
+    }
+}
+
+function switchService(service) {
+    console.log(`Switching service to: ${service}`);
+    
+    document.querySelectorAll('.service-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    document.querySelector(`.service-tab[data-service="${service}"]`)?.classList.add('active');
+    
+    document.querySelectorAll('.service-form, .ride-request-form').forEach(form => {
+        form.style.display = 'none';
+    });
+    
+    const targetForm = document.getElementById(`${service}Form`);
+    if (targetForm) {
+        targetForm.style.display = 'block';
+        AppState.activeService = service;
+        
+        if (service === 'car') {
+            document.getElementById('fareDisplay').classList.remove('active');
+            document.getElementById('rideTypeSelection').classList.remove('active');
+        }
+    }
+}
+
+function togglePanel() {
+    const panelHandle = document.getElementById('panelHandle');
+    panelHandle.classList.toggle('active');
+    
+    const mainPanel = document.getElementById('mainPanel');
+    const mapOverlay = document.getElementById('mapOverlay');
+    
+    if (panelHandle.classList.contains('active')) {
+        mainPanel.style.transform = 'translateY(0)';
+        mapOverlay.style.display = 'block';
+    } else {
+        mainPanel.style.transform = 'translateY(100%)';
+        mapOverlay.style.display = 'none';
+    }
+}
+
+function showModal(modalId) {
+    console.log(`Showing modal: ${modalId}`);
+    const modal = document.getElementById(`${modalId}Modal`);
+    if (modal) {
+        modal.classList.add('active');
     }
     
+    if (modalId === 'payment') {
+        const amount = window.pendingRideData?.fare || 0;
+        document.getElementById('paymentAmount').textContent = `ZMW ${amount.toFixed(2)}`;
+        
+        if (window.pendingRideData?.referredBy) {
+            EnhancedUIUpdater.showReferralDiscountSection();
+        } else {
+            EnhancedUIUpdater.hideReferralDiscountSection();
+        }
+    }
+}
+
+function hideModal(modalId) {
+    console.log(`Hiding modal: ${modalId}`);
+    const modal = document.getElementById(`${modalId}Modal`);
+    if (modal) {
+        modal.classList.remove('active');
+    }
+    
+    if (modalId === 'share') {
+        document.getElementById('shareFriendCode').value = '';
+    } else if (modalId === 'broadcast') {
+        document.getElementById('broadcastRecipientPhone').value = '';
+        document.getElementById('broadcastRecipientName').value = '';
+    }
+}
+
+function handleMoreOptionSelection(option) {
+    console.log(`Handling more option: ${option}`);
+    
+    switch(option) {
+        case 'share':
+            showModal('share');
+            break;
+        case 'schedule':
+            switchService('schedule');
+            break;
+        case 'someone':
+            showModal('someone');
+            break;
+        case 'broadcast':
+            switchService('broadcast');
+            break;
+        case 'emergency':
+            switchService('emergency');
+            break;
+        case 'sos':
+            showModal('sos');
+            break;
+        case 'profile':
+            switchScreen('profile');
+            break;
+        case 'wallet':
+            switchScreen('wallet');
+            break;
+        case 'history':
+            switchScreen('history');
+            break;
+        case 'notifications':
+            switchScreen('notifications');
+            break;
+        case 'logout':
+            document.getElementById('logoutBtn').click();
+            break;
+    }
+}
+
+function handleEmergencyService(type) {
+    console.log(`Handling emergency service: ${type}`);
+    
+    document.getElementById('emergencyServiceType').dataset.type = type;
+    document.getElementById('emergencyServiceType').textContent = type.charAt(0).toUpperCase() + type.slice(1);
+    
+    EnhancedFirebaseManager.loadEmergencyStations(AppState.currentCity, type);
+    
+    showModal('emergency');
+}
+
+function triggerSOS() {
+    if (!AppState.currentRide || !AppState.sosConfig) {
+        EnhancedUIUpdater.showToast('No active ride or SOS configuration', 'warning');
+        return;
+    }
+    
+    if (confirm('Send SOS emergency alert to your contacts?')) {
+        EnhancedFirebaseManager.sendSOSAlert(AppState.currentRide.id, {
+            emergencyContact1: AppState.sosConfig.contact1Phone,
+            emergencyContact1Name: AppState.sosConfig.contact1Name,
+            emergencyContact2: AppState.sosConfig.contact2Phone,
+            emergencyContact2Name: AppState.sosConfig.contact2Name,
+            message: AppState.sosConfig.message || 'Emergency SOS triggered',
+            location: {
+                lat: AppState.currentRide.pickupLat || AppState.userLocation.lat,
+                lng: AppState.currentRide.pickupLng || AppState.userLocation.lng
+            },
+            rideDetails: {
+                pickup: AppState.currentRide.pickupDisplay,
+                destination: AppState.currentRide.destinationDisplay,
+                driver: AppState.selectedVehicle?.name || 'Unknown'
+            },
+            city: AppState.currentCity
+        });
+    }
+}
+
+function showPaymentModal(serviceType, amount, rideData) {
+    console.log(`Showing payment modal for ${serviceType}: ZMW ${amount}`);
+    
+    window.pendingRideData = rideData;
+    
     document.getElementById('paymentAmount').textContent = `ZMW ${amount.toFixed(2)}`;
+    document.getElementById('paymentTitle').textContent = `Payment for ${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)}`;
+    
+    const paymentMethod = document.querySelector('.payment-method.selected');
+    if (paymentMethod) {
+        paymentMethod.classList.remove('selected');
+    }
+    
+    if (AppState.walletBalance >= amount) {
+        document.querySelector('.payment-method.wallet').classList.add('selected');
+    } else {
+        document.querySelector('.payment-method.cash').classList.add('selected');
+    }
     
     showModal('payment');
 }
 
+function updateWalletTransactions(transactions) {
+    const container = document.getElementById('transactionsList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (transactions.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-exchange-alt"></i>
+                </div>
+                <div class="empty-title">No transactions</div>
+                <div class="empty-message">Your transaction history is empty</div>
+            </div>
+        `;
+        return;
+    }
+    
+    transactions.forEach(transaction => {
+        const transactionElement = document.createElement('div');
+        transactionElement.className = 'transaction-item';
+        
+        let icon = 'fa-exchange-alt';
+        let iconColor = 'var(--info-blue)';
+        let amountColor = '';
+        let amountSign = '';
+        let description = '';
+        
+        switch(transaction.type) {
+            case 'deposit':
+                icon = 'fa-plus-circle';
+                iconColor = 'var(--success-green)';
+                amountColor = 'success';
+                amountSign = '+';
+                description = 'Wallet deposit';
+                break;
+            case 'withdrawal':
+                icon = 'fa-minus-circle';
+                iconColor = 'var(--error-red)';
+                amountColor = 'error';
+                amountSign = '-';
+                description = 'Wallet withdrawal';
+                break;
+            case 'transfer':
+                icon = 'fa-share-alt';
+                iconColor = 'var(--warning-yellow)';
+                amountColor = 'error';
+                amountSign = '-';
+                description = transaction.message || 'Money transfer';
+                break;
+            case 'ride_payment':
+                icon = 'fa-car';
+                iconColor = 'var(--primary-orange)';
+                amountColor = 'error';
+                amountSign = '-';
+                description = `Ride payment: ${transaction.description || 'Ride service'}`;
+                break;
+            case 'referral_reward':
+                icon = 'fa-gift';
+                iconColor = 'var(--primary-orange)';
+                amountColor = 'success';
+                amountSign = '+';
+                description = 'Referral reward';
+                break;
+            case 'share_ride_payment':
+                icon = 'fa-users';
+                iconColor = 'var(--info-blue)';
+                amountColor = 'error';
+                amountSign = '-';
+                description = transaction.description || 'Share ride payment';
+                break;
+        }
+        
+        const date = new Date(transaction.timestamp);
+        
+        transactionElement.innerHTML = `
+            <div class="transaction-icon" style="background: ${iconColor}">
+                <i class="fas ${icon}"></i>
+            </div>
+            <div class="transaction-details">
+                <div class="transaction-title">${description}</div>
+                <div class="transaction-meta">
+                    <span>${date.toLocaleDateString()}</span>
+                    <span>${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                </div>
+            </div>
+            <div class="transaction-amount ${amountColor}">
+                ${amountSign}ZMW ${transaction.amount.toFixed(2)}
+            </div>
+        `;
+        
+        container.appendChild(transactionElement);
+    });
+}
+
+function loadProfileData() {
+    if (AppState.userData) {
+        document.getElementById('updateName').value = AppState.userData.name || '';
+        document.getElementById('updatePhone').value = AppState.userData.phone || '';
+        document.getElementById('homeAddress').value = AppState.userData.homeAddress || '';
+        document.getElementById('workAddress').value = AppState.userData.workAddress || '';
+        document.getElementById('userEmail').textContent = AppState.currentUser.email || '';
+        
+        document.getElementById('referralCode').textContent = AppState.userData.referralCode || 'Not available';
+    }
+}
+
 // ============================================
-// START THE APPLICATION
+// BICYCLE RIDE TYPE IMPLEMENTATION
 // ============================================
-window.addEventListener('load', initializeApp);
+function initializeBicycleRide() {
+    // Add bicycle to service tabs
+    const servicesContainer = document.querySelector('.service-tabs');
+    if (servicesContainer && !document.querySelector('.service-tab[data-service="bicycle"]')) {
+        const bicycleTab = document.createElement('div');
+        bicycleTab.className = 'service-tab';
+        bicycleTab.dataset.service = 'bicycle';
+        bicycleTab.innerHTML = `
+            <i class="fas fa-bicycle"></i>
+            <span>Bicycle</span>
+        `;
+        
+        bicycleTab.addEventListener('click', () => {
+            switchService('bicycle');
+        });
+        
+        servicesContainer.appendChild(bicycleTab);
+    }
+    
+    // Create bicycle form
+    const formsContainer = document.querySelector('.service-forms');
+    if (formsContainer && !document.getElementById('bicycleForm')) {
+        const bicycleForm = document.createElement('div');
+        bicycleForm.className = 'service-form';
+        bicycleForm.id = 'bicycleForm';
+        bicycleForm.style.display = 'none';
+        bicycleForm.innerHTML = `
+            <div class="ride-request-form">
+                <div class="form-group">
+                    <div class="location-input">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <input type="text" id="bicyclePickup" placeholder="Pickup location" value="Current Location" readonly>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="location-input">
+                        <i class="fas fa-flag"></i>
+                        <input type="text" id="bicycleDestination" placeholder="Where to?" autocomplete="off">
+                    </div>
+                </div>
+                
+                <div id="bicycleStopsContainer" style="margin: 10px 0;"></div>
+                
+                <div class="form-group" style="text-align: center;">
+                    <button class="btn btn-orange" id="addBicycleStopBtn" type="button">
+                        <i class="fas fa-plus"></i> Add Stop
+                    </button>
+                </div>
+                
+                <div class="form-group" style="text-align: center;">
+                    <button class="btn btn-primary" id="requestBicycleBtn">
+                        <i class="fas fa-bicycle"></i> Request Bicycle
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        formsContainer.appendChild(bicycleForm);
+        
+        // Setup bicycle specific event listeners
+        setupBicycleEventListeners();
+    }
+}
+
+function setupBicycleEventListeners() {
+    // Setup pickup and destination inputs
+    const pickupInput = document.getElementById('bicyclePickup');
+    const destinationInput = document.getElementById('bicycleDestination');
+    
+    if (pickupInput) {
+        EnhancedLocationManager.setupPickupInput(pickupInput);
+    }
+    
+    if (destinationInput) {
+        EnhancedLocationManager.setupDestinationInput(destinationInput);
+        destinationInput.addEventListener('input', () => {
+            EnhancedLocationManager.handleDestinationInputChange('bicycleDestination', destinationInput.value);
+        });
+    }
+    
+    // Setup stops for bicycle
+    const addStopBtn = document.getElementById('addBicycleStopBtn');
+    if (addStopBtn) {
+        addStopBtn.addEventListener('click', () => {
+            EnhancedLocationManager.addStop();
+        });
+    }
+    
+    // Setup request bicycle button
+    const requestBicycleBtn = document.getElementById('requestBicycleBtn');
+    if (requestBicycleBtn) {
+        requestBicycleBtn.addEventListener('click', async () => {
+            if (!AppState.pickup || !AppState.destination) {
+                EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+                return;
+            }
+            
+            // Calculate distance with stops
+            let distance;
+            if (AppState.stops.length > 0) {
+                const validStops = AppState.stops.filter(stop => stop.location);
+                distance = EnhancedPriceCalculator.calculateDistanceWithStops(
+                    AppState.pickup,
+                    validStops,
+                    AppState.destination
+                );
+            } else {
+                distance = EnhancedPriceCalculator.calculateDistance(
+                    AppState.pickup.lat, AppState.pickup.lng,
+                    AppState.destination.lat, AppState.destination.lng
+                );
+            }
+            
+            if (distance < 0.5) {
+                EnhancedUIUpdater.showToast('Minimum bicycle ride distance is 0.5 km', 'warning');
+                return;
+            }
+            
+            const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng,
+                AppState.currentCity
+            );
+            
+            if (!validation.valid) {
+                EnhancedUIUpdater.showToast(validation.message, 'warning');
+                return;
+            }
+            
+            const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+            const fare = EnhancedPriceCalculator.calculateRideFare(distance, 'bicycle', surge);
+            
+            // Prepare ride data with stops
+            const rideData = {
+                pickup: AppState.pickup.address,
+                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+                destination: AppState.destination.address,
+                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+                pickupLat: AppState.pickup.lat,
+                pickupLng: AppState.pickup.lng,
+                destLat: AppState.destination.lat,
+                destLng: AppState.destination.lng,
+                rideType: 'bicycle',
+                fare: fare,
+                distance: distance,
+                stops: AppState.stops
+                    .filter(stop => stop.location)
+                    .map(stop => ({
+                        address: stop.address,
+                        name: stop.location.name,
+                        lat: stop.location.lat,
+                        lng: stop.location.lng
+                    }))
+            };
+            
+            showPaymentModal('bicycle', fare, rideData);
+        });
+    }
+}
+
+// ============================================
+// AUTO-PRICE CALCULATION IMPLEMENTATION
+// ============================================
+function setupAutoPriceCalculation() {
+    // Observe destination input changes for all services
+    const destinationInputs = [
+        'destinationLocation', 'deliveryDestination', 'shortDeliveryDestination',
+        'truckDestination', 'scheduleDestination', 'someoneDestination',
+        'shareDestination', 'broadcastDestination', 'shoppingDestination',
+        'bicycleDestination', 'emergencyDestination'
+    ];
+    
+    destinationInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('change', () => {
+                if (AppState.pickup && AppState.destination) {
+                    setTimeout(() => {
+                        EnhancedUIUpdater.calculateAndUpdatePrices();
+                    }, 500);
+                }
+            });
+        }
+    });
+    
+    // Setup ride type selection price updates
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.ride-type-card')) {
+            if (AppState.pickup && AppState.destination) {
+                setTimeout(() => {
+                    EnhancedUIUpdater.calculateAndUpdatePrices();
+                }, 300);
+            }
+        }
+    });
+}
+
+// ============================================
+// REFERRAL SYSTEM ENHANCEMENTS
+// ============================================
+function setupEnhancedReferralSystem() {
+    // Add referral input to payment modal if not exists
+    const paymentModal = document.getElementById('paymentModal');
+    if (paymentModal && !paymentModal.querySelector('#referralDiscountSection')) {
+        const paymentBody = paymentModal.querySelector('.modal-body');
+        const paymentMethods = paymentBody.querySelector('.payment-methods');
+        
+        if (paymentMethods) {
+            const referralSection = document.createElement('div');
+            referralSection.id = 'referralDiscountSection';
+            referralSection.style.display = 'none';
+            referralSection.innerHTML = `
+                <div class="referral-discount-section">
+                    <div class="section-header">
+                        <i class="fas fa-gift"></i>
+                        <span>Referral Discount (50% off)</span>
+                    </div>
+                    <div class="referral-input-group">
+                        <input type="text" id="referralCodeInput" placeholder="Enter referral code">
+                        <button id="applyReferralBtn" class="btn btn-orange">
+                            <i class="fas fa-check"></i> Apply
+                        </button>
+                    </div>
+                    <div id="referrerInfo" style="display: none; font-size: 12px; color: var(--success-green); margin-top: 5px;"></div>
+                    <div class="discount-breakdown" style="margin-top: 10px;">
+                        <div class="price-row">
+                            <span>Original Fare:</span>
+                            <span id="originalFareAmount">ZMW 0.00</span>
+                        </div>
+                        <div class="price-row">
+                            <span>Discount:</span>
+                            <span id="discountAmount" style="color: var(--success-green);">-ZMW 0.00</span>
+                        </div>
+                        <div class="price-row total">
+                            <span>Final Fare:</span>
+                            <span id="finalFareAmount" style="font-weight: bold;">ZMW 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            paymentMethods.parentNode.insertBefore(referralSection, paymentMethods.nextSibling);
+            
+            // Setup apply referral button
+            document.getElementById('applyReferralBtn')?.addEventListener('click', async () => {
+                const referralCode = document.getElementById('referralCodeInput').value.trim();
+                if (!referralCode) {
+                    EnhancedUIUpdater.showToast('Please enter a referral code', 'warning');
+                    return;
+                }
+                
+                const selectedMethod = document.querySelector('.payment-method.selected');
+                if (!selectedMethod) {
+                    EnhancedUIUpdater.showToast('Please select a payment method first', 'warning');
+                    return;
+                }
+                
+                const amount = parseFloat(document.getElementById('paymentAmount').textContent.replace('ZMW ', ''));
+                const rideData = window.pendingRideData;
+                
+                if (!rideData) {
+                    EnhancedUIUpdater.showToast('No ride data found', 'error');
+                    return;
+                }
+                
+                EnhancedUIUpdater.showLoading('Applying referral discount...');
+                
+                const result = await EnhancedFirebaseManager.applyReferralDiscount(rideData, referralCode);
+                
+                EnhancedUIUpdater.hideLoading();
+                
+                if (result.success) {
+                    EnhancedUIUpdater.showToast(result.message, 'success');
+                    
+                    // Update payment amount
+                    document.getElementById('paymentAmount').textContent = `ZMW ${result.finalFare.toFixed(2)}`;
+                    document.getElementById('originalFareAmount').textContent = `ZMW ${result.originalFare.toFixed(2)}`;
+                    
+                    // Update ride data
+                    rideData.fare = result.finalFare;
+                    rideData.referredBy = referralCode;
+                    rideData.referrerName = result.referrerName;
+                    rideData.discountAmount = result.discountAmount;
+                    rideData.originalFare = result.originalFare;
+                    window.pendingRideData = rideData;
+                } else {
+                    EnhancedUIUpdater.showToast(result.message, 'error');
+                }
+            });
+        }
+    }
+    
+    // Show referral section when payment modal opens
+    const paymentModalElement = document.getElementById('paymentModal');
+    if (paymentModalElement) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    if (paymentModalElement.classList.contains('active')) {
+                        const rideData = window.pendingRideData;
+                        if (rideData && !rideData.referredBy) {
+                            EnhancedUIUpdater.showReferralDiscountSection();
+                            document.getElementById('originalFareAmount').textContent = `ZMW ${rideData.fare?.toFixed(2) || '0.00'}`;
+                        } else {
+                            EnhancedUIUpdater.hideReferralDiscountSection();
+                        }
+                    }
+                }
+            });
+        });
+        
+        observer.observe(paymentModalElement, {
+            attributes: true,
+            attributeFilter: ['class']
+        });
+    }
+}
+
+// ============================================
+// REAL-TIME SYNC ENHANCEMENTS
+// ============================================
+function setupRealTimeSync() {
+    // Setup periodic sync
+    AppState.syncInterval = setInterval(() => {
+        if (!AppState.isSyncing && AppState.currentUser) {
+            EnhancedFirebaseManager.syncUserData();
+        }
+    }, 30000);
+    
+    // Setup visibility change detection
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && AppState.currentUser) {
+            EnhancedFirebaseManager.syncUserData();
+        }
+    });
+    
+    // Setup online/offline detection
+    window.addEventListener('online', () => {
+        EnhancedUIUpdater.showToast('Back online', 'success');
+        if (AppState.currentUser) {
+            EnhancedFirebaseManager.syncUserData();
+        }
+    });
+    
+    window.addEventListener('offline', () => {
+        EnhancedUIUpdater.showToast('You are offline', 'warning');
+    });
+}
+
+// ============================================
+// INITIALIZATION ENHANCEMENTS
+// ============================================
+function setupEnhancedInitialization() {
+    // Initialize bicycle ride type
+    initializeBicycleRide();
+    
+    // Setup auto-price calculation
+    setupAutoPriceCalculation();
+    
+    // Setup enhanced referral system
+    setupEnhancedReferralSystem();
+    
+    // Setup real-time sync
+    setupRealTimeSync();
+    
+    // Add CSS for new components
+    addEnhancedStyles();
+}
+
+function addEnhancedStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .ride-type-cards {
+            display: flex;
+            justify-content: space-between;
+            margin: 15px 0;
+            gap: 10px;
+            padding: 0 15px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        
+        .ride-type-card {
+            min-width: 100px;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            text-align: center;
+            cursor: pointer;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s ease;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        
+        .ride-type-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .stop-entry {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .stop-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .stop-number {
+            font-weight: 600;
+            color: var(--primary-orange);
+        }
+        
+        .remove-stop-btn {
+            background: none;
+            border: none;
+            color: var(--error-red);
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .stop-suggestions {
+            position: absolute;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            margin-top: 5px;
+            width: 100%;
+        }
+        
+        .pulsing-ride-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 60px;
+            color: var(--primary-orange);
+            z-index: 1000;
+            animation: pulse 1.5s infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes pulse {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.7; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        .schedule-countdown {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .countdown-timer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            gap: 10px;
+        }
+        
+        .time-unit {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            min-width: 80px;
+        }
+        
+        .time-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-orange);
+        }
+        
+        .time-label {
+            font-size: 12px;
+            color: var(--text-gray);
+            margin-top: 5px;
+        }
+        
+        .time-separator {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-orange);
+        }
+        
+        .share-friend-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            margin: 5px 0;
+            gap: 10px;
+        }
+        
+        .friend-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .friend-info {
+            flex: 1;
+        }
+        
+        .friend-name {
+            font-weight: 600;
+        }
+        
+        .friend-phone {
+            font-size: 12px;
+            color: var(--text-gray);
+        }
+        
+        .friend-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .friend-status.pending {
+            background: var(--warning-yellow-light);
+            color: var(--warning-yellow-dark);
+        }
+        
+        .friend-status.accepted {
+            background: var(--success-green-light);
+            color: var(--success-green-dark);
+        }
+        
+        .friend-status.rejected {
+            background: var(--error-red-light);
+            color: var(--error-red-dark);
+        }
+        
+        .remove-friend-btn {
+            background: none;
+            border: none;
+            color: var(--error-red);
+            cursor: pointer;
+        }
+        
+        .referral-discount-section {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+            border: 2px solid var(--primary-orange);
+        }
+        
+        .referral-input-group {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .referral-input-group input {
+            flex: 1;
+        }
+        
+        .broadcast-ride-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.1);
+            z-index: 2000;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .broadcast-ride-panel.active {
+            transform: translateY(0);
+        }
+        
+        .broadcast-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .close-broadcast {
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-gray);
+            cursor: pointer;
+        }
+        
+        .stop-marker {
+            background: #4CAF50;
+            color: white;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .city-search-note {
+            padding: 10px;
+            background: var(--info-blue-light);
+            color: var(--info-blue-dark);
+            font-size: 12px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .city-search-note i {
+            font-size: 14px;
+        }
+    `;
+    
+    document.head.appendChild(style);
+}
+
+// ============================================
+// MAIN INITIALIZATION
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+    setupEnhancedInitialization();
+});
+
+// ============================================
+// EXPORT FUNCTIONS FOR GLOBAL ACCESS
+// ============================================
+window.EnhancedUIUpdater = EnhancedUIUpdater;
+window.EnhancedLocationManager = EnhancedLocationManager;
+window.EnhancedFirebaseManager = EnhancedFirebaseManager;
+window.EnhancedSearchEngine = EnhancedSearchEngine;
+window.EnhancedPriceCalculator = EnhancedPriceCalculator;
+window.RideTypeManager = RideTypeManager;
+window.BroadcastManager = BroadcastManager;
+window.NotificationManager = NotificationManager;
+window.CityDetector = CityDetector;
+
+console.log('Jubel Passenger App JavaScript loaded successfully');
 </script>
 </body>
 </html>
+
 
 
 
