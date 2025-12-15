@@ -3650,7 +3650,7 @@ body {
     outline: none;
 }
     </style>
-    </head>
+</head>
 <body>
     <!-- Map Container -->
     <div id="map">
@@ -3924,7 +3924,7 @@ body {
                     <div class="location-input" id="pickupInput">
                         <i class="fas fa-map-marker-alt"></i>
                         <input type="text" id="pickupLocation" placeholder="Current location" readonly>
-                        <div class="search-loading" id="searchLoading" style="display: none;"></div>
+                        <div class="search-loading" id="searchLoading"></div>
                         <div class="suggestion-list" id="pickupSuggestions"></div>
                     </div>
                     
@@ -3935,6 +3935,12 @@ body {
                         <div class="suggestion-list" id="destinationSuggestions"></div>
                     </div>
                 </div>
+                
+                <!-- Stops Container -->
+                <div id="stopsContainer" style="margin: 10px 0;"></div>
+                <button type="button" class="btn btn-secondary" id="addStopBtn" style="width: 100%; margin-bottom: 15px;">
+                    <i class="fas fa-plus"></i> Add Stop
+                </button>
                 
                 <!-- Search History -->
                 <div class="search-history" id="searchHistory" style="display: none;"></div>
@@ -3948,14 +3954,8 @@ body {
                         </span>
                     </div>
                     
-                    <div class="ride-type-grid" id="rideTypeGrid">
-                        <!-- Dynamic ride type cards will be inserted here -->
-                    </div>
-                </div>
-                
-                <!-- Ride Type Cards Container (Enhanced) -->
-                <div class="ride-type-cards" id="rideTypeCardsContainer">
-                    <!-- Ride type cards will be dynamically inserted by JavaScript -->
+                    <!-- Ride Type Cards will be inserted here by JavaScript -->
+                    <div class="ride-type-cards" id="rideTypeCardsContainer"></div>
                 </div>
                 
                 <!-- Fare Display -->
@@ -4383,6 +4383,14 @@ body {
                     </div>
                 </div>
                 
+                <!-- Ride Stops -->
+                <div class="ride-stops" id="rideStopsContainer" style="display: none; margin-top: 15px;">
+                    <div class="section-title" style="font-size: 14px; color: var(--text-gray); margin-bottom: 10px;">
+                        <i class="fas fa-map-pin"></i> Stops
+                    </div>
+                    <div id="rideStopsList"></div>
+                </div>
+                
                 <div class="trip-details">
                     <div class="trip-locations">
                         <div class="location-point">
@@ -4490,7 +4498,7 @@ body {
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
-                        <div class="broadcast-recipients" id="broadcastRecipients">
+                        <div class="broadcast-recipients" id="broadcastMembersContainer">
                             <!-- Recipients will be inserted here -->
                         </div>
                         <button class="btn btn-secondary" id="startBroadcastBtn">
@@ -4757,7 +4765,7 @@ body {
         </div>
     </div>
     
-    <!-- Enhanced Modals -->
+    <!-- Modals -->
     
     <!-- Payment Modal -->
     <div class="modal-overlay" id="paymentModal" style="display: none;">
@@ -4779,28 +4787,29 @@ body {
                 
                 <!-- Referral Discount Section -->
                 <div class="referral-discount-section" id="referralDiscountSection" style="display: none;">
-                    <div class="form-group">
-                        <label class="form-label">Apply Referral Code for 50% Discount</label>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" class="form-control" id="referralCodeInput" placeholder="Enter referral code">
-                            <button class="btn btn-secondary" id="applyReferralBtn">Apply</button>
-                        </div>
+                    <div class="section-header">
+                        <i class="fas fa-gift"></i>
+                        <span>Referral Discount (50% off)</span>
                     </div>
-                    <div id="referralOwnerInfo" style="display: none;">
-                        <div class="form-label">Applied: 50% discount from <span id="referralOwnerName"></span></div>
+                    <div class="referral-input-group">
+                        <input type="text" id="referralCodeInput" placeholder="Enter referral code">
+                        <button id="applyReferralBtn" class="btn btn-orange">
+                            <i class="fas fa-check"></i> Apply
+                        </button>
                     </div>
-                    <div class="price-calculation">
-                        <div class="calculation-row">
+                    <div id="referrerInfo" style="display: none; font-size: 12px; color: var(--success-green); margin-top: 5px;"></div>
+                    <div class="discount-breakdown" style="margin-top: 10px;">
+                        <div class="price-row">
                             <span>Original Fare:</span>
-                            <span id="originalFare">ZMW 0.00</span>
+                            <span id="originalFareAmount">ZMW 0.00</span>
                         </div>
-                        <div class="calculation-row discount">
-                            <span>Discount (50%):</span>
-                            <span id="discountAmount">ZMW 0.00</span>
+                        <div class="price-row">
+                            <span>Discount:</span>
+                            <span id="discountAmount" style="color: var(--success-green);">-ZMW 0.00</span>
                         </div>
-                        <div class="calculation-row total">
-                            <span>Final Amount:</span>
-                            <span id="finalAmount">ZMW 0.00</span>
+                        <div class="price-row total">
+                            <span>Final Fare:</span>
+                            <span id="finalFareAmount" style="font-weight: bold;">ZMW 0.00</span>
                         </div>
                     </div>
                 </div>
@@ -4982,6 +4991,23 @@ body {
                     <div class="emergency-reason-input" id="emergencyReasonOther" style="display: none;">
                         <label class="form-label">Please describe the emergency:</label>
                         <textarea class="form-control form-textarea" id="emergencyOtherReason" placeholder="Describe the emergency situation..."></textarea>
+                    </div>
+                </div>
+                
+                <!-- Location Inputs -->
+                <div class="location-inputs">
+                    <div class="location-input">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <input type="text" id="emergencyPickup" placeholder="Pickup location" readonly>
+                        <div class="search-loading"></div>
+                        <div class="suggestion-list" id="emergencyPickupSuggestions"></div>
+                    </div>
+                    
+                    <div class="location-input">
+                        <i class="fas fa-flag"></i>
+                        <input type="text" id="emergencyDestination" placeholder="Destination" autocomplete="off">
+                        <div class="search-loading"></div>
+                        <div class="suggestion-list" id="emergencyDestinationSuggestions"></div>
                     </div>
                 </div>
                 
@@ -5213,7 +5239,7 @@ I need help! My current location and ride details will be shared with you.
                     <div class="ride-type-title">
                         <span>Select Ride Type</span>
                     </div>
-                    <div class="ride-type-grid">
+                    <div class="ride-type-grid" id="scheduleRideTypeGrid">
                         <div class="ride-type-card economy" data-type="economy">
                             <div class="ride-type-icon">
                                 <i class="fas fa-car-side"></i>
@@ -5310,7 +5336,7 @@ I need help! My current location and ride details will be shared with you.
                     <div class="ride-type-title">
                         <span>Select Ride Type</span>
                     </div>
-                    <div class="ride-type-grid">
+                    <div class="ride-type-grid" id="someoneRideTypeGrid">
                         <div class="ride-type-card economy" data-type="economy">
                             <div class="ride-type-icon">
                                 <i class="fas fa-car-side"></i>
@@ -5360,7 +5386,7 @@ I need help! My current location and ride details will be shared with you.
         </div>
     </div>
     
-    <!-- Enhanced Share Ride Modal -->
+    <!-- Share Ride Modal -->
     <div class="modal-overlay" id="shareRideModal" style="display: none;">
         <div class="modal">
             <div class="modal-header">
@@ -5389,36 +5415,27 @@ I need help! My current location and ride details will be shared with you.
                     </div>
                 </div>
                 
-                <!-- Share Friends Management -->
+                <!-- Share Members Input -->
                 <div class="form-group">
                     <label class="form-label">Add Friends by Referral Code</label>
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <input type="text" class="form-control" id="shareFriendCode" placeholder="Enter friend's referral code">
-                        <button class="btn btn-secondary" id="addShareFriendBtn">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" class="form-control" id="shareMemberInput" placeholder="Enter friend's referral code">
+                        <button class="btn btn-secondary" id="addShareMemberBtn">
                             <i class="fas fa-plus"></i> Add
                         </button>
                     </div>
                 </div>
                 
-                <!-- Share Friends List -->
+                <!-- Share Members List -->
                 <div class="form-group">
-                    <div class="share-friends-container" id="shareFriendsList">
-                        <!-- Share friends will be inserted here -->
+                    <div id="shareFriendsList" class="share-friends-list">
+                        <!-- Share members will be inserted here -->
                     </div>
                 </div>
                 
-                <!-- Split Options -->
-                <div class="form-group">
-                    <label class="form-label">Split Fare Percentage</label>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <input type="range" id="splitPercentage" min="10" max="90" value="50" class="split-slider">
-                        <span id="splitPercentageValue">50%</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-top: 5px;">
-                        <small>You pay more</small>
-                        <small>Equal split</small>
-                        <small>Friend pays more</small>
-                    </div>
+                <!-- Share Calculations -->
+                <div class="form-group" id="shareCalculations" style="display: none;">
+                    <!-- Calculations will be inserted here -->
                 </div>
                 
                 <!-- Ride Type Selection -->
@@ -5426,7 +5443,7 @@ I need help! My current location and ride details will be shared with you.
                     <div class="ride-type-title">
                         <span>Select Ride Type</span>
                     </div>
-                    <div class="ride-type-grid">
+                    <div class="ride-type-grid" id="shareRideTypeGrid">
                         <div class="ride-type-card economy" data-type="economy">
                             <div class="ride-type-icon">
                                 <i class="fas fa-car-side"></i>
@@ -5453,19 +5470,15 @@ I need help! My current location and ride details will be shared with you.
                     </div>
                 </div>
                 
-                <!-- Fare Calculations -->
-                <div class="form-group" id="shareCalculations">
+                <div class="form-group">
+                    <label class="form-label">Estimated Fare: <span id="shareFareEstimate">ZMW 0.00</span></label>
                     <div class="price-calculation">
                         <div class="calculation-row">
-                            <span>Total Fare:</span>
-                            <span id="shareFareEstimate">ZMW 0.00</span>
-                        </div>
-                        <div class="calculation-row">
-                            <span>Your Share (<span id="yourSplitPercentage">50%</span>):</span>
+                            <span>Your Share:</span>
                             <span id="yourShare">ZMW 0.00</span>
                         </div>
                         <div class="calculation-row">
-                            <span>Friend's Share (<span id="friendSplitPercentage">50%</span>):</span>
+                            <span>Friend's Share:</span>
                             <span id="friendShare">ZMW 0.00</span>
                         </div>
                     </div>
@@ -5571,6 +5584,11 @@ I need help! My current location and ride details will be shared with you.
         <div class="loading-text" id="loadingText">Loading...</div>
     </div>
     
+    <!-- Search Loading Overlay -->
+    <div id="searchLoading" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); z-index: 10000;">
+        <i class="fas fa-spinner fa-spin"></i> Searching...
+    </div>
+    
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
     
@@ -5586,27 +5604,8 @@ I need help! My current location and ride details will be shared with you.
         <span>Syncing...</span>
     </div>
     
-    <!-- Schedule Timer -->
-    <div class="schedule-timer" id="scheduleTimer" style="display: none;">
-        <div class="timer-header">
-            <i class="fas fa-clock"></i>
-            <span>Ride in</span>
-        </div>
-        <div class="timer-display" id="timerDisplay">00:00:00</div>
-        <button class="btn btn-danger" id="cancelScheduleBtn">
-            <i class="fas fa-times"></i>
-            Cancel Schedule
-        </button>
-    </div>
-    
-    <!-- Schedule Countdown (Dynamic) -->
+    <!-- Schedule Countdown -->
     <div id="scheduleCountdown" style="display: none;"></div>
-    
-    <!-- Pulsing Ride Icon (Dynamic) -->
-    <div id="pulsingRideIcon" style="display: none;"></div>
-    
-    <!-- Broadcast Invitation Modal (Dynamic) -->
-    <div id="broadcastInvitationModal" style="display: none;"></div>
     
     <!-- Firebase and Leaflet JS -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -5616,6 +5615,7 @@ I need help! My current location and ride details will be shared with you.
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <script>
 // ============================================
 // FIREBASE CONFIGURATION
@@ -14867,6 +14867,7 @@ console.log('Jubel Passenger App JavaScript loaded successfully');
 </script>
 </body>
 </html>
+
 
 
 
