@@ -8391,6 +8391,71 @@ const EnhancedSearchEngine = {
         
         return history;
     },
+
+function updateTransactionsList(transactions) {
+    const container = document.getElementById('transactionsList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (transactions.length === 0) {
+        container.innerHTML = '<div class="no-transactions">No transactions yet</div>';
+        return;
+    }
+    
+    transactions.forEach(transaction => {
+        const transactionEl = document.createElement('div');
+        transactionEl.className = 'transaction-item';
+        
+        const date = new Date(transaction.timestamp);
+        let icon = 'fa-exchange-alt';
+        let typeClass = 'info';
+        let sign = '';
+        
+        switch(transaction.type) {
+            case 'deposit':
+                icon = 'fa-plus-circle';
+                typeClass = 'success';
+                sign = '+';
+                break;
+            case 'withdrawal':
+                icon = 'fa-minus-circle';
+                typeClass = 'warning';
+                sign = '-';
+                break;
+            case 'transfer_sent':
+                icon = 'fa-share';
+                typeClass = 'error';
+                sign = '-';
+                break;
+            case 'transfer_received':
+                icon = 'fa-download';
+                typeClass = 'success';
+                sign = '+';
+                break;
+            case 'ride_payment':
+                icon = 'fa-car';
+                typeClass = 'error';
+                sign = '-';
+                break;
+        }
+        
+        transactionEl.innerHTML = `
+            <div class="transaction-icon ${typeClass}">
+                <i class="fas ${icon}"></i>
+            </div>
+            <div class="transaction-details">
+                <div class="transaction-title">${transaction.description || transaction.type}</div>
+                <div class="transaction-date">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+            </div>
+            <div class="transaction-amount ${typeClass}">
+                ${sign}ZMW ${transaction.amount?.toFixed(2) || '0.00'}
+            </div>
+        `;
+        
+        container.appendChild(transactionEl);
+    });
+}
     
     clearSearchHistory: function() {
         this.searchHistory = [];
@@ -10930,6 +10995,230 @@ const EnhancedUIUpdater = {
             otherInput.style.display = 'none';
         }
     },
+
+// Add these after the Broadcast functions
+function confirmShareRide() {
+    const shareInput = document.getElementById('shareMemberInput');
+    const friendCode = shareInput?.value.trim();
+    
+    if (!friendCode) {
+        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
+        return;
+    }
+    
+    // Find friend by referral code
+    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
+        .then(friend => {
+            if (!friend) {
+                EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error');
+                return;
+            }
+            
+            if (friend.id === AppState.currentUser.uid) {
+                EnhancedUIUpdater.showToast('Cannot share ride with yourself', 'warning');
+                return;
+            }
+            
+            // Calculate fare and split
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
+            
+            const totalFare = EnhancedPriceCalculator.calculateRideFare(
+                distance, 
+                AppState.selectedRideType, 
+                EnhancedPriceCalculator.getSurgeMultiplier()
+            );
+            
+            const splitFare = totalFare / 2; // Equal split
+            
+            // Show payment modal for your share
+            showPaymentModal('car', splitFare, {
+                pickup: AppState.pickup.address,
+                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+                destination: AppState.destination.address,
+                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+                pickupLat: AppState.pickup.lat,
+                pickupLng: AppState.pickup.lng,
+                destLat: AppState.destination.lat,
+                destLng: AppState.destination.lng,
+                rideType: AppState.selectedRideType,
+                fare: splitFare,
+                distance: distance,
+                sharedRide: true,
+                friendId: friend.id,
+                friendName: friend.name,
+                friendShare: splitFare,
+                totalFare: totalFare
+            });
+            
+            closeModal('shareRide');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error finding friend: ' + error.message, 'error');
+        });
+}
+
+function addShareMember() {
+    const input = document.getElementById('shareMemberInput');
+    const friendCode = input?.value.trim();
+    
+    if (!friendCode) {
+        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
+        .then(friend => {
+            if (friend) {
+                const container = document.getElementById('shareFriendsList');
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'share-friend-item';
+                memberDiv.innerHTML = `
+                    <div class="friend-avatar">
+                        ${friend.name?.charAt(0) || 'F'}
+                    </div>
+                    <div class="friend-info">
+                        <div class="friend-name">${friend.name || 'Friend'}</div>
+                        <div class="friend-phone">${friend.phone || ''}</div>
+                    </div>
+                    <button class="remove-friend" onclick="removeShareMember(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                container.appendChild(memberDiv);
+                input.value = '';
+                EnhancedUIUpdater.showToast('Friend added to share ride', 'success');
+            } else {
+                EnhancedUIUpdater.showToast('Friend not found', 'error');
+            }
+        });
+}
+
+function removeShareMember(button) {
+    const item = button.closest('.share-friend-item');
+    if (item) {
+        item.remove();
+    }
+      }
+      
+// Add these after the Broadcast functions
+function confirmShareRide() {
+    const shareInput = document.getElementById('shareMemberInput');
+    const friendCode = shareInput?.value.trim();
+    
+    if (!friendCode) {
+        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
+        return;
+    }
+    
+    // Find friend by referral code
+    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
+        .then(friend => {
+            if (!friend) {
+                EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error');
+                return;
+            }
+            
+            if (friend.id === AppState.currentUser.uid) {
+                EnhancedUIUpdater.showToast('Cannot share ride with yourself', 'warning');
+                return;
+            }
+            
+            // Calculate fare and split
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
+            
+            const totalFare = EnhancedPriceCalculator.calculateRideFare(
+                distance, 
+                AppState.selectedRideType, 
+                EnhancedPriceCalculator.getSurgeMultiplier()
+            );
+            
+            const splitFare = totalFare / 2; // Equal split
+            
+            // Show payment modal for your share
+            showPaymentModal('car', splitFare, {
+                pickup: AppState.pickup.address,
+                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+                destination: AppState.destination.address,
+                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+                pickupLat: AppState.pickup.lat,
+                pickupLng: AppState.pickup.lng,
+                destLat: AppState.destination.lat,
+                destLng: AppState.destination.lng,
+                rideType: AppState.selectedRideType,
+                fare: splitFare,
+                distance: distance,
+                sharedRide: true,
+                friendId: friend.id,
+                friendName: friend.name,
+                friendShare: splitFare,
+                totalFare: totalFare
+            });
+            
+            closeModal('shareRide');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error finding friend: ' + error.message, 'error');
+        });
+}
+
+function addShareMember() {
+    const input = document.getElementById('shareMemberInput');
+    const friendCode = input?.value.trim();
+    
+    if (!friendCode) {
+        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
+        .then(friend => {
+            if (friend) {
+                const container = document.getElementById('shareFriendsList');
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'share-friend-item';
+                memberDiv.innerHTML = `
+                    <div class="friend-avatar">
+                        ${friend.name?.charAt(0) || 'F'}
+                    </div>
+                    <div class="friend-info">
+                        <div class="friend-name">${friend.name || 'Friend'}</div>
+                        <div class="friend-phone">${friend.phone || ''}</div>
+                    </div>
+                    <button class="remove-friend" onclick="removeShareMember(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                container.appendChild(memberDiv);
+                input.value = '';
+                EnhancedUIUpdater.showToast('Friend added to share ride', 'success');
+            } else {
+                EnhancedUIUpdater.showToast('Friend not found', 'error');
+            }
+        });
+}
+
+function removeShareMember(button) {
+    const item = button.closest('.share-friend-item');
+    if (item) {
+        item.remove();
+    }
+        }
     
     updateBroadcastRecipients: function(recipients) {
         const container = document.getElementById('broadcastRecipients');
@@ -14559,6 +14848,8 @@ async function initializeApp() {
         }
         
         initializeMap();
+
+        fixBicycleStyling();
         
         setupEventListeners();
         
@@ -14586,6 +14877,165 @@ async function initializeApp() {
         EnhancedUIUpdater.hideLoading();
         EnhancedUIUpdater.showToast('Error initializing app', 'error');
     }
+
+// Initialize all modals
+document.querySelectorAll('.modal-overlay').forEach(modal => {
+    modal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.style.display = 'none';
+        }
+    });
+});
+    
+}
+
+// Add this after the initializeApp() function
+function showModal(modalId) {
+    console.log(`Showing modal: ${modalId}`);
+    const modal = document.getElementById(`${modalId}Modal`);
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('active');
+        
+        // For payment modal, update balance
+        if (modalId === 'payment') {
+            const amount = window.pendingRideData?.fare || 0;
+            document.getElementById('paymentAmount').textContent = `ZMW ${amount.toFixed(2)}`;
+            document.getElementById('paymentBalance').textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
+            
+            // Show referral section if applicable
+            if (window.pendingRideData?.referredBy) {
+                document.getElementById('referralDiscountSection').style.display = 'block';
+            }
+        }
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(`${modalId}Modal`);
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('active');
+    }
+    
+    // Clear any pending data
+    if (modalId === 'payment') {
+        window.pendingRideData = null;
+    }
+}
+
+function openScheduleModal() {
+    closeMoreOptionsMenu();
+    showModal('schedule');
+    
+    // Set min date for schedule
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('scheduleDate').min = today;
+    
+    // Auto-set pickup location
+    if (AppState.pickup) {
+        document.getElementById('schedulePickup').value = AppState.pickup.address || AppState.pickup.name;
+    }
+}
+
+function openOrderForSomeoneModal() {
+    closeMoreOptionsMenu();
+    showModal('orderForSomeone');
+    
+    // Auto-set pickup location
+    if (AppState.pickup) {
+        document.getElementById('someonePickup').value = AppState.pickup.address || AppState.pickup.name;
+    }
+}
+
+function openShareRideModal() {
+    closeMoreOptionsMenu();
+    showModal('shareRide');
+    
+    // Auto-set pickup location
+    if (AppState.pickup) {
+        document.getElementById('sharePickup').value = AppState.pickup.address || AppState.pickup.name;
+    }
+}
+
+function openSOSModal() {
+    closeMoreOptionsMenu();
+    showModal('sos');
+    
+    // Load existing SOS config if available
+    if (AppState.sosConfig) {
+        document.getElementById('sosContact1Name').value = AppState.sosConfig.contact1Name || '';
+        document.getElementById('sosContact1Phone').value = AppState.sosConfig.contact1Phone || '';
+        document.getElementById('sosContact2Name').value = AppState.sosConfig.contact2Name || '';
+        document.getElementById('sosContact2Phone').value = AppState.sosConfig.contact2Phone || '';
+    }
+}
+
+function openDepositModal() {
+    showModal('wallet');
+    // Create deposit modal if it doesn't exist
+    const depositModal = document.getElementById('depositModal');
+    if (!depositModal) {
+        createDepositModal();
+    }
+    showModal('deposit');
+}
+
+function openWithdrawModal() {
+    showModal('wallet');
+    // Create withdraw modal if it doesn't exist
+    const withdrawModal = document.getElementById('withdrawModal');
+    if (!withdrawModal) {
+        createWithdrawModal();
+    }
+    showModal('withdraw');
+}
+
+function openTransferModal() {
+    showModal('transfer');
+}
+
+function openTransactionsModal() {
+    EnhancedFirebaseManager.loadWalletTransactions(AppState.currentUser.uid)
+        .then(transactions => {
+            updateTransactionsList(transactions);
+            showModal('transactions');
+        })
+        .catch(error => {
+            console.error('Error loading transactions:', error);
+        });
+}
+
+function openUpdateProfileModal() {
+    // Populate form with current user data
+    if (AppState.userData) {
+        document.getElementById('updateName').value = AppState.userData.name || '';
+        document.getElementById('updatePhone').value = AppState.userData.phone || '';
+        document.getElementById('updateEmail').value = AppState.currentUser.email || '';
+        document.getElementById('updateHomeAddress').value = AppState.userData.homeAddress || '';
+        document.getElementById('updateWorkAddress').value = AppState.userData.workAddress || '';
+    }
+    showModal('updateProfile');
+}
+
+function openEmergencyModal(type) {
+    document.getElementById('emergencyServiceType').dataset.type = type;
+    document.getElementById('emergencyServiceType').textContent = 
+        type === 'police' ? 'Police Ride' : 
+        type === 'fire' ? 'Fire Brigade' : 
+        'Hospital Ride';
+    
+    // Load emergency stations for this type
+    EnhancedFirebaseManager.loadEmergencyStations(AppState.currentCity, type);
+    
+    // Set user location
+    if (AppState.userLocation) {
+        document.getElementById('emergencyUserLocation').textContent = 
+            AppState.locationManagement.userDetectedAddress?.fullDisplay || 
+            'Your current location';
+    }
+    
+    showModal('emergency');
 }
 
 function initializeMap() {
@@ -15195,6 +15645,44 @@ function togglePanel() {
     }
 }
 
+// Add this after toggleMoreOptions() function
+function toggleMoreOptions() {
+    const menu = document.getElementById('moreOptionsMenu');
+    if (menu) {
+        if (menu.style.display === 'block') {
+            menu.style.display = 'none';
+        } else {
+            menu.style.display = 'block';
+            // Position the menu near the button
+            const btn = document.getElementById('moreOptionsBtn');
+            if (btn) {
+                const rect = btn.getBoundingClientRect();
+                menu.style.top = `${rect.bottom + window.scrollY + 5}px`;
+                menu.style.left = `${rect.left + window.scrollX}px`;
+            }
+        }
+    }
+}
+
+function closeMoreOptionsMenu() {
+    const menu = document.getElementById('moreOptionsMenu');
+    if (menu) {
+        menu.style.display = 'none';
+    }
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('moreOptionsMenu');
+    const btn = document.getElementById('moreOptionsBtn');
+    
+    if (menu && menu.style.display === 'block' && 
+        !menu.contains(e.target) && 
+        !btn.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
+      
 function toggleMoreOptions() {
     const menu = document.getElementById('moreOptionsMenu');
     menu.classList.toggle('active');
@@ -15556,7 +16044,10 @@ function selectPaymentMethod(method) {
     document.querySelectorAll('.payment-method').forEach(item => {
         item.classList.remove('selected');
     });
-    document.querySelector(`.payment-method[data-payment="${method}"]`).classList.add('selected');
+    const selected = document.querySelector(`.payment-method[data-payment="${method}"]`);
+    if (selected) {
+        selected.classList.add('selected');
+    }
 }
 
 function confirmPayment() {
@@ -15580,20 +16071,40 @@ function confirmPayment() {
         return;
     }
     
+    // Add payment method to ride data
     rideData.paymentMethod = paymentMethod;
     rideData.fare = amount;
     
     EnhancedUIUpdater.showLoading('Processing payment...');
     
-    EnhancedFirebaseManager.requestRide(rideData)
+    // Request the ride based on service type
+    let requestPromise;
+    switch(rideData.serviceType || 'car') {
+        case 'delivery':
+            requestPromise = EnhancedFirebaseManager.requestDelivery(rideData);
+            break;
+        case 'truck':
+            requestPromise = EnhancedFirebaseManager.requestTruck(rideData);
+            break;
+        case 'shopping':
+            requestPromise = EnhancedFirebaseManager.requestShopping(rideData);
+            break;
+        case 'emergency':
+            requestPromise = EnhancedFirebaseManager.requestEmergencyRide(rideData);
+            break;
+        default:
+            requestPromise = EnhancedFirebaseManager.requestRide(rideData);
+    }
+    
+    requestPromise
         .then(rideId => {
-            hideModal('payment');
+            closeModal('payment');
             EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Ride requested successfully', 'success');
+            EnhancedUIUpdater.showToast('Ride requested successfully!', 'success');
         })
         .catch(error => {
             EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error processing payment: ' + error.message, 'error');
+            EnhancedUIUpdater.showToast('Error: ' + error.message, 'error');
         });
 }
 
@@ -15894,34 +16405,38 @@ function applyReferral() {
         return;
     }
     
-    const amount = parseFloat(document.getElementById('paymentAmount').textContent.replace('ZMW ', ''));
-    const rideData = window.pendingRideData;
-    
-    if (!rideData) {
-        EnhancedUIUpdater.showToast('No ride data found', 'error');
+    const originalAmount = window.pendingRideData?.fare;
+    if (!originalAmount) {
+        EnhancedUIUpdater.showToast('No ride fare found', 'error');
         return;
     }
     
-    EnhancedUIUpdater.showLoading('Applying referral discount...');
-    
-    EnhancedFirebaseManager.applyReferralDiscount(rideData, referralCode)
+    // Check if referral is valid
+    EnhancedFirebaseManager.checkReferralCode(referralCode)
         .then(result => {
-            EnhancedUIUpdater.hideLoading();
-            if (result.success) {
-                EnhancedUIUpdater.showToast(result.message, 'success');
-                document.getElementById('paymentAmount').textContent = `ZMW ${result.finalFare.toFixed(2)}`;
-                rideData.fare = result.finalFare;
-                rideData.referredBy = referralCode;
-                rideData.referrerName = result.referrerName;
-                rideData.discountAmount = result.discountAmount;
-                window.pendingRideData = rideData;
+            if (result.valid) {
+                // Apply 50% discount
+                const discountAmount = originalAmount * 0.5;
+                const finalAmount = originalAmount - discountAmount;
+                
+                // Update display
+                document.getElementById('paymentAmount').textContent = `ZMW ${finalAmount.toFixed(2)}`;
+                document.getElementById('originalFareAmount').textContent = `ZMW ${originalAmount.toFixed(2)}`;
+                document.getElementById('discountAmount').textContent = `-ZMW ${discountAmount.toFixed(2)}`;
+                document.getElementById('finalFareAmount').textContent = `ZMW ${finalAmount.toFixed(2)}`;
+                
+                // Update ride data
+                window.pendingRideData.fare = finalAmount;
+                window.pendingRideData.referredBy = referralCode;
+                window.pendingRideData.discountAmount = discountAmount;
+                
+                EnhancedUIUpdater.showToast('50% discount applied!', 'success');
             } else {
                 EnhancedUIUpdater.showToast(result.message, 'error');
             }
         })
         .catch(error => {
-            EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error applying discount', 'error');
+            EnhancedUIUpdater.showToast('Error applying referral', 'error');
         });
 }
 
@@ -16020,13 +16535,8 @@ function logout() {
     if (confirm('Are you sure you want to logout?')) {
         EnhancedUIUpdater.showLoading('Logging out...');
         
-        EnhancedFirebaseManager.stopRealtimeSync();
-        
-        if (AppState.syncInterval) {
-            clearInterval(AppState.syncInterval);
-        }
-        
         auth.signOut().then(() => {
+            EnhancedUIUpdater.hideLoading();
             window.location.href = 'signup.html';
         }).catch(error => {
             console.error('Error logging out:', error);
@@ -16036,11 +16546,307 @@ function logout() {
     }
 }
 
+// Add these after the logout() function
+function saveProfile() {
+    const name = document.getElementById('updateName').value.trim();
+    const phone = document.getElementById('updatePhone').value.trim();
+    const homeAddress = document.getElementById('updateHomeAddress').value.trim();
+    const workAddress = document.getElementById('updateWorkAddress').value.trim();
+    
+    if (!name || !phone) {
+        EnhancedUIUpdater.showToast('Name and phone are required', 'warning');
+        return;
+    }
+    
+    const profileData = {
+        name: name,
+        phone: phone.replace(/\D/g, ''),
+        homeAddress: homeAddress,
+        workAddress: workAddress,
+        updatedAt: Date.now()
+    };
+    
+    EnhancedFirebaseManager.updateProfile(profileData);
+}
+
+function shareReferral() {
+    const referralCode = AppState.userData?.referralCode || 'JUBEL-XXXX';
+    const message = `Join me on Jubel! Use my referral code ${referralCode} for 50% off your first ride!`;
+    
+    // Try to use Web Share API if available
+    if (navigator.share) {
+        navigator.share({
+            title: 'Join Jubel',
+            text: message,
+            url: window.location.origin
+        }).catch(error => {
+            console.log('Share cancelled or failed:', error);
+        });
+    } else {
+        // Fallback to clipboard
+        navigator.clipboard.writeText(message).then(() => {
+            EnhancedUIUpdater.showToast('Referral code copied to clipboard!', 'success');
+        }).catch(() => {
+            // Final fallback
+            const textArea = document.createElement('textarea');
+            textArea.value = message;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            EnhancedUIUpdater.showToast('Referral code copied to clipboard!', 'success');
+        });
+    }
+}
+
+// Add this function to create deposit modal dynamically
+function createDepositModal() {
+    if (document.getElementById('depositModal')) return;
+    
+    const modal = document.createElement('div');
+    modal.id = 'depositModal';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'none';
+    modal.innerHTML = `
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fas fa-plus-circle"></i>
+                    Deposit Money
+                </div>
+                <button class="modal-close" onclick="closeModal('deposit')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="form-group">
+                    <div class="form-label">Current Balance: <span id="depositCurrentBalance">ZMW ${AppState.walletBalance.toFixed(2)}</span></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Amount to Deposit (ZMW)</label>
+                    <input type="number" class="form-control" id="depositAmount" placeholder="Enter amount" min="10" step="10">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Payment Method</label>
+                    <div class="payment-methods">
+                        <div class="payment-method selected" data-payment="mobile" onclick="selectDepositMethod('mobile')">
+                            <i class="fas fa-mobile-alt"></i>
+                            <span>Mobile Money</span>
+                        </div>
+                        <div class="payment-method" data-payment="card" onclick="selectDepositMethod('card')">
+                            <i class="fas fa-credit-card"></i>
+                            <span>Card</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="processDeposit()">
+                        <i class="fas fa-check"></i>
+                        Deposit Now
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeModal('deposit')">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function createWithdrawModal() {
+    if (document.getElementById('withdrawModal')) return;
+    
+    const modal = document.createElement('div');
+    modal.id = 'withdrawModal';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'none';
+    modal.innerHTML = `
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="fas fa-minus-circle"></i>
+                    Withdraw Money
+                </div>
+                <button class="modal-close" onclick="closeModal('withdraw')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-content">
+                <div class="form-group">
+                    <div class="form-label">Available Balance: <span id="withdrawCurrentBalance">ZMW ${AppState.walletBalance.toFixed(2)}</span></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Amount to Withdraw (ZMW)</label>
+                    <input type="number" class="form-control" id="withdrawAmount" placeholder="Enter amount" min="10" step="10" max="${AppState.walletBalance}">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Mobile Money Number</label>
+                    <input type="tel" class="form-control" id="withdrawPhone" placeholder="Enter phone number">
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="processWithdrawal()">
+                        <i class="fas fa-check"></i>
+                        Withdraw Now
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeModal('withdraw')">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function processDeposit() {
+    const amount = parseFloat(document.getElementById('depositAmount').value);
+    const method = document.querySelector('.payment-method.selected')?.dataset.payment;
+    
+    if (!amount || amount < 10) {
+        EnhancedUIUpdater.showToast('Minimum deposit is ZMW 10', 'warning');
+        return;
+    }
+    
+    if (!method) {
+        EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.depositMoney(amount, method)
+        .then(() => {
+            closeModal('deposit');
+            EnhancedUIUpdater.showToast(`ZMW ${amount.toFixed(2)} deposited successfully`, 'success');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error processing deposit: ' + error.message, 'error');
+        });
+}
+
+function processWithdrawal() {
+    const amount = parseFloat(document.getElementById('withdrawAmount').value);
+    const phone = document.getElementById('withdrawPhone').value.trim();
+    
+    if (!amount || amount < 10) {
+        EnhancedUIUpdater.showToast('Minimum withdrawal is ZMW 10', 'warning');
+        return;
+    }
+    
+    if (amount > AppState.walletBalance) {
+        EnhancedUIUpdater.showToast('Insufficient balance', 'error');
+        return;
+    }
+    
+    if (!phone || !/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+        EnhancedUIUpdater.showToast('Please enter a valid 10-digit phone number', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.withdrawMoney(amount, phone)
+        .then(() => {
+            closeModal('withdraw');
+            EnhancedUIUpdater.showToast(`ZMW ${amount.toFixed(2)} withdrawal requested`, 'success');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error processing withdrawal: ' + error.message, 'error');
+        });
+}
+
+function selectDepositMethod(method) {
+    document.querySelectorAll('.payment-method').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.payment-method[data-payment="${method}"]`).classList.add('selected');
+        }
+
 function openEmergencyModal(type) {
     if (type === 'sos') {
         showModal('sos');
     } else {
         handleEmergencyService(type);
+    }
+}
+
+// Add these after openEmergencyModal() function
+function confirmEmergencyRide() {
+    const emergencyType = document.getElementById('emergencyServiceType').dataset.type;
+    const selectedReason = document.querySelector('.emergency-reason.selected');
+    
+    if (!selectedReason) {
+        EnhancedUIUpdater.showToast('Please select an emergency reason', 'warning');
+        return;
+    }
+    
+    let reason = selectedReason.dataset.reason;
+    if (reason === 'other') {
+        const otherReason = document.getElementById('emergencyOtherReason').value.trim();
+        if (!otherReason) {
+            EnhancedUIUpdater.showToast('Please describe the emergency', 'warning');
+            return;
+        }
+        reason = otherReason;
+    }
+    
+    const selectedStation = AppState.selectedEmergencyStation;
+    if (!selectedStation) {
+        EnhancedUIUpdater.showToast('Please select an emergency station', 'warning');
+        return;
+    }
+    
+    // Calculate fare
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.userLocation.lat, AppState.userLocation.lng,
+        selectedStation.lat, selectedStation.lng
+    );
+    
+    const fare = EnhancedPriceCalculator.calculateEmergencyFare(distance, emergencyType);
+    
+    const emergencyData = {
+        pickup: selectedStation.name,
+        pickupDisplay: selectedStation.name,
+        destination: AppState.locationManagement.userDetectedAddress?.fullDisplay || 'Emergency Location',
+        destinationDisplay: 'Emergency Location',
+        pickupLat: selectedStation.lat,
+        pickupLng: selectedStation.lng,
+        destLat: AppState.userLocation.lat,
+        destLng: AppState.userLocation.lng,
+        emergencyType: emergencyType,
+        emergencyReason: reason,
+        fare: fare,
+        distance: distance,
+        stationName: selectedStation.name,
+        stationAddress: selectedStation.address,
+        paymentMethod: 'emergency'
+    };
+    
+    EnhancedFirebaseManager.requestEmergencyRide(emergencyData)
+        .then(() => {
+            closeModal('emergency');
+            EnhancedUIUpdater.showToast('Emergency ride requested! Help is on the way.', 'success');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error: ' + error.message, 'error');
+        });
+}
+
+function selectEmergencyReason(reason) {
+    document.querySelectorAll('.emergency-reason').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.emergency-reason[data-reason="${reason}"]`).classList.add('selected');
+    
+    // Show/hide other reason input
+    const otherInput = document.getElementById('emergencyReasonOther');
+    if (otherInput) {
+        otherInput.style.display = reason === 'other' ? 'block' : 'none';
     }
 }
 
@@ -16081,28 +16887,48 @@ function addStop() {
 function switchScreen(screen) {
     console.log(`Switching to screen: ${screen}`);
     
-    // Hide all screens
-    document.querySelectorAll('.screen').forEach(s => {
-        s.style.display = 'none';
+    // Hide all screen content
+    document.querySelectorAll('[id$="Screen"]').forEach(el => {
+        el.style.display = 'none';
     });
     
-    // Show target screen
+    // Hide the ride info panel if showing
+    document.getElementById('rideInfoPanel').style.display = 'none';
+    
+    // Show the selected screen
     const targetScreen = document.getElementById(`${screen}Screen`);
     if (targetScreen) {
         targetScreen.style.display = 'block';
         AppState.activeScreen = screen;
         
-        if (screen === 'home') {
-            switchService(AppState.activeService);
-        } else if (screen === 'history') {
-            EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
-        } else if (screen === 'account') {
-            // Already loaded from Firebase
-        } else if (screen === 'emergency') {
-            // Emergency screen already has content
+        // Load data for specific screens
+        switch(screen) {
+            case 'home':
+                // Show the active service form
+                switchService(AppState.activeService);
+                break;
+            case 'history':
+                // Load ride history
+                EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+                break;
+            case 'account':
+                // Update account info
+                if (AppState.userData) {
+                    document.getElementById('accountName').textContent = AppState.userData.name || 'User';
+                    document.getElementById('accountPhone').textContent = AppState.userData.phone || '';
+                    document.getElementById('accountBalance').textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
+                    
+                    // Update stats
+                    EnhancedFirebaseManager.updateUserStats();
+                }
+                break;
+            case 'emergency':
+                // Already handled
+                break;
         }
     }
 }
+
 
 function switchService(service) {
     console.log(`Switching service to: ${service}`);
@@ -16268,20 +17094,23 @@ function showPaymentModal(serviceType, amount, rideData) {
     
     window.pendingRideData = rideData;
     
+    // Update modal content
     document.getElementById('paymentAmount').textContent = `ZMW ${amount.toFixed(2)}`;
-    document.getElementById('paymentTitle').textContent = `Payment for ${serviceType.charAt(0).toUpperCase() + serviceType.slice(1)}`;
+    document.getElementById('paymentBalance').textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
     
-    const paymentMethod = document.querySelector('.payment-method.selected');
-    if (paymentMethod) {
-        paymentMethod.classList.remove('selected');
-    }
+    // Reset payment method selection
+    document.querySelectorAll('.payment-method').forEach(method => {
+        method.classList.remove('selected');
+    });
     
+    // Auto-select wallet if balance is sufficient
     if (AppState.walletBalance >= amount) {
-        document.querySelector('.payment-method.wallet').classList.add('selected');
+        document.querySelector('.payment-method[data-payment="wallet"]').classList.add('selected');
     } else {
-        document.querySelector('.payment-method.cash').classList.add('selected');
+        document.querySelector('.payment-method[data-payment="cash"]').classList.add('selected');
     }
     
+    // Show modal
     showModal('payment');
 }
 
@@ -16490,7 +17319,7 @@ function setupBicycleEventListeners() {
     if (requestBicycleBtn) {
         requestBicycleBtn.addEventListener('click', async () => {
             if (!AppState.pickup || !AppState.destination) {
-                EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+                .showToast('Please select pickup and destination locations', 'warning');
                 return;
             }
             
@@ -17050,6 +17879,45 @@ function addEnhancedStyles() {
     document.head.appendChild(style);
 }
 
+// Add this function to fix bicycle styling
+function fixBicycleStyling() {
+    const bicycleTab = document.querySelector('.service-tab[data-service="short-delivery"]');
+    if (bicycleTab) {
+        // Ensure it has the same styling as other tabs
+        bicycleTab.classList.add('short-delivery');
+        
+        // Fix icon styling
+        const icon = bicycleTab.querySelector('.service-icon i');
+        if (icon) {
+            icon.style.color = '#4CAF50'; // Green color for bicycle
+            icon.style.fontSize = '20px';
+        }
+        
+        // Fix text styling
+        const name = bicycleTab.querySelector('.service-name');
+        if (name) {
+            name.style.color = '#333';
+            name.style.fontWeight = '600';
+        }
+        
+        const desc = bicycleTab.querySelector('.service-desc');
+        if (desc) {
+            desc.style.color = '#666';
+            desc.style.fontSize = '12px';
+        }
+    }
+    
+    // Also fix the bicycle ride type card
+    const bicycleRideCard = document.querySelector('.ride-type-card[data-type="bicycle"]');
+    if (bicycleRideCard) {
+        bicycleRideCard.style.borderColor = '#4CAF50';
+        const icon = bicycleRideCard.querySelector('.ride-type-icon i');
+        if (icon) {
+            icon.style.color = '#4CAF50';
+        }
+    }
+}
+
 // ============================================
 // MAIN INITIALIZATION
 // ============================================
@@ -17075,6 +17943,7 @@ console.log('Jubel Passenger App JavaScript loaded successfully');
 </script>
 </body>
 </html>
+
 
 
 
