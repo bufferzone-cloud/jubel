@@ -8392,70 +8392,6 @@ const EnhancedSearchEngine = {
         return history;
     },
 
-function updateTransactionsList(transactions) {
-    const container = document.getElementById('transactionsList');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    if (transactions.length === 0) {
-        container.innerHTML = '<div class="no-transactions">No transactions yet</div>';
-        return;
-    }
-    
-    transactions.forEach(transaction => {
-        const transactionEl = document.createElement('div');
-        transactionEl.className = 'transaction-item';
-        
-        const date = new Date(transaction.timestamp);
-        let icon = 'fa-exchange-alt';
-        let typeClass = 'info';
-        let sign = '';
-        
-        switch(transaction.type) {
-            case 'deposit':
-                icon = 'fa-plus-circle';
-                typeClass = 'success';
-                sign = '+';
-                break;
-            case 'withdrawal':
-                icon = 'fa-minus-circle';
-                typeClass = 'warning';
-                sign = '-';
-                break;
-            case 'transfer_sent':
-                icon = 'fa-share';
-                typeClass = 'error';
-                sign = '-';
-                break;
-            case 'transfer_received':
-                icon = 'fa-download';
-                typeClass = 'success';
-                sign = '+';
-                break;
-            case 'ride_payment':
-                icon = 'fa-car';
-                typeClass = 'error';
-                sign = '-';
-                break;
-        }
-        
-        transactionEl.innerHTML = `
-            <div class="transaction-icon ${typeClass}">
-                <i class="fas ${icon}"></i>
-            </div>
-            <div class="transaction-details">
-                <div class="transaction-title">${transaction.description || transaction.type}</div>
-                <div class="transaction-date">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-            </div>
-            <div class="transaction-amount ${typeClass}">
-                ${sign}ZMW ${transaction.amount?.toFixed(2) || '0.00'}
-            </div>
-        `;
-        
-        container.appendChild(transactionEl);
-    });
-}
     
     clearSearchHistory: function() {
         this.searchHistory = [];
@@ -10996,229 +10932,6 @@ const EnhancedUIUpdater = {
         }
     },
 
-// Add these after the Broadcast functions
-function confirmShareRide() {
-    const shareInput = document.getElementById('shareMemberInput');
-    const friendCode = shareInput?.value.trim();
-    
-    if (!friendCode) {
-        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
-        return;
-    }
-    
-    if (!AppState.pickup || !AppState.destination) {
-        EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
-        return;
-    }
-    
-    // Find friend by referral code
-    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
-        .then(friend => {
-            if (!friend) {
-                EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error');
-                return;
-            }
-            
-            if (friend.id === AppState.currentUser.uid) {
-                EnhancedUIUpdater.showToast('Cannot share ride with yourself', 'warning');
-                return;
-            }
-            
-            // Calculate fare and split
-            const distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-            
-            const totalFare = EnhancedPriceCalculator.calculateRideFare(
-                distance, 
-                AppState.selectedRideType, 
-                EnhancedPriceCalculator.getSurgeMultiplier()
-            );
-            
-            const splitFare = totalFare / 2; // Equal split
-            
-            // Show payment modal for your share
-            showPaymentModal('car', splitFare, {
-                pickup: AppState.pickup.address,
-                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-                destination: AppState.destination.address,
-                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-                pickupLat: AppState.pickup.lat,
-                pickupLng: AppState.pickup.lng,
-                destLat: AppState.destination.lat,
-                destLng: AppState.destination.lng,
-                rideType: AppState.selectedRideType,
-                fare: splitFare,
-                distance: distance,
-                sharedRide: true,
-                friendId: friend.id,
-                friendName: friend.name,
-                friendShare: splitFare,
-                totalFare: totalFare
-            });
-            
-            closeModal('shareRide');
-        })
-        .catch(error => {
-            EnhancedUIUpdater.showToast('Error finding friend: ' + error.message, 'error');
-        });
-}
-
-function addShareMember() {
-    const input = document.getElementById('shareMemberInput');
-    const friendCode = input?.value.trim();
-    
-    if (!friendCode) {
-        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
-        return;
-    }
-    
-    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
-        .then(friend => {
-            if (friend) {
-                const container = document.getElementById('shareFriendsList');
-                const memberDiv = document.createElement('div');
-                memberDiv.className = 'share-friend-item';
-                memberDiv.innerHTML = `
-                    <div class="friend-avatar">
-                        ${friend.name?.charAt(0) || 'F'}
-                    </div>
-                    <div class="friend-info">
-                        <div class="friend-name">${friend.name || 'Friend'}</div>
-                        <div class="friend-phone">${friend.phone || ''}</div>
-                    </div>
-                    <button class="remove-friend" onclick="removeShareMember(this)">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
-                container.appendChild(memberDiv);
-                input.value = '';
-                EnhancedUIUpdater.showToast('Friend added to share ride', 'success');
-            } else {
-                EnhancedUIUpdater.showToast('Friend not found', 'error');
-            }
-        });
-}
-
-function removeShareMember(button) {
-    const item = button.closest('.share-friend-item');
-    if (item) {
-        item.remove();
-    }
-      }
-      
-// Add these after the Broadcast functions
-function confirmShareRide() {
-    const shareInput = document.getElementById('shareMemberInput');
-    const friendCode = shareInput?.value.trim();
-    
-    if (!friendCode) {
-        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
-        return;
-    }
-    
-    if (!AppState.pickup || !AppState.destination) {
-        EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
-        return;
-    }
-    
-    // Find friend by referral code
-    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
-        .then(friend => {
-            if (!friend) {
-                EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error');
-                return;
-            }
-            
-            if (friend.id === AppState.currentUser.uid) {
-                EnhancedUIUpdater.showToast('Cannot share ride with yourself', 'warning');
-                return;
-            }
-            
-            // Calculate fare and split
-            const distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-            
-            const totalFare = EnhancedPriceCalculator.calculateRideFare(
-                distance, 
-                AppState.selectedRideType, 
-                EnhancedPriceCalculator.getSurgeMultiplier()
-            );
-            
-            const splitFare = totalFare / 2; // Equal split
-            
-            // Show payment modal for your share
-            showPaymentModal('car', splitFare, {
-                pickup: AppState.pickup.address,
-                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-                destination: AppState.destination.address,
-                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-                pickupLat: AppState.pickup.lat,
-                pickupLng: AppState.pickup.lng,
-                destLat: AppState.destination.lat,
-                destLng: AppState.destination.lng,
-                rideType: AppState.selectedRideType,
-                fare: splitFare,
-                distance: distance,
-                sharedRide: true,
-                friendId: friend.id,
-                friendName: friend.name,
-                friendShare: splitFare,
-                totalFare: totalFare
-            });
-            
-            closeModal('shareRide');
-        })
-        .catch(error => {
-            EnhancedUIUpdater.showToast('Error finding friend: ' + error.message, 'error');
-        });
-}
-
-function addShareMember() {
-    const input = document.getElementById('shareMemberInput');
-    const friendCode = input?.value.trim();
-    
-    if (!friendCode) {
-        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
-        return;
-    }
-    
-    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
-        .then(friend => {
-            if (friend) {
-                const container = document.getElementById('shareFriendsList');
-                const memberDiv = document.createElement('div');
-                memberDiv.className = 'share-friend-item';
-                memberDiv.innerHTML = `
-                    <div class="friend-avatar">
-                        ${friend.name?.charAt(0) || 'F'}
-                    </div>
-                    <div class="friend-info">
-                        <div class="friend-name">${friend.name || 'Friend'}</div>
-                        <div class="friend-phone">${friend.phone || ''}</div>
-                    </div>
-                    <button class="remove-friend" onclick="removeShareMember(this)">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
-                container.appendChild(memberDiv);
-                input.value = '';
-                EnhancedUIUpdater.showToast('Friend added to share ride', 'success');
-            } else {
-                EnhancedUIUpdater.showToast('Friend not found', 'error');
-            }
-        });
-}
-
-function removeShareMember(button) {
-    const item = button.closest('.share-friend-item');
-    if (item) {
-        item.remove();
-    }
-        }
     
     updateBroadcastRecipients: function(recipients) {
         const container = document.getElementById('broadcastRecipients');
@@ -11789,6 +11502,119 @@ function removeShareMember(button) {
 };
 
 // ============================================
+// SHARE RIDE FUNCTIONS
+// ============================================
+function confirmShareRide() {
+    const shareInput = document.getElementById('shareMemberInput');
+    const friendCode = shareInput?.value.trim();
+    
+    if (!friendCode) {
+        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
+        return;
+    }
+    
+    // Find friend by referral code
+    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
+        .then(friend => {
+            if (!friend) {
+                EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error');
+                return;
+            }
+            
+            if (friend.id === AppState.currentUser.uid) {
+                EnhancedUIUpdater.showToast('Cannot share ride with yourself', 'warning');
+                return;
+            }
+            
+            // Calculate fare and split
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
+            
+            const totalFare = EnhancedPriceCalculator.calculateRideFare(
+                distance, 
+                AppState.selectedRideType, 
+                EnhancedPriceCalculator.getSurgeMultiplier()
+            );
+            
+            const splitFare = totalFare / 2; // Equal split
+            
+            // Show payment modal for your share
+            showPaymentModal('car', splitFare, {
+                pickup: AppState.pickup.address,
+                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+                destination: AppState.destination.address,
+                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+                pickupLat: AppState.pickup.lat,
+                pickupLng: AppState.pickup.lng,
+                destLat: AppState.destination.lat,
+                destLng: AppState.destination.lng,
+                rideType: AppState.selectedRideType,
+                fare: splitFare,
+                distance: distance,
+                sharedRide: true,
+                friendId: friend.id,
+                friendName: friend.name,
+                friendShare: splitFare,
+                totalFare: totalFare
+            });
+            
+            closeModal('shareRide');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error finding friend: ' + error.message, 'error');
+        });
+}
+
+function addShareMember() {
+    const input = document.getElementById('shareMemberInput');
+    const friendCode = input?.value.trim();
+    
+    if (!friendCode) {
+        EnhancedUIUpdater.showToast('Please enter a friend\'s referral code', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.findUserByReferralCode(friendCode)
+        .then(friend => {
+            if (friend) {
+                const container = document.getElementById('shareFriendsList');
+                const memberDiv = document.createElement('div');
+                memberDiv.className = 'share-friend-item';
+                memberDiv.innerHTML = `
+                    <div class="friend-avatar">
+                        ${friend.name?.charAt(0) || 'F'}
+                    </div>
+                    <div class="friend-info">
+                        <div class="friend-name">${friend.name || 'Friend'}</div>
+                        <div class="friend-phone">${friend.phone || ''}</div>
+                    </div>
+                    <button class="remove-friend" onclick="removeShareMember(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+                container.appendChild(memberDiv);
+                input.value = '';
+                EnhancedUIUpdater.showToast('Friend added to share ride', 'success');
+            } else {
+                EnhancedUIUpdater.showToast('Friend not found', 'error');
+            }
+        });
+}
+
+function removeShareMember(button) {
+    const item = button.closest('.share-friend-item');
+    if (item) {
+        item.remove();
+    }
+      }
+// ============================================
 // RIDE TYPE MANAGER
 // ============================================
 const RideTypeManager = {
@@ -11981,7 +11807,9 @@ const EnhancedFirebaseManager = {
             return false;
         }
     },
-    
+
+
+
     startRealtimeSync: function(uid) {
         this.stopRealtimeSync();
         
@@ -14735,6 +14563,74 @@ const BroadcastManager = {
 };
 
 // ============================================
+// WALLET TRANSACTIONS DISPLAY
+// ============================================
+function updateTransactionsList(transactions) {
+    const container = document.getElementById('transactionsList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    if (transactions.length === 0) {
+        container.innerHTML = '<div class="no-transactions">No transactions yet</div>';
+        return;
+    }
+    
+    transactions.forEach(transaction => {
+        const transactionEl = document.createElement('div');
+        transactionEl.className = 'transaction-item';
+        
+        const date = new Date(transaction.timestamp);
+        let icon = 'fa-exchange-alt';
+        let typeClass = 'info';
+        let sign = '';
+        
+        switch(transaction.type) {
+            case 'deposit':
+                icon = 'fa-plus-circle';
+                typeClass = 'success';
+                sign = '+';
+                break;
+            case 'withdrawal':
+                icon = 'fa-minus-circle';
+                typeClass = 'warning';
+                sign = '-';
+                break;
+            case 'transfer_sent':
+                icon = 'fa-share';
+                typeClass = 'error';
+                sign = '-';
+                break;
+            case 'transfer_received':
+                icon = 'fa-download';
+                typeClass = 'success';
+                sign = '+';
+                break;
+            case 'ride_payment':
+                icon = 'fa-car';
+                typeClass = 'error';
+                sign = '-';
+                break;
+        }
+        
+        transactionEl.innerHTML = `
+            <div class="transaction-icon ${typeClass}">
+                <i class="fas ${icon}"></i>
+            </div>
+            <div class="transaction-details">
+                <div class="transaction-title">${transaction.description || transaction.type}</div>
+                <div class="transaction-date">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+            </div>
+            <div class="transaction-amount ${typeClass}">
+                ${sign}ZMW ${transaction.amount?.toFixed(2) || '0.00'}
+            </div>
+        `;
+        
+        container.appendChild(transactionEl);
+    });
+      }
+
+// ============================================
 // ENHANCED NOTIFICATION MANAGER
 // ============================================
 const NotificationManager = {
@@ -14887,7 +14783,7 @@ document.querySelectorAll('.modal-overlay').forEach(modal => {
     });
 });
     
-}
+}}
 
 // Add this after the initializeApp() function
 function showModal(modalId) {
@@ -17943,6 +17839,7 @@ console.log('Jubel Passenger App JavaScript loaded successfully');
 </script>
 </body>
 </html>
+
 
 
 
