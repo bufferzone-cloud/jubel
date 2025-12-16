@@ -14733,11 +14733,12 @@ async function getCurrentLocation() {
 }
 
 // ============================================
-// EVENT HANDLERS SETUP
+// EVENT HANDLERS SETUP (Main setup function)
 // ============================================
 function setupEventListeners() {
     console.log('Setting up event listeners...');
     
+    // Navigation and screen switching
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const screen = tab.dataset.screen;
@@ -14751,8 +14752,10 @@ function setupEventListeners() {
         });
     });
     
+    // Panel and UI controls
     document.getElementById('panelHandle').addEventListener('click', togglePanel);
     
+    // Service tabs
     document.querySelectorAll('.service-tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const service = tab.dataset.service;
@@ -14760,352 +14763,20 @@ function setupEventListeners() {
         });
     });
     
-   // Already handled by centerMapOnUser() function
-        if (AppState.userLocation) {
-            map.setView([AppState.userLocation.lat, AppState.userLocation.lng], 15);
-            EnhancedUIUpdater.showToast('Centered on your location', 'info');
-        } else {
-            getCurrentLocation();
-        }
-    });
+    // Map controls
+    document.getElementById('zoomInBtn')?.addEventListener('click', zoomIn);
+    document.getElementById('zoomOutBtn')?.addEventListener('click', zoomOut);
+    document.getElementById('clearRouteBtn')?.addEventListener('click', clearRoute);
     
-    document.getElementById('zoomInBtn')?.addEventListener('click', () => {
-        map.zoomIn();
-    });
+    // Service request buttons (main request functions)
+    document.getElementById('requestRideBtn')?.addEventListener('click', requestRide);
+    document.getElementById('requestDeliveryBtn')?.addEventListener('click', requestDelivery);
+    document.getElementById('requestShortDeliveryBtn')?.addEventListener('click', requestShortDelivery);
+    document.getElementById('requestShoppingBtn')?.addEventListener('click', requestShopping);
+    document.getElementById('requestTruckBtn')?.addEventListener('click', requestTruck);
     
-    document.getElementById('zoomOutBtn')?.addEventListener('click', () => {
-        map.zoomOut();
-    });
-    
-    document.getElementById('clearRouteBtn')?.addEventListener('click', () => {
-        if (routeLayer) {
-            map.removeLayer(routeLayer);
-            routeLayer = null;
-        }
-        
-        if (destinationMarker) {
-            map.removeLayer(destinationMarker);
-            destinationMarker = null;
-        }
-        
-        const destinationInput = document.getElementById('destinationLocation');
-        if (destinationInput) {
-            destinationInput.value = '';
-        }
-        AppState.destination = null;
-        
-        EnhancedLocationManager.clearAllStops();
-        
-        EnhancedUIUpdater.showToast('Route cleared', 'info');
-    });
-    
-    document.getElementById('requestRideBtn')?.addEventListener('click', async () => {
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
-            return;
-        }
-        
-        if (!EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.pickup.lat, AppState.pickup.lng, AppState.currentCity
-        ) || !EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.destination.lat, AppState.destination.lng, AppState.currentCity
-        )) {
-            EnhancedUIUpdater.showToast('Locations must be within city boundaries', 'warning');
-            return;
-        }
-        
-        // Calculate distance with stops
-        let distance;
-        if (AppState.stops.length > 0) {
-            const validStops = AppState.stops.filter(stop => stop.location);
-            distance = EnhancedPriceCalculator.calculateDistanceWithStops(
-                AppState.pickup,
-                validStops,
-                AppState.destination
-            );
-        } else {
-            distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-        }
-        
-        if (distance < 0.5) {
-            EnhancedUIUpdater.showToast('Minimum ride distance is 0.5 km', 'warning');
-            return;
-        }
-        
-        const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng,
-            AppState.currentCity
-        );
-        
-        if (!validation.valid) {
-            EnhancedUIUpdater.showToast(validation.message, 'warning');
-            return;
-        }
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
-        
-        // Prepare ride data with stops
-        const rideData = {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            rideType: AppState.selectedRideType,
-            fare: fare,
-            distance: distance,
-            stops: AppState.stops
-                .filter(stop => stop.location)
-                .map(stop => ({
-                    address: stop.address,
-                    name: stop.location.name,
-                    lat: stop.location.lat,
-                    lng: stop.location.lng
-                }))
-        };
-        
-        showPaymentModal('car', fare, rideData);
-    });
-    
-    document.getElementById('requestDeliveryBtn')?.addEventListener('click', async () => {
-        const pickupInput = document.getElementById('deliveryPickup');
-        const destinationInput = document.getElementById('deliveryDestination');
-        const parcelDesc = document.getElementById('parcelDescription');
-        const receiverName = document.getElementById('receiverName');
-        const receiverPhone = document.getElementById('receiverPhone');
-        const parcelValue = document.getElementById('parcelValue');
-        
-        if (!pickupInput?.value || !destinationInput?.value || !parcelDesc?.value || 
-            !receiverName?.value || !receiverPhone?.value) {
-            EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select valid pickup and delivery locations', 'warning');
-            return;
-        }
-        
-        if (!EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.pickup.lat, AppState.pickup.lng, AppState.currentCity
-        ) || !EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.destination.lat, AppState.destination.lng, AppState.currentCity
-        )) {
-            EnhancedUIUpdater.showToast('Locations must be within city boundaries', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        let deliveryType = 'standard';
-        if (document.getElementById('expressDelivery')?.classList.contains('active')) {
-            deliveryType = 'express';
-        } else if (document.getElementById('sameDayDelivery')?.classList.contains('active')) {
-            deliveryType = 'sameDay';
-        }
-        
-        const fare = EnhancedPriceCalculator.calculateDeliveryFare(
-            distance, 
-            deliveryType, 
-            parseFloat(parcelValue?.value) || 0
-        );
-        
-        showPaymentModal('delivery', fare, {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            parcelDescription: parcelDesc.value,
-            receiverName: receiverName.value,
-            receiverPhone: receiverPhone.value,
-            parcelValue: parseFloat(parcelValue?.value) || 0,
-            deliveryType: deliveryType,
-            fare: fare,
-            distance: distance,
-            serviceType: 'delivery'
-        });
-    });
-    
-    document.getElementById('requestTruckBtn')?.addEventListener('click', async () => {
-        const pickupInput = document.getElementById('truckPickup');
-        const destinationInput = document.getElementById('truckDestination');
-        const itemDesc = document.getElementById('truckItemDescription');
-        const estimatedWeight = document.getElementById('estimatedWeight');
-        const needHelpers = document.getElementById('needHelpers')?.checked;
-        
-        if (!pickupInput?.value || !destinationInput?.value || !itemDesc?.value || !estimatedWeight?.value) {
-            EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select valid pickup and destination locations', 'warning');
-            return;
-        }
-        
-        if (!EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.pickup.lat, AppState.pickup.lng, AppState.currentCity
-        ) || !EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.destination.lat, AppState.destination.lng, AppState.currentCity
-        )) {
-            EnhancedUIUpdater.showToast('Locations must be within city boundaries', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        const selectedTruck = document.querySelector('.truck-type.selected');
-        const truckType = selectedTruck ? selectedTruck.dataset.type : 'light';
-        
-        const fare = EnhancedPriceCalculator.calculateTruckFare(distance, truckType, needHelpers);
-        
-        showPaymentModal('truck', fare, {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            truckType: truckType,
-            itemDescription: itemDesc.value,
-            estimatedWeight: parseFloat(estimatedWeight.value) || 0,
-            needHelpers: needHelpers,
-            fare: fare,
-            distance: distance,
-            serviceType: 'truck'
-        });
-    });
-    
-    document.getElementById('requestShoppingBtn')?.addEventListener('click', async () => {
-        const shopName = document.getElementById('shopName');
-        const shopLocation = document.getElementById('shopLocation');
-        const destinationInput = document.getElementById('shoppingDestination');
-        const instructions = document.getElementById('shoppingInstructions');
-        const budget = document.getElementById('shoppingBudget');
-        
-        if (!shopName?.value || !shopLocation?.value || !destinationInput?.value) {
-            EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-            return;
-        }
-        
-        if (!AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select a valid delivery location', 'warning');
-            return;
-        }
-        
-        if (!EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.destination.lat, AppState.destination.lng, AppState.currentCity
-        )) {
-            EnhancedUIUpdater.showToast('Delivery location must be within city boundaries', 'warning');
-            return;
-        }
-        
-        const distance = AppState.shopLocation ? 
-            EnhancedPriceCalculator.calculateDistance(
-                AppState.shopLocation.lat, AppState.shopLocation.lng,
-                AppState.destination.lat, AppState.destination.lng
-            ) : 5;
-        
-        const itemsCount = document.querySelectorAll('.item-input').length;
-        
-        const fare = EnhancedPriceCalculator.calculateShoppingFare(
-            distance, 
-            itemsCount, 
-            parseFloat(budget?.value) || 0
-        );
-        
-        showPaymentModal('shopping', fare, {
-            shopName: shopName.value,
-            shopLocation: shopLocation.value,
-            shopLat: AppState.shopLocation?.lat,
-            shopLng: AppState.shopLocation?.lng,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            items: Array.from(document.querySelectorAll('.item-input')).map(input => input.value),
-            itemsCount: itemsCount,
-            instructions: instructions?.value || '',
-            estimatedBudget: parseFloat(budget?.value) || 0,
-            fare: fare,
-            distance: distance,
-            serviceType: 'shopping'
-        });
-    });
-    
-    document.getElementById('requestShortDeliveryBtn')?.addEventListener('click', async () => {
-        const pickupInput = document.getElementById('shortDeliveryPickup');
-        const destinationInput = document.getElementById('shortDeliveryDestination');
-        const parcelDesc = document.getElementById('shortParcelDescription');
-        const receiverPhone = document.getElementById('shortReceiverPhone');
-        
-        if (!pickupInput?.value || !destinationInput?.value || !parcelDesc?.value || !receiverPhone?.value) {
-            EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select valid pickup and delivery locations', 'warning');
-            return;
-        }
-        
-        if (!EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.pickup.lat, AppState.pickup.lng, AppState.currentCity
-        ) || !EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.destination.lat, AppState.destination.lng, AppState.currentCity
-        )) {
-            EnhancedUIUpdater.showToast('Locations must be within city boundaries', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        const fare = Math.max(15, distance * 2.5);
-        
-        showPaymentModal('short-delivery', fare, {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            parcelDescription: parcelDesc.value,
-            receiverPhone: receiverPhone.value,
-            fare: fare,
-            distance: distance,
-            serviceType: 'short-delivery'
-        });
-    });
-    
-    document.getElementById('moreOptionsBtn')?.addEventListener('click', () => {
-        const menu = document.getElementById('moreOptionsMenu');
-        menu.classList.toggle('active');
-    });
+    // More options menu
+    document.getElementById('moreOptionsBtn')?.addEventListener('click', toggleMoreOptions);
     
     document.getElementById('broadcastRideBtn')?.addEventListener('click', () => {
         switchService('broadcast');
@@ -15122,6 +14793,7 @@ function setupEventListeners() {
         document.getElementById('moreOptionsMenu').classList.remove('active');
     });
     
+    // More options dropdown items
     document.querySelectorAll('#moreOptionsMenu .dropdown-item').forEach(item => {
         item.addEventListener('click', () => {
             const option = item.dataset.option;
@@ -15129,62 +14801,21 @@ function setupEventListeners() {
         });
     });
     
-    document.getElementById('cancelRideBtn')?.addEventListener('click', () => {
-        if (AppState.currentRide) {
-            showModal('cancel');
-        } else {
-            EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
-        }
-    });
+    // Ride controls during active ride
+    document.getElementById('cancelRideBtn')?.addEventListener('click', cancelRide);
+    document.getElementById('contactDriverBtn')?.addEventListener('click', contactDriver);
+    document.getElementById('openChatBtn')?.addEventListener('click', openChat);
+    document.getElementById('sosButton')?.addEventListener('click', triggerSOS);
     
-    document.getElementById('contactDriverBtn')?.addEventListener('click', () => {
-        if (AppState.currentRide?.driverId) {
-            const driverPhone = AppState.selectedVehicle?.phone;
-            if (driverPhone) {
-                window.open(`tel:${driverPhone}`, '_blank');
-            } else {
-                EnhancedUIUpdater.showToast('Driver phone number not available', 'warning');
-            }
-        } else {
-            EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
-        }
-    });
-    
-    document.getElementById('openChatBtn')?.addEventListener('click', () => {
-        if (AppState.currentRide?.driverId) {
-            document.getElementById('chatContainer').classList.add('active');
-        } else {
-            EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
-        }
-    });
-    
-    document.getElementById('sosButton')?.addEventListener('click', () => {
-        triggerSOS();
-    });
-    
-    document.getElementById('chatClose')?.addEventListener('click', () => {
-        document.getElementById('chatContainer').classList.remove('active');
-    });
-    
-    document.getElementById('chatSend')?.addEventListener('click', async () => {
-        const input = document.getElementById('chatInput');
-        const message = input?.value.trim();
-        
-        if (message && AppState.currentRide) {
-            try {
-                await EnhancedFirebaseManager.sendChatMessage(AppState.currentRide.id, message, false);
-                input.value = '';
-            } catch (error) {
-                EnhancedUIUpdater.showToast('Error sending message', 'error');
-            }
-        }
-    });
+    // Chat functionality
+    document.getElementById('chatClose')?.addEventListener('click', closeChat);
+    document.getElementById('chatSend')?.addEventListener('click', sendChatMessage);
     
     const chatInput = document.getElementById('chatInput');
     if (chatInput) {
         chatInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                document.getElementById('chatSend').click();
+                sendChatMessage();
             }
         });
         
@@ -15201,15 +14832,11 @@ function setupEventListeners() {
         });
     }
     
+    // Emergency services
     document.querySelectorAll('.emergency-service').forEach(service => {
         service.addEventListener('click', () => {
             const type = service.dataset.type;
-            
-            if (type === 'sos') {
-                showModal('sos');
-            } else {
-                handleEmergencyService(type);
-            }
+            openEmergencyModal(type);
         });
     });
     
@@ -15220,11 +14847,11 @@ function setupEventListeners() {
             });
             
             reason.classList.add('selected');
-            
             EnhancedUIUpdater.updateEmergencyReason(reason.dataset.reason);
         });
     });
     
+    // Modal controls
     document.querySelectorAll('.modal-close').forEach(btn => {
         btn.addEventListener('click', () => {
             const modal = btn.dataset.modal;
@@ -15232,300 +14859,32 @@ function setupEventListeners() {
         });
     });
     
+    // Cancel ride modal
     document.querySelectorAll('.cancel-reason[data-reason]').forEach(reason => {
         reason.addEventListener('click', () => {
-            document.querySelectorAll('.cancel-reason').forEach(r => {
-                r.classList.remove('selected');
-            });
-            
-            reason.classList.add('selected');
-            
-            const reasonType = reason.dataset.reason;
-            const otherReasonGroup = document.getElementById('otherReasonGroup');
-            if (otherReasonGroup) {
-                otherReasonGroup.style.display = 
-                    reasonType === 'other' ? 'block' : 'none';
-            }
+            selectCancelReason(reason.dataset.reason);
         });
     });
     
-    document.getElementById('confirmCancelBtn')?.addEventListener('click', async () => {
-        const selectedReason = document.querySelector('.cancel-reason.selected');
-        if (!selectedReason) {
-            EnhancedUIUpdater.showToast('Please select a cancellation reason', 'warning');
-            return;
-        }
-        
-        let reason = selectedReason.dataset.reason;
-        if (reason === 'other') {
-            const otherReason = document.getElementById('otherReason')?.value.trim();
-            if (!otherReason) {
-                EnhancedUIUpdater.showToast('Please specify your reason', 'warning');
-                return;
-            }
-            reason = `other: ${otherReason}`;
-        }
-        
-        if (AppState.currentRide) {
-            try {
-                await EnhancedFirebaseManager.cancelRide(AppState.currentRide.id, reason);
-                hideModal('cancel');
-            } catch (error) {
-                EnhancedUIUpdater.showToast('Error cancelling ride', 'error');
-            }
-        }
-    });
+    document.getElementById('confirmCancelBtn')?.addEventListener('click', confirmCancelRide);
     
+    // Payment modal
     document.querySelectorAll('.payment-method').forEach(method => {
         method.addEventListener('click', () => {
-            document.querySelectorAll('.payment-method').forEach(m => {
-                m.classList.remove('selected');
-            });
-            method.classList.add('selected');
+            selectPaymentMethod(method.dataset.payment);
         });
     });
     
-    document.getElementById('applyReferralBtn')?.addEventListener('click', async () => {
-        const referralCode = document.getElementById('referralCodeInput').value.trim();
-        if (!referralCode) {
-            EnhancedUIUpdater.showToast('Please enter a referral code', 'warning');
-            return;
-        }
-        
-        const selectedMethod = document.querySelector('.payment-method.selected');
-        if (!selectedMethod) {
-            EnhancedUIUpdater.showToast('Please select a payment method first', 'warning');
-            return;
-        }
-        
-        const amount = parseFloat(document.getElementById('paymentAmount').textContent.replace('ZMW ', ''));
-        const rideData = window.pendingRideData;
-        
-        if (!rideData) {
-            EnhancedUIUpdater.showToast('No ride data found', 'error');
-            return;
-        }
-        
-        EnhancedUIUpdater.showLoading('Applying referral discount...');
-        
-        const result = await EnhancedFirebaseManager.applyReferralDiscount(rideData, referralCode);
-        
-        EnhancedUIUpdater.hideLoading();
-        
-        if (result.success) {
-            EnhancedUIUpdater.showToast(result.message, 'success');
-            document.getElementById('paymentAmount').textContent = `ZMW ${result.finalFare.toFixed(2)}`;
-            rideData.fare = result.finalFare;
-            rideData.referredBy = referralCode;
-            rideData.referrerName = result.referrerName;
-            rideData.discountAmount = result.discountAmount;
-            window.pendingRideData = rideData;
-        } else {
-            EnhancedUIUpdater.showToast(result.message, 'error');
-        }
-    });
+    document.getElementById('applyReferralBtn')?.addEventListener('click', applyReferral);
+    document.getElementById('confirmPaymentBtn')?.addEventListener('click', confirmPayment);
     
-    document.getElementById('confirmPaymentBtn')?.addEventListener('click', async () => {
-        const selectedMethod = document.querySelector('.payment-method.selected');
-        if (!selectedMethod) {
-            EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
-            return;
-        }
-        
-        const paymentMethod = selectedMethod.dataset.payment;
-        let amount = parseFloat(document.getElementById('paymentAmount').textContent.replace('ZMW ', ''));
-        
-        const rideData = window.pendingRideData;
-        if (!rideData) {
-            EnhancedUIUpdater.showToast('No ride data found', 'error');
-            return;
-        }
-        
-        if (paymentMethod === 'wallet' && AppState.walletBalance < amount) {
-            EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
-            return;
-        }
-        
-        rideData.paymentMethod = paymentMethod;
-        rideData.fare = amount;
-        
-        try {
-            if (paymentMethod === 'wallet') {
-                const transactionId = database.ref().child('transactions').push().key;
-                const transaction = {
-                    id: transactionId,
-                    senderId: AppState.currentUser.uid,
-                    senderName: AppState.userData.name,
-                    recipientId: 'system',
-                    recipientName: 'Ride Payment',
-                    amount: amount,
-                    message: `Payment for ${rideData.serviceType || 'ride'} to ${rideData.destination}`,
-                    timestamp: Date.now(),
-                    type: 'ride_payment',
-                    status: 'completed',
-                    rideId: 'pending',
-                    userId: AppState.currentUser.uid
-                };
-                
-                await database.ref(`transactions/${transactionId}`).set(transaction);
-                
-                await EnhancedFirebaseManager.withdrawMoney(amount);
-            }
-            
-            let rideId;
-            if (rideData.serviceType === 'delivery' || rideData.serviceType === 'short-delivery') {
-                rideId = await EnhancedFirebaseManager.requestDelivery(rideData);
-            } else if (rideData.serviceType === 'truck') {
-                rideId = await EnhancedFirebaseManager.requestTruck(rideData);
-            } else if (rideData.serviceType === 'shopping') {
-                rideId = await EnhancedFirebaseManager.requestShopping(rideData);
-            } else if (rideData.sharedRide) {
-                rideId = await EnhancedFirebaseManager.createShareRide(rideData);
-            } else if (rideData.broadcast) {
-                const result = await BroadcastManager.createBroadcast(rideData, rideData.broadcastRecipients);
-                rideId = result.rideId;
-            } else if (rideData.scheduled) {
-                rideId = await EnhancedFirebaseManager.scheduleRide(rideData);
-                AppState.pendingPaymentRide = rideData;
-                AppState.pendingPaymentRide.scheduledRideId = rideId;
-            } else {
-                rideId = await EnhancedFirebaseManager.requestRide(rideData);
-            }
-            
-            if (rideId && paymentMethod === 'wallet') {
-                await database.ref(`transactions`).orderByChild('rideId').equalTo('pending').once('value', (snapshot) => {
-                    snapshot.forEach(child => {
-                        database.ref(`transactions/${child.key}/rideId`).set(rideId);
-                    });
-                });
-            }
-            
-            hideModal('payment');
-            delete window.pendingRideData;
-            
-            if (rideData.scheduled) {
-                EnhancedUIUpdater.showToast('Ride scheduled successfully', 'success');
-            } else {
-                EnhancedUIUpdater.showToast('Ride requested successfully', 'success');
-            }
-            
-        } catch (error) {
-            console.error('Error processing payment:', error);
-            EnhancedUIUpdater.showToast('Error processing payment', 'error');
-            
-            if (paymentMethod === 'wallet') {
-                await EnhancedFirebaseManager.depositMoney(amount);
-            }
-        }
-    });
+    // Emergency modal
+    document.getElementById('confirmEmergencyBtn')?.addEventListener('click', confirmEmergencyRide);
     
-    document.getElementById('confirmEmergencyBtn')?.addEventListener('click', async () => {
-        if (!AppState.selectedEmergencyStation) {
-            EnhancedUIUpdater.showToast('Please select an emergency station', 'warning');
-            return;
-        }
-        
-        const emergencyType = document.getElementById('emergencyServiceType')?.dataset.type;
-        const selectedReason = document.querySelector('.emergency-reason.selected');
-        
-        if (!selectedReason) {
-            EnhancedUIUpdater.showToast('Please select an emergency reason', 'warning');
-            return;
-        }
-        
-        let reason = selectedReason.dataset.reason;
-        if (reason === 'other') {
-            const otherReason = document.getElementById('emergencyOtherReason')?.value.trim();
-            if (!otherReason) {
-                EnhancedUIUpdater.showToast('Please describe the emergency', 'warning');
-                return;
-            }
-            reason = otherReason;
-        }
-        
-        if (!EnhancedSearchEngine.validateCoordinatesInCity(
-            AppState.selectedEmergencyStation.lat, 
-            AppState.selectedEmergencyStation.lng, 
-            AppState.currentCity
-        )) {
-            EnhancedUIUpdater.showToast('Selected station is not within city boundaries', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.userLocation.lat, AppState.userLocation.lng,
-            AppState.selectedEmergencyStation.lat, AppState.selectedEmergencyStation.lng
-        );
-        
-        const fare = EnhancedPriceCalculator.calculateEmergencyFare(distance, emergencyType);
-        
-        const rideData = {
-            pickup: AppState.selectedEmergencyStation.name,
-            pickupDisplay: AppState.selectedEmergencyStation.name,
-            destination: AppState.userLocation.fullDisplay || 'Your Location',
-            destinationDisplay: 'Emergency Location',
-            pickupLat: AppState.selectedEmergencyStation.lat,
-            pickupLng: AppState.selectedEmergencyStation.lng,
-            destLat: AppState.userLocation.lat,
-            destLng: AppState.userLocation.lng,
-            emergencyType: emergencyType,
-            emergencyReason: reason,
-            fare: fare,
-            distance: distance,
-            paymentMethod: 'emergency'
-        };
-        
-        try {
-            await EnhancedFirebaseManager.requestEmergencyRide(rideData);
-            hideModal('emergency');
-        } catch (error) {
-            EnhancedUIUpdater.showToast('Error requesting emergency ride', 'error');
-        }
-    });
+    // SOS modal
+    document.getElementById('saveSOSBtn')?.addEventListener('click', saveSOSConfig);
     
-    document.getElementById('saveSOSBtn')?.addEventListener('click', async () => {
-        const contact1Name = document.getElementById('emergencyContact1Name').value.trim();
-        const contact1Phone = document.getElementById('emergencyContact1Phone').value.trim();
-        const contact2Name = document.getElementById('emergencyContact2Name').value.trim();
-        const contact2Phone = document.getElementById('emergencyContact2Phone').value.trim();
-        
-        if (!contact1Name || !contact1Phone) {
-            EnhancedUIUpdater.showToast('Primary emergency contact is required', 'warning');
-            return;
-        }
-        
-        if (contact2Name && !contact2Phone) {
-            EnhancedUIUpdater.showToast('Secondary contact phone is required if name is provided', 'warning');
-            return;
-        }
-        
-        if (contact1Phone && !/^\d{10}$/.test(contact1Phone.replace(/\D/g, ''))) {
-            EnhancedUIUpdater.showToast('Primary contact phone number must be 10 digits', 'warning');
-            return;
-        }
-        
-        if (contact2Phone && !/^\d{10}$/.test(contact2Phone.replace(/\D/g, ''))) {
-            EnhancedUIUpdater.showToast('Secondary contact phone number must be 10 digits', 'warning');
-            return;
-        }
-        
-        const sosConfig = {
-            contact1Name: contact1Name,
-            contact1Phone: contact1Phone.replace(/\D/g, ''),
-            contact2Name: contact2Name || '',
-            contact2Phone: contact2Phone ? contact2Phone.replace(/\D/g, '') : '',
-            message: document.getElementById('sosMessage').value.trim() || 'I need emergency assistance',
-            updatedAt: Date.now()
-        };
-        
-        try {
-            await EnhancedFirebaseManager.saveSOSConfig(sosConfig);
-            hideModal('sos');
-        } catch (error) {
-            EnhancedUIUpdater.showToast('Error saving SOS configuration', 'error');
-        }
-    });
-    
+    // Emergency service types
     document.querySelectorAll('.emergency-service-type').forEach(btn => {
         btn.addEventListener('click', () => {
             const type = btn.dataset.type;
@@ -15541,6 +14900,7 @@ function setupEventListeners() {
         });
     });
     
+    // Share ride modal
     document.getElementById('shareRideBtn')?.addEventListener('click', () => {
         showModal('share');
     });
@@ -15557,91 +14917,11 @@ function setupEventListeners() {
         }
     });
     
-    document.getElementById('requestShareRideBtn')?.addEventListener('click', async () => {
-        if (AppState.shareRideFriends.length === 0) {
-            EnhancedUIUpdater.showToast('Please add at least one friend to share the ride', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const totalPeople = AppState.shareRideFriends.length + 1;
-        const calculation = EnhancedPriceCalculator.calculateBroadcastFare(distance, AppState.selectedRideType, 'equal', totalPeople);
-        
-        showPaymentModal('share', calculation.total, {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            rideType: AppState.selectedRideType,
-            fare: calculation.total,
-            distance: distance,
-            sharedRide: true,
-            shareParticipants: totalPeople,
-            shareParticipantsData: [
-                {
-                    userId: AppState.currentUser.uid,
-                    name: AppState.userData.name,
-                    amount: calculation.yourShare,
-                    paymentStatus: 'pending'
-                },
-                ...AppState.shareRideFriends.map(friend => ({
-                    userId: friend.userId,
-                    name: friend.name,
-                    amount: calculation.passengerShare,
-                    paymentStatus: 'pending'
-                }))
-            ]
-        });
-    });
+    document.getElementById('requestShareRideBtn')?.addEventListener('click', confirmShareRide);
     
-    document.getElementById('broadcastRideRequestBtn')?.addEventListener('click', async () => {
-        if (!AppState.broadcastRecipients.length) {
-            EnhancedUIUpdater.showToast('Please add recipients for broadcast', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
-        
-        showPaymentModal('broadcast', fare, {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            rideType: AppState.selectedRideType,
-            fare: fare,
-            distance: distance,
-            broadcast: true,
-            broadcastRecipients: AppState.broadcastRecipients
-        });
+    // Broadcast ride
+    document.getElementById('broadcastRideRequestBtn')?.addEventListener('click', () => {
+        startBroadcastRide();
     });
     
     document.getElementById('addBroadcastRecipientBtn')?.addEventListener('click', () => {
@@ -15679,130 +14959,16 @@ function setupEventListeners() {
         EnhancedUIUpdater.showToast('Recipient added', 'success');
     });
     
-    document.getElementById('scheduleRideBtn')?.addEventListener('click', () => {
-        const scheduleDate = document.getElementById('scheduleDate').value;
-        const scheduleTime = document.getElementById('scheduleTime').value;
-        
-        if (!scheduleDate || !scheduleTime) {
-            EnhancedUIUpdater.showToast('Please select date and time', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
-            return;
-        }
-        
-        const scheduledTime = new Date(`${scheduleDate}T${scheduleTime}`).getTime();
-        const now = Date.now();
-        
-        if (scheduledTime <= now) {
-            EnhancedUIUpdater.showToast('Scheduled time must be in the future', 'warning');
-            return;
-        }
-        
-        if (scheduledTime - now > 7 * 24 * 60 * 60 * 1000) {
-            EnhancedUIUpdater.showToast('Maximum scheduling is 7 days in advance', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
-        
-        showPaymentModal('schedule', fare, {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            rideType: AppState.selectedRideType,
-            fare: fare,
-            distance: distance,
-            scheduled: true,
-            scheduledTime: scheduledTime,
-            paymentMethod: 'wallet'
-        });
-    });
+    // Schedule ride
+    document.getElementById('scheduleRideBtn')?.addEventListener('click', confirmScheduleRide);
     
-    document.getElementById('someoneElseRideBtn')?.addEventListener('click', async () => {
-        const someoneName = document.getElementById('someoneName').value.trim();
-        const someonePhone = document.getElementById('someonePhone').value.trim();
-        
-        if (!someoneName || !someonePhone) {
-            EnhancedUIUpdater.showToast('Please enter name and phone for the rider', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
-            return;
-        }
-        
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
-        
-        showPaymentModal('someone', fare, {
-            pickup: AppState.pickup.address,
-            pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-            destination: AppState.destination.address,
-            destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-            pickupLat: AppState.pickup.lat,
-            pickupLng: AppState.pickup.lng,
-            destLat: AppState.destination.lat,
-            destLng: AppState.destination.lng,
-            rideType: AppState.selectedRideType,
-            fare: fare,
-            distance: distance,
-            riderName: someoneName,
-            riderPhone: someonePhone,
-            forSomeoneElse: true
-        });
-    });
+    // Order for someone
+    document.getElementById('someoneElseRideBtn')?.addEventListener('click', confirmSomeoneRide);
     
-    document.getElementById('updateProfileBtn')?.addEventListener('click', async () => {
-        const name = document.getElementById('updateName').value.trim();
-        const phone = document.getElementById('updatePhone').value.trim();
-        const homeAddress = document.getElementById('homeAddress').value.trim();
-        const workAddress = document.getElementById('workAddress').value.trim();
-        
-        if (!name || !phone) {
-            EnhancedUIUpdater.showToast('Name and phone are required', 'warning');
-            return;
-        }
-        
-        if (!/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
-            EnhancedUIUpdater.showToast('Phone number must be 10 digits', 'warning');
-            return;
-        }
-        
-        const profileData = {
-            name: name,
-            phone: phone.replace(/\D/g, ''),
-            homeAddress: homeAddress,
-            workAddress: workAddress
-        };
-        
-        try {
-            await EnhancedFirebaseManager.updateProfile(profileData);
-            hideModal('profile');
-        } catch (error) {
-            EnhancedUIUpdater.showToast('Error updating profile', 'error');
-        }
-    });
+    // Profile
+    document.getElementById('updateProfileBtn')?.addEventListener('click', saveProfile);
     
+    // Wallet
     document.getElementById('depositBtn')?.addEventListener('click', async () => {
         const amount = parseFloat(document.getElementById('depositAmount').value);
         if (!amount || amount <= 0) {
@@ -15838,40 +15004,13 @@ function setupEventListeners() {
         }
     });
     
-    document.getElementById('transferBtn')?.addEventListener('click', async () => {
-        const amount = parseFloat(document.getElementById('transferAmount').value);
-        const recipientCode = document.getElementById('recipientCode').value.trim();
-        const message = document.getElementById('transferMessage').value.trim();
-        
-        if (!amount || amount <= 0) {
-            EnhancedUIUpdater.showToast('Please enter a valid transfer amount', 'warning');
-            return;
-        }
-        
-        if (!recipientCode) {
-            EnhancedUIUpdater.showToast('Please enter recipient referral code', 'warning');
-            return;
-        }
-        
-        try {
-            await EnhancedFirebaseManager.transferMoney(recipientCode, amount, message);
-            hideModal('transfer');
-        } catch (error) {
-            EnhancedUIUpdater.showToast('Error processing transfer', 'error');
-        }
-    });
+    document.getElementById('transferBtn')?.addEventListener('click', confirmTransfer);
     
+    // History
     document.querySelectorAll('.history-filter').forEach(filter => {
         filter.addEventListener('click', () => {
             const filterType = filter.dataset.filter;
-            AppState.activeFilter = filterType;
-            
-            document.querySelectorAll('.history-filter').forEach(f => {
-                f.classList.remove('active');
-            });
-            filter.classList.add('active');
-            
-            EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+            filterHistory(filterType);
         });
     });
     
@@ -15880,6 +15019,7 @@ function setupEventListeners() {
         EnhancedUIUpdater.showToast('History refreshed', 'success');
     });
     
+    // Notifications
     document.getElementById('clearNotificationsBtn')?.addEventListener('click', async () => {
         try {
             if (AppState.currentUser) {
@@ -15896,30 +15036,15 @@ function setupEventListeners() {
         }
     });
     
+    // Sync
     document.getElementById('syncDataBtn')?.addEventListener('click', () => {
         EnhancedFirebaseManager.syncUserData();
     });
     
-    document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-        try {
-            EnhancedUIUpdater.showLoading('Logging out...');
-            
-            EnhancedFirebaseManager.stopRealtimeSync();
-            
-            if (AppState.syncInterval) {
-                clearInterval(AppState.syncInterval);
-            }
-            
-            await auth.signOut();
-            
-            window.location.href = 'signup.html';
-        } catch (error) {
-            console.error('Error logging out:', error);
-            EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error logging out', 'error');
-        }
-    });
+    // Logout
+    document.getElementById('logoutBtn')?.addEventListener('click', logout);
     
+    // Global click handlers
     document.addEventListener('click', (e) => {
         const moreOptionsMenu = document.getElementById('moreOptionsMenu');
         if (moreOptionsMenu && !moreOptionsMenu.contains(e.target) && 
@@ -15935,7 +15060,16 @@ function setupEventListeners() {
             }
         }
     });
-    function toggleNotifications() {
+    
+    console.log('Event listeners setup completed');
+}
+
+// ============================================
+// GLOBAL FUNCTIONS (for HTML onclick attributes)
+// ============================================
+
+// UI Control Functions
+function toggleNotifications() {
     const panel = document.getElementById('notificationsPanel');
     panel.classList.toggle('active');
 }
@@ -15989,7 +15123,6 @@ function closeChat() {
 }
 
 function attachFile() {
-    // Create a file input element
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*,.pdf,.doc,.docx';
@@ -15998,7 +15131,7 @@ function attachFile() {
         const file = e.target.files[0];
         if (!file) return;
         
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        if (file.size > 5 * 1024 * 1024) {
             EnhancedUIUpdater.showToast('File size must be less than 5MB', 'error');
             return;
         }
@@ -16006,13 +15139,11 @@ function attachFile() {
         try {
             EnhancedUIUpdater.showLoading('Uploading file...');
             
-            // Upload to Firebase Storage
             const storageRef = storage.ref();
             const fileRef = storageRef.child(`chat_files/${AppState.currentRide?.id || 'general'}/${Date.now()}_${file.name}`);
             const snapshot = await fileRef.put(file);
             const downloadURL = await snapshot.ref.getDownloadURL();
             
-            // Send as chat message
             if (AppState.currentRide) {
                 await EnhancedFirebaseManager.sendChatMessage(
                     AppState.currentRide.id,
@@ -16069,277 +15200,139 @@ function toggleMoreOptions() {
     menu.classList.toggle('active');
 }
 
-function openScheduleModal() {
-    showModal('schedule');
-    document.getElementById('moreOptionsMenu').classList.remove('active');
-}
-
-function openOrderForSomeoneModal() {
-    showModal('orderForSomeone');
-    document.getElementById('moreOptionsMenu').classList.remove('active');
-}
-
-function openShareRideModal() {
-    showModal('shareRide');
-    document.getElementById('moreOptionsMenu').classList.remove('active');
-}
-
-function openSOSModal() {
-    showModal('sos');
-    document.getElementById('moreOptionsMenu').classList.remove('active');
-}
-
-function showRecentDestinations() {
-    EnhancedUIUpdater.showSearchHistory('destinationLocation');
-    document.getElementById('moreOptionsMenu').classList.remove('active');
-}
-
-function openSettings() {
-    // For now, just show a toast since settings screen isn't fully implemented
-    EnhancedUIUpdater.showToast('Settings screen coming soon', 'info');
-}
-
-function openHelp() {
-    EnhancedUIUpdater.showToast('Help & Support screen coming soon', 'info');
-}
-
-function openDepositModal() {
-    // Create a simple deposit modal
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay active';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-width: 400px;">
-            <div class="modal-header">
-                <h3>Deposit Money</h3>
-                <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Amount (ZMW)</label>
-                    <input type="number" class="form-control" id="depositAmountInput" placeholder="Enter amount" min="1" step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>Payment Method</label>
-                    <select class="form-control" id="depositMethod">
-                        <option value="mobile">Mobile Money</option>
-                        <option value="card">Credit/Debit Card</option>
-                        <option value="bank">Bank Transfer</option>
-                    </select>
-                </div>
-                <button class="btn btn-primary" style="width: 100%;" onclick="processDeposit()">
-                    <i class="fas fa-plus"></i> Deposit
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-}
-
-function openWithdrawModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay active';
-    modal.innerHTML = `
-        <div class="modal-content" style="max-width: 400px;">
-            <div class="modal-header">
-                <h3>Withdraw Money</h3>
-                <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Available Balance: ZMW ${AppState.walletBalance.toFixed(2)}</label>
-                </div>
-                <div class="form-group">
-                    <label>Amount to Withdraw (ZMW)</label>
-                    <input type="number" class="form-control" id="withdrawAmountInput" 
-                           placeholder="Enter amount" min="1" max="${AppState.walletBalance}" step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>Withdrawal Method</label>
-                    <select class="form-control" id="withdrawMethod">
-                        <option value="mobile">Mobile Money</option>
-                        <option value="bank">Bank Account</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Account/Phone Number</label>
-                    <input type="text" class="form-control" id="withdrawAccount" placeholder="Enter account/phone number">
-                </div>
-                <button class="btn btn-primary" style="width: 100%;" onclick="processWithdrawal()">
-                    <i class="fas fa-minus"></i> Withdraw
-                </button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-}
-
-function openTransferModal() {
-    showModal('transfer');
-}
-
-function openTransactionsModal() {
-    EnhancedFirebaseManager.loadWalletTransactions(AppState.currentUser.uid)
-        .then(transactions => {
-            const modal = document.createElement('div');
-            modal.className = 'modal-overlay active';
-            
-            let transactionsHTML = '';
-            if (transactions.length === 0) {
-                transactionsHTML = '<div class="empty-state">No transactions found</div>';
-            } else {
-                transactions.forEach(transaction => {
-                    const date = new Date(transaction.timestamp);
-                    const type = transaction.type || 'transaction';
-                    const amount = transaction.amount || 0;
-                    const isPositive = type === 'deposit' || type === 'referral_reward';
-                    
-                    transactionsHTML += `
-                        <div class="transaction-item">
-                            <div class="transaction-icon ${type}">
-                                <i class="fas fa-${type === 'deposit' ? 'plus' : type === 'withdrawal' ? 'minus' : 'exchange-alt'}"></i>
-                            </div>
-                            <div class="transaction-details">
-                                <div class="transaction-title">${transaction.description || type.charAt(0).toUpperCase() + type.slice(1)}</div>
-                                <div class="transaction-date">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                            </div>
-                            <div class="transaction-amount ${isPositive ? 'positive' : 'negative'}">
-                                ${isPositive ? '+' : '-'}ZMW ${amount.toFixed(2)}
-                            </div>
-                        </div>
-                    `;
-                });
-            }
-            
-            modal.innerHTML = `
-                <div class="modal-content" style="max-width: 500px;">
-                    <div class="modal-header">
-                        <h3>Transaction History</h3>
-                        <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
-                        ${transactionsHTML}
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-        })
-        .catch(error => {
-            console.error('Error loading transactions:', error);
-            EnhancedUIUpdater.showToast('Error loading transactions', 'error');
-        });
-}
-
-function shareReferral() {
-    const referralCode = AppState.userData?.referralCode || 'JUBEL-XXXX';
-    const shareText = `Join me on Jubel! Use my referral code ${referralCode} for 50% off your first ride. Download the app now!`;
-    
-    if (navigator.share) {
-        navigator.share({
-            title: 'Jubel Referral',
-            text: shareText,
-            url: 'https://jubel.app'
-        }).catch(error => {
-            console.log('Share cancelled:', error);
-        });
-    } else {
-        // Fallback: copy to clipboard
-        navigator.clipboard.writeText(shareText).then(() => {
-            EnhancedUIUpdater.showToast('Referral text copied to clipboard!', 'success');
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-            EnhancedUIUpdater.showToast('Failed to copy referral text', 'error');
-        });
-    }
-}
-
-function openUpdateProfileModal() {
-    showModal('updateProfile');
-}
-
-function openEmergencyModal(type) {
-    if (type === 'sos') {
-        showModal('sos');
-    } else {
-        handleEmergencyService(type);
-    }
-}
-
-function selectDeliveryType(type) {
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.getElementById(`${type}Delivery`).classList.add('active');
-}
-
-function selectTruckType(type) {
-    document.querySelectorAll('.truck-type').forEach(truck => {
-        truck.classList.remove('selected');
-    });
-    document.querySelector(`.truck-type[data-type="${type}"]`).classList.add('selected');
-}
-
-function addShoppingItem() {
-    const itemsContainer = document.getElementById('shoppingItems');
-    const itemEntry = document.createElement('div');
-    itemEntry.className = 'item-entry';
-    itemEntry.innerHTML = `
-        <input type="text" class="item-input" placeholder="Item name">
-        <button class="remove-item" type="button" onclick="this.parentElement.remove()">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    itemsContainer.appendChild(itemEntry);
-}
-
-function addStop() {
-    EnhancedLocationManager.addStop();
-}
-
-function contactDriver() {
-    if (AppState.currentRide?.driverId) {
-        const driverPhone = AppState.selectedVehicle?.phone;
-        if (driverPhone) {
-            window.open(`tel:${driverPhone}`, '_blank');
-        } else {
-            EnhancedUIUpdater.showToast('Driver phone number not available', 'warning');
-        }
-    } else {
-        EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
-    }
-}
-
-function openChat() {
-    if (AppState.currentRide?.driverId) {
-        document.getElementById('chatContainer').classList.add('active');
-    } else {
-        EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
-    }
-}
-    console.log('Event listeners setup completed');
-}
-
-
+// Service Request Functions
 function requestRide() {
-    // This is already implemented in setupEventListeners
-    // Just call the event listener function
-    document.getElementById('requestRideBtn').click();
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+        return;
+    }
+    
+    if (!EnhancedSearchEngine.validateCoordinatesInCity(
+        AppState.pickup.lat, AppState.pickup.lng, AppState.currentCity
+    ) || !EnhancedSearchEngine.validateCoordinatesInCity(
+        AppState.destination.lat, AppState.destination.lng, AppState.currentCity
+    )) {
+        EnhancedUIUpdater.showToast('Locations must be within city boundaries', 'warning');
+        return;
+    }
+    
+    let distance;
+    if (AppState.stops.length > 0) {
+        const validStops = AppState.stops.filter(stop => stop.location);
+        distance = EnhancedPriceCalculator.calculateDistanceWithStops(
+            AppState.pickup,
+            validStops,
+            AppState.destination
+        );
+    } else {
+        distance = EnhancedPriceCalculator.calculateDistance(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng
+        );
+    }
+    
+    if (distance < 0.5) {
+        EnhancedUIUpdater.showToast('Minimum ride distance is 0.5 km', 'warning');
+        return;
+    }
+    
+    const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng,
+        AppState.currentCity
+    );
+    
+    if (!validation.valid) {
+        EnhancedUIUpdater.showToast(validation.message, 'warning');
+        return;
+    }
+    
+    const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+    const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+    
+    const rideData = {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        rideType: AppState.selectedRideType,
+        fare: fare,
+        distance: distance,
+        stops: AppState.stops
+            .filter(stop => stop.location)
+            .map(stop => ({
+                address: stop.address,
+                name: stop.location.name,
+                lat: stop.location.lat,
+                lng: stop.location.lng
+            }))
+    };
+    
+    showPaymentModal('car', fare, rideData);
 }
 
 function requestDelivery() {
-    document.getElementById('requestDeliveryBtn').click();
+    const pickupInput = document.getElementById('deliveryPickup');
+    const destinationInput = document.getElementById('deliveryDestination');
+    const parcelDesc = document.getElementById('parcelDescription');
+    const receiverName = document.getElementById('receiverName');
+    const receiverPhone = document.getElementById('receiverPhone');
+    const parcelValue = document.getElementById('parcelValue');
+    
+    if (!pickupInput?.value || !destinationInput?.value || !parcelDesc?.value || 
+        !receiverName?.value || !receiverPhone?.value) {
+        EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select valid pickup and delivery locations', 'warning');
+        return;
+    }
+    
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng
+    );
+    
+    let deliveryType = 'standard';
+    if (document.getElementById('expressDelivery')?.classList.contains('active')) {
+        deliveryType = 'express';
+    } else if (document.getElementById('sameDayDelivery')?.classList.contains('active')) {
+        deliveryType = 'sameDay';
+    }
+    
+    const fare = EnhancedPriceCalculator.calculateDeliveryFare(
+        distance, 
+        deliveryType, 
+        parseFloat(parcelValue?.value) || 0
+    );
+    
+    showPaymentModal('delivery', fare, {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        parcelDescription: parcelDesc.value,
+        receiverName: receiverName.value,
+        receiverPhone: receiverPhone.value,
+        parcelValue: parseFloat(parcelValue?.value) || 0,
+        deliveryType: deliveryType,
+        fare: fare,
+        distance: distance,
+        serviceType: 'delivery'
+    });
 }
 
 function requestShortDelivery() {
-    // Similar to other request functions, but for short delivery
     const pickupInput = document.getElementById('shortDeliveryPickup');
     const destinationInput = document.getElementById('shortDeliveryDestination');
     const parcelDesc = document.getElementById('shortParcelDescription');
@@ -16380,20 +15373,64 @@ function requestShortDelivery() {
 }
 
 function requestShopping() {
-    document.getElementById('requestShoppingBtn').click();
+    const shopName = document.getElementById('shopName');
+    const shopLocation = document.getElementById('shopLocation');
+    const destinationInput = document.getElementById('shoppingDestination');
+    const instructions = document.getElementById('shoppingInstructions');
+    const budget = document.getElementById('shoppingBudget');
+    
+    if (!shopName?.value || !shopLocation?.value || !destinationInput?.value) {
+        EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
+        return;
+    }
+    
+    if (!AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select a valid delivery location', 'warning');
+        return;
+    }
+    
+    const distance = AppState.shopLocation ? 
+        EnhancedPriceCalculator.calculateDistance(
+            AppState.shopLocation.lat, AppState.shopLocation.lng,
+            AppState.destination.lat, AppState.destination.lng
+        ) : 5;
+    
+    const itemsCount = document.querySelectorAll('.item-input').length;
+    
+    const fare = EnhancedPriceCalculator.calculateShoppingFare(
+        distance, 
+        itemsCount, 
+        parseFloat(budget?.value) || 0
+    );
+    
+    showPaymentModal('shopping', fare, {
+        shopName: shopName.value,
+        shopLocation: shopLocation.value,
+        shopLat: AppState.shopLocation?.lat,
+        shopLng: AppState.shopLocation?.lng,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        items: Array.from(document.querySelectorAll('.item-input')).map(input => input.value),
+        itemsCount: itemsCount,
+        instructions: instructions?.value || '',
+        estimatedBudget: parseFloat(budget?.value) || 0,
+        fare: fare,
+        distance: distance,
+        serviceType: 'shopping'
+    });
 }
 
 function requestTruck() {
-    document.getElementById('requestTruckBtn').click();
-}
-
-function startBroadcastRide() {
-    const pickupInput = document.getElementById('broadcastPickup');
-    const destinationInput = document.getElementById('broadcastDestination');
-    const passengersInput = document.getElementById('broadcastPassengers');
+    const pickupInput = document.getElementById('truckPickup');
+    const destinationInput = document.getElementById('truckDestination');
+    const itemDesc = document.getElementById('truckItemDescription');
+    const estimatedWeight = document.getElementById('estimatedWeight');
+    const needHelpers = document.getElementById('needHelpers')?.checked;
     
-    if (!pickupInput?.value || !destinationInput?.value) {
-        EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+    if (!pickupInput?.value || !destinationInput?.value || !itemDesc?.value || !estimatedWeight?.value) {
+        EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
         return;
     }
     
@@ -16402,19 +15439,43 @@ function startBroadcastRide() {
         return;
     }
     
-    const passengersText = passengersInput?.value.trim();
-    if (!passengersText) {
-        EnhancedUIUpdater.showToast('Please enter passenger phone numbers', 'warning');
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng
+    );
+    
+    const selectedTruck = document.querySelector('.truck-type.selected');
+    const truckType = selectedTruck ? selectedTruck.dataset.type : 'light';
+    
+    const fare = EnhancedPriceCalculator.calculateTruckFare(distance, truckType, needHelpers);
+    
+    showPaymentModal('truck', fare, {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        truckType: truckType,
+        itemDescription: itemDesc.value,
+        estimatedWeight: parseFloat(estimatedWeight.value) || 0,
+        needHelpers: needHelpers,
+        fare: fare,
+        distance: distance,
+        serviceType: 'truck'
+    });
+}
+
+function startBroadcastRide() {
+    if (!AppState.broadcastRecipients.length) {
+        EnhancedUIUpdater.showToast('Please add recipients for broadcast', 'warning');
         return;
     }
     
-    // Parse phone numbers
-    const phoneNumbers = passengersText.split(',')
-        .map(num => num.trim().replace(/\D/g, ''))
-        .filter(num => num.length === 10);
-    
-    if (phoneNumbers.length === 0) {
-        EnhancedUIUpdater.showToast('Please enter valid 10-digit phone numbers', 'warning');
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
         return;
     }
     
@@ -16425,13 +15486,6 @@ function startBroadcastRide() {
     
     const surge = EnhancedPriceCalculator.getSurgeMultiplier();
     const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
-    
-    // Prepare broadcast recipients
-    const recipients = phoneNumbers.map(phone => ({
-        phone: phone,
-        name: 'Passenger',
-        status: 'pending'
-    }));
     
     showPaymentModal('broadcast', fare, {
         pickup: AppState.pickup.address,
@@ -16446,14 +15500,15 @@ function startBroadcastRide() {
         fare: fare,
         distance: distance,
         broadcast: true,
-        broadcastRecipients: recipients
+        broadcastRecipients: AppState.broadcastRecipients
     });
 }
 
+// Modal Functions
 function closeModal(modalId) {
     const modal = document.getElementById(`${modalId}Modal`);
     if (modal) {
-        modal.style.display = 'none';
+        modal.classList.remove('active');
     }
 }
 
@@ -16489,7 +15544,7 @@ function confirmCancelRide() {
     if (AppState.currentRide) {
         EnhancedFirebaseManager.cancelRide(AppState.currentRide.id, reason)
             .then(() => {
-                closeModal('cancel');
+                hideModal('cancel');
             })
             .catch(error => {
                 EnhancedUIUpdater.showToast('Error cancelling ride', 'error');
@@ -16530,10 +15585,9 @@ function confirmPayment() {
     
     EnhancedUIUpdater.showLoading('Processing payment...');
     
-    // Process payment and create ride
     EnhancedFirebaseManager.requestRide(rideData)
         .then(rideId => {
-            closeModal('payment');
+            hideModal('payment');
             EnhancedUIUpdater.hideLoading();
             EnhancedUIUpdater.showToast('Ride requested successfully', 'success');
         })
@@ -16604,7 +15658,7 @@ function confirmEmergencyRide() {
     
     EnhancedFirebaseManager.requestEmergencyRide(rideData)
         .then(() => {
-            closeModal('emergency');
+            hideModal('emergency');
         })
         .catch(error => {
             EnhancedUIUpdater.showToast('Error requesting emergency ride: ' + error.message, 'error');
@@ -16633,7 +15687,7 @@ function saveSOSConfig() {
     
     EnhancedFirebaseManager.saveSOSConfig(sosConfig)
         .then(() => {
-            closeModal('sos');
+            hideModal('sos');
         })
         .catch(error => {
             EnhancedUIUpdater.showToast('Error saving SOS configuration', 'error');
@@ -16657,7 +15711,7 @@ function confirmTransfer() {
     
     EnhancedFirebaseManager.transferMoney(recipientCode, amount, message)
         .then(() => {
-            closeModal('transfer');
+            hideModal('transfer');
         })
         .catch(error => {
             EnhancedUIUpdater.showToast('Error: ' + error.message, 'error');
@@ -16754,14 +15808,6 @@ function confirmSomeoneRide() {
     });
 }
 
-function addShareMember() {
-    const memberCode = document.getElementById('shareMemberInput').value.trim();
-    if (memberCode) {
-        EnhancedUIUpdater.addShareFriend(memberCode);
-        document.getElementById('shareMemberInput').value = '';
-    }
-}
-
 function confirmShareRide() {
     if (AppState.shareRideFriends.length === 0) {
         EnhancedUIUpdater.showToast('Please add at least one friend to share the ride', 'warning');
@@ -16813,38 +15859,12 @@ function confirmShareRide() {
     });
 }
 
-function acceptShareInvitation() {
-    // This would be called from the invitation modal
-    const invitationData = window.currentShareInvitation;
-    if (invitationData) {
-        EnhancedFirebaseManager.acceptShareRideInvitation(invitationData.invitationId)
-            .then(() => {
-                closeModal('shareRideInvitation');
-            })
-            .catch(error => {
-                EnhancedUIUpdater.showToast('Error accepting invitation', 'error');
-            });
-    }
-}
-
-function rejectShareInvitation() {
-    const invitationData = window.currentShareInvitation;
-    if (invitationData) {
-        EnhancedFirebaseManager.rejectShareRideInvitation(invitationData.invitationId)
-            .then(() => {
-                closeModal('shareRideInvitation');
-            })
-            .catch(error => {
-                EnhancedUIUpdater.showToast('Error rejecting invitation', 'error');
-            });
-    }
-}
-
+// Profile and Settings
 function saveProfile() {
     const name = document.getElementById('updateName').value.trim();
     const phone = document.getElementById('updatePhone').value.trim();
-    const homeAddress = document.getElementById('updateHomeAddress').value.trim();
-    const workAddress = document.getElementById('updateWorkAddress').value.trim();
+    const homeAddress = document.getElementById('homeAddress').value.trim();
+    const workAddress = document.getElementById('workAddress').value.trim();
     
     if (!name || !phone) {
         EnhancedUIUpdater.showToast('Name and phone are required', 'warning');
@@ -16860,7 +15880,7 @@ function saveProfile() {
     
     EnhancedFirebaseManager.updateProfile(profileData)
         .then(() => {
-            closeModal('updateProfile');
+            hideModal('profile');
         })
         .catch(error => {
             EnhancedUIUpdater.showToast('Error updating profile', 'error');
@@ -16905,115 +15925,34 @@ function applyReferral() {
         });
 }
 
-function selectRideType(type) {
-    AppState.selectedRideType = type;
-    
-    // Update UI
-    document.querySelectorAll('.ride-type-card').forEach(card => {
-        card.classList.remove('selected');
-    });
-    document.querySelector(`.ride-type-card[data-type="${type}"]`)?.classList.add('selected');
-    
-    // Update prices if we have locations
-    if (AppState.pickup && AppState.destination) {
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(distance, type, surge);
-        document.getElementById('estimatedFare').textContent = `ZMW ${fare.toFixed(2)}`;
-        AppState.rideFare = fare;
-    }
-}
-
-function filterHistory(filter) {
-    AppState.activeFilter = filter;
-    
-    // Update active filter button
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.classList.remove('active');
-    });
-    document.querySelector(`.filter-btn[data-filter="${filter}"]`)?.classList.add('active');
-    
-    // Reload history with filter
-    if (AppState.currentUser) {
-        EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
-    }
-}
-
-function showModal(modalId) {
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) {
-        modal.style.display = 'block';
-    }
-}
-
-function logout() {
-    if (confirm('Are you sure you want to logout?')) {
-        EnhancedUIUpdater.showLoading('Logging out...');
-        
-        EnhancedFirebaseManager.stopRealtimeSync();
-        
-        if (AppState.syncInterval) {
-            clearInterval(AppState.syncInterval);
+// Ride and Driver Functions
+function contactDriver() {
+    if (AppState.currentRide?.driverId) {
+        const driverPhone = AppState.selectedVehicle?.phone;
+        if (driverPhone) {
+            window.open(`tel:${driverPhone}`, '_blank');
+        } else {
+            EnhancedUIUpdater.showToast('Driver phone number not available', 'warning');
         }
-        
-        auth.signOut().then(() => {
-            window.location.href = 'signup.html';
-        }).catch(error => {
-            console.error('Error logging out:', error);
-            EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error logging out', 'error');
-        });
+    } else {
+        EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
     }
 }
 
-function processDeposit() {
-    const amount = parseFloat(document.getElementById('depositAmountInput').value);
-    const method = document.getElementById('depositMethod').value;
-    
-    if (!amount || amount <= 0) {
-        EnhancedUIUpdater.showToast('Please enter a valid deposit amount', 'warning');
-        return;
+function openChat() {
+    if (AppState.currentRide?.driverId) {
+        document.getElementById('chatContainer').classList.add('active');
+    } else {
+        EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
     }
-    
-    EnhancedFirebaseManager.depositMoney(amount)
-        .then(() => {
-            document.querySelector('.modal-overlay.active').remove();
-        })
-        .catch(error => {
-            EnhancedUIUpdater.showToast('Error processing deposit: ' + error.message, 'error');
-        });
 }
 
-function processWithdrawal() {
-    const amount = parseFloat(document.getElementById('withdrawAmountInput').value);
-    const method = document.getElementById('withdrawMethod').value;
-    const account = document.getElementById('withdrawAccount').value.trim();
-    
-    if (!amount || amount <= 0) {
-        EnhancedUIUpdater.showToast('Please enter a valid withdrawal amount', 'warning');
-        return;
+function cancelRide() {
+    if (AppState.currentRide) {
+        showModal('cancel');
+    } else {
+        EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
     }
-    
-    if (!account) {
-        EnhancedUIUpdater.showToast('Please enter account/phone number', 'warning');
-        return;
-    }
-    
-    if (amount > AppState.walletBalance) {
-        EnhancedUIUpdater.showToast('Insufficient balance', 'error');
-        return;
-    }
-    
-    EnhancedFirebaseManager.withdrawMoney(amount)
-        .then(() => {
-            document.querySelector('.modal-overlay.active').remove();
-        })
-        .catch(error => {
-            EnhancedUIUpdater.showToast('Error processing withdrawal: ' + error.message, 'error');
-        });
 }
 
 function triggerSOS() {
@@ -17043,12 +15982,98 @@ function triggerSOS() {
     }
 }
 
-function cancelRide() {
-    if (AppState.currentRide) {
-        showModal('cancel');
-    } else {
-        EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
+// Utility Functions
+function selectRideType(type) {
+    AppState.selectedRideType = type;
+    
+    document.querySelectorAll('.ride-type-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    document.querySelector(`.ride-type-card[data-type="${type}"]`)?.classList.add('selected');
+    
+    if (AppState.pickup && AppState.destination) {
+        const distance = EnhancedPriceCalculator.calculateDistance(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng
+        );
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const fare = EnhancedPriceCalculator.calculateRideFare(distance, type, surge);
+        document.getElementById('estimatedFare').textContent = `ZMW ${fare.toFixed(2)}`;
+        AppState.rideFare = fare;
     }
+}
+
+function filterHistory(filter) {
+    AppState.activeFilter = filter;
+    
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`.filter-btn[data-filter="${filter}"]`)?.classList.add('active');
+    
+    if (AppState.currentUser) {
+        EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+    }
+}
+
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        EnhancedUIUpdater.showLoading('Logging out...');
+        
+        EnhancedFirebaseManager.stopRealtimeSync();
+        
+        if (AppState.syncInterval) {
+            clearInterval(AppState.syncInterval);
+        }
+        
+        auth.signOut().then(() => {
+            window.location.href = 'signup.html';
+        }).catch(error => {
+            console.error('Error logging out:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Error logging out', 'error');
+        });
+    }
+}
+
+function openEmergencyModal(type) {
+    if (type === 'sos') {
+        showModal('sos');
+    } else {
+        handleEmergencyService(type);
+    }
+}
+
+// UI Helper Functions
+function selectDeliveryType(type) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById(`${type}Delivery`).classList.add('active');
+}
+
+function selectTruckType(type) {
+    document.querySelectorAll('.truck-type').forEach(truck => {
+        truck.classList.remove('selected');
+    });
+    document.querySelector(`.truck-type[data-type="${type}"]`).classList.add('selected');
+}
+
+function addShoppingItem() {
+    const itemsContainer = document.getElementById('shoppingItems');
+    const itemEntry = document.createElement('div');
+    itemEntry.className = 'item-entry';
+    itemEntry.innerHTML = `
+        <input type="text" class="item-input" placeholder="Item name">
+        <button class="remove-item" type="button" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    itemsContainer.appendChild(itemEntry);
+}
+
+function addStop() {
+    EnhancedLocationManager.addStop();
 }
 // ============================================
 // UTILITY FUNCTIONS
@@ -18050,6 +17075,7 @@ console.log('Jubel Passenger App JavaScript loaded successfully');
 </script>
 </body>
 </html>
+
 
 
 
