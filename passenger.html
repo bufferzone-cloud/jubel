@@ -14760,7 +14760,7 @@ function setupEventListeners() {
         });
     });
     
-    document.getElementById('locateMeBtn')?.addEventListener('click', () => {
+   // Already handled by centerMapOnUser() function
         if (AppState.userLocation) {
             map.setView([AppState.userLocation.lat, AppState.userLocation.lng], 15);
             EnhancedUIUpdater.showToast('Centered on your location', 'info');
@@ -15935,45 +15935,1147 @@ function setupEventListeners() {
             }
         }
     });
+    function toggleNotifications() {
+    const panel = document.getElementById('notificationsPanel');
+    panel.classList.toggle('active');
+}
+
+function closeNotifications() {
+    const panel = document.getElementById('notificationsPanel');
+    panel.classList.remove('active');
+}
+
+function centerMapOnUser() {
+    if (AppState.userLocation) {
+        map.setView([AppState.userLocation.lat, AppState.userLocation.lng], 15);
+        EnhancedUIUpdater.showToast('Centered on your location', 'info');
+    } else {
+        getCurrentLocation();
+    }
+}
+
+function zoomIn() {
+    map.zoomIn();
+}
+
+function zoomOut() {
+    map.zoomOut();
+}
+
+function clearRoute() {
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+    }
     
+    if (destinationMarker) {
+        map.removeLayer(destinationMarker);
+        destinationMarker = null;
+    }
+    
+    const destinationInput = document.getElementById('destinationLocation');
+    if (destinationInput) {
+        destinationInput.value = '';
+    }
+    AppState.destination = null;
+    
+    EnhancedLocationManager.clearAllStops();
+    
+    EnhancedUIUpdater.showToast('Route cleared', 'info');
+}
+
+function closeChat() {
+    document.getElementById('chatContainer').classList.remove('active');
+}
+
+function attachFile() {
+    // Create a file input element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*,.pdf,.doc,.docx';
+    
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+            EnhancedUIUpdater.showToast('File size must be less than 5MB', 'error');
+            return;
+        }
+        
+        try {
+            EnhancedUIUpdater.showLoading('Uploading file...');
+            
+            // Upload to Firebase Storage
+            const storageRef = storage.ref();
+            const fileRef = storageRef.child(`chat_files/${AppState.currentRide?.id || 'general'}/${Date.now()}_${file.name}`);
+            const snapshot = await fileRef.put(file);
+            const downloadURL = await snapshot.ref.getDownloadURL();
+            
+            // Send as chat message
+            if (AppState.currentRide) {
+                await EnhancedFirebaseManager.sendChatMessage(
+                    AppState.currentRide.id,
+                    `[File: ${file.name}] ${downloadURL}`,
+                    false
+                );
+                EnhancedUIUpdater.showToast('File sent successfully', 'success');
+            }
+            
+            EnhancedUIUpdater.hideLoading();
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Error uploading file', 'error');
+        }
+    };
+    
+    fileInput.click();
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input?.value.trim();
+    
+    if (message && AppState.currentRide) {
+        EnhancedFirebaseManager.sendChatMessage(AppState.currentRide.id, message, false)
+            .then(() => {
+                input.value = '';
+            })
+            .catch(error => {
+                EnhancedUIUpdater.showToast('Error sending message', 'error');
+            });
+    }
+}
+
+function togglePanel() {
+    const panelHandle = document.getElementById('panelHandle');
+    panelHandle.classList.toggle('active');
+    
+    const mainPanel = document.getElementById('mainPanel');
+    const mapOverlay = document.getElementById('mapOverlay');
+    
+    if (panelHandle.classList.contains('active')) {
+        mainPanel.style.transform = 'translateY(0)';
+        if (mapOverlay) mapOverlay.style.display = 'block';
+    } else {
+        mainPanel.style.transform = 'translateY(calc(100% - 60px))';
+        if (mapOverlay) mapOverlay.style.display = 'none';
+    }
+}
+
+function toggleMoreOptions() {
+    const menu = document.getElementById('moreOptionsMenu');
+    menu.classList.toggle('active');
+}
+
+function openScheduleModal() {
+    showModal('schedule');
+    document.getElementById('moreOptionsMenu').classList.remove('active');
+}
+
+function openOrderForSomeoneModal() {
+    showModal('orderForSomeone');
+    document.getElementById('moreOptionsMenu').classList.remove('active');
+}
+
+function openShareRideModal() {
+    showModal('shareRide');
+    document.getElementById('moreOptionsMenu').classList.remove('active');
+}
+
+function openSOSModal() {
+    showModal('sos');
+    document.getElementById('moreOptionsMenu').classList.remove('active');
+}
+
+function showRecentDestinations() {
+    EnhancedUIUpdater.showSearchHistory('destinationLocation');
+    document.getElementById('moreOptionsMenu').classList.remove('active');
+}
+
+function openSettings() {
+    // For now, just show a toast since settings screen isn't fully implemented
+    EnhancedUIUpdater.showToast('Settings screen coming soon', 'info');
+}
+
+function openHelp() {
+    EnhancedUIUpdater.showToast('Help & Support screen coming soon', 'info');
+}
+
+function openDepositModal() {
+    // Create a simple deposit modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Deposit Money</h3>
+                <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Amount (ZMW)</label>
+                    <input type="number" class="form-control" id="depositAmountInput" placeholder="Enter amount" min="1" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Payment Method</label>
+                    <select class="form-control" id="depositMethod">
+                        <option value="mobile">Mobile Money</option>
+                        <option value="card">Credit/Debit Card</option>
+                        <option value="bank">Bank Transfer</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" style="width: 100%;" onclick="processDeposit()">
+                    <i class="fas fa-plus"></i> Deposit
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function openWithdrawModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Withdraw Money</h3>
+                <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Available Balance: ZMW ${AppState.walletBalance.toFixed(2)}</label>
+                </div>
+                <div class="form-group">
+                    <label>Amount to Withdraw (ZMW)</label>
+                    <input type="number" class="form-control" id="withdrawAmountInput" 
+                           placeholder="Enter amount" min="1" max="${AppState.walletBalance}" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Withdrawal Method</label>
+                    <select class="form-control" id="withdrawMethod">
+                        <option value="mobile">Mobile Money</option>
+                        <option value="bank">Bank Account</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Account/Phone Number</label>
+                    <input type="text" class="form-control" id="withdrawAccount" placeholder="Enter account/phone number">
+                </div>
+                <button class="btn btn-primary" style="width: 100%;" onclick="processWithdrawal()">
+                    <i class="fas fa-minus"></i> Withdraw
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function openTransferModal() {
+    showModal('transfer');
+}
+
+function openTransactionsModal() {
+    EnhancedFirebaseManager.loadWalletTransactions(AppState.currentUser.uid)
+        .then(transactions => {
+            const modal = document.createElement('div');
+            modal.className = 'modal-overlay active';
+            
+            let transactionsHTML = '';
+            if (transactions.length === 0) {
+                transactionsHTML = '<div class="empty-state">No transactions found</div>';
+            } else {
+                transactions.forEach(transaction => {
+                    const date = new Date(transaction.timestamp);
+                    const type = transaction.type || 'transaction';
+                    const amount = transaction.amount || 0;
+                    const isPositive = type === 'deposit' || type === 'referral_reward';
+                    
+                    transactionsHTML += `
+                        <div class="transaction-item">
+                            <div class="transaction-icon ${type}">
+                                <i class="fas fa-${type === 'deposit' ? 'plus' : type === 'withdrawal' ? 'minus' : 'exchange-alt'}"></i>
+                            </div>
+                            <div class="transaction-details">
+                                <div class="transaction-title">${transaction.description || type.charAt(0).toUpperCase() + type.slice(1)}</div>
+                                <div class="transaction-date">${date.toLocaleDateString()} ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                            </div>
+                            <div class="transaction-amount ${isPositive ? 'positive' : 'negative'}">
+                                ${isPositive ? '+' : '-'}ZMW ${amount.toFixed(2)}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h3>Transaction History</h3>
+                        <button class="modal-close" onclick="this.parentElement.parentElement.remove()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+                        ${transactionsHTML}
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+        })
+        .catch(error => {
+            console.error('Error loading transactions:', error);
+            EnhancedUIUpdater.showToast('Error loading transactions', 'error');
+        });
+}
+
+function shareReferral() {
+    const referralCode = AppState.userData?.referralCode || 'JUBEL-XXXX';
+    const shareText = `Join me on Jubel! Use my referral code ${referralCode} for 50% off your first ride. Download the app now!`;
+    
+    if (navigator.share) {
+        navigator.share({
+            title: 'Jubel Referral',
+            text: shareText,
+            url: 'https://jubel.app'
+        }).catch(error => {
+            console.log('Share cancelled:', error);
+        });
+    } else {
+        // Fallback: copy to clipboard
+        navigator.clipboard.writeText(shareText).then(() => {
+            EnhancedUIUpdater.showToast('Referral text copied to clipboard!', 'success');
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+            EnhancedUIUpdater.showToast('Failed to copy referral text', 'error');
+        });
+    }
+}
+
+function openUpdateProfileModal() {
+    showModal('updateProfile');
+}
+
+function openEmergencyModal(type) {
+    if (type === 'sos') {
+        showModal('sos');
+    } else {
+        handleEmergencyService(type);
+    }
+}
+
+function selectDeliveryType(type) {
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.getElementById(`${type}Delivery`).classList.add('active');
+}
+
+function selectTruckType(type) {
+    document.querySelectorAll('.truck-type').forEach(truck => {
+        truck.classList.remove('selected');
+    });
+    document.querySelector(`.truck-type[data-type="${type}"]`).classList.add('selected');
+}
+
+function addShoppingItem() {
+    const itemsContainer = document.getElementById('shoppingItems');
+    const itemEntry = document.createElement('div');
+    itemEntry.className = 'item-entry';
+    itemEntry.innerHTML = `
+        <input type="text" class="item-input" placeholder="Item name">
+        <button class="remove-item" type="button" onclick="this.parentElement.remove()">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    itemsContainer.appendChild(itemEntry);
+}
+
+function addStop() {
+    EnhancedLocationManager.addStop();
+}
+
+function contactDriver() {
+    if (AppState.currentRide?.driverId) {
+        const driverPhone = AppState.selectedVehicle?.phone;
+        if (driverPhone) {
+            window.open(`tel:${driverPhone}`, '_blank');
+        } else {
+            EnhancedUIUpdater.showToast('Driver phone number not available', 'warning');
+        }
+    } else {
+        EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
+    }
+}
+
+function openChat() {
+    if (AppState.currentRide?.driverId) {
+        document.getElementById('chatContainer').classList.add('active');
+    } else {
+        EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
+    }
+}
     console.log('Event listeners setup completed');
 }
 
+
+function requestRide() {
+    // This is already implemented in setupEventListeners
+    // Just call the event listener function
+    document.getElementById('requestRideBtn').click();
+}
+
+function requestDelivery() {
+    document.getElementById('requestDeliveryBtn').click();
+}
+
+function requestShortDelivery() {
+    // Similar to other request functions, but for short delivery
+    const pickupInput = document.getElementById('shortDeliveryPickup');
+    const destinationInput = document.getElementById('shortDeliveryDestination');
+    const parcelDesc = document.getElementById('shortParcelDescription');
+    const receiverPhone = document.getElementById('shortReceiverPhone');
+    
+    if (!pickupInput?.value || !destinationInput?.value || !parcelDesc?.value || !receiverPhone?.value) {
+        EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select valid pickup and delivery locations', 'warning');
+        return;
+    }
+    
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng
+    );
+    
+    const fare = Math.max(15, distance * 2.5);
+    
+    showPaymentModal('short-delivery', fare, {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        parcelDescription: parcelDesc.value,
+        receiverPhone: receiverPhone.value,
+        fare: fare,
+        distance: distance,
+        serviceType: 'short-delivery'
+    });
+}
+
+function requestShopping() {
+    document.getElementById('requestShoppingBtn').click();
+}
+
+function requestTruck() {
+    document.getElementById('requestTruckBtn').click();
+}
+
+function startBroadcastRide() {
+    const pickupInput = document.getElementById('broadcastPickup');
+    const destinationInput = document.getElementById('broadcastDestination');
+    const passengersInput = document.getElementById('broadcastPassengers');
+    
+    if (!pickupInput?.value || !destinationInput?.value) {
+        EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select valid pickup and destination locations', 'warning');
+        return;
+    }
+    
+    const passengersText = passengersInput?.value.trim();
+    if (!passengersText) {
+        EnhancedUIUpdater.showToast('Please enter passenger phone numbers', 'warning');
+        return;
+    }
+    
+    // Parse phone numbers
+    const phoneNumbers = passengersText.split(',')
+        .map(num => num.trim().replace(/\D/g, ''))
+        .filter(num => num.length === 10);
+    
+    if (phoneNumbers.length === 0) {
+        EnhancedUIUpdater.showToast('Please enter valid 10-digit phone numbers', 'warning');
+        return;
+    }
+    
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng
+    );
+    
+    const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+    const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+    
+    // Prepare broadcast recipients
+    const recipients = phoneNumbers.map(phone => ({
+        phone: phone,
+        name: 'Passenger',
+        status: 'pending'
+    }));
+    
+    showPaymentModal('broadcast', fare, {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        rideType: AppState.selectedRideType,
+        fare: fare,
+        distance: distance,
+        broadcast: true,
+        broadcastRecipients: recipients
+    });
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(`${modalId}Modal`);
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+function selectCancelReason(reason) {
+    document.querySelectorAll('.cancel-reason').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.cancel-reason[data-reason="${reason}"]`).classList.add('selected');
+    
+    const otherReasonGroup = document.getElementById('otherReasonGroup');
+    if (otherReasonGroup) {
+        otherReasonGroup.style.display = reason === 'other' ? 'block' : 'none';
+    }
+}
+
+function confirmCancelRide() {
+    const selectedReason = document.querySelector('.cancel-reason.selected');
+    if (!selectedReason) {
+        EnhancedUIUpdater.showToast('Please select a cancellation reason', 'warning');
+        return;
+    }
+    
+    let reason = selectedReason.dataset.reason;
+    if (reason === 'other') {
+        const otherReason = document.getElementById('otherReason')?.value.trim();
+        if (!otherReason) {
+            EnhancedUIUpdater.showToast('Please specify your reason', 'warning');
+            return;
+        }
+        reason = `other: ${otherReason}`;
+    }
+    
+    if (AppState.currentRide) {
+        EnhancedFirebaseManager.cancelRide(AppState.currentRide.id, reason)
+            .then(() => {
+                closeModal('cancel');
+            })
+            .catch(error => {
+                EnhancedUIUpdater.showToast('Error cancelling ride', 'error');
+            });
+    }
+}
+
+function selectPaymentMethod(method) {
+    document.querySelectorAll('.payment-method').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.payment-method[data-payment="${method}"]`).classList.add('selected');
+}
+
+function confirmPayment() {
+    const selectedMethod = document.querySelector('.payment-method.selected');
+    if (!selectedMethod) {
+        EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
+        return;
+    }
+    
+    const paymentMethod = selectedMethod.dataset.payment;
+    const amount = parseFloat(document.getElementById('paymentAmount').textContent.replace('ZMW ', ''));
+    const rideData = window.pendingRideData;
+    
+    if (!rideData) {
+        EnhancedUIUpdater.showToast('No ride data found', 'error');
+        return;
+    }
+    
+    if (paymentMethod === 'wallet' && AppState.walletBalance < amount) {
+        EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
+        return;
+    }
+    
+    rideData.paymentMethod = paymentMethod;
+    rideData.fare = amount;
+    
+    EnhancedUIUpdater.showLoading('Processing payment...');
+    
+    // Process payment and create ride
+    EnhancedFirebaseManager.requestRide(rideData)
+        .then(rideId => {
+            closeModal('payment');
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Ride requested successfully', 'success');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Error processing payment: ' + error.message, 'error');
+        });
+}
+
+function selectEmergencyReason(reason) {
+    document.querySelectorAll('.emergency-reason').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.emergency-reason[data-reason="${reason}"]`).classList.add('selected');
+    
+    const otherReasonInput = document.getElementById('emergencyReasonOther');
+    if (otherReasonInput) {
+        otherReasonInput.style.display = reason === 'other' ? 'block' : 'none';
+    }
+}
+
+function confirmEmergencyRide() {
+    if (!AppState.selectedEmergencyStation) {
+        EnhancedUIUpdater.showToast('Please select an emergency station', 'warning');
+        return;
+    }
+    
+    const emergencyType = document.getElementById('emergencyServiceType')?.dataset.type;
+    const selectedReason = document.querySelector('.emergency-reason.selected');
+    
+    if (!selectedReason) {
+        EnhancedUIUpdater.showToast('Please select an emergency reason', 'warning');
+        return;
+    }
+    
+    let reason = selectedReason.dataset.reason;
+    if (reason === 'other') {
+        const otherReason = document.getElementById('emergencyOtherReason')?.value.trim();
+        if (!otherReason) {
+            EnhancedUIUpdater.showToast('Please describe the emergency', 'warning');
+            return;
+        }
+        reason = otherReason;
+    }
+    
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.userLocation.lat, AppState.userLocation.lng,
+        AppState.selectedEmergencyStation.lat, AppState.selectedEmergencyStation.lng
+    );
+    
+    const fare = EnhancedPriceCalculator.calculateEmergencyFare(distance, emergencyType);
+    
+    const rideData = {
+        pickup: AppState.selectedEmergencyStation.name,
+        pickupDisplay: AppState.selectedEmergencyStation.name,
+        destination: AppState.userLocation.fullDisplay || 'Your Location',
+        destinationDisplay: 'Emergency Location',
+        pickupLat: AppState.selectedEmergencyStation.lat,
+        pickupLng: AppState.selectedEmergencyStation.lng,
+        destLat: AppState.userLocation.lat,
+        destLng: AppState.userLocation.lng,
+        emergencyType: emergencyType,
+        emergencyReason: reason,
+        fare: fare,
+        distance: distance,
+        paymentMethod: 'emergency'
+    };
+    
+    EnhancedFirebaseManager.requestEmergencyRide(rideData)
+        .then(() => {
+            closeModal('emergency');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error requesting emergency ride: ' + error.message, 'error');
+        });
+}
+
+function saveSOSConfig() {
+    const contact1Name = document.getElementById('sosContact1Name').value.trim();
+    const contact1Phone = document.getElementById('sosContact1Phone').value.trim();
+    const contact2Name = document.getElementById('sosContact2Name').value.trim();
+    const contact2Phone = document.getElementById('sosContact2Phone').value.trim();
+    
+    if (!contact1Name || !contact1Phone) {
+        EnhancedUIUpdater.showToast('Primary emergency contact is required', 'warning');
+        return;
+    }
+    
+    const sosConfig = {
+        contact1Name: contact1Name,
+        contact1Phone: contact1Phone.replace(/\D/g, ''),
+        contact2Name: contact2Name || '',
+        contact2Phone: contact2Phone ? contact2Phone.replace(/\D/g, '') : '',
+        message: document.getElementById('sosMessage').value.trim() || 'I need emergency assistance',
+        updatedAt: Date.now()
+    };
+    
+    EnhancedFirebaseManager.saveSOSConfig(sosConfig)
+        .then(() => {
+            closeModal('sos');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error saving SOS configuration', 'error');
+        });
+}
+
+function confirmTransfer() {
+    const amount = parseFloat(document.getElementById('transferAmount').value);
+    const recipientCode = document.getElementById('recipientCode').value.trim();
+    const message = document.getElementById('transferMessage').value.trim();
+    
+    if (!amount || amount <= 0) {
+        EnhancedUIUpdater.showToast('Please enter a valid transfer amount', 'warning');
+        return;
+    }
+    
+    if (!recipientCode) {
+        EnhancedUIUpdater.showToast('Please enter recipient referral code', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.transferMoney(recipientCode, amount, message)
+        .then(() => {
+            closeModal('transfer');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error: ' + error.message, 'error');
+        });
+}
+
+function confirmScheduleRide() {
+    const scheduleDate = document.getElementById('scheduleDate').value;
+    const scheduleTime = document.getElementById('scheduleTime').value;
+    
+    if (!scheduleDate || !scheduleTime) {
+        EnhancedUIUpdater.showToast('Please select date and time', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+        return;
+    }
+    
+    const scheduledTime = new Date(`${scheduleDate}T${scheduleTime}`).getTime();
+    const now = Date.now();
+    
+    if (scheduledTime <= now) {
+        EnhancedUIUpdater.showToast('Scheduled time must be in the future', 'warning');
+        return;
+    }
+    
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng
+    );
+    
+    const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+    const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+    
+    const rideData = {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        rideType: AppState.selectedRideType,
+        fare: fare,
+        distance: distance,
+        scheduled: true,
+        scheduledTime: scheduledTime,
+        paymentMethod: 'wallet'
+    };
+    
+    showPaymentModal('schedule', fare, rideData);
+}
+
+function confirmSomeoneRide() {
+    const someoneName = document.getElementById('someoneName').value.trim();
+    const someonePhone = document.getElementById('someonePhone').value.trim();
+    
+    if (!someoneName || !someonePhone) {
+        EnhancedUIUpdater.showToast('Please enter name and phone for the rider', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+        return;
+    }
+    
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng
+    );
+    
+    const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+    const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge);
+    
+    showPaymentModal('someone', fare, {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        rideType: AppState.selectedRideType,
+        fare: fare,
+        distance: distance,
+        riderName: someoneName,
+        riderPhone: someonePhone,
+        forSomeoneElse: true
+    });
+}
+
+function addShareMember() {
+    const memberCode = document.getElementById('shareMemberInput').value.trim();
+    if (memberCode) {
+        EnhancedUIUpdater.addShareFriend(memberCode);
+        document.getElementById('shareMemberInput').value = '';
+    }
+}
+
+function confirmShareRide() {
+    if (AppState.shareRideFriends.length === 0) {
+        EnhancedUIUpdater.showToast('Please add at least one friend to share the ride', 'warning');
+        return;
+    }
+    
+    if (!AppState.pickup || !AppState.destination) {
+        EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+        return;
+    }
+    
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        AppState.pickup.lat, AppState.pickup.lng,
+        AppState.destination.lat, AppState.destination.lng
+    );
+    
+    const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+    const totalPeople = AppState.shareRideFriends.length + 1;
+    const calculation = EnhancedPriceCalculator.calculateBroadcastFare(distance, AppState.selectedRideType, 'equal', totalPeople);
+    
+    showPaymentModal('share', calculation.total, {
+        pickup: AppState.pickup.address,
+        pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+        destination: AppState.destination.address,
+        destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+        pickupLat: AppState.pickup.lat,
+        pickupLng: AppState.pickup.lng,
+        destLat: AppState.destination.lat,
+        destLng: AppState.destination.lng,
+        rideType: AppState.selectedRideType,
+        fare: calculation.total,
+        distance: distance,
+        sharedRide: true,
+        shareParticipants: totalPeople,
+        shareParticipantsData: [
+            {
+                userId: AppState.currentUser.uid,
+                name: AppState.userData.name,
+                amount: calculation.yourShare,
+                paymentStatus: 'pending'
+            },
+            ...AppState.shareRideFriends.map(friend => ({
+                userId: friend.userId,
+                name: friend.name,
+                amount: calculation.passengerShare,
+                paymentStatus: 'pending'
+            }))
+        ]
+    });
+}
+
+function acceptShareInvitation() {
+    // This would be called from the invitation modal
+    const invitationData = window.currentShareInvitation;
+    if (invitationData) {
+        EnhancedFirebaseManager.acceptShareRideInvitation(invitationData.invitationId)
+            .then(() => {
+                closeModal('shareRideInvitation');
+            })
+            .catch(error => {
+                EnhancedUIUpdater.showToast('Error accepting invitation', 'error');
+            });
+    }
+}
+
+function rejectShareInvitation() {
+    const invitationData = window.currentShareInvitation;
+    if (invitationData) {
+        EnhancedFirebaseManager.rejectShareRideInvitation(invitationData.invitationId)
+            .then(() => {
+                closeModal('shareRideInvitation');
+            })
+            .catch(error => {
+                EnhancedUIUpdater.showToast('Error rejecting invitation', 'error');
+            });
+    }
+}
+
+function saveProfile() {
+    const name = document.getElementById('updateName').value.trim();
+    const phone = document.getElementById('updatePhone').value.trim();
+    const homeAddress = document.getElementById('updateHomeAddress').value.trim();
+    const workAddress = document.getElementById('updateWorkAddress').value.trim();
+    
+    if (!name || !phone) {
+        EnhancedUIUpdater.showToast('Name and phone are required', 'warning');
+        return;
+    }
+    
+    const profileData = {
+        name: name,
+        phone: phone.replace(/\D/g, ''),
+        homeAddress: homeAddress,
+        workAddress: workAddress
+    };
+    
+    EnhancedFirebaseManager.updateProfile(profileData)
+        .then(() => {
+            closeModal('updateProfile');
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error updating profile', 'error');
+        });
+}
+
+function applyReferral() {
+    const referralCode = document.getElementById('referralCodeInput').value.trim();
+    if (!referralCode) {
+        EnhancedUIUpdater.showToast('Please enter a referral code', 'warning');
+        return;
+    }
+    
+    const amount = parseFloat(document.getElementById('paymentAmount').textContent.replace('ZMW ', ''));
+    const rideData = window.pendingRideData;
+    
+    if (!rideData) {
+        EnhancedUIUpdater.showToast('No ride data found', 'error');
+        return;
+    }
+    
+    EnhancedUIUpdater.showLoading('Applying referral discount...');
+    
+    EnhancedFirebaseManager.applyReferralDiscount(rideData, referralCode)
+        .then(result => {
+            EnhancedUIUpdater.hideLoading();
+            if (result.success) {
+                EnhancedUIUpdater.showToast(result.message, 'success');
+                document.getElementById('paymentAmount').textContent = `ZMW ${result.finalFare.toFixed(2)}`;
+                rideData.fare = result.finalFare;
+                rideData.referredBy = referralCode;
+                rideData.referrerName = result.referrerName;
+                rideData.discountAmount = result.discountAmount;
+                window.pendingRideData = rideData;
+            } else {
+                EnhancedUIUpdater.showToast(result.message, 'error');
+            }
+        })
+        .catch(error => {
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Error applying discount', 'error');
+        });
+}
+
+function selectRideType(type) {
+    AppState.selectedRideType = type;
+    
+    // Update UI
+    document.querySelectorAll('.ride-type-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    document.querySelector(`.ride-type-card[data-type="${type}"]`)?.classList.add('selected');
+    
+    // Update prices if we have locations
+    if (AppState.pickup && AppState.destination) {
+        const distance = EnhancedPriceCalculator.calculateDistance(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng
+        );
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const fare = EnhancedPriceCalculator.calculateRideFare(distance, type, surge);
+        document.getElementById('estimatedFare').textContent = `ZMW ${fare.toFixed(2)}`;
+        AppState.rideFare = fare;
+    }
+}
+
+function filterHistory(filter) {
+    AppState.activeFilter = filter;
+    
+    // Update active filter button
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`.filter-btn[data-filter="${filter}"]`)?.classList.add('active');
+    
+    // Reload history with filter
+    if (AppState.currentUser) {
+        EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+    }
+}
+
+function showModal(modalId) {
+    const modal = document.getElementById(`${modalId}Modal`);
+    if (modal) {
+        modal.style.display = 'block';
+    }
+}
+
+function logout() {
+    if (confirm('Are you sure you want to logout?')) {
+        EnhancedUIUpdater.showLoading('Logging out...');
+        
+        EnhancedFirebaseManager.stopRealtimeSync();
+        
+        if (AppState.syncInterval) {
+            clearInterval(AppState.syncInterval);
+        }
+        
+        auth.signOut().then(() => {
+            window.location.href = 'signup.html';
+        }).catch(error => {
+            console.error('Error logging out:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Error logging out', 'error');
+        });
+    }
+}
+
+function processDeposit() {
+    const amount = parseFloat(document.getElementById('depositAmountInput').value);
+    const method = document.getElementById('depositMethod').value;
+    
+    if (!amount || amount <= 0) {
+        EnhancedUIUpdater.showToast('Please enter a valid deposit amount', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.depositMoney(amount)
+        .then(() => {
+            document.querySelector('.modal-overlay.active').remove();
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error processing deposit: ' + error.message, 'error');
+        });
+}
+
+function processWithdrawal() {
+    const amount = parseFloat(document.getElementById('withdrawAmountInput').value);
+    const method = document.getElementById('withdrawMethod').value;
+    const account = document.getElementById('withdrawAccount').value.trim();
+    
+    if (!amount || amount <= 0) {
+        EnhancedUIUpdater.showToast('Please enter a valid withdrawal amount', 'warning');
+        return;
+    }
+    
+    if (!account) {
+        EnhancedUIUpdater.showToast('Please enter account/phone number', 'warning');
+        return;
+    }
+    
+    if (amount > AppState.walletBalance) {
+        EnhancedUIUpdater.showToast('Insufficient balance', 'error');
+        return;
+    }
+    
+    EnhancedFirebaseManager.withdrawMoney(amount)
+        .then(() => {
+            document.querySelector('.modal-overlay.active').remove();
+        })
+        .catch(error => {
+            EnhancedUIUpdater.showToast('Error processing withdrawal: ' + error.message, 'error');
+        });
+}
+
+function triggerSOS() {
+    if (!AppState.currentRide || !AppState.sosConfig) {
+        EnhancedUIUpdater.showToast('No active ride or SOS configuration', 'warning');
+        return;
+    }
+    
+    if (confirm('Send SOS emergency alert to your contacts?')) {
+        EnhancedFirebaseManager.sendSOSAlert(AppState.currentRide.id, {
+            emergencyContact1: AppState.sosConfig.contact1Phone,
+            emergencyContact1Name: AppState.sosConfig.contact1Name,
+            emergencyContact2: AppState.sosConfig.contact2Phone,
+            emergencyContact2Name: AppState.sosConfig.contact2Name,
+            message: AppState.sosConfig.message || 'Emergency SOS triggered',
+            location: {
+                lat: AppState.currentRide.pickupLat || AppState.userLocation.lat,
+                lng: AppState.currentRide.pickupLng || AppState.userLocation.lng
+            },
+            rideDetails: {
+                pickup: AppState.currentRide.pickupDisplay,
+                destination: AppState.currentRide.destinationDisplay,
+                driver: AppState.selectedVehicle?.name || 'Unknown'
+            },
+            city: AppState.currentCity
+        });
+    }
+}
+
+function cancelRide() {
+    if (AppState.currentRide) {
+        showModal('cancel');
+    } else {
+        EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
+    }
+}
 // ============================================
 // UTILITY FUNCTIONS
 // ============================================
 function switchScreen(screen) {
     console.log(`Switching to screen: ${screen}`);
     
+    // Hide all screens
     document.querySelectorAll('.screen').forEach(s => {
-        s.classList.remove('active');
+        s.style.display = 'none';
     });
     
+    // Show target screen
     const targetScreen = document.getElementById(`${screen}Screen`);
     if (targetScreen) {
-        targetScreen.classList.add('active');
+        targetScreen.style.display = 'block';
         AppState.activeScreen = screen;
         
         if (screen === 'home') {
             switchService(AppState.activeService);
-        } else if (screen === 'ride') {
-            if (AppState.currentRide) {
-                EnhancedUIUpdater.showRideInfo(AppState.currentRide);
-            }
-        } else if (screen === 'wallet') {
-            EnhancedFirebaseManager.loadWalletTransactions(AppState.currentUser.uid)
-                .then(transactions => {
-                    updateWalletTransactions(transactions);
-                });
         } else if (screen === 'history') {
             EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
-        } else if (screen === 'notifications') {
-            EnhancedUIUpdater.updateNotifications(AppState.notifications);
-        } else if (screen === 'profile') {
-            loadProfileData();
+        } else if (screen === 'account') {
+            // Already loaded from Firebase
+        } else if (screen === 'emergency') {
+            // Emergency screen already has content
         }
-        
-        document.getElementById('panelHandle').classList.remove('active');
     }
 }
 
@@ -15986,20 +17088,26 @@ function switchService(service) {
     
     document.querySelector(`.service-tab[data-service="${service}"]`)?.classList.add('active');
     
-    document.querySelectorAll('.service-form, .ride-request-form').forEach(form => {
-        form.style.display = 'none';
+    // Hide all forms
+    const forms = [
+        'carForm', 'deliveryForm', 'shortDeliveryForm', 
+        'expressForm', 'truckForm', 'broadcastForm'
+    ];
+    
+    forms.forEach(formId => {
+        const form = document.getElementById(formId);
+        if (form) form.style.display = 'none';
     });
     
+    // Show selected form
     const targetForm = document.getElementById(`${service}Form`);
     if (targetForm) {
         targetForm.style.display = 'block';
         AppState.activeService = service;
-        
-        if (service === 'car') {
-            document.getElementById('fareDisplay').classList.remove('active');
-            document.getElementById('rideTypeSelection').classList.remove('active');
-        }
     }
+    
+    // Reset ride info panel
+    document.getElementById('rideInfoPanel').style.display = 'none';
 }
 
 function togglePanel() {
@@ -16942,6 +18050,7 @@ console.log('Jubel Passenger App JavaScript loaded successfully');
 </script>
 </body>
 </html>
+
 
 
 
