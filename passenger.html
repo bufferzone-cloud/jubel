@@ -15886,23 +15886,11 @@ function startBroadcastRide() {
     });
 }
 
-// Modal Functions
-function closeModal(modalId) {
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) {
-        modal.classList.remove('active');
-    }
-}
-
-function selectCancelReason(reason) {
-    document.querySelectorAll('.cancel-reason').forEach(item => {
-        item.classList.remove('selected');
-    });
-    document.querySelector(`.cancel-reason[data-reason="${reason}"]`).classList.add('selected');
-    
-    const otherReasonGroup = document.getElementById('otherReasonGroup');
-    if (otherReasonGroup) {
-        otherReasonGroup.style.display = reason === 'other' ? 'block' : 'none';
+function cancelRide() {
+    if (AppState.currentRide) {
+        showModal('cancel');
+    } else {
+        EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
     }
 }
 
@@ -16264,12 +16252,11 @@ function confirmShareRide() {
     });
 }
 
-// Profile and Settings
 function saveProfile() {
     const name = document.getElementById('updateName').value.trim();
     const phone = document.getElementById('updatePhone').value.trim();
-    const homeAddress = document.getElementById('homeAddress').value.trim();
-    const workAddress = document.getElementById('workAddress').value.trim();
+    const homeAddress = document.getElementById('updateHomeAddress').value.trim();
+    const workAddress = document.getElementById('updateWorkAddress').value.trim();
     
     if (!name || !phone) {
         EnhancedUIUpdater.showToast('Name and phone are required', 'warning');
@@ -16280,7 +16267,8 @@ function saveProfile() {
         name: name,
         phone: phone.replace(/\D/g, ''),
         homeAddress: homeAddress,
-        workAddress: workAddress
+        workAddress: workAddress,
+        updatedAt: Date.now()
     };
     
     EnhancedFirebaseManager.updateProfile(profileData)
@@ -16334,7 +16322,6 @@ function applyReferral() {
         });
 }
 
-// Ride and Driver Functions
 function contactDriver() {
     if (AppState.currentRide?.driverId) {
         const driverPhone = AppState.selectedVehicle?.phone;
@@ -16353,14 +16340,6 @@ function openChat() {
         document.getElementById('chatContainer').classList.add('active');
     } else {
         EnhancedUIUpdater.showToast('No driver assigned yet', 'warning');
-    }
-}
-
-function cancelRide() {
-    if (AppState.currentRide) {
-        showModal('cancel');
-    } else {
-        EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
     }
 }
 
@@ -16391,7 +16370,6 @@ function triggerSOS() {
     }
 }
 
-// Utility Functions
 function selectRideType(type) {
     AppState.selectedRideType = type;
     
@@ -16440,12 +16418,11 @@ function logout() {
     }
 }
 
-// Add these after the logout() function
 function saveProfile() {
     const name = document.getElementById('updateName').value.trim();
     const phone = document.getElementById('updatePhone').value.trim();
-    const homeAddress = document.getElementById('updateHomeAddress').value.trim();
-    const workAddress = document.getElementById('updateWorkAddress').value.trim();
+    const homeAddress = document.getElementById('homeAddress').value.trim();
+    const workAddress = document.getElementById('workAddress').value.trim();
     
     if (!name || !phone) {
         EnhancedUIUpdater.showToast('Name and phone are required', 'warning');
@@ -16493,7 +16470,6 @@ function shareReferral() {
     }
 }
 
-// Add this function to create deposit modal dynamically
 function createDepositModal() {
     if (document.getElementById('depositModal')) return;
     
@@ -16659,7 +16635,7 @@ function selectDepositMethod(method) {
         item.classList.remove('selected');
     });
     document.querySelector(`.payment-method[data-payment="${method}"]`).classList.add('selected');
-        }
+}
 
 function openEmergencyModal(type) {
     if (type === 'sos') {
@@ -16669,7 +16645,6 @@ function openEmergencyModal(type) {
     }
 }
 
-// Add these after openEmergencyModal() function
 function confirmEmergencyRide() {
     const emergencyType = document.getElementById('emergencyServiceType').dataset.type;
     const selectedReason = document.querySelector('.emergency-reason.selected');
@@ -16744,7 +16719,6 @@ function selectEmergencyReason(reason) {
     }
 }
 
-// UI Helper Functions
 function selectDeliveryType(type) {
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -16775,9 +16749,7 @@ function addShoppingItem() {
 function addStop() {
     EnhancedLocationManager.addStop();
 }
-// ============================================
-// UTILITY FUNCTIONS
-// ============================================
+
 function switchScreen(screen) {
     console.log(`Switching to screen: ${screen}`);
     
@@ -16822,7 +16794,6 @@ function switchScreen(screen) {
         }
     }
 }
-
 
 function switchService(service) {
     console.log(`Switching service to: ${service}`);
@@ -17116,9 +17087,6 @@ function loadProfileData() {
     }
 }
 
-// ============================================
-// BICYCLE RIDE TYPE IMPLEMENTATION
-// ============================================
 function initializeBicycleRide() {
     // Add bicycle to service tabs
     const servicesContainer = document.querySelector('.service-tabs');
@@ -17213,7 +17181,7 @@ function setupBicycleEventListeners() {
     if (requestBicycleBtn) {
         requestBicycleBtn.addEventListener('click', async () => {
             if (!AppState.pickup || !AppState.destination) {
-                .showToast('Please select pickup and destination locations', 'warning');
+                EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
                 return;
             }
             
@@ -17280,9 +17248,6 @@ function setupBicycleEventListeners() {
     }
 }
 
-// ============================================
-// AUTO-PRICE CALCULATION IMPLEMENTATION
-// ============================================
 function setupAutoPriceCalculation() {
     // Observe destination input changes for all services
     const destinationInputs = [
@@ -17317,9 +17282,6 @@ function setupAutoPriceCalculation() {
     });
 }
 
-// ============================================
-// REFERRAL SYSTEM ENHANCEMENTS
-// ============================================
 function setupEnhancedReferralSystem() {
     // Add referral input to payment modal if not exists
     const paymentModal = document.getElementById('paymentModal');
@@ -17438,9 +17400,6 @@ function setupEnhancedReferralSystem() {
     }
 }
 
-// ============================================
-// REAL-TIME SYNC ENHANCEMENTS
-// ============================================
 function setupRealTimeSync() {
     // Setup periodic sync
     AppState.syncInterval = setInterval(() => {
@@ -17469,9 +17428,6 @@ function setupRealTimeSync() {
     });
 }
 
-// ============================================
-// INITIALIZATION ENHANCEMENTS
-// ============================================
 function setupEnhancedInitialization() {
     // Initialize bicycle ride type
     initializeBicycleRide();
@@ -17773,7 +17729,6 @@ function addEnhancedStyles() {
     document.head.appendChild(style);
 }
 
-// Add this function to fix bicycle styling
 function fixBicycleStyling() {
     const bicycleTab = document.querySelector('.service-tab[data-service="short-delivery"]');
     if (bicycleTab) {
@@ -17812,17 +17767,11 @@ function fixBicycleStyling() {
     }
 }
 
-// ============================================
-// MAIN INITIALIZATION
-// ============================================
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     setupEnhancedInitialization();
 });
 
-// ============================================
-// EXPORT FUNCTIONS FOR GLOBAL ACCESS
-// ============================================
 window.EnhancedUIUpdater = EnhancedUIUpdater;
 window.EnhancedLocationManager = EnhancedLocationManager;
 window.EnhancedFirebaseManager = EnhancedFirebaseManager;
@@ -17834,26 +17783,6 @@ window.NotificationManager = NotificationManager;
 window.CityDetector = CityDetector;
 
 console.log('Jubel Passenger App JavaScript loaded successfully');
-</script>
+    </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
