@@ -7808,7 +7808,29 @@ const AppState = {
     chatOpen: false,
     notificationsOpen: false,
     mapInitialized: false,
-    rideStops: []
+    rideStops: [],
+    maxStops: 3,
+    scheduleCountdowns: new Map(),
+    shareRideRequests: new Map(),
+    broadcastRideRequests: new Map(),
+    referralEarnings: 0,
+    walletTransactions: [],
+    priceUpdateTimeout: null,
+    routeCalculationInProgress: false,
+    mapMarkers: {
+        currentLocation: null,
+        pickup: null,
+        destination: null,
+        driver: null,
+        stops: [],
+        emergencyStations: []
+    },
+    activeRideListeners: [],
+    notificationCheckInterval: null,
+    rideTypeCardsGenerated: false,
+    searchDebounceTimer: null,
+    autocompleteResults: [],
+    currentSearchType: null
 };
 
 // ============================================
@@ -7826,6 +7848,185 @@ let cityBoundaryLayer = null;
 let routePolyline = null;
 let pulsingIcon = null;
 let stopMarkers = [];
+
+// ============================================
+// ENHANCED CITY DETECTOR
+// ============================================
+const CityDetector = {
+    zambianCities: {
+        'Lusaka': { lat: -15.4167, lng: 28.2833, bounds: [[-15.8, 27.8], [-15.2, 28.8]] },
+        'Ndola': { lat: -12.9696, lng: 28.6362, bounds: [[-13.1, 28.5], [-12.9, 28.8]] },
+        'Kitwe': { lat: -12.8133, lng: 28.2139, bounds: [[-13.1, 27.9], [-12.7, 28.4]] },
+        'Kabwe': { lat: -14.4357, lng: 28.4513, bounds: [[-14.6, 28.3], [-14.3, 28.6]] },
+        'Livingstone': { lat: -17.8416, lng: 25.8583, bounds: [[-18.0, 25.7], [-17.7, 26.0]] },
+        'Chipata': { lat: -13.6497, lng: 32.6464, bounds: [[-13.8, 32.5], [-13.6, 32.8]] },
+        'Chingola': { lat: -12.5444, lng: 27.8539, bounds: [[-12.8, 27.8], [-12.4, 27.9]] },
+        'Mufulira': { lat: -12.5545, lng: 28.2404, bounds: [[-12.7, 28.1], [-12.5, 28.3]] },
+        'Luanshya': { lat: -13.1367, lng: 28.3966, bounds: [[-13.2, 28.3], [-13.0, 28.5]] },
+        'Kasama': { lat: -10.2121, lng: 31.1812, bounds: [[-10.3, 31.1], [-10.1, 31.3]] },
+        'Solwezi': { lat: -12.1848, lng: 26.3941, bounds: [[-12.3, 26.3], [-12.1, 26.5]] },
+        'Mazabuka': { lat: -15.8567, lng: 27.7480, bounds: [[-15.9, 27.7], [-15.7, 27.9]] }
+    },
+
+    async detectCityFromLocation(latitude, longitude) {
+        try {
+            console.log('Detecting city from location:', latitude, longitude);
+            
+            // First try using reverse geocoding
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`
+            );
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Reverse geocode data:', data);
+                
+                const address = data.address || {};
+                const possibleCities = [
+                    address.city,
+                    address.town,
+                    address.village,
+                    address.municipality,
+                    address.county,
+                    address.state_district
+                ].filter(Boolean);
+                
+                // Check if any city matches our known Zambian cities
+                for (const city of possibleCities) {
+                    if (this.zambianCities[city]) {
+                        console.log('City detected via reverse geocoding:', city);
+                        AppState.currentCity = city;
+                        AppState.detectedCity = city;
+                        this.updateCityDisplay(city);
+                        return city;
+                    }
+                }
+                
+                // If no city found, try by coordinates proximity
+                const detectedCity = this.detectCityByProximity(latitude, longitude);
+                if (detectedCity) {
+                    console.log('City detected by proximity:', detectedCity);
+                    AppState.currentCity = detectedCity;
+                    AppState.detectedCity = detectedCity;
+                    this.updateCityDisplay(detectedCity);
+                    return detectedCity;
+                }
+            }
+            
+            // Fallback to Lusaka
+            console.log('Using default city: Lusaka');
+            AppState.currentCity = 'Lusaka';
+            AppState.detectedCity = 'Lusaka';
+            this.updateCityDisplay('Lusaka');
+            return 'Lusaka';
+            
+        } catch (error) {
+            console.error('City detection error:', error);
+            return this.useDefaultCity();
+        }
+    },
+    
+    detectCityByProximity(latitude, longitude) {
+        let closestCity = null;
+        let minDistance = Infinity;
+        
+        for (const [city, data] of Object.entries(this.zambianCities)) {
+            const distance = this.calculateDistance(latitude, longitude, data.lat, data.lng);
+            if (distance < minDistance && distance < 50) { // Within 50km
+                minDistance = distance;
+                closestCity = city;
+            }
+        }
+        
+        return closestCity;
+    },
+    
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Earth's radius in km
+        const dLat = this.toRad(lat2 - lat1);
+        const dLon = this.toRad(lon2 - lon1);
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    },
+    
+    toRad(value) {
+        return value * Math.PI / 180;
+    },
+    
+    async getDetailedAddress(latitude, longitude) {
+        try {
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`
+            );
+            
+            if (response.ok) {
+                const data = await response.json();
+                const address = data.address || {};
+                
+                const parts = [];
+                if (address.road) parts.push(address.road);
+                if (address.suburb) parts.push(address.suburb);
+                if (address.city) parts.push(address.city);
+                if (address.state) parts.push(address.state);
+                if (address.country) parts.push(address.country);
+                
+                return {
+                    address: parts.join(', '),
+                    fullDisplay: data.display_name,
+                    city: address.city || address.town || address.village,
+                    road: address.road,
+                    suburb: address.suburb
+                };
+            }
+        } catch (error) {
+            console.error('Error getting detailed address:', error);
+        }
+        
+        return {
+            address: 'Current Location',
+            fullDisplay: 'Current Location',
+            city: AppState.currentCity || 'Unknown',
+            road: '',
+            suburb: ''
+        };
+    },
+    
+    updateCityDisplay(city) {
+        const display = document.getElementById('currentCityDisplay');
+        if (display && city) {
+            display.textContent = `City: ${city}`;
+            display.parentElement.style.display = 'flex';
+            
+            // Update city reference in other elements
+            document.querySelectorAll('.current-city-label').forEach(element => {
+                element.textContent = city;
+            });
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                if (display.parentElement) {
+                    display.parentElement.style.display = 'none';
+                }
+            }, 5000);
+        }
+    },
+    
+    useDefaultCity() {
+        console.log('Using default city: Lusaka');
+        AppState.currentCity = 'Lusaka';
+        AppState.detectedCity = 'Lusaka';
+        this.updateCityDisplay('Lusaka');
+        return 'Lusaka';
+    },
+    
+    getCityBounds(cityName) {
+        return this.zambianCities[cityName]?.bounds || null;
+    }
+};
 
 // ============================================
 // ENHANCED LOCATION SEARCH ENGINE
@@ -7873,6 +8074,7 @@ const EnhancedSearchEngine = {
             city: AppState.currentCity
         };
         
+        // Remove duplicates
         this.searchHistory = this.searchHistory.filter(item => 
             !(item.query === query && item.type === type && item.city === AppState.currentCity)
         );
@@ -7902,7 +8104,7 @@ const EnhancedSearchEngine = {
             
             if (this.cache.has(cacheKey)) {
                 const cached = this.cache.get(cacheKey);
-                if (Date.now() - cached.timestamp < 300000) {
+                if (Date.now() - cached.timestamp < 300000) { // 5 minutes cache
                     console.log('Returning cached search results');
                     return cached.results;
                 }
@@ -7947,6 +8149,7 @@ const EnhancedSearchEngine = {
         } catch (error) {
             console.error('Search error:', error);
             
+            // Fallback to local city search
             if (AppState.currentCity) {
                 const fallbackResults = await this.localCitySearch(query, AppState.currentCity, location);
                 if (fallbackResults.length > 0) {
@@ -7964,7 +8167,7 @@ const EnhancedSearchEngine = {
     },
     
     buildCityConstrainedSearchUrl: function(query, city, location) {
-        const bounds = this.getCityBounds(city);
+        const bounds = CityDetector.getCityBounds(city);
         if (!bounds) {
             console.warn(`No bounds found for city: ${city}, using wider search`);
             return this.buildSearchUrl(query, location, city);
@@ -8000,31 +8203,6 @@ const EnhancedSearchEngine = {
         return `https://nominatim.openstreetmap.org/search?${params}`;
     },
     
-    getCityBounds: function(cityName) {
-        const cityBounds = {
-            'Lusaka': [27.8, -15.8, 28.8, -15.2],
-            'Ndola': [28.5, -13.1, 28.8, -12.9],
-            'Kitwe': [27.9, -13.1, 28.4, -12.7],
-            'Kabwe': [28.3, -14.6, 28.6, -14.3],
-            'Livingstone': [25.7, -18.0, 26.0, -17.7],
-            'Chipata': [32.5, -13.8, 32.8, -13.6],
-            'Chingola': [27.8, -12.8, 27.9, -12.4],
-            'Mufulira': [28.1, -12.7, 28.3, -12.5],
-            'Luanshya': [28.3, -13.2, 28.5, -13.0],
-            'Kasama': [31.1, -10.3, 31.3, -10.1],
-            'Solwezi': [26.3, -12.3, 26.5, -12.1],
-            'Mazabuka': [27.7, -15.9, 27.9, -15.7]
-        };
-        
-        const bounds = cityBounds[cityName];
-        if (bounds) {
-            AppState.locationManagement.cityBounds = bounds;
-            console.log(`City bounds for ${cityName}: ${bounds}`);
-        }
-        
-        return bounds || null;
-    },
-    
     processAndFilterResults: function(data, location, city, type) {
         if (!data || data.length === 0) return [];
         
@@ -8037,6 +8215,7 @@ const EnhancedSearchEngine = {
                 const placeCity = address.city || address.town || address.village || address.municipality;
                 const placeCityLower = placeCity ? placeCity.toLowerCase() : '';
                 
+                // Filter by city
                 if (city && !this.isInCity(place, cityLower, placeCityLower)) {
                     return;
                 }
@@ -8075,6 +8254,7 @@ const EnhancedSearchEngine = {
             }
         });
         
+        // Sort by relevance, distance, and importance
         return processedResults
             .sort((a, b) => {
                 if (a.isVerified !== b.isVerified) {
@@ -8091,7 +8271,7 @@ const EnhancedSearchEngine = {
                 
                 return b.importance - a.importance;
             })
-            .slice(0, 10);
+            .slice(0, 10); // Limit to 10 results
     },
     
     isInCity: function(place, targetCity, placeCity) {
@@ -8217,7 +8397,7 @@ const EnhancedSearchEngine = {
     },
     
     calculateDistance: function(lat1, lon1, lat2, lon2) {
-        const R = 6371;
+        const R = 6371; // Earth's radius in kilometers
         const dLat = this.toRad(lat2 - lat1);
         const dLon = this.toRad(lon2 - lon1);
         const a = 
@@ -8236,7 +8416,7 @@ const EnhancedSearchEngine = {
         console.log(`Performing local search for "${query}" in ${city}`);
         
         try {
-            const bounds = this.getCityBounds(city);
+            const bounds = CityDetector.getCityBounds(city);
             if (bounds) {
                 const [west, south, east, north] = bounds;
                 
@@ -8266,7 +8446,7 @@ const EnhancedSearchEngine = {
         
         if (this.cache.has(cacheKey)) {
             const cached = this.cache.get(cacheKey);
-            if (Date.now() - cached.timestamp < 3600000) {
+            if (Date.now() - cached.timestamp < 3600000) { // 1 hour cache
                 return cached.results;
             }
         }
@@ -8285,7 +8465,7 @@ const EnhancedSearchEngine = {
                     break;
             }
             
-            const bounds = this.getCityBounds(city);
+            const bounds = CityDetector.getCityBounds(city);
             const params = new URLSearchParams({
                 q: query,
                 format: 'json',
@@ -8402,7 +8582,7 @@ const EnhancedSearchEngine = {
     },
     
     validateCoordinatesInCity: function(lat, lng, city) {
-        const bounds = this.getCityBounds(city);
+        const bounds = CityDetector.getCityBounds(city);
         if (!bounds) return true;
         
         const [west, south, east, north] = bounds;
@@ -8421,7 +8601,6 @@ const EnhancedLocationManager = {
     init: function() {
         console.log('Enhanced Location Manager initialized');
         this.setupLocationInputs();
-        this.setupStopManagement();
     },
     
     setupLocationInputs: function() {
@@ -8453,178 +8632,10 @@ const EnhancedLocationManager = {
         });
     },
     
-    setupStopManagement: function() {
-        const addStopBtn = document.getElementById('addStopBtn');
-        if (addStopBtn) {
-            addStopBtn.addEventListener('click', () => this.addStop());
-        }
-        
-        // Initialize with empty stops array
-        AppState.rideStops = [];
-    },
-    
-    addStop: function() {
-        if (AppState.rideStops.length >= 3) {
-            EnhancedUIUpdater.showToast('Maximum 3 stops allowed per ride', 'warning');
-            return;
-        }
-        
-        const stopId = `stop_${Date.now()}`;
-        const stopIndex = AppState.rideStops.length + 1;
-        
-        const stopElement = document.createElement('div');
-        stopElement.className = 'stop-input-container';
-        stopElement.id = stopId;
-        stopElement.innerHTML = `
-            <div class="location-input">
-                <i class="fas fa-map-pin"></i>
-                <input type="text" class="stop-input" placeholder="Stop ${stopIndex}" autocomplete="off">
-                <div class="suggestion-list stop-suggestions"></div>
-                <button class="remove-stop-btn" type="button">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        `;
-        
-        const stopsContainer = document.getElementById('stopsContainer');
-        stopsContainer.appendChild(stopElement);
-        
-        const stopInput = stopElement.querySelector('.stop-input');
-        const removeBtn = stopElement.querySelector('.remove-stop-btn');
-        const suggestions = stopElement.querySelector('.stop-suggestions');
-        
-        // Setup stop input event listeners
-        stopInput.addEventListener('input', (e) => {
-            this.handleStopInputChange(stopId, e.target.value, suggestions);
-        });
-        
-        stopInput.addEventListener('focus', () => {
-            suggestions.style.display = 'block';
-        });
-        
-        stopInput.addEventListener('blur', () => {
-            setTimeout(() => {
-                suggestions.style.display = 'none';
-            }, 200);
-        });
-        
-        removeBtn.addEventListener('click', () => {
-            this.removeStop(stopId);
-        });
-        
-        AppState.rideStops.push({
-            id: stopId,
-            element: stopElement,
-            location: null
-        });
-        
-        EnhancedUIUpdater.showToast(`Stop ${stopIndex} added`, 'info');
-    },
-    
-    removeStop: function(stopId) {
-        const stopIndex = AppState.rideStops.findIndex(stop => stop.id === stopId);
-        if (stopIndex === -1) return;
-        
-        AppState.rideStops.splice(stopIndex, 1);
-        const stopElement = document.getElementById(stopId);
-        if (stopElement) {
-            stopElement.remove();
-        }
-        
-        // Renumber remaining stops
-        AppState.rideStops.forEach((stop, index) => {
-            const stopInput = stop.element.querySelector('.stop-input');
-            stopInput.placeholder = `Stop ${index + 1}`;
-        });
-        
-        // Update route if there are locations
-        if (AppState.pickup && AppState.destination) {
-            EnhancedUIUpdater.drawRouteWithStops();
-        }
-        
-        EnhancedUIUpdater.showToast('Stop removed', 'info');
-    },
-    
-    handleStopInputChange: async function(stopId, query, suggestionsContainer) {
-        if (!query || query.length < 2) {
-            suggestionsContainer.innerHTML = '';
-            suggestionsContainer.style.display = 'none';
-            return;
-        }
-        
-        clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(async () => {
-            try {
-                const results = await EnhancedSearchEngine.search(
-                    query,
-                    'stop',
-                    AppState.userLocation,
-                    AppState.currentCity
-                );
-                
-                suggestionsContainer.innerHTML = '';
-                
-                if (results.length === 0) {
-                    suggestionsContainer.innerHTML = `
-                        <div class="no-results">No results found</div>
-                    `;
-                    return;
-                }
-                
-                results.forEach(result => {
-                    const item = document.createElement('div');
-                    item.className = 'suggestion-item';
-                    item.innerHTML = `
-                        <div class="suggestion-icon" style="color: #FF6B35">
-                            <i class="fas fa-map-pin"></i>
-                        </div>
-                        <div class="suggestion-details">
-                            <div class="suggestion-name">${result.name}</div>
-                            <div class="suggestion-address">${result.address}</div>
-                        </div>
-                    `;
-                    
-                    item.addEventListener('click', () => {
-                        const stopInput = suggestionsContainer.parentElement.querySelector('.stop-input');
-                        stopInput.value = result.address;
-                        
-                        const stop = AppState.rideStops.find(s => s.id === stopId);
-                        if (stop) {
-                            stop.location = result;
-                            stopInput.dataset.lat = result.lat;
-                            stopInput.dataset.lng = result.lng;
-                            
-                            // Add stop marker to map
-                            EnhancedUIUpdater.addStopMarker(result, stopId);
-                            
-                            // Update route
-                            if (AppState.pickup && AppState.destination) {
-                                EnhancedUIUpdater.drawRouteWithStops();
-                            }
-                        }
-                        
-                        suggestionsContainer.style.display = 'none';
-                    });
-                    
-                    suggestionsContainer.appendChild(item);
-                });
-                
-                suggestionsContainer.style.display = 'block';
-            } catch (error) {
-                console.error('Stop search error:', error);
-            }
-        }, 300);
-    },
-    
-    getStopLocations: function() {
-        return AppState.rideStops
-            .filter(stop => stop.location)
-            .map(stop => stop.location);
-    },
-    
     setupPickupInput: function(inputElement) {
         const inputId = inputElement.id;
         
+        // Add clear button if not exists
         if (!inputElement.parentNode.querySelector('.clear-pickup-btn')) {
             const clearBtn = document.createElement('button');
             clearBtn.type = 'button';
@@ -8654,6 +8665,7 @@ const EnhancedLocationManager = {
             });
         }
         
+        // Add edit button if not exists
         if (!inputElement.parentNode.querySelector('.edit-pickup-btn')) {
             const editBtn = document.createElement('button');
             editBtn.type = 'button';
@@ -8704,6 +8716,7 @@ const EnhancedLocationManager = {
     setupDestinationInput: function(inputElement) {
         const inputId = inputElement.id;
         
+        // Create suggestions container if not exists
         if (!document.getElementById(`${inputId}Suggestions`)) {
             const suggestionsContainer = document.createElement('div');
             suggestionsContainer.id = `${inputId}Suggestions`;
@@ -8746,6 +8759,7 @@ const EnhancedLocationManager = {
         if (parent) {
             parent.classList.add('active');
             
+            // Show search history if input is empty
             if (!input.value.trim() && inputId.includes('pickup')) {
                 EnhancedUIUpdater.showSearchHistory(inputId);
             }
@@ -8785,6 +8799,7 @@ const EnhancedLocationManager = {
         if (parent) {
             parent.classList.add('active');
             
+            // Show search history if input is empty
             if (!input.value.trim()) {
                 EnhancedUIUpdater.showSearchHistory(inputId);
             }
@@ -8813,6 +8828,7 @@ const EnhancedLocationManager = {
         if (parent) {
             parent.classList.remove('active');
             
+            // Hide suggestions after delay
             setTimeout(() => {
                 const suggestions = document.getElementById(`${inputId}Suggestions`);
                 if (suggestions) {
@@ -8900,16 +8916,19 @@ const EnhancedLocationManager = {
         
         AppState.pickup = null;
         
+        // Clear pickup marker from map
         if (pickupMarker) {
             if (map) map.removeLayer(pickupMarker);
             pickupMarker = null;
         }
         
+        // Clear route
         if (routeLayer) {
             if (map) map.removeLayer(routeLayer);
             routeLayer = null;
         }
         
+        // Hide fare display
         const fareDisplay = document.getElementById('fareDisplay');
         if (fareDisplay) fareDisplay.classList.remove('active');
         
@@ -8918,6 +8937,7 @@ const EnhancedLocationManager = {
         
         EnhancedUIUpdater.showToast('Pickup location cleared', 'info');
         
+        // Reset edit mode
         this.pickupEditMode = false;
         this.currentPickupInput = null;
     },
@@ -8936,6 +8956,7 @@ const EnhancedLocationManager = {
         input.focus();
         input.select();
         
+        // Trigger search for current value
         this.searchPickupLocations(inputId, input.value);
         
         EnhancedUIUpdater.showToast('Pickup edit mode enabled. Search for a new location.', 'info');
@@ -8960,6 +8981,7 @@ const EnhancedLocationManager = {
         const clearBtn = input.parentNode.querySelector('.clear-pickup-btn');
         const editBtn = input.parentNode.querySelector('.edit-pickup-btn');
         
+        // Validate location is within city
         if (!EnhancedSearchEngine.validateCoordinatesInCity(location.lat, location.lng, AppState.currentCity)) {
             EnhancedUIUpdater.showToast(`Location must be within ${AppState.currentCity}`, 'warning');
             return;
@@ -8972,21 +8994,26 @@ const EnhancedLocationManager = {
         
         AppState.pickup = location;
         
+        // Update map marker
         EnhancedUIUpdater.updatePickupMarker(location);
         
+        // Calculate prices if destination is set
         if (AppState.destination) {
             EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRouteWithStops();
+            EnhancedUIUpdater.drawRoute(location, AppState.destination);
         }
         
+        // Hide suggestions
         const suggestions = document.getElementById(`${inputId}Suggestions`);
         if (suggestions) {
             suggestions.style.display = 'none';
         }
         
+        // Hide search history
         const searchHistory = document.getElementById('searchHistory');
         if (searchHistory) searchHistory.style.display = 'none';
         
+        // Reset edit mode if active
         if (this.pickupEditMode) {
             this.pickupEditMode = false;
             this.currentPickupInput = null;
@@ -8997,6 +9024,7 @@ const EnhancedLocationManager = {
     selectDestinationLocation: function(inputId, location) {
         const input = document.getElementById(inputId);
         
+        // Validate location is within city
         if (!EnhancedSearchEngine.validateCoordinatesInCity(location.lat, location.lng, AppState.currentCity)) {
             EnhancedUIUpdater.showToast(`Location must be within ${AppState.currentCity}`, 'warning');
             return;
@@ -9006,23 +9034,28 @@ const EnhancedLocationManager = {
         
         AppState.destination = location;
         
+        // Update map marker
         EnhancedUIUpdater.updateDestinationMarker(location);
         
+        // Calculate prices if pickup is set
         if (AppState.pickup) {
             EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRouteWithStops();
+            EnhancedUIUpdater.drawRoute(AppState.pickup, location);
         }
         
+        // Hide suggestions
         const suggestions = document.getElementById(`${inputId}Suggestions`);
         if (suggestions) {
             suggestions.style.display = 'none';
         }
         
+        // Hide search history
         const searchHistory = document.getElementById('searchHistory');
         if (searchHistory) searchHistory.style.display = 'none';
         
+        // Draw route if both pickup and destination are set
         if (AppState.pickup && AppState.destination) {
-            EnhancedUIUpdater.drawRouteWithStops();
+            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
         }
     },
     
@@ -9041,6 +9074,102 @@ const EnhancedLocationManager = {
 };
 
 // ============================================
+// RIDE TYPE MANAGER
+// ============================================
+const RideTypeManager = {
+    init: function() {
+        console.log('Ride Type Manager initialized');
+        this.generateRideTypeCards();
+        this.setupRideTypeSelection();
+    },
+    
+    generateRideTypeCards: function() {
+        if (AppState.rideTypeCardsGenerated) return;
+        
+        const container = document.getElementById('rideTypeCardsContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        Object.entries(AppState.rideTypes).forEach(([type, config]) => {
+            const card = document.createElement('div');
+            card.className = `ride-type-card ${type}`;
+            if (type === AppState.selectedRideType) {
+                card.classList.add('selected');
+            }
+            card.dataset.type = type;
+            
+            card.innerHTML = `
+                <div class="ride-type-icon">
+                    <i class="fas ${config.icon}"></i>
+                </div>
+                <div class="ride-type-name">${type.charAt(0).toUpperCase() + type.slice(1)}</div>
+                <div class="ride-type-price" id="${type}Price">ZMW 0.00</div>
+            `;
+            
+            container.appendChild(card);
+        });
+        
+        AppState.rideTypeCardsGenerated = true;
+    },
+    
+    setupRideTypeSelection: function() {
+        const container = document.getElementById('rideTypeCardsContainer');
+        if (!container) return;
+        
+        container.addEventListener('click', (e) => {
+            const card = e.target.closest('.ride-type-card');
+            if (!card) return;
+            
+            const type = card.dataset.type;
+            this.selectRideType(type);
+        });
+    },
+    
+    selectRideType: function(type) {
+        if (!AppState.rideTypes[type]) return;
+        
+        AppState.selectedRideType = type;
+        
+        // Update UI
+        document.querySelectorAll('.ride-type-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        
+        const selectedCard = document.querySelector(`.ride-type-card[data-type="${type}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+        
+        // Update price if destination is set
+        if (AppState.pickup && AppState.destination) {
+            EnhancedUIUpdater.calculateAndUpdatePrices();
+        }
+        
+        EnhancedUIUpdater.showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} ride selected`, 'success');
+    },
+    
+    updateRideTypePrices: function(distanceKm) {
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        
+        Object.entries(AppState.rideTypes).forEach(([type, config]) => {
+            const price = EnhancedPriceCalculator.calculateRideFare(distanceKm, type, surge);
+            const element = document.getElementById(`${type}Price`);
+            if (element) {
+                element.textContent = `ZMW ${price.toFixed(2)}`;
+            }
+        });
+        
+        // Update selected ride type price
+        const selectedPrice = EnhancedPriceCalculator.calculateRideFare(distanceKm, AppState.selectedRideType, surge);
+        const estimatedFare = document.getElementById('estimatedFare');
+        if (estimatedFare) estimatedFare.textContent = `ZMW ${selectedPrice.toFixed(2)}`;
+        
+        AppState.rideFare = selectedPrice;
+    }
+};
+
+// ============================================
 // ENHANCED PRICE CALCULATOR
 // ============================================
 const EnhancedPriceCalculator = {
@@ -9049,22 +9178,31 @@ const EnhancedPriceCalculator = {
         
         let fare = config.base + (distanceKm * config.perKm);
         
+        // Apply ride type multiplier
         fare *= config.multiplier;
         
+        // Apply surge pricing
         fare *= surge;
         
+        // Apply time of day multiplier
         if (!timeOfDay) {
             timeOfDay = new Date().getHours();
         }
         
+        // Night premium (10pm to 5am)
         if (timeOfDay >= 22 || timeOfDay <= 5) {
             fare *= 1.2;
-        } else if (timeOfDay >= 7 && timeOfDay <= 9) {
+        } 
+        // Morning peak (7am to 9am)
+        else if (timeOfDay >= 7 && timeOfDay <= 9) {
             fare *= 1.3;
-        } else if (timeOfDay >= 16 && timeOfDay <= 19) {
+        } 
+        // Evening peak (4pm to 7pm)
+        else if (timeOfDay >= 16 && timeOfDay <= 19) {
             fare *= 1.4;
         }
         
+        // Ensure minimum fare
         fare = Math.max(fare, config.min);
         
         return Math.round(fare * 100) / 100;
@@ -9087,6 +9225,7 @@ const EnhancedPriceCalculator = {
         let fare = config.base + (distanceKm * config.perKm);
         fare *= config.multiplier;
         
+        // Insurance for valuable parcels
         if (parcelValue > 500) {
             fare += parcelValue * 0.01;
         }
@@ -9131,6 +9270,7 @@ const EnhancedPriceCalculator = {
         
         baseTime *= traffic;
         
+        // Add buffer time
         if (rideType === 'premium') {
             baseTime += 2;
         } else {
@@ -9144,12 +9284,14 @@ const EnhancedPriceCalculator = {
         const hour = new Date().getHours();
         const day = new Date().getDay();
         
+        // Weekday rush hours
         if (day >= 1 && day <= 5) {
             if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) {
                 return 1.5;
             }
         }
         
+        // Weekend peak hours
         if (day === 6 || day === 0) {
             if (hour >= 12 && hour <= 16) {
                 return 1.3;
@@ -9163,15 +9305,18 @@ const EnhancedPriceCalculator = {
         const hour = new Date().getHours();
         const day = new Date().getDay();
         
+        // Weekday rush hours
         if (day >= 1 && day <= 5) {
             if (hour >= 7 && hour <= 9) return 1.5;
             if (hour >= 16 && hour <= 19) return 1.8;
         }
         
+        // Weekend nights
         if (day === 5 || day === 6) {
             if (hour >= 20 && hour <= 23) return 2.0;
         }
         
+        // Late night/early morning
         if (hour >= 22 || hour <= 5) return 1.8;
         
         return 1.0;
@@ -9286,12 +9431,12 @@ const EnhancedPriceCalculator = {
         };
     },
     
-    calculateFareWithStops: function(baseDistance, baseFare, stopsCount) {
+    calculateWithStops: function(baseFare, stops) {
         let totalFare = baseFare;
         
-        // Add additional charge for each stop
-        if (stopsCount > 0) {
-            totalFare += stopsCount * 10; // ZMW 10 per additional stop
+        // Add ZMW 5 for each additional stop
+        if (stops && stops.length > 0) {
+            totalFare += stops.length * 5;
         }
         
         return totalFare;
@@ -9439,26 +9584,50 @@ const EnhancedUIUpdater = {
         }
     },
     
-    updateRidePrices: function(distanceKm) {
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const stopsCount = EnhancedLocationManager.getStopLocations().length;
-        
-        // Update ride type cards
-        document.querySelectorAll('.ride-type-card').forEach(card => {
-            const type = card.dataset.type;
-            const priceElement = card.querySelector('.ride-type-price');
-            if (priceElement) {
-                const basePrice = EnhancedPriceCalculator.calculateRideFare(distanceKm, type, surge);
-                const finalPrice = EnhancedPriceCalculator.calculateFareWithStops(distanceKm, basePrice, stopsCount);
-                priceElement.textContent = `ZMW ${finalPrice.toFixed(2)}`;
+    calculateAndUpdatePrices: function() {
+        if (AppState.pickup && AppState.destination) {
+            const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng,
+                AppState.currentCity
+            );
+            
+            if (!validation.valid) {
+                this.showToast(validation.message, 'warning');
+                return;
             }
-        });
-        
-        const selectedPrice = EnhancedPriceCalculator.calculateRideFare(distanceKm, AppState.selectedRideType, surge);
-        const finalPrice = EnhancedPriceCalculator.calculateFareWithStops(distanceKm, selectedPrice, stopsCount);
-        
-        const estimatedFare = document.getElementById('estimatedFare');
-        if (estimatedFare) estimatedFare.textContent = `ZMW ${finalPrice.toFixed(2)}`;
+            
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
+            
+            switch(AppState.activeService) {
+                case 'car':
+                    this.updateRidePrices(distance);
+                    const fareDisplay = document.getElementById('fareDisplay');
+                    const rideTypeSelection = document.getElementById('rideTypeSelection');
+                    if (fareDisplay) fareDisplay.classList.add('active');
+                    if (rideTypeSelection) rideTypeSelection.classList.add('active');
+                    break;
+                case 'delivery':
+                    this.updateDeliveryPrices(distance);
+                    break;
+                case 'short-delivery':
+                    this.updateShortDeliveryPrices(distance);
+                    break;
+                case 'truck':
+                    this.updateTruckPrices(distance);
+                    break;
+                case 'express':
+                    this.updateShoppingPrices(distance);
+                    break;
+            }
+        }
+    },
+    
+    updateRidePrices: function(distanceKm) {
+        RideTypeManager.updateRideTypePrices(distanceKm);
         
         const time = EnhancedPriceCalculator.estimateTime(distanceKm, AppState.selectedRideType);
         const distanceDetail = document.getElementById('distanceDetail');
@@ -9467,12 +9636,20 @@ const EnhancedUIUpdater = {
         if (distanceDetail) distanceDetail.textContent = `${distanceKm.toFixed(1)} km`;
         if (timeDetail) timeDetail.textContent = `ETA: ${time} min`;
         
-        AppState.rideFare = finalPrice;
-        
-        this.updatePriceCalculator(distanceKm, AppState.selectedRideType, surge, stopsCount);
+        // Apply stops if any
+        if (AppState.rideStops.length > 0) {
+            const baseFare = AppState.rideFare;
+            const fareWithStops = EnhancedPriceCalculator.calculateWithStops(baseFare, AppState.rideStops);
+            AppState.rideFare = fareWithStops;
+            
+            const estimatedFare = document.getElementById('estimatedFare');
+            if (estimatedFare) estimatedFare.textContent = `ZMW ${fareWithStops.toFixed(2)}`;
+            
+            this.showToast(`Added ZMW ${(AppState.rideStops.length * 5).toFixed(2)} for ${AppState.rideStops.length} stop(s)`, 'info');
+        }
     },
     
-    updatePriceCalculator: function(distanceKm, rideType = 'standard', surge = 1.0, stopsCount = 0) {
+    updatePriceCalculator: function(distanceKm, rideType = 'standard', surge = 1.0) {
         const calculator = document.getElementById('priceCalculator');
         const fareElement = document.getElementById('calculatedFare');
         const breakdownElement = document.getElementById('priceBreakdown');
@@ -9482,9 +9659,7 @@ const EnhancedUIUpdater = {
         calculator.style.display = 'block';
         
         const breakdown = EnhancedPriceCalculator.getFareBreakdown(distanceKm, rideType, surge);
-        const totalWithStops = EnhancedPriceCalculator.calculateFareWithStops(distanceKm, breakdown.total, stopsCount);
-        
-        fareElement.textContent = `ZMW ${totalWithStops.toFixed(2)}`;
+        fareElement.textContent = `ZMW ${breakdown.total.toFixed(2)}`;
         
         let breakdownHTML = `
             <div class="price-breakdown-row">
@@ -9524,11 +9699,13 @@ const EnhancedUIUpdater = {
             `;
         }
         
-        if (stopsCount > 0) {
+        // Add stops cost if any
+        if (AppState.rideStops.length > 0) {
+            const stopsCost = AppState.rideStops.length * 5;
             breakdownHTML += `
                 <div class="price-breakdown-row">
-                    <span>Stops (${stopsCount}):</span>
-                    <span>+ZMW ${(stopsCount * 10).toFixed(2)}</span>
+                    <span>Stops (${AppState.rideStops.length}):</span>
+                    <span>+ZMW ${stopsCost.toFixed(2)}</span>
                 </div>
             `;
         }
@@ -9536,7 +9713,7 @@ const EnhancedUIUpdater = {
         breakdownHTML += `
             <div class="price-breakdown-row total">
                 <span>Total:</span>
-                <span>ZMW ${totalWithStops.toFixed(2)}</span>
+                <span>ZMW ${breakdown.total.toFixed(2)}</span>
             </div>
         `;
         
@@ -9722,27 +9899,6 @@ const EnhancedUIUpdater = {
         if (broadcastFeature && ride.broadcast) {
             broadcastFeature.style.display = 'block';
         }
-        
-        // Show stops if they exist
-        if (ride.stops && ride.stops.length > 0) {
-            const rideStopsContainer = document.getElementById('rideStopsContainer');
-            const rideStopsList = document.getElementById('rideStopsList');
-            
-            if (rideStopsContainer && rideStopsList) {
-                rideStopsContainer.style.display = 'block';
-                rideStopsList.innerHTML = '';
-                
-                ride.stops.forEach((stop, index) => {
-                    const stopElement = document.createElement('div');
-                    stopElement.className = 'ride-stop-item';
-                    stopElement.innerHTML = `
-                        <div class="stop-number">${index + 1}</div>
-                        <div class="stop-address">${stop.address || stop.name}</div>
-                    `;
-                    rideStopsList.appendChild(stopElement);
-                });
-            }
-        }
     },
     
     updateRideStatus: function(status) {
@@ -9804,37 +9960,33 @@ const EnhancedUIUpdater = {
             iconClass = 'fa-motorcycle';
         }
         
-        pulsingIcon = L.divIcon({
-            className: 'pulsing-ride-icon',
-            html: `<i class="fas ${iconClass}"></i>`,
-            iconSize: [60, 60],
-            iconAnchor: [30, 30]
-        });
+        pulsingIcon = document.createElement('div');
+        pulsingIcon.id = 'pulsingRideIcon';
+        pulsingIcon.className = 'pulsing-ride-icon';
+        pulsingIcon.innerHTML = `<i class="fas ${iconClass}"></i>`;
+        pulsingIcon.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 60px;
+            color: #FF6B35;
+            z-index: 1000;
+            animation: pulse 1.5s infinite;
+            pointer-events: none;
+        `;
         
-        const pulsingMarker = L.marker([AppState.pickup.lat, AppState.pickup.lng], {
-            icon: pulsingIcon
-        }).addTo(map);
-        
-        // Add pulsing animation
-        const markerElement = pulsingMarker.getElement();
-        if (markerElement) {
-            markerElement.style.animation = 'pulse 1.5s infinite';
+        const mapContainer = document.getElementById('map');
+        if (mapContainer) {
+            mapContainer.appendChild(pulsingIcon);
         }
-        
-        AppState.rideRequestPulsingIcons[serviceType] = pulsingMarker;
     },
     
     removePulsingRideIcon: function() {
-        Object.values(AppState.rideRequestPulsingIcons).forEach(marker => {
-            if (marker && map) {
-                map.removeLayer(marker);
-            }
-        });
-        AppState.rideRequestPulsingIcons = {
-            car: null,
-            bike: null,
-            truck: null
-        };
+        const pulsingIcon = document.getElementById('pulsingRideIcon');
+        if (pulsingIcon) {
+            pulsingIcon.remove();
+        }
     },
     
     updateTimeline: function(status) {
@@ -9939,6 +10091,7 @@ const EnhancedUIUpdater = {
                 container.appendChild(item);
             });
             
+            // Add city note
             const cityNote = document.createElement('div');
             cityNote.className = 'city-search-note';
             cityNote.innerHTML = `
@@ -9950,6 +10103,7 @@ const EnhancedUIUpdater = {
         
         container.style.display = 'block';
         
+        // Position the suggestions below the input
         const input = document.getElementById(inputId);
         if (input) {
             const rect = input.getBoundingClientRect();
@@ -10002,6 +10156,7 @@ const EnhancedUIUpdater = {
         container.innerHTML = html;
         container.style.display = 'block';
         
+        // Position the history below the input
         const input = document.getElementById(inputId);
         if (input) {
             const rect = input.getBoundingClientRect();
@@ -10010,6 +10165,7 @@ const EnhancedUIUpdater = {
             container.style.width = `${rect.width}px`;
         }
         
+        // Add click handlers for history items
         container.querySelectorAll('.search-history-item').forEach(item => {
             item.addEventListener('click', () => {
                 const lat = parseFloat(item.dataset.lat);
@@ -10063,7 +10219,7 @@ const EnhancedUIUpdater = {
         map.setView([location.lat, location.lng], 15);
         
         if (AppState.destination) {
-            this.drawRouteWithStops();
+            this.drawRoute(location, AppState.destination);
         }
     },
     
@@ -10087,37 +10243,13 @@ const EnhancedUIUpdater = {
         }
         
         if (AppState.pickup) {
-            this.drawRouteWithStops();
+            this.drawRoute(AppState.pickup, location);
         }
     },
     
-    addStopMarker: function(location, stopId) {
-        if (!map) return;
-        
-        // Remove existing marker for this stop if it exists
-        const existingMarkerIndex = stopMarkers.findIndex(marker => marker.id === stopId);
-        if (existingMarkerIndex !== -1) {
-            map.removeLayer(stopMarkers[existingMarkerIndex].marker);
-            stopMarkers.splice(existingMarkerIndex, 1);
-        }
-        
-        const marker = L.marker([location.lat, location.lng], {
-            icon: L.divIcon({
-                className: 'stop-marker',
-                html: '<i class="fas fa-map-pin"></i>',
-                iconSize: [18, 18],
-                iconAnchor: [9, 18]
-            })
-        }).addTo(map).bindPopup(`Stop: ${location.name}`);
-        
-        stopMarkers.push({
-            id: stopId,
-            marker: marker
-        });
-    },
-    
-    drawRouteWithStops: async function() {
-        if (!map || !AppState.pickup || !AppState.destination) {
+    drawRoute: async function(start, end) {
+        if (!map) {
+            console.error('Map not initialized');
             return;
         }
         
@@ -10125,19 +10257,23 @@ const EnhancedUIUpdater = {
             map.removeLayer(routeLayer);
         }
         
-        const stops = EnhancedLocationManager.getStopLocations();
-        const allWaypoints = [
-            [AppState.pickup.lng, AppState.pickup.lat],
-            ...stops.map(stop => [stop.lng, stop.lat]),
-            [AppState.destination.lng, AppState.destination.lat]
-        ];
+        // Validate coordinates are within city
+        const startValid = EnhancedSearchEngine.validateCoordinatesInCity(
+            start.lat, start.lng, AppState.currentCity
+        );
+        const endValid = EnhancedSearchEngine.validateCoordinatesInCity(
+            end.lat, end.lng, AppState.currentCity
+        );
+        
+        if (!startValid || !endValid) {
+            console.warn('Route points outside city bounds');
+            return;
+        }
         
         try {
-            // Build OSRM API URL with all waypoints
-            const waypointsString = allWaypoints.map(wp => `${wp[0]},${wp[1]}`).join(';');
-            const url = `https://router.project-osrm.org/route/v1/driving/${waypointsString}?overview=full&geometries=geojson`;
-            
-            const response = await fetch(url);
+            const response = await fetch(
+                `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=full&geometries=geojson`
+            );
             
             if (response.ok) {
                 const data = await response.json();
@@ -10162,17 +10298,15 @@ const EnhancedUIUpdater = {
                     
                     console.log(`Route distance: ${distance.toFixed(2)} km, Duration: ${duration.toFixed(0)} min`);
                     
-                    AppState.activeRoute = {
-                        distance: distance,
-                        duration: duration,
-                        coordinates: routeCoordinates,
-                        waypoints: allWaypoints
-                    };
-                    
-                    // Update prices with new distance
                     if (AppState.pickup && AppState.destination) {
                         this.calculateAndUpdatePrices();
                     }
+                    
+                    AppState.activeRoute = {
+                        distance: distance,
+                        duration: duration,
+                        coordinates: routeCoordinates
+                    };
                     
                     return { distance, duration };
                 }
@@ -10180,89 +10314,22 @@ const EnhancedUIUpdater = {
         } catch (error) {
             console.error('Routing service error:', error);
             
-            // Fallback: Draw straight lines between points
-            const points = [
-                [AppState.pickup.lat, AppState.pickup.lng],
-                ...stops.map(stop => [stop.lat, stop.lng]),
-                [AppState.destination.lat, AppState.destination.lng]
-            ];
-            
-            routeLayer = L.polyline(points, {
+            // Fallback: draw straight line
+            routeLayer = L.polyline([
+                [start.lat, start.lng],
+                [end.lat, end.lng]
+            ], {
                 color: '#FF6B35',
                 weight: 3,
                 opacity: 0.7,
                 dashArray: '10, 10'
             }).addTo(map);
             
-            const bounds = L.latLngBounds(points);
-            map.fitBounds(bounds, { padding: [50, 50] });
-        }
-    },
-    
-    calculateAndUpdatePrices: function() {
-        if (AppState.pickup && AppState.destination) {
-            const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng,
-                AppState.currentCity
+            const bounds = L.latLngBounds(
+                [start.lat, start.lng],
+                [end.lat, end.lng]
             );
-            
-            if (!validation.valid) {
-                this.showToast(validation.message, 'warning');
-                return;
-            }
-            
-            const stops = EnhancedLocationManager.getStopLocations();
-            let totalDistance = 0;
-            
-            // Calculate distance from pickup to first stop or destination
-            if (stops.length > 0) {
-                totalDistance += EnhancedPriceCalculator.calculateDistance(
-                    AppState.pickup.lat, AppState.pickup.lng,
-                    stops[0].lat, stops[0].lng
-                );
-                
-                // Calculate distances between stops
-                for (let i = 0; i < stops.length - 1; i++) {
-                    totalDistance += EnhancedPriceCalculator.calculateDistance(
-                        stops[i].lat, stops[i].lng,
-                        stops[i + 1].lat, stops[i + 1].lng
-                    );
-                }
-                
-                // Calculate distance from last stop to destination
-                totalDistance += EnhancedPriceCalculator.calculateDistance(
-                    stops[stops.length - 1].lat, stops[stops.length - 1].lng,
-                    AppState.destination.lat, AppState.destination.lng
-                );
-            } else {
-                totalDistance = EnhancedPriceCalculator.calculateDistance(
-                    AppState.pickup.lat, AppState.pickup.lng,
-                    AppState.destination.lat, AppState.destination.lng
-                );
-            }
-            
-            switch(AppState.activeService) {
-                case 'car':
-                    this.updateRidePrices(totalDistance);
-                    const fareDisplay = document.getElementById('fareDisplay');
-                    const rideTypeSelection = document.getElementById('rideTypeSelection');
-                    if (fareDisplay) fareDisplay.classList.add('active');
-                    if (rideTypeSelection) rideTypeSelection.classList.add('active');
-                    break;
-                case 'delivery':
-                    this.updateDeliveryPrices(totalDistance);
-                    break;
-                case 'short-delivery':
-                    this.updateShortDeliveryPrices(totalDistance);
-                    break;
-                case 'truck':
-                    this.updateTruckPrices(totalDistance);
-                    break;
-                case 'express':
-                    this.updateShoppingPrices(totalDistance);
-                    break;
-            }
+            map.fitBounds(bounds, { padding: [50, 50] });
         }
     },
     
@@ -10639,6 +10706,7 @@ const EnhancedUIUpdater = {
                     </div>
                     <div class="empty-title">No notifications</div>
                     <div class="empty-message">You're all caught up!</div>
+                </div>
             `;
             return;
         }
@@ -10702,19 +10770,19 @@ const EnhancedUIUpdater = {
                 ` : ''}
             `;
             
-        container.appendChild(item);
-        
-        item.addEventListener('click', () => {
-            if (!notification.read) {
-                EnhancedFirebaseManager.markNotificationAsRead(notification.id);
-            }
+            container.appendChild(item);
             
-            if (notification.action) {
-                this.handleNotificationAction(notification.action, notification.data);
-            }
+            item.addEventListener('click', () => {
+                if (!notification.read) {
+                    EnhancedFirebaseManager.markNotificationAsRead(notification.id);
+                }
+                
+                if (notification.action) {
+                    this.handleNotificationAction(notification.action, notification.data);
+                }
+            });
         });
-    });
-},
+    },
     
     handleNotificationAction: function(action, data) {
         switch(action) {
@@ -10956,7 +11024,7 @@ const EnhancedUIUpdater = {
             map.removeLayer(cityBoundaryLayer);
         }
         
-        const bounds = EnhancedSearchEngine.getCityBounds(city);
+        const bounds = CityDetector.getCityBounds(city);
         if (bounds) {
             const [west, south, east, north] = bounds;
             
@@ -11214,35 +11282,19 @@ const EnhancedUIUpdater = {
         const modal = document.getElementById('shareRideInvitationModal');
         if (!modal) return;
         
-        const invitationDetails = document.getElementById('invitationDetails');
-        if (invitationDetails) {
-            invitationDetails.innerHTML = `
-                <div class="invitation-detail">
-                    <div class="invitation-label">Host:</div>
-                    <div class="invitation-value">${invitationData.hostName}</div>
-                </div>
-                <div class="invitation-detail">
-                    <div class="invitation-label">Pickup:</div>
-                    <div class="invitation-value">${invitationData.pickup}</div>
-                </div>
-                <div class="invitation-detail">
-                    <div class="invitation-label">Destination:</div>
-                    <div class="invitation-value">${invitationData.destination}</div>
-                </div>
-                <div class="invitation-detail">
-                    <div class="invitation-label">Distance:</div>
-                    <div class="invitation-value">${invitationData.distance.toFixed(1)} km</div>
-                </div>
-                <div class="invitation-detail">
-                    <div class="invitation-label">Total Fare:</div>
-                    <div class="invitation-value">ZMW ${invitationData.totalFare.toFixed(2)}</div>
-                </div>
-                <div class="invitation-detail highlight">
-                    <div class="invitation-label">Your Share:</div>
-                    <div class="invitation-value">ZMW ${invitationData.yourShare.toFixed(2)}</div>
-                </div>
-            `;
-        }
+        const invitationHostName = document.getElementById('invitationHostName');
+        const invitationPickup = document.getElementById('invitationPickup');
+        const invitationDestination = document.getElementById('invitationDestination');
+        const invitationDistance = document.getElementById('invitationDistance');
+        const invitationFare = document.getElementById('invitationFare');
+        const invitationTotalFare = document.getElementById('invitationTotalFare');
+        
+        if (invitationHostName) invitationHostName.textContent = invitationData.hostName;
+        if (invitationPickup) invitationPickup.textContent = invitationData.pickup;
+        if (invitationDestination) invitationDestination.textContent = invitationData.destination;
+        if (invitationDistance) invitationDistance.textContent = `${invitationData.distance.toFixed(1)} km`;
+        if (invitationFare) invitationFare.textContent = `ZMW ${invitationData.yourShare.toFixed(2)}`;
+        if (invitationTotalFare) invitationTotalFare.textContent = `ZMW ${invitationData.totalFare.toFixed(2)}`;
         
         modal.style.display = 'block';
         
@@ -11292,16 +11344,16 @@ const EnhancedUIUpdater = {
                     const discountAmount = AppState.rideFare * 0.5;
                     const newFare = AppState.rideFare - discountAmount;
                     
-                    const originalFareAmount = document.getElementById('originalFareAmount');
-                    const discountAmountElement = document.getElementById('discountAmount');
-                    const finalFareAmount = document.getElementById('finalFareAmount');
-                    const referrerInfo = document.getElementById('referrerInfo');
+                    const referralDiscountAmount = document.getElementById('referralDiscountAmount');
+                    const referralOwnerName = document.getElementById('referrerInfo');
+                    const referralAppliedSection = document.getElementById('referralAppliedSection');
+                    const referralInputSection = document.getElementById('referralInputSection');
                     const paymentAmount = document.getElementById('paymentAmount');
                     
-                    if (originalFareAmount) originalFareAmount.textContent = `ZMW ${AppState.rideFare.toFixed(2)}`;
-                    if (discountAmountElement) discountAmountElement.textContent = `-ZMW ${discountAmount.toFixed(2)}`;
-                    if (finalFareAmount) finalFareAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
-                    if (referrerInfo) referrerInfo.textContent = `Referral from: ${result.ownerName}`;
+                    if (referralDiscountAmount) referralDiscountAmount.textContent = `-ZMW ${discountAmount.toFixed(2)}`;
+                    if (referralOwnerName) referralOwnerName.textContent = result.ownerName;
+                    if (referralAppliedSection) referralAppliedSection.style.display = 'block';
+                    if (referralInputSection) referralInputSection.style.display = 'none';
                     if (paymentAmount) paymentAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
                     
                     this.showToast(`50% discount applied! Referral from ${result.ownerName}`, 'success');
@@ -11320,15 +11372,219 @@ const EnhancedUIUpdater = {
         AppState.referralCodeUsed = null;
         AppState.referralOwnerName = null;
         
-        const referralSection = document.getElementById('referralDiscountSection');
+        const referralAppliedSection = document.getElementById('referralAppliedSection');
+        const referralInputSection = document.getElementById('referralInputSection');
         const referralCodeInput = document.getElementById('referralCodeInput');
         const paymentAmount = document.getElementById('paymentAmount');
         
-        if (referralSection) referralSection.style.display = 'block';
+        if (referralAppliedSection) referralAppliedSection.style.display = 'none';
+        if (referralInputSection) referralInputSection.style.display = 'block';
         if (referralCodeInput) referralCodeInput.value = '';
         if (paymentAmount) paymentAmount.textContent = `ZMW ${AppState.rideFare.toFixed(2)}`;
         
         this.showToast('Referral discount removed', 'info');
+    },
+    
+    addStop: function() {
+        if (AppState.rideStops.length >= AppState.maxStops) {
+            this.showToast(`Maximum ${AppState.maxStops} stops allowed`, 'warning');
+            return;
+        }
+        
+        const stopNumber = AppState.rideStops.length + 1;
+        const stopInput = document.createElement('div');
+        stopInput.className = 'stop-input';
+        stopInput.innerHTML = `
+            <div class="location-input">
+                <i class="fas fa-map-pin"></i>
+                <input type="text" class="stop-location" placeholder="Stop ${stopNumber}" data-stop-index="${AppState.rideStops.length}">
+                <div class="search-loading"></div>
+                <div class="suggestion-list stop-suggestions"></div>
+                <button class="remove-stop" type="button">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        const container = document.getElementById('stopsContainer');
+        container.appendChild(stopInput);
+        
+        const input = stopInput.querySelector('.stop-location');
+        const removeBtn = stopInput.querySelector('.remove-stop');
+        
+        // Setup search for this stop
+        input.addEventListener('input', (e) => {
+            EnhancedLocationManager.handleDestinationInputChange(`stop_${stopNumber}`, e.target.value);
+        });
+        
+        input.addEventListener('focus', () => {
+            EnhancedLocationManager.handleDestinationInputFocus(`stop_${stopNumber}`);
+        });
+        
+        removeBtn.addEventListener('click', () => {
+            this.removeStop(AppState.rideStops.length - 1);
+        });
+        
+        AppState.rideStops.push(null);
+        
+        this.showToast(`Stop ${stopNumber} added`, 'success');
+    },
+    
+    removeStop: function(index) {
+        if (index < 0 || index >= AppState.rideStops.length) return;
+        
+        // Remove marker from map
+        if (stopMarkers[index]) {
+            map.removeLayer(stopMarkers[index]);
+            stopMarkers.splice(index, 1);
+        }
+        
+        // Remove stop from array
+        AppState.rideStops.splice(index, 1);
+        
+        // Remove input element
+        const container = document.getElementById('stopsContainer');
+        const stopInputs = container.querySelectorAll('.stop-input');
+        if (stopInputs[index]) {
+            stopInputs[index].remove();
+        }
+        
+        // Reindex remaining stops
+        container.querySelectorAll('.stop-input').forEach((input, newIndex) => {
+            const inputField = input.querySelector('.stop-location');
+            inputField.placeholder = `Stop ${newIndex + 1}`;
+            inputField.dataset.stopIndex = newIndex;
+        });
+        
+        // Recalculate prices
+        if (AppState.pickup && AppState.destination) {
+            this.calculateAndUpdatePrices();
+        }
+        
+        this.showToast('Stop removed', 'info');
+    },
+    
+    selectStopLocation: function(index, location) {
+        if (index < 0 || index >= AppState.rideStops.length) return;
+        
+        AppState.rideStops[index] = location;
+        
+        // Update input value
+        const container = document.getElementById('stopsContainer');
+        const stopInputs = container.querySelectorAll('.stop-input');
+        const input = stopInputs[index]?.querySelector('.stop-location');
+        if (input) {
+            input.value = location.address || location.name;
+        }
+        
+        // Add marker to map
+        if (!stopMarkers[index]) {
+            stopMarkers[index] = L.marker([location.lat, location.lng], {
+                icon: L.divIcon({
+                    className: 'stop-marker',
+                    html: `<i class="fas fa-map-pin"></i><span class="stop-number">${index + 1}</span>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 24]
+                })
+            }).addTo(map).bindPopup(`Stop ${index + 1}: ${location.name}`);
+        } else {
+            stopMarkers[index].setLatLng([location.lat, location.lng]);
+            stopMarkers[index].setPopupContent(`Stop ${index + 1}: ${location.name}`);
+        }
+        
+        // Redraw route with stops
+        this.redrawRouteWithStops();
+        
+        // Recalculate prices
+        if (AppState.pickup && AppState.destination) {
+            this.calculateAndUpdatePrices();
+        }
+        
+        this.showToast(`Stop ${index + 1} set`, 'success');
+    },
+    
+    redrawRouteWithStops: function() {
+        if (!AppState.pickup || !AppState.destination) return;
+        
+        const waypoints = [];
+        
+        // Add pickup as first waypoint
+        waypoints.push([AppState.pickup.lat, AppState.pickup.lng]);
+        
+        // Add stops
+        AppState.rideStops.forEach(stop => {
+            if (stop) {
+                waypoints.push([stop.lat, stop.lng]);
+            }
+        });
+        
+        // Add destination as last waypoint
+        waypoints.push([AppState.destination.lat, AppState.destination.lng]);
+        
+        // Draw multi-point route
+        this.drawMultiPointRoute(waypoints);
+    },
+    
+    drawMultiPointRoute: async function(waypoints) {
+        if (!map || waypoints.length < 2) return;
+        
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+        }
+        
+        try {
+            const waypointsStr = waypoints.map(wp => `${wp[1]},${wp[0]}`).join(';');
+            const response = await fetch(
+                `https://router.project-osrm.org/route/v1/driving/${waypointsStr}?overview=full&geometries=geojson`
+            );
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.routes && data.routes.length > 0) {
+                    const route = data.routes[0];
+                    const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    
+                    routeLayer = L.polyline(routeCoordinates, {
+                        color: '#FF6B35',
+                        weight: 4,
+                        opacity: 0.7,
+                        lineJoin: 'round',
+                        lineCap: 'round'
+                    }).addTo(map);
+                    
+                    const bounds = L.latLngBounds(routeCoordinates);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                    
+                    const distance = route.distance / 1000;
+                    const duration = route.duration / 60;
+                    
+                    console.log(`Multi-point route distance: ${distance.toFixed(2)} km, Duration: ${duration.toFixed(0)} min`);
+                    
+                    AppState.activeRoute = {
+                        distance: distance,
+                        duration: duration,
+                        coordinates: routeCoordinates,
+                        waypoints: waypoints
+                    };
+                    
+                    return { distance, duration };
+                }
+            }
+        } catch (error) {
+            console.error('Multi-point routing error:', error);
+            
+            // Fallback: draw straight lines between waypoints
+            routeLayer = L.polyline(waypoints, {
+                color: '#FF6B35',
+                weight: 3,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(map);
+            
+            const bounds = L.latLngBounds(waypoints);
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
     }
 };
 
@@ -11361,6 +11617,8 @@ const EnhancedFirebaseManager = {
                 
                 await this.loadNotifications(uid);
                 
+                await this.loadWalletTransactions(uid);
+                
                 EnhancedSearchEngine.loadSearchHistory();
                 
                 this.startRealtimeSync(uid);
@@ -11385,6 +11643,7 @@ const EnhancedFirebaseManager = {
         
         console.log('Starting real-time sync for user:', uid);
         
+        // User data sync
         const userRef = database.ref(`users/${uid}`);
         AppState.realtimeListeners.push(
             userRef.on('value', (snapshot) => {
@@ -11399,6 +11658,7 @@ const EnhancedFirebaseManager = {
             })
         );
         
+        // Active ride sync
         const activeRideRef = database.ref('rides')
             .orderByChild('passengerId')
             .equalTo(uid)
@@ -11445,6 +11705,7 @@ const EnhancedFirebaseManager = {
             })
         );
         
+        // Notifications sync
         const notificationsRef = database.ref(`notifications/${uid}`)
             .orderByChild('timestamp')
             .limitToLast(20);
@@ -11463,6 +11724,7 @@ const EnhancedFirebaseManager = {
             })
         );
         
+        // Scheduled rides sync
         const scheduledRidesRef = database.ref('scheduledRides')
             .orderByChild('passengerId')
             .equalTo(uid)
@@ -11489,6 +11751,7 @@ const EnhancedFirebaseManager = {
             })
         );
         
+        // Share ride invitations sync
         const shareInvitationsRef = database.ref('shareRideInvitations')
             .orderByChild('recipientId')
             .equalTo(uid)
@@ -11517,6 +11780,7 @@ const EnhancedFirebaseManager = {
             })
         );
         
+        // Broadcast invitations sync
         const broadcastInvitationsRef = database.ref('broadcastInvitations')
             .orderByChild('recipientId')
             .equalTo(uid)
@@ -11694,6 +11958,23 @@ const EnhancedFirebaseManager = {
             }
         } catch (error) {
             console.error('Error loading notifications:', error);
+        }
+    },
+    
+    async loadWalletTransactions(uid) {
+        try {
+            const snapshot = await database.ref(`walletTransactions/${uid}`)
+                .orderByChild('timestamp')
+                .limitToLast(50)
+                .once('value');
+            
+            const transactions = snapshot.val();
+            if (transactions) {
+                AppState.walletTransactions = Object.values(transactions).sort((a, b) => b.timestamp - a.timestamp);
+                console.log(`Loaded ${AppState.walletTransactions.length} wallet transactions`);
+            }
+        } catch (error) {
+            console.error('Error loading wallet transactions:', error);
         }
     },
     
@@ -11887,62 +12168,22 @@ const EnhancedFirebaseManager = {
         );
     },
     
-    handleRideCompletion: function(ride) {
-        console.log('Ride completed:', ride.id);
-        
-        // Process referral reward if applicable
-        if (ride.referredBy && ride.referralOwnerName) {
-            this.processReferralReward(ride.referredBy, ride.id, ride.passengerName);
-        }
-        
-        // Record wallet transaction if payment was made from wallet
-        if (ride.paymentMethod === 'wallet') {
-            this.recordWalletTransaction({
-                type: 'ride_payment',
-                amount: -ride.fare,
-                rideId: ride.id,
-                description: `Ride payment: ${ride.pickupDisplay} to ${ride.destinationDisplay}`
-            });
-        }
-        
-        this.resetActiveRide();
-    },
-    
-    processReferralReward: async function(referralCode, rideId, passengerName) {
+    async sendChatMessage(rideId, text, isDriver = false) {
         try {
-            // Find the user who owns this referral code
-            const usersSnapshot = await database.ref('users').orderByChild('referralCode').equalTo(referralCode).once('value');
-            const users = usersSnapshot.val();
+            const message = {
+                text: text,
+                senderId: AppState.currentUser.uid,
+                senderName: AppState.userData.name,
+                timestamp: Date.now(),
+                isDriver: isDriver
+            };
             
-            if (users) {
-                const userId = Object.keys(users)[0];
-                const userData = users[userId];
-                
-                // Add K25 reward to referrer's wallet
-                const newBalance = (userData.walletBalance || 0) + 25;
-                await database.ref(`users/${userId}/walletBalance`).set(newBalance);
-                
-                // Record transaction for referrer
-                await this.recordWalletTransactionForUser(userId, {
-                    type: 'referral_reward',
-                    amount: 25,
-                    rideId: rideId,
-                    description: `Referral reward from ${passengerName}`,
-                    timestamp: Date.now()
-                });
-                
-                // Send notification to referrer
-                await this.sendNotification(
-                    userId,
-                    'Referral Reward Received!',
-                    `You earned ZMW 25.00 from ${passengerName}'s ride`,
-                    'referral'
-                );
-                
-                console.log(`Referral reward processed for user ${userId}`);
-            }
+            await database.ref(`chats/${rideId}/messages`).push(message);
+            
+            return true;
         } catch (error) {
-            console.error('Error processing referral reward:', error);
+            console.error('Error sending chat message:', error);
+            throw error;
         }
     },
     
@@ -11964,16 +12205,6 @@ const EnhancedFirebaseManager = {
             
             const rideId = database.ref().child('rides').push().key;
             
-            // Add stops to ride data
-            const stops = EnhancedLocationManager.getStopLocations();
-            if (stops.length > 0) {
-                rideData.stops = stops.map(stop => ({
-                    address: stop.address || stop.name,
-                    lat: stop.lat,
-                    lng: stop.lng
-                }));
-            }
-            
             // Apply referral discount if applicable
             if (AppState.referralDiscountApplied && AppState.referralCodeUsed) {
                 rideData.referredBy = AppState.referralCodeUsed;
@@ -11982,7 +12213,6 @@ const EnhancedFirebaseManager = {
                 const discountAmount = rideData.fare * 0.5;
                 rideData.fare = rideData.fare - discountAmount;
                 rideData.referralDiscount = discountAmount;
-                rideData.originalFare = rideData.fare + discountAmount;
             }
             
             const ride = {
@@ -12013,10 +12243,12 @@ const EnhancedFirebaseManager = {
             EnhancedUIUpdater.hideLoading();
             EnhancedUIUpdater.showToast('Ride requested successfully', 'success');
             
+            // Handle broadcast ride if applicable
             if (rideData.broadcast && rideData.broadcastRecipients) {
                 await this.startBroadcast(rideId, rideData.broadcastRecipients);
             }
             
+            // Handle share ride if applicable
             if (rideData.shareRide && rideData.shareMembers) {
                 await this.createShareRide(rideId, rideData.shareMembers);
             }
@@ -12031,65 +12263,29 @@ const EnhancedFirebaseManager = {
         }
     },
     
-    async requestDelivery(deliveryData) {
+    async notifyAvailableDrivers(ride) {
         try {
-            const rideId = await this.requestRide({
-                ...deliveryData,
-                serviceType: 'delivery'
-            });
-            return rideId;
+            // In a real app, this would notify nearby drivers
+            // For now, we'll simulate driver assignment after 5 seconds
+            setTimeout(async () => {
+                if (AppState.currentRide && AppState.currentRide.id === ride.id) {
+                    // Simulate driver acceptance
+                    const driverId = 'driver_' + Math.random().toString(36).substr(2, 9);
+                    
+                    await database.ref(`rides/${ride.id}`).update({
+                        status: 'accepted',
+                        driverId: driverId,
+                        driverName: 'John Driver',
+                        driverRating: 4.8,
+                        vehicle: 'Toyota Corolla - ABC 123',
+                        updatedAt: Date.now()
+                    });
+                    
+                    EnhancedUIUpdater.showToast('Driver found!', 'success');
+                }
+            }, 5000);
         } catch (error) {
-            throw error;
-        }
-    },
-    
-    async requestTruck(truckData) {
-        try {
-            const rideId = await this.requestRide({
-                ...truckData,
-                serviceType: 'truck'
-            });
-            return rideId;
-        } catch (error) {
-            throw error;
-        }
-    },
-    
-    async requestShopping(shoppingData) {
-        try {
-            const rideId = await this.requestRide({
-                ...shoppingData,
-                serviceType: 'shopping'
-            });
-            return rideId;
-        } catch (error) {
-            throw error;
-        }
-    },
-    
-    async requestScheduledRide(scheduledRide) {
-        try {
-            const rideId = await this.requestRide({
-                ...scheduledRide,
-                scheduled: true
-            });
-            
-            // Update scheduled ride status
-            await database.ref(`scheduledRides/${scheduledRide.id}/status`).set('requested');
-            
-            return rideId;
-        } catch (error) {
-            throw error;
-        }
-    },
-    
-    async cancelScheduledRide(scheduledRideId) {
-        try {
-            await database.ref(`scheduledRides/${scheduledRideId}`).remove();
-            EnhancedUIUpdater.showToast('Scheduled ride cancelled', 'success');
-        } catch (error) {
-            console.error('Error cancelling scheduled ride:', error);
-            EnhancedUIUpdater.showToast('Error cancelling scheduled ride', 'error');
+            console.error('Error notifying drivers:', error);
         }
     },
     
@@ -12101,73 +12297,246 @@ const EnhancedFirebaseManager = {
                 updatedAt: Date.now()
             });
             
-            EnhancedUIUpdater.showToast('Ride cancelled successfully', 'success');
+            EnhancedUIUpdater.showToast('Ride cancelled', 'success');
             this.resetActiveRide();
+            
         } catch (error) {
             console.error('Error cancelling ride:', error);
-            EnhancedUIUpdater.showToast('Error cancelling ride', 'error');
-        }
-    },
-    
-    resetActiveRide: function() {
-        AppState.currentRide = null;
-        EnhancedUIUpdater.removePulsingRideIcon();
-        
-        const rideInfoPanel = document.getElementById('rideInfoPanel');
-        if (rideInfoPanel) {
-            rideInfoPanel.style.display = 'none';
-        }
-        
-        const statusBar = document.getElementById('rideStatusBar');
-        if (statusBar) {
-            statusBar.classList.remove('active');
-        }
-        
-        const sosButton = document.getElementById('sosButton');
-        if (sosButton) {
-            sosButton.style.display = 'none';
-        }
-    },
-    
-    async sendChatMessage(rideId, message, isDriver = false) {
-        try {
-            const messageId = database.ref().child('chats').child(rideId).child('messages').push().key;
-            const messageData = {
-                id: messageId,
-                text: message,
-                senderId: AppState.currentUser.uid,
-                senderName: AppState.userData.name,
-                timestamp: Date.now(),
-                isDriver: isDriver
-            };
-            
-            await database.ref(`chats/${rideId}/messages/${messageId}`).set(messageData);
-            
-            // Notify other party
-            const rideSnapshot = await database.ref(`rides/${rideId}`).once('value');
-            const ride = rideSnapshot.val();
-            const recipientId = isDriver ? ride.passengerId : ride.driverId;
-            
-            if (recipientId) {
-                await this.sendNotification(
-                    recipientId,
-                    'New Message',
-                    message,
-                    'chat',
-                    { rideId: rideId }
-                );
-            }
-        } catch (error) {
-            console.error('Error sending chat message:', error);
             throw error;
         }
     },
     
-    async sendNotification(userId, title, message, type = 'info', data = {}) {
+    resetActiveRide: function() {
+        console.log('Resetting active ride state');
+        
+        AppState.currentRide = null;
+        AppState.selectedVehicle = null;
+        AppState.driverLocation = null;
+        
+        EnhancedUIUpdater.removePulsingRideIcon();
+        
+        document.getElementById('rideInfoPanel').style.display = 'none';
+        document.getElementById('rideStatusBar').classList.remove('active');
+        document.getElementById('sosButton').style.display = 'none';
+        
+        switchScreen('home');
+    },
+    
+    handleRideCompletion: function(ride) {
+        console.log('Ride completed:', ride.id);
+        
+        // Process referral bonus if applicable
+        if (ride.referredBy && ride.status === 'completed') {
+            this.processReferralBonus(ride.referredBy, ride.passengerId, ride.passengerName, ride.fare);
+        }
+        
+        // Record wallet transaction if payment was from wallet
+        if (ride.paymentMethod === 'wallet') {
+            this.recordWalletTransaction(
+                AppState.currentUser.uid,
+                'ride_payment',
+                -ride.fare,
+                `Ride payment: ${ride.pickupDisplay} to ${ride.destinationDisplay}`,
+                ride.id
+            );
+        }
+        
+        EnhancedUIUpdater.showToast('Ride completed! Thank you for choosing Jubel.', 'success');
+        
+        // Show rating prompt after 2 seconds
+        setTimeout(() => {
+            this.showRatingPrompt(ride.id, ride.driverId);
+        }, 2000);
+    },
+    
+    async processReferralBonus(referralCode, passengerId, passengerName, rideFare) {
         try {
-            const notificationId = database.ref().child('notifications').child(userId).push().key;
-            const notificationData = {
+            // Find the user who owns this referral code
+            const usersRef = database.ref('users');
+            const snapshot = await usersRef.orderByChild('referralCode').equalTo(referralCode).once('value');
+            
+            if (snapshot.exists()) {
+                const userData = snapshot.val();
+                const userId = Object.keys(userData)[0];
+                const referrer = userData[userId];
+                
+                // Add ZMW 25 bonus to referrer's wallet
+                const bonusAmount = 25;
+                const newBalance = (referrer.walletBalance || 0) + bonusAmount;
+                
+                await database.ref(`users/${userId}/walletBalance`).set(newBalance);
+                
+                // Record transaction for referrer
+                await this.recordWalletTransaction(
+                    userId,
+                    'referral_bonus',
+                    bonusAmount,
+                    `Referral bonus from ${passengerName}`,
+                    passengerId
+                );
+                
+                // Notify referrer
+                await this.sendNotification(
+                    userId,
+                    'Referral Bonus Earned!',
+                    `You earned ZMW ${bonusAmount.toFixed(2)} from ${passengerName}'s ride`,
+                    'referral',
+                    { amount: bonusAmount, passengerName: passengerName }
+                );
+                
+                console.log(`Referral bonus processed: ${bonusAmount} to ${referrer.name}`);
+            }
+        } catch (error) {
+            console.error('Error processing referral bonus:', error);
+        }
+    },
+    
+    async recordWalletTransaction(userId, type, amount, description, referenceId = null) {
+        try {
+            const transactionId = database.ref().child('walletTransactions').push().key;
+            const transaction = {
+                id: transactionId,
+                userId: userId,
+                type: type,
+                amount: amount,
+                description: description,
+                timestamp: Date.now(),
+                referenceId: referenceId
+            };
+            
+            await database.ref(`walletTransactions/${userId}/${transactionId}`).set(transaction);
+            
+            // Update user's wallet balance
+            const userRef = database.ref(`users/${userId}`);
+            const snapshot = await userRef.once('value');
+            const userData = snapshot.val();
+            
+            if (userData) {
+                const currentBalance = userData.walletBalance || 0;
+                const newBalance = currentBalance + amount;
+                
+                await userRef.update({ walletBalance: newBalance });
+                
+                console.log(`Wallet transaction recorded: ${type} - ZMW ${amount}`);
+            }
+            
+            return transactionId;
+        } catch (error) {
+            console.error('Error recording wallet transaction:', error);
+            throw error;
+        }
+    },
+    
+    async withdrawMoney(amount) {
+        try {
+            if (amount > AppState.walletBalance) {
+                throw new Error('Insufficient balance');
+            }
+            
+            const newBalance = AppState.walletBalance - amount;
+            
+            await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+            
+            await this.recordWalletTransaction(
+                AppState.currentUser.uid,
+                'withdrawal',
+                -amount,
+                'Money withdrawal'
+            );
+            
+            AppState.walletBalance = newBalance;
+            EnhancedUIUpdater.updateWalletBalance(newBalance);
+            
+            EnhancedUIUpdater.showToast(`Withdrawn ZMW ${amount.toFixed(2)}`, 'success');
+            
+            return true;
+        } catch (error) {
+            console.error('Error withdrawing money:', error);
+            throw error;
+        }
+    },
+    
+    async depositMoney(amount) {
+        try {
+            const newBalance = AppState.walletBalance + amount;
+            
+            await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+            
+            await this.recordWalletTransaction(
+                AppState.currentUser.uid,
+                'deposit',
+                amount,
+                'Money deposit'
+            );
+            
+            AppState.walletBalance = newBalance;
+            EnhancedUIUpdater.updateWalletBalance(newBalance);
+            
+            EnhancedUIUpdater.showToast(`Deposited ZMW ${amount.toFixed(2)}`, 'success');
+            
+            return true;
+        } catch (error) {
+            console.error('Error depositing money:', error);
+            throw error;
+        }
+    },
+    
+    async validateReferralCode(referralCode) {
+        try {
+            if (!referralCode) {
+                return { valid: false, message: 'Please enter a referral code' };
+            }
+            
+            const usersRef = database.ref('users');
+            const snapshot = await usersRef.orderByChild('referralCode').equalTo(referralCode).once('value');
+            
+            if (snapshot.exists()) {
+                const userData = snapshot.val();
+                const userId = Object.keys(userData)[0];
+                const user = userData[userId];
+                
+                // Check if user is trying to use their own referral code
+                if (userId === AppState.currentUser.uid) {
+                    return { valid: false, message: 'You cannot use your own referral code' };
+                }
+                
+                return { 
+                    valid: true, 
+                    ownerName: user.name,
+                    ownerId: userId
+                };
+            } else {
+                return { valid: false, message: 'Invalid referral code' };
+            }
+        } catch (error) {
+            console.error('Error validating referral code:', error);
+            throw error;
+        }
+    },
+    
+    async findUserByReferralCode(referralCode) {
+        try {
+            const usersRef = database.ref('users');
+            const snapshot = await usersRef.orderByChild('referralCode').equalTo(referralCode).once('value');
+            
+            if (snapshot.exists()) {
+                const userData = snapshot.val();
+                const userId = Object.keys(userData)[0];
+                return { id: userId, ...userData[userId] };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error finding user by referral code:', error);
+            throw error;
+        }
+    },
+    
+    async sendNotification(userId, title, message, type = 'info', data = null) {
+        try {
+            const notificationId = database.ref().child('notifications').push().key;
+            const notification = {
                 id: notificationId,
+                userId: userId,
                 title: title,
                 message: message,
                 type: type,
@@ -12176,39 +12545,12 @@ const EnhancedFirebaseManager = {
                 timestamp: Date.now()
             };
             
-            await database.ref(`notifications/${userId}/${notificationId}`).set(notificationData);
+            await database.ref(`notifications/${userId}/${notificationId}`).set(notification);
+            
+            return notificationId;
         } catch (error) {
             console.error('Error sending notification:', error);
-        }
-    },
-    
-    async notifyAvailableDrivers(ride) {
-        try {
-            // Find available drivers in the same city
-            const driversSnapshot = await database.ref('users')
-                .orderByChild('userType')
-                .equalTo('driver')
-                .once('value');
-            
-            const drivers = driversSnapshot.val();
-            if (drivers) {
-                Object.keys(drivers).forEach(async (driverId) => {
-                    const driver = drivers[driverId];
-                    
-                    // Check if driver is in the same city and available
-                    if (driver.city === AppState.currentCity && driver.status === 'available') {
-                        await this.sendNotification(
-                            driverId,
-                            'New Ride Request',
-                            `New ride from ${ride.pickupDisplay} to ${ride.destinationDisplay}`,
-                            'ride',
-                            { rideId: ride.id }
-                        );
-                    }
-                });
-            }
-        } catch (error) {
-            console.error('Error notifying drivers:', error);
+            throw error;
         }
     },
     
@@ -12219,289 +12561,191 @@ const EnhancedFirebaseManager = {
             return stations;
         } catch (error) {
             console.error('Error loading emergency stations:', error);
-            return [];
+            throw error;
         }
     },
     
     async sendSOSAlert(rideId, sosData) {
         try {
-            // Send SMS to emergency contacts (simulated)
-            if (sosData.emergencyContact1) {
-                console.log(`Sending SOS to ${sosData.emergencyContact1Name}: ${sosData.emergencyContact1}`);
-            }
+            // In a real app, this would send alerts to emergency contacts
+            console.log('SOS Alert sent:', sosData);
             
-            if (sosData.emergencyContact2) {
-                console.log(`Sending SOS to ${sosData.emergencyContact2Name}: ${sosData.emergencyContact2}`);
-            }
+            EnhancedUIUpdater.showToast('SOS alert sent to emergency contacts', 'success');
             
-            // Store SOS alert in database
-            const sosAlertId = database.ref().child('sosAlerts').push().key;
-            await database.ref(`sosAlerts/${sosAlertId}`).set({
-                ...sosData,
-                rideId: rideId,
-                timestamp: Date.now(),
-                status: 'active'
-            });
-            
-            // Notify emergency services
+            // Also notify Jubel support
             await this.sendNotification(
-                'emergency_services',
+                'support',
                 'SOS Alert',
-                `SOS alert from ${AppState.userData.name} at ${sosData.location.lat}, ${sosData.location.lng}`,
+                `User ${AppState.userData.name} triggered SOS from ride ${rideId}`,
                 'emergency',
-                { sosAlertId: sosAlertId }
+                { rideId: rideId, location: sosData.location }
             );
+            
         } catch (error) {
             console.error('Error sending SOS alert:', error);
             throw error;
         }
     },
     
-    async saveSOSConfig(config) {
-        try {
-            await database.ref(`sosConfig/${AppState.currentUser.uid}`).set(config);
-            AppState.sosConfig = config;
-            EnhancedUIUpdater.showToast('SOS configuration saved successfully', 'success');
-        } catch (error) {
-            console.error('Error saving SOS config:', error);
-            EnhancedUIUpdater.showToast('Error saving SOS configuration', 'error');
-        }
-    },
-    
-    async depositMoney(amount) {
-        try {
-            const newBalance = AppState.walletBalance + amount;
-            await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
-            
-            // Record transaction
-            await this.recordWalletTransaction({
-                type: 'deposit',
-                amount: amount,
-                description: 'Wallet deposit'
-            });
-            
-            EnhancedUIUpdater.updateWalletBalance(newBalance);
-            EnhancedUIUpdater.showToast(`ZMW ${amount.toFixed(2)} deposited successfully`, 'success');
-            
-            return newBalance;
-        } catch (error) {
-            console.error('Error depositing money:', error);
-            EnhancedUIUpdater.showToast('Error depositing money', 'error');
-            throw error;
-        }
-    },
-    
-    async withdrawMoney(amount) {
-        try {
-            if (AppState.walletBalance < amount) {
-                throw new Error('Insufficient balance');
+    async showRatingPrompt(rideId, driverId) {
+        const rating = prompt('Rate your driver (1-5 stars):');
+        if (rating && rating >= 1 && rating <= 5) {
+            try {
+                // Update driver rating
+                const driverRef = database.ref(`users/${driverId}`);
+                const snapshot = await driverRef.once('value');
+                const driverData = snapshot.val();
+                
+                if (driverData) {
+                    const currentRating = driverData.rating || 4.8;
+                    const totalRatings = driverData.totalRatings || 1;
+                    const newTotalRatings = totalRatings + 1;
+                    const newRating = ((currentRating * totalRatings) + parseFloat(rating)) / newTotalRatings;
+                    
+                    await driverRef.update({
+                        rating: newRating.toFixed(1),
+                        totalRatings: newTotalRatings
+                    });
+                    
+                    EnhancedUIUpdater.showToast('Thank you for your rating!', 'success');
+                }
+            } catch (error) {
+                console.error('Error saving rating:', error);
             }
-            
-            const newBalance = AppState.walletBalance - amount;
-            await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
-            
-            // Record transaction
-            await this.recordWalletTransaction({
-                type: 'withdrawal',
-                amount: -amount,
-                description: 'Wallet withdrawal'
-            });
-            
-            EnhancedUIUpdater.updateWalletBalance(newBalance);
-            
-            return newBalance;
-        } catch (error) {
-            console.error('Error withdrawing money:', error);
-            throw error;
         }
     },
     
-    async transferMoney(recipientCode, amount, message = '') {
+    async createShareRide(rideId, members) {
         try {
-            if (AppState.walletBalance < amount) {
-                throw new Error('Insufficient balance');
-            }
+            const shareRideId = database.ref().child('shareRides').push().key;
             
-            // Find recipient by referral code
-            const usersSnapshot = await database.ref('users').orderByChild('referralCode').equalTo(recipientCode).once('value');
-            const users = usersSnapshot.val();
-            
-            if (!users) {
-                throw new Error('Recipient not found');
-            }
-            
-            const recipientId = Object.keys(users)[0];
-            const recipientData = users[recipientId];
-            
-            // Deduct from sender
-            const senderNewBalance = AppState.walletBalance - amount;
-            await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(senderNewBalance);
-            
-            // Add to recipient
-            const recipientNewBalance = (recipientData.walletBalance || 0) + amount;
-            await database.ref(`users/${recipientId}/walletBalance`).set(recipientNewBalance);
-            
-            // Record transactions
-            await this.recordWalletTransaction({
-                type: 'transfer_out',
-                amount: -amount,
-                recipientId: recipientId,
-                recipientName: recipientData.name,
-                message: message,
-                description: `Transfer to ${recipientData.name}`
-            });
-            
-            await this.recordWalletTransactionForUser(recipientId, {
-                type: 'transfer_in',
-                amount: amount,
-                senderId: AppState.currentUser.uid,
-                senderName: AppState.userData.name,
-                message: message,
-                description: `Transfer from ${AppState.userData.name}`,
-                timestamp: Date.now()
-            });
-            
-            EnhancedUIUpdater.updateWalletBalance(senderNewBalance);
-            EnhancedUIUpdater.showToast(`ZMW ${amount.toFixed(2)} transferred successfully to ${recipientData.name}`, 'success');
-            
-            // Notify recipient
-            await this.sendNotification(
-                recipientId,
-                'Money Received',
-                `You received ZMW ${amount.toFixed(2)} from ${AppState.userData.name}`,
-                'payment'
-            );
-            
-            return { senderNewBalance, recipientNewBalance };
-        } catch (error) {
-            console.error('Error transferring money:', error);
-            EnhancedUIUpdater.showToast(error.message, 'error');
-            throw error;
-        }
-    },
-    
-    async recordWalletTransaction(transactionData) {
-        try {
-            const transactionId = database.ref().child('walletTransactions').child(AppState.currentUser.uid).push().key;
-            const transaction = {
-                id: transactionId,
-                userId: AppState.currentUser.uid,
-                ...transactionData,
-                timestamp: Date.now()
+            const shareRide = {
+                id: shareRideId,
+                rideId: rideId,
+                hostId: AppState.currentUser.uid,
+                hostName: AppState.userData.name,
+                members: members,
+                status: 'pending',
+                createdAt: Date.now()
             };
             
-            await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
-        } catch (error) {
-            console.error('Error recording wallet transaction:', error);
-        }
-    },
-    
-    async recordWalletTransactionForUser(userId, transactionData) {
-        try {
-            const transactionId = database.ref().child('walletTransactions').child(userId).push().key;
-            const transaction = {
-                id: transactionId,
-                userId: userId,
-                ...transactionData
-            };
+            await database.ref(`shareRides/${shareRideId}`).set(shareRide);
             
-            await database.ref(`walletTransactions/${userId}/${transactionId}`).set(transaction);
-        } catch (error) {
-            console.error('Error recording wallet transaction for user:', error);
-        }
-    },
-    
-    async loadWalletTransactions() {
-        try {
-            const snapshot = await database.ref(`walletTransactions/${AppState.currentUser.uid}`)
-                .orderByChild('timestamp')
-                .limitToLast(50)
-                .once('value');
-            
-            const transactions = snapshot.val();
-            return transactions ? Object.values(transactions).reverse() : [];
-        } catch (error) {
-            console.error('Error loading wallet transactions:', error);
-            return [];
-        }
-    },
-    
-    async validateReferralCode(referralCode) {
-        try {
-            if (!referralCode || referralCode.trim() === '') {
-                return { valid: false, message: 'Please enter a referral code' };
-            }
-            
-            // Check if user is trying to use their own referral code
-            if (AppState.userData.referralCode === referralCode) {
-                return { valid: false, message: 'You cannot use your own referral code' };
-            }
-            
-            const usersSnapshot = await database.ref('users').orderByChild('referralCode').equalTo(referralCode).once('value');
-            const users = usersSnapshot.val();
-            
-            if (users) {
-                const userId = Object.keys(users)[0];
-                const userData = users[userId];
-                return { 
-                    valid: true, 
-                    ownerName: userData.name,
-                    ownerId: userId
+            // Send invitations to each member
+            for (const member of members) {
+                const invitationId = database.ref().child('shareRideInvitations').push().key;
+                const invitation = {
+                    id: invitationId,
+                    shareRideId: shareRideId,
+                    hostId: AppState.currentUser.uid,
+                    hostName: AppState.userData.name,
+                    recipientId: member.userId,
+                    recipientName: member.name,
+                    status: 'pending',
+                    createdAt: Date.now()
                 };
-            } else {
-                return { valid: false, message: 'Invalid referral code' };
+                
+                await database.ref(`shareRideInvitations/${invitationId}`).set(invitation);
+                
+                // Send notification to member
+                await this.sendNotification(
+                    member.userId,
+                    'Share Ride Invitation',
+                    `${AppState.userData.name} invited you to share a ride`,
+                    'share',
+                    { 
+                        shareRideId: shareRideId,
+                        action: 'accept_share'
+                    }
+                );
             }
+            
+            console.log('Share ride created:', shareRideId);
+            return shareRideId;
         } catch (error) {
-            console.error('Error validating referral code:', error);
-            return { valid: false, message: 'Error validating referral code' };
+            console.error('Error creating share ride:', error);
+            throw error;
         }
     },
     
-    async findUserByReferralCode(referralCode) {
+    async handleShareRideInvitation(invitationId, action) {
         try {
-            const usersSnapshot = await database.ref('users').orderByChild('referralCode').equalTo(referralCode).once('value');
-            const users = usersSnapshot.val();
+            const invitationRef = database.ref(`shareRideInvitations/${invitationId}`);
+            const snapshot = await invitationRef.once('value');
+            const invitation = snapshot.val();
             
-            if (users) {
-                const userId = Object.keys(users)[0];
-                return { id: userId, ...users[userId] };
+            if (!invitation) {
+                throw new Error('Invitation not found');
             }
-            return null;
+            
+            await invitationRef.update({
+                status: action,
+                respondedAt: Date.now()
+            });
+            
+            if (action === 'accept') {
+                // Add user to share ride members
+                const shareRideRef = database.ref(`shareRides/${invitation.shareRideId}`);
+                const shareRideSnapshot = await shareRideRef.once('value');
+                const shareRide = shareRideSnapshot.val();
+                
+                if (shareRide) {
+                    const members = shareRide.members || [];
+                    const memberExists = members.some(m => m.userId === AppState.currentUser.uid);
+                    
+                    if (!memberExists) {
+                        members.push({
+                            userId: AppState.currentUser.uid,
+                            name: AppState.userData.name,
+                            phone: AppState.userData.phone,
+                            status: 'accepted'
+                        });
+                        
+                        await shareRideRef.update({ members: members });
+                    }
+                }
+                
+                EnhancedUIUpdater.showToast('Share ride invitation accepted', 'success');
+            } else {
+                EnhancedUIUpdater.showToast('Share ride invitation declined', 'info');
+            }
+            
         } catch (error) {
-            console.error('Error finding user by referral code:', error);
-            return null;
+            console.error('Error handling share ride invitation:', error);
+            throw error;
         }
     },
     
     async startBroadcast(rideId, recipients) {
         try {
             const broadcastId = database.ref().child('broadcasts').push().key;
-            const broadcastData = {
+            
+            const broadcast = {
                 id: broadcastId,
                 rideId: rideId,
                 hostId: AppState.currentUser.uid,
                 hostName: AppState.userData.name,
                 recipients: recipients,
                 status: 'active',
-                timestamp: Date.now()
+                startedAt: Date.now()
             };
             
-            await database.ref(`broadcasts/${broadcastId}`).set(broadcastData);
+            await database.ref(`broadcasts/${broadcastId}`).set(broadcast);
             
-            // Create invitations for recipients
+            // Send broadcast invitations
             for (const recipient of recipients) {
                 const invitationId = database.ref().child('broadcastInvitations').push().key;
-                const invitationData = {
+                const invitation = {
                     id: invitationId,
                     broadcastId: broadcastId,
+                    hostId: AppState.currentUser.uid,
                     hostName: AppState.userData.name,
                     recipientId: recipient.userId,
-                    recipientPhone: recipient.phone,
                     status: 'pending',
-                    timestamp: Date.now()
+                    createdAt: Date.now()
                 };
                 
-                await database.ref(`broadcastInvitations/${invitationId}`).set(invitationData);
+                await database.ref(`broadcastInvitations/${invitationId}`).set(invitation);
             }
             
             console.log('Broadcast started:', broadcastId);
@@ -12514,440 +12758,241 @@ const EnhancedFirebaseManager = {
     
     async acceptBroadcastInvitation(broadcastId) {
         try {
-            // Find the invitation
-            const invitationsSnapshot = await database.ref('broadcastInvitations')
-                .orderByChild('broadcastId')
-                .equalTo(broadcastId)
-                .once('value');
+            // Update broadcast recipient status
+            const broadcastRef = database.ref(`broadcasts/${broadcastId}`);
+            const snapshot = await broadcastRef.once('value');
+            const broadcast = snapshot.val();
             
-            const invitations = invitationsSnapshot.val();
-            if (invitations) {
-                const invitationId = Object.keys(invitations)[0];
-                await database.ref(`broadcastInvitations/${invitationId}/status`).set('accepted');
+            if (broadcast) {
+                const recipients = broadcast.recipients || [];
+                const updatedRecipients = recipients.map(r => {
+                    if (r.userId === AppState.currentUser.uid) {
+                        return { ...r, status: 'accepted' };
+                    }
+                    return r;
+                });
                 
-                // Add user to broadcast recipients
-                const broadcastSnapshot = await database.ref(`broadcasts/${broadcastId}`).once('value');
-                const broadcast = broadcastSnapshot.val();
+                await broadcastRef.update({ recipients: updatedRecipients });
                 
-                if (broadcast) {
-                    const recipients = broadcast.recipients || [];
-                    recipients.push({
-                        userId: AppState.currentUser.uid,
-                        name: AppState.userData.name,
-                        phone: AppState.userData.phone,
-                        status: 'joined'
-                    });
-                    
-                    await database.ref(`broadcasts/${broadcastId}/recipients`).set(recipients);
-                }
-                
-                EnhancedUIUpdater.showToast('You are now tracking this broadcast ride', 'success');
+                EnhancedUIUpdater.showToast('Broadcast invitation accepted', 'success');
             }
         } catch (error) {
             console.error('Error accepting broadcast invitation:', error);
-            EnhancedUIUpdater.showToast('Error accepting broadcast invitation', 'error');
-        }
-    },
-    
-    async createShareRide(rideId, shareMembers) {
-        try {
-            const shareRideId = database.ref().child('shareRides').push().key;
-            const totalPeople = shareMembers.length + 1;
-            const distance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-            const totalFare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType);
-            const shareAmount = totalFare / totalPeople;
-            
-            const shareRideData = {
-                id: shareRideId,
-                rideId: rideId,
-                hostId: AppState.currentUser.uid,
-                hostName: AppState.userData.name,
-                members: [
-                    {
-                        userId: AppState.currentUser.uid,
-                        name: AppState.userData.name,
-                        phone: AppState.userData.phone,
-                        shareAmount: shareAmount,
-                        status: 'paid',
-                        paymentMethod: AppState.pendingRideData?.paymentMethod
-                    },
-                    ...shareMembers.map(member => ({
-                        userId: member.userId,
-                        name: member.name,
-                        phone: member.phone,
-                        shareAmount: shareAmount,
-                        status: 'pending'
-                    }))
-                ],
-                totalFare: totalFare,
-                shareAmount: shareAmount,
-                status: 'pending_payments',
-                timestamp: Date.now()
-            };
-            
-            await database.ref(`shareRides/${shareRideId}`).set(shareRideData);
-            
-            // Create invitations for members
-            for (const member of shareMembers) {
-                const invitationId = database.ref().child('shareRideInvitations').push().key;
-                const invitationData = {
-                    id: invitationId,
-                    shareRideId: shareRideId,
-                    hostName: AppState.userData.name,
-                    pickup: AppState.pickup.address,
-                    destination: AppState.destination.address,
-                    distance: distance,
-                    totalFare: totalFare,
-                    yourShare: shareAmount,
-                    recipientId: member.userId,
-                    status: 'pending',
-                    timestamp: Date.now()
-                };
-                
-                await database.ref(`shareRideInvitations/${invitationId}`).set(invitationData);
-            }
-            
-            console.log('Share ride created:', shareRideId);
-            return shareRideId;
-        } catch (error) {
-            console.error('Error creating share ride:', error);
             throw error;
         }
     },
     
-    async handleShareRideInvitation(shareRideId, action) {
+    async requestScheduledRide(scheduledRide) {
         try {
-            // Find the invitation
-            const invitationsSnapshot = await database.ref('shareRideInvitations')
-                .orderByChild('shareRideId')
-                .equalTo(shareRideId)
-                .once('value');
+            // Convert scheduled ride to regular ride request
+            const rideData = {
+                pickup: scheduledRide.pickup,
+                pickupDisplay: scheduledRide.pickupDisplay,
+                destination: scheduledRide.destination,
+                destinationDisplay: scheduledRide.destinationDisplay,
+                pickupLat: scheduledRide.pickupLat,
+                pickupLng: scheduledRide.pickupLng,
+                destLat: scheduledRide.destLat,
+                destLng: scheduledRide.destLng,
+                rideType: scheduledRide.rideType,
+                fare: scheduledRide.fare,
+                distance: scheduledRide.distance,
+                scheduled: true,
+                scheduledTime: scheduledRide.scheduledTime,
+                paymentMethod: scheduledRide.paymentMethod
+            };
             
-            const invitations = invitationsSnapshot.val();
-            if (invitations) {
-                const invitationId = Object.keys(invitations)[0];
-                const invitation = invitations[invitationId];
-                
-                if (action === 'accept') {
-                    // Show payment modal for the share amount
-                    showPaymentModal('share', invitation.yourShare, {
-                        shareRideId: shareRideId,
-                        yourShare: invitation.yourShare,
-                        totalFare: invitation.totalFare
-                    });
-                } else {
-                    // Update invitation status to rejected
-                    await database.ref(`shareRideInvitations/${invitationId}/status`).set('rejected');
-                    
-                    // Update share ride member status
-                    const shareRideSnapshot = await database.ref(`shareRides/${shareRideId}`).once('value');
-                    const shareRide = shareRideSnapshot.val();
-                    
-                    if (shareRide) {
-                        const members = shareRide.members.map(member => {
-                            if (member.userId === AppState.currentUser.uid) {
-                                return { ...member, status: 'rejected' };
-                            }
-                            return member;
-                        });
-                        
-                        await database.ref(`shareRides/${shareRideId}/members`).set(members);
-                    }
-                    
-                    EnhancedUIUpdater.showToast('Invitation rejected', 'info');
-                }
-            }
+            // Update scheduled ride status
+            await database.ref(`scheduledRides/${scheduledRide.id}`).update({
+                status: 'requested',
+                requestedAt: Date.now()
+            });
+            
+            // Create ride request
+            await this.requestRide(rideData);
+            
         } catch (error) {
-            console.error('Error handling share ride invitation:', error);
-            EnhancedUIUpdater.showToast('Error processing invitation', 'error');
+            console.error('Error requesting scheduled ride:', error);
+            throw error;
         }
     },
     
-    async processShareRidePayment(shareRideId, userId, amount) {
+    async cancelScheduledRide(scheduledRideId) {
         try {
-            const shareRideSnapshot = await database.ref(`shareRides/${shareRideId}`).once('value');
-            const shareRide = shareRideSnapshot.val();
-            
-            if (!shareRide) {
-                throw new Error('Share ride not found');
-            }
-            
-            // Update member status to paid
-            const members = shareRide.members.map(member => {
-                if (member.userId === userId) {
-                    return { ...member, status: 'paid' };
-                }
-                return member;
+            await database.ref(`scheduledRides/${scheduledRideId}`).update({
+                status: 'cancelled',
+                cancelledAt: Date.now()
             });
             
-            await database.ref(`shareRides/${shareRideId}/members`).set(members);
+            EnhancedUIUpdater.showToast('Scheduled ride cancelled', 'success');
             
-            // Check if all members have paid
-            const allPaid = members.every(member => member.status === 'paid');
-            if (allPaid) {
-                await database.ref(`shareRides/${shareRideId}/status`).set('ready');
-                
-                // Request the actual ride
-                const rideData = {
-                    pickup: AppState.pickup.address,
-                    pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
-                    destination: AppState.destination.address,
-                    destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
-                    pickupLat: AppState.pickup.lat,
-                    pickupLng: AppState.pickup.lng,
-                    destLat: AppState.destination.lat,
-                    destLng: AppState.destination.lng,
-                    rideType: AppState.selectedRideType,
-                    fare: shareRide.totalFare,
-                    distance: shareRide.distance,
-                    shareRide: true,
-                    shareRideId: shareRideId
-                };
-                
-                await this.requestRide(rideData);
-            }
-            
-            EnhancedUIUpdater.showToast('Share ride payment processed', 'success');
         } catch (error) {
-            console.error('Error processing share ride payment:', error);
+            console.error('Error cancelling scheduled ride:', error);
+            throw error;
+        }
+    },
+    
+    async loadRideDetails(rideId) {
+        try {
+            const snapshot = await database.ref(`rides/${rideId}`).once('value');
+            const ride = snapshot.val();
+            
+            if (ride) {
+                EnhancedUIUpdater.showRideInfo({ id: rideId, ...ride });
+                return ride;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error loading ride details:', error);
             throw error;
         }
     },
     
     async syncUserData() {
-        if (AppState.isSyncing || !AppState.currentUser) return;
+        if (AppState.isSyncing) return;
         
         AppState.isSyncing = true;
         EnhancedUIUpdater.showSyncIndicator(true);
         
         try {
-            // Sync user data
-            const snapshot = await database.ref(`users/${AppState.currentUser.uid}`).once('value');
-            const userData = snapshot.val();
-            
-            if (userData) {
-                AppState.userData = userData;
-                AppState.walletBalance = userData.walletBalance || 0;
-                EnhancedUIUpdater.updateWalletBalance(AppState.walletBalance);
-                EnhancedUIUpdater.updateUserInfo(userData);
+            if (AppState.currentUser) {
+                await this.loadUserData(AppState.currentUser.uid);
             }
             
-            // Check for active ride
-            await this.checkActiveRide(AppState.currentUser.uid);
+            EnhancedUIUpdater.showRealTimeIndicator();
             
-            // Load notifications
-            await this.loadNotifications(AppState.currentUser.uid);
-            
-            console.log('User data synced successfully');
         } catch (error) {
             console.error('Error syncing user data:', error);
         } finally {
             AppState.isSyncing = false;
             EnhancedUIUpdater.showSyncIndicator(false);
         }
-    }
-};
-
-// ============================================
-// CITY DETECTOR
-// ============================================
-const CityDetector = {
-    detectCityFromLocation: async function(latitude, longitude) {
-        try {
-            console.log(`Detecting city for coordinates: ${latitude}, ${longitude}`);
-            
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`
-            );
-            
-            if (!response.ok) {
-                throw new Error(`Geocoding failed: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            const address = data.address;
-            
-            // Try to get city from various address components
-            const city = address.city || address.town || address.village || 
-                         address.municipality || address.county || address.state_district;
-            
-            if (city) {
-                console.log(`City detected: ${city}`);
-                AppState.currentCity = city;
-                AppState.detectedCity = city;
-                EnhancedUIUpdater.updateCityDisplay(city);
-                EnhancedUIUpdater.showCityBoundaryOnMap(city);
-                return city;
-            } else {
-                console.warn('Could not detect city from location');
-                return this.useDefaultCity();
-            }
-        } catch (error) {
-            console.error('City detection error:', error);
-            return this.useDefaultCity();
-        }
     },
     
-    useDefaultCity: function() {
-        console.log('Using default city: Lusaka');
-        AppState.currentCity = 'Lusaka';
-        AppState.detectedCity = 'Lusaka';
-        EnhancedUIUpdater.updateCityDisplay('Lusaka');
-        EnhancedUIUpdater.showCityBoundaryOnMap('Lusaka');
-        return 'Lusaka';
-    },
-    
-    getDetailedAddress: async function(latitude, longitude) {
+    async requestDelivery(deliveryData) {
         try {
-            const response = await fetch(
-                `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&addressdetails=1`
-            );
+            EnhancedUIUpdater.showLoading('Requesting delivery...');
             
-            if (!response.ok) {
-                throw new Error('Reverse geocoding failed');
-            }
+            const rideId = database.ref().child('rides').push().key;
             
-            const data = await response.json();
-            const address = data.address;
-            
-            let detailedAddress = '';
-            if (address.road) {
-                detailedAddress = address.road;
-                if (address.house_number) {
-                    detailedAddress = `${address.house_number} ${detailedAddress}`;
-                }
-            } else if (address.neighbourhood) {
-                detailedAddress = address.neighbourhood;
-            } else if (address.suburb) {
-                detailedAddress = address.suburb;
-            }
-            
-            const city = address.city || address.town || address.village;
-            if (city && city !== AppState.currentCity) {
-                detailedAddress += `, ${city}`;
-            }
-            
-            const fullDisplay = data.display_name || detailedAddress;
-            
-            return {
-                address: detailedAddress || 'Current Location',
-                fullDisplay: fullDisplay,
-                city: city,
-                road: address.road,
-                houseNumber: address.house_number,
-                neighbourhood: address.neighbourhood,
-                suburb: address.suburb
-            };
-        } catch (error) {
-            console.error('Error getting detailed address:', error);
-            return {
-                address: 'Current Location',
-                fullDisplay: `Current Location (${latitude.toFixed(4)}, ${longitude.toFixed(4)})`,
+            const delivery = {
+                id: rideId,
+                ...deliveryData,
+                serviceType: 'delivery',
+                status: 'requested',
+                timestamp: Date.now(),
+                updatedAt: Date.now(),
+                passengerId: AppState.currentUser.uid,
+                passengerName: AppState.userData.name,
+                passengerPhone: AppState.userData.phone,
                 city: AppState.currentCity
             };
-        }
-    }
-};
-
-// ============================================
-// RIDE TYPE MANAGER
-// ============================================
-const RideTypeManager = {
-    init: function() {
-        this.setupRideTypeCards();
-        this.setupRideTypeSelection();
-    },
-    
-    setupRideTypeCards: function() {
-        const container = document.getElementById('rideTypeCardsContainer');
-        if (!container) return;
-        
-        // Clear existing cards
-        container.innerHTML = '';
-        
-        // Create horizontal layout for ride types
-        const rideTypesGrid = document.createElement('div');
-        rideTypesGrid.className = 'ride-type-grid';
-        rideTypesGrid.style.cssText = `
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin: 15px 0;
-        `;
-        
-        // Create cards for each ride type
-        Object.entries(AppState.rideTypes).forEach(([type, config]) => {
-            const card = document.createElement('div');
-            card.className = `ride-type-card ${type === AppState.selectedRideType ? 'selected' : ''}`;
-            card.dataset.type = type;
             
-            const typeName = type.charAt(0).toUpperCase() + type.slice(1);
+            await database.ref(`rides/${rideId}`).set(delivery);
             
-            card.innerHTML = `
-                <div class="ride-type-icon">
-                    <i class="fas ${config.icon}"></i>
-                </div>
-                <div class="ride-type-name">${typeName}</div>
-                <div class="ride-type-price" id="${type}Price">ZMW 0.00</div>
-            `;
+            AppState.currentRide = delivery;
+            EnhancedUIUpdater.showRideInfo(delivery);
+            EnhancedUIUpdater.updateTimeline('requested');
             
-            card.addEventListener('click', () => {
-                this.selectRideType(type);
-            });
+            EnhancedUIUpdater.showPulsingRideIcon();
             
-            rideTypesGrid.appendChild(card);
-        });
-        
-        container.appendChild(rideTypesGrid);
-    },
-    
-    setupRideTypeSelection: function() {
-        // Also setup for other forms that have ride type selection
-        const rideTypeGrids = document.querySelectorAll('.ride-type-grid');
-        rideTypeGrids.forEach(grid => {
-            grid.querySelectorAll('.ride-type-card').forEach(card => {
-                card.addEventListener('click', () => {
-                    const type = card.dataset.type;
-                    this.selectRideType(type);
-                    
-                    // Update all ride type grids
-                    document.querySelectorAll('.ride-type-grid').forEach(otherGrid => {
-                        otherGrid.querySelectorAll('.ride-type-card').forEach(otherCard => {
-                            otherCard.classList.remove('selected');
-                            if (otherCard.dataset.type === type) {
-                                otherCard.classList.add('selected');
-                            }
-                        });
-                    });
-                });
-            });
-        });
-    },
-    
-    selectRideType: function(type) {
-        AppState.selectedRideType = type;
-        console.log(`Ride type selected: ${type}`);
-        
-        // Update prices if destination is set
-        if (AppState.pickup && AppState.destination) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
+            this.listenToRideUpdates(rideId);
+            await this.notifyAvailableDrivers(delivery);
+            
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Delivery requested successfully', 'success');
+            
+            return rideId;
+        } catch (error) {
+            console.error('Error requesting delivery:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast(error.message, 'error');
+            throw error;
         }
     },
     
-    updateRideTypePrices: function(distanceKm) {
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        
-        document.querySelectorAll('.ride-type-card').forEach(card => {
-            const type = card.dataset.type;
-            const priceElement = card.querySelector('.ride-type-price');
-            if (priceElement) {
-                const price = EnhancedPriceCalculator.calculateRideFare(distanceKm, type, surge);
-                priceElement.textContent = `ZMW ${price.toFixed(2)}`;
-            }
-        });
+    async requestTruck(truckData) {
+        try {
+            EnhancedUIUpdater.showLoading('Requesting truck...');
+            
+            const rideId = database.ref().child('rides').push().key;
+            
+            const truckDelivery = {
+                id: rideId,
+                ...truckData,
+                serviceType: 'truck',
+                status: 'requested',
+                timestamp: Date.now(),
+                updatedAt: Date.now(),
+                passengerId: AppState.currentUser.uid,
+                passengerName: AppState.userData.name,
+                passengerPhone: AppState.userData.phone,
+                city: AppState.currentCity
+            };
+            
+            await database.ref(`rides/${rideId}`).set(truckDelivery);
+            
+            AppState.currentRide = truckDelivery;
+            EnhancedUIUpdater.showRideInfo(truckDelivery);
+            EnhancedUIUpdater.updateTimeline('requested');
+            
+            EnhancedUIUpdater.showPulsingRideIcon();
+            
+            this.listenToRideUpdates(rideId);
+            await this.notifyAvailableDrivers(truckDelivery);
+            
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Truck requested successfully', 'success');
+            
+            return rideId;
+        } catch (error) {
+            console.error('Error requesting truck:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast(error.message, 'error');
+            throw error;
+        }
+    },
+    
+    async requestShopping(shoppingData) {
+        try {
+            EnhancedUIUpdater.showLoading('Requesting shopping service...');
+            
+            const rideId = database.ref().child('rides').push().key;
+            
+            const shopping = {
+                id: rideId,
+                ...shoppingData,
+                serviceType: 'shopping',
+                status: 'requested',
+                timestamp: Date.now(),
+                updatedAt: Date.now(),
+                passengerId: AppState.currentUser.uid,
+                passengerName: AppState.userData.name,
+                passengerPhone: AppState.userData.phone,
+                city: AppState.currentCity
+            };
+            
+            await database.ref(`rides/${rideId}`).set(shopping);
+            
+            AppState.currentRide = shopping;
+            EnhancedUIUpdater.showRideInfo(shopping);
+            EnhancedUIUpdater.updateTimeline('requested');
+            
+            EnhancedUIUpdater.showPulsingRideIcon();
+            
+            this.listenToRideUpdates(rideId);
+            await this.notifyAvailableDrivers(shopping);
+            
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Shopping service requested successfully', 'success');
+            
+            return rideId;
+        } catch (error) {
+            console.error('Error requesting shopping service:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast(error.message, 'error');
+            throw error;
+        }
     }
 };
 
@@ -12955,51 +13000,48 @@ const RideTypeManager = {
 // NOTIFICATION MANAGER
 // ============================================
 const NotificationManager = {
-    requestNotificationPermission: async function() {
-        if ('Notification' in window) {
-            try {
-                const permission = await Notification.requestPermission();
-                console.log('Notification permission:', permission);
-                return permission === 'granted';
-            } catch (error) {
-                console.error('Error requesting notification permission:', error);
-                return false;
-            }
+    async requestNotificationPermission() {
+        if (!("Notification" in window)) {
+            console.log("This browser does not support notifications");
+            return false;
         }
+        
+        if (Notification.permission === "granted") {
+            return true;
+        } else if (Notification.permission !== "denied") {
+            const permission = await Notification.requestPermission();
+            return permission === "granted";
+        }
+        
         return false;
     },
     
-    showBrowserNotification: function(title, body, icon = null) {
-        if (Notification.permission === 'granted') {
-            const notification = new Notification(title, {
-                body: body,
-                icon: icon || 'jubel.png',
-                badge: 'jubel.png'
+    showNotification(title, message) {
+        if (!("Notification" in window)) return;
+        
+        if (Notification.permission === "granted") {
+            new Notification(title, {
+                body: message,
+                icon: 'jubel.png'
             });
-            
-            notification.onclick = function() {
-                window.focus();
-                notification.close();
-            };
-            
-            setTimeout(() => {
-                notification.close();
-            }, 5000);
         }
     },
     
-    schedulePeriodicChecks: function() {
+    schedulePeriodicChecks() {
+        // Check for new notifications every 30 seconds
+        setInterval(() => {
+            if (AppState.currentUser) {
+                EnhancedFirebaseManager.loadNotifications(AppState.currentUser.uid);
+            }
+        }, 30000);
+        
         // Check for scheduled rides every minute
         setInterval(() => {
             if (AppState.currentUser && AppState.scheduledRides.length > 0) {
                 const now = Date.now();
                 AppState.scheduledRides.forEach(ride => {
-                    if (ride.scheduledTime && ride.scheduledTime <= now + 3600000 && ride.status === 'scheduled') {
-                        this.showBrowserNotification(
-                            'Upcoming Scheduled Ride',
-                            `Your ride is scheduled in less than an hour`,
-                            'jubel.png'
-                        );
+                    if (ride.scheduledTime && ride.scheduledTime <= now && ride.status === 'scheduled') {
+                        EnhancedUIUpdater.showToast('Scheduled ride time reached!', 'success');
                     }
                 });
             }
@@ -13011,375 +13053,41 @@ const NotificationManager = {
 // BROADCAST MANAGER
 // ============================================
 const BroadcastManager = {
-    createBroadcast: async function(rideData, recipients) {
+    async createBroadcast(rideData, recipients) {
         try {
             const broadcastId = await EnhancedFirebaseManager.startBroadcast(rideData.id, recipients);
             
             // Update ride with broadcast info
-            await database.ref(`rides/${rideData.id}/broadcast`).set(true);
-            await database.ref(`rides/${rideData.id}/broadcastId`).set(broadcastId);
+            await database.ref(`rides/${rideData.id}`).update({
+                broadcast: true,
+                broadcastId: broadcastId,
+                broadcastRecipients: recipients
+            });
             
-            EnhancedUIUpdater.showToast('Broadcast ride created successfully', 'success');
+            EnhancedUIUpdater.showToast('Broadcast ride started! Your friends can now track your ride.', 'success');
+            
             return broadcastId;
         } catch (error) {
             console.error('Error creating broadcast:', error);
-            EnhancedUIUpdater.showToast('Error creating broadcast ride', 'error');
             throw error;
         }
     },
     
-    addBroadcastRecipient: function(recipientCode) {
-        EnhancedFirebaseManager.findUserByReferralCode(recipientCode)
-            .then(userData => {
-                if (userData) {
-                    const recipient = {
-                        userId: userData.id,
-                        name: userData.name,
-                        phone: userData.phone,
-                        status: 'invited'
-                    };
-                    
-                    AppState.broadcastRecipients.push(recipient);
-                    EnhancedUIUpdater.updateBroadcastRecipients(AppState.broadcastRecipients);
-                    EnhancedUIUpdater.showToast(`${userData.name} added to broadcast`, 'success');
-                } else {
-                    EnhancedUIUpdater.showToast('User not found', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error adding broadcast recipient:', error);
-                EnhancedUIUpdater.showToast('Error adding recipient', 'error');
-            });
-    },
-    
-    removeBroadcastRecipient: function(userId) {
-        AppState.broadcastRecipients = AppState.broadcastRecipients.filter(r => r.userId !== userId);
-        EnhancedUIUpdater.updateBroadcastRecipients(AppState.broadcastRecipients);
-    }
-};
-
-// ============================================
-// SOS AND EMERGENCY MANAGER
-// ============================================
-const EmergencyManager = {
-    init: function() {
-        this.setupEmergencyContacts();
-        this.setupEmergencyServices();
-    },
-    
-    setupEmergencyContacts: function() {
-        const emergencyContact1Btn = document.getElementById('emergencyContact1Btn');
-        const emergencyContact2Btn = document.getElementById('emergencyContact2Btn');
-        
-        if (emergencyContact1Btn) {
-            emergencyContact1Btn.addEventListener('click', () => {
-                this.callEmergencyContact('contact1');
-            });
-        }
-        
-        if (emergencyContact2Btn) {
-            emergencyContact2Btn.addEventListener('click', () => {
-                this.callEmergencyContact('contact2');
-            });
-        }
-    },
-    
-    setupEmergencyServices: function() {
-        document.querySelectorAll('.emergency-service').forEach(service => {
-            service.addEventListener('click', () => {
-                const type = service.dataset.type;
-                this.handleEmergencyService(type);
-            });
-        });
-    },
-    
-    callEmergencyContact: function(contactType) {
-        let phoneNumber = '';
-        
-        if (contactType === 'contact1') {
-            phoneNumber = AppState.sosConfig?.contact1Phone;
-        } else if (contactType === 'contact2') {
-            phoneNumber = AppState.sosConfig?.contact2Phone;
-        }
-        
-        if (phoneNumber) {
-            window.open(`tel:${phoneNumber}`, '_blank');
-        } else {
-            EnhancedUIUpdater.showToast('Phone number not available', 'warning');
-        }
-    },
-    
-    handleEmergencyService: function(type) {
-        if (!AppState.userLocation) {
-            EnhancedUIUpdater.showToast('Please allow location access for emergency services', 'warning');
-            return;
-        }
-        
-        if (!AppState.currentCity) {
-            EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
-            return;
-        }
-        
-        EnhancedFirebaseManager.loadEmergencyStations(AppState.currentCity, type)
-            .then(() => {
-                const emergencyServiceType = document.getElementById('emergencyServiceType');
-                if (emergencyServiceType) {
-                    emergencyServiceType.textContent = 
-                        type.charAt(0).toUpperCase() + type.slice(1) + ' Ride';
-                    emergencyServiceType.dataset.type = type;
-                }
-                
-                showModal('emergency');
-            });
-    },
-    
-    triggerSOS: function() {
-        if (!AppState.sosConfig) {
-            EnhancedUIUpdater.showToast('Please setup SOS contacts first', 'warning');
-            return;
-        }
-        
-        if (!AppState.currentRide) {
-            EnhancedUIUpdater.showToast('No active ride to report SOS for', 'warning');
-            return;
-        }
-        
-        if (!confirm('Are you sure you want to send an SOS alert to your emergency contacts?')) {
-            return;
-        }
-        
-        const sosData = {
-            emergencyContact1: AppState.sosConfig.contact1Phone,
-            emergencyContact1Name: AppState.sosConfig.contact1Name,
-            emergencyContact2: AppState.sosConfig.contact2Phone,
-            emergencyContact2Name: AppState.sosConfig.contact2Name,
-            message: AppState.sosConfig.message,
-            location: AppState.userLocation,
-            rideDetails: {
-                pickup: AppState.currentRide.pickupDisplay,
-                destination: AppState.currentRide.destinationDisplay,
-                driver: AppState.currentRide.driverName
-            },
-            city: AppState.currentCity
-        };
-        
-        EnhancedFirebaseManager.sendSOSAlert(AppState.currentRide.id, sosData)
-            .then(() => {
-                EnhancedUIUpdater.showToast('SOS alert sent to emergency contacts', 'success');
-            })
-            .catch(error => {
-                console.error('SOS error:', error);
-                EnhancedUIUpdater.showToast('Error sending SOS alert', 'error');
-            });
-    }
-};
-
-// ============================================
-// WALLET AND TRANSACTIONS MANAGER
-// ============================================
-const WalletManager = {
-    init: function() {
-        this.setupWalletActions();
-    },
-    
-    setupWalletActions: function() {
-        const depositBtn = document.getElementById('depositBtn');
-        const withdrawBtn = document.getElementById('withdrawBtn');
-        const transferBtn = document.getElementById('transferBtn');
-        const transactionsBtn = document.getElementById('transactionsBtn');
-        
-        if (depositBtn) {
-            depositBtn.addEventListener('click', () => {
-                this.showDepositModal();
-            });
-        }
-        
-        if (withdrawBtn) {
-            withdrawBtn.addEventListener('click', () => {
-                this.showWithdrawModal();
-            });
-        }
-        
-        if (transferBtn) {
-            transferBtn.addEventListener('click', () => {
-                showModal('transfer');
-            });
-        }
-        
-        if (transactionsBtn) {
-            transactionsBtn.addEventListener('click', async () => {
-                await this.showTransactionsModal();
-            });
-        }
-    },
-    
-    showDepositModal: function() {
-        const amount = prompt('Enter deposit amount (ZMW):');
-        if (amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0) {
-            EnhancedFirebaseManager.depositMoney(parseFloat(amount))
-                .catch(error => {
-                    console.error('Deposit error:', error);
-                });
-        }
-    },
-    
-    showWithdrawModal: function() {
-        const amount = prompt('Enter withdrawal amount (ZMW):');
-        if (amount && !isNaN(parseFloat(amount)) && parseFloat(amount) > 0) {
-            EnhancedFirebaseManager.withdrawMoney(parseFloat(amount))
-                .then(() => {
-                    EnhancedUIUpdater.showToast(`ZMW ${parseFloat(amount).toFixed(2)} withdrawn successfully`, 'success');
-                })
-                .catch(error => {
-                    EnhancedUIUpdater.showToast(error.message, 'error');
-                });
-        }
-    },
-    
-    async showTransactionsModal() {
+    async updateBroadcastLocation(broadcastId, location) {
         try {
-            EnhancedUIUpdater.showLoading('Loading transactions...');
-            const transactions = await EnhancedFirebaseManager.loadWalletTransactions();
-            displayTransactions(transactions);
-            showModal('transactions');
-            EnhancedUIUpdater.hideLoading();
-        } catch (error) {
-            console.error('Error loading transactions:', error);
-            EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error loading transactions', 'error');
-        }
-    }
-};
-
-// ============================================
-// SCHEDULE RIDE MANAGER
-// ============================================
-const ScheduleRideManager = {
-    init: function() {
-        this.setupScheduleModal();
-    },
-    
-    setupScheduleModal: function() {
-        const confirmScheduleBtn = document.getElementById('confirmScheduleBtn');
-        if (confirmScheduleBtn) {
-            confirmScheduleBtn.addEventListener('click', async () => {
-                await this.scheduleRide();
+            await database.ref(`broadcasts/${broadcastId}/location`).set({
+                lat: location.lat,
+                lng: location.lng,
+                updatedAt: Date.now()
             });
-        }
-        
-        // Set minimum date to today
-        const scheduleDate = document.getElementById('scheduleDate');
-        if (scheduleDate) {
-            const today = new Date().toISOString().split('T')[0];
-            scheduleDate.min = today;
-            scheduleDate.value = today;
-        }
-        
-        // Set default time to next hour
-        const scheduleTime = document.getElementById('scheduleTime');
-        if (scheduleTime) {
-            const nextHour = new Date();
-            nextHour.setHours(nextHour.getHours() + 1);
-            scheduleTime.value = nextHour.toTimeString().substring(0, 5);
-        }
-    },
-    
-    async scheduleRide() {
-        try {
-            const pickupInput = document.getElementById('schedulePickup');
-            const destinationInput = document.getElementById('scheduleDestination');
-            const dateInput = document.getElementById('scheduleDate');
-            const timeInput = document.getElementById('scheduleTime');
-            const forSomeoneCheckbox = document.getElementById('scheduleForSomeone');
-            
-            if (!pickupInput.value || !destinationInput.value || !dateInput.value || !timeInput.value) {
-                EnhancedUIUpdater.showToast('Please fill all required fields', 'warning');
-                return;
-            }
-            
-            const scheduledDateTime = new Date(`${dateInput.value}T${timeInput.value}`);
-            const scheduledTime = scheduledDateTime.getTime();
-            
-            if (scheduledTime <= Date.now()) {
-                EnhancedUIUpdater.showToast('Schedule time must be in the future', 'warning');
-                return;
-            }
-            
-            const rideData = {
-                pickup: pickupInput.value,
-                pickupDisplay: pickupInput.value,
-                destination: destinationInput.value,
-                destinationDisplay: destinationInput.value,
-                pickupLat: parseFloat(pickupInput.dataset.lat) || AppState.pickup?.lat,
-                pickupLng: parseFloat(pickupInput.dataset.lng) || AppState.pickup?.lng,
-                destLat: parseFloat(destinationInput.dataset.lat) || AppState.destination?.lat,
-                destLng: parseFloat(destinationInput.dataset.lng) || AppState.destination?.lng,
-                rideType: AppState.selectedRideType,
-                fare: AppState.rideFare,
-                scheduledTime: scheduledTime,
-                status: 'scheduled',
-                passengerId: AppState.currentUser.uid,
-                passengerName: AppState.userData.name,
-                passengerPhone: AppState.userData.phone,
-                city: AppState.currentCity
-            };
-            
-            if (forSomeoneCheckbox?.checked) {
-                const recipientName = document.getElementById('recipientName')?.value;
-                const recipientPhone = document.getElementById('recipientPhone')?.value;
-                
-                if (!recipientName || !recipientPhone) {
-                    EnhancedUIUpdater.showToast('Please fill recipient details', 'warning');
-                    return;
-                }
-                
-                rideData.forSomeone = true;
-                rideData.recipientName = recipientName;
-                rideData.recipientPhone = recipientPhone;
-            }
-            
-            const scheduledRideId = database.ref().child('scheduledRides').push().key;
-            await database.ref(`scheduledRides/${scheduledRideId}`).set(rideData);
-            
-            hideModal('schedule');
-            EnhancedUIUpdater.showToast('Ride scheduled successfully', 'success');
-            
-            // Show countdown if ride is within next hour
-            const timeUntilRide = scheduledTime - Date.now();
-            if (timeUntilRide <= 3600000) {
-                EnhancedUIUpdater.showScheduleCountdown(scheduledTime);
-            }
         } catch (error) {
-            console.error('Error scheduling ride:', error);
-            EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
+            console.error('Error updating broadcast location:', error);
         }
     }
 };
 
 // ============================================
-// MAP INITIALIZATION
-// ============================================
-function initializeMap() {
-    console.log('Initializing map...');
-    const defaultLat = -15.4167;
-    const defaultLng = 28.2833;
-    
-    map = L.map('map').setView([defaultLat, defaultLng], 13);
-    
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
-    }).addTo(map);
-    
-    L.control.scale().addTo(map);
-    
-    EnhancedUIUpdater.hideMapLoading();
-    AppState.mapInitialized = true;
-    console.log('Map initialized');
-}
-
-// ============================================
-// LOCATION MANAGEMENT
+// APP INITIALIZATION FUNCTIONS
 // ============================================
 async function getCurrentLocation() {
     if (!navigator.geolocation) {
@@ -13405,22 +13113,29 @@ async function getCurrentLocation() {
         
         AppState.userLocation = { lat: latitude, lng: longitude };
         
+        // Update map
         if (map) {
             map.setView([latitude, longitude], 15);
             
-            currentLocationMarker = L.marker([latitude, longitude], {
-                icon: L.divIcon({
-                    className: 'current-location-marker',
-                    html: '<i class="fas fa-user"></i>',
-                    iconSize: [18, 18],
-                    iconAnchor: [9, 18]
-                })
-            }).addTo(map).bindPopup('Your Location');
+            if (currentLocationMarker) {
+                currentLocationMarker.setLatLng([latitude, longitude]);
+            } else {
+                currentLocationMarker = L.marker([latitude, longitude], {
+                    icon: L.divIcon({
+                        className: 'current-location-marker',
+                        html: '<i class="fas fa-user"></i>',
+                        iconSize: [18, 18],
+                        iconAnchor: [9, 18]
+                    })
+                }).addTo(map).bindPopup('Your Location');
+            }
         }
         
+        // Get detailed address
         const detailedAddress = await CityDetector.getDetailedAddress(latitude, longitude);
         console.log('Detailed address:', detailedAddress);
         
+        // Update pickup inputs with current location
         const addressInputs = [
             'pickupLocation', 'deliveryPickup', 'shortDeliveryPickup', 
             'truckPickup', 'schedulePickup', 'someonePickup',
@@ -13434,6 +13149,7 @@ async function getCurrentLocation() {
                 input.dataset.lat = latitude;
                 input.dataset.lng = longitude;
                 
+                // Show clear button
                 if (input.parentNode.querySelector('.clear-pickup-btn')) {
                     input.parentNode.querySelector('.clear-pickup-btn').style.display = 'block';
                 }
@@ -13443,10 +13159,8 @@ async function getCurrentLocation() {
             }
         });
         
-        const emergencyUserLocation = document.getElementById('emergencyUserLocation');
-        if (emergencyUserLocation) {
-            emergencyUserLocation.textContent = detailedAddress.fullDisplay;
-        }
+        // Update emergency user location
+        document.getElementById('emergencyUserLocation').textContent = detailedAddress.fullDisplay;
         
         AppState.pickup = {
             lat: latitude,
@@ -13456,6 +13170,7 @@ async function getCurrentLocation() {
             fullDisplay: detailedAddress.fullDisplay
         };
         
+        // Detect city
         const city = await CityDetector.detectCityFromLocation(latitude, longitude);
         console.log(`City detected: ${city}`);
         
@@ -13467,30 +13182,47 @@ async function getCurrentLocation() {
         EnhancedUIUpdater.hideLoading();
         EnhancedUIUpdater.showToast('Unable to get your location. Using default location.', 'warning');
         
+        // Use default location (Lusaka)
         AppState.userLocation = { lat: -15.4167, lng: 28.2833 };
-        if (map) {
-            map.setView([-15.4167, 28.2833], 13);
-        }
+        if (map) map.setView([-15.4167, 28.2833], 13);
         
         CityDetector.useDefaultCity();
     }
 }
 
-// ============================================
-// SCREEN MANAGEMENT
-// ============================================
+function initializeMap() {
+    console.log('Initializing map...');
+    const defaultLat = -15.4167;
+    const defaultLng = 28.2833;
+    
+    map = L.map('map').setView([defaultLat, defaultLng], 13);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    
+    L.control.scale().addTo(map);
+    
+    EnhancedUIUpdater.hideMapLoading();
+    console.log('Map initialized');
+}
+
 function switchScreen(screen) {
     console.log(`Switching to screen: ${screen}`);
     
+    // Hide all screens
     document.querySelectorAll('.history-screen, .account-screen, .emergency-screen').forEach(s => {
         s.classList.remove('active');
         s.style.display = 'none';
     });
     
+    // Update navigation tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
         tab.classList.remove('active');
     });
     
+    // Close other panels
     document.getElementById('chatContainer')?.classList.remove('active');
     document.getElementById('notificationsPanel')?.classList.remove('active');
     document.getElementById('moreOptionsMenu')?.classList.remove('active');
@@ -13517,11 +13249,13 @@ function switchScreen(screen) {
 function switchService(service) {
     console.log(`Switching to service: ${service}`);
     
+    // Hide all forms
     document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => {
         form.style.display = 'none';
         form.classList.remove('active');
     });
     
+    // Update service tabs
     document.querySelectorAll('.service-tab').forEach(tab => {
         tab.classList.remove('active');
     });
@@ -13560,9 +13294,94 @@ function switchService(service) {
     }
 }
 
-// ============================================
-// MODAL MANAGEMENT
-// ============================================
+function handleMoreOptionSelection(option) {
+    console.log(`More option selected: ${option}`);
+    switch(option) {
+        case 'schedule':
+            showModal('schedule');
+            break;
+        case 'orderForSomeone':
+            showModal('orderForSomeone');
+            break;
+        case 'shareRide':
+            showModal('shareRide');
+            break;
+        case 'broadcast':
+            switchService('broadcast');
+            break;
+    }
+}
+
+function handleEmergencyService(type) {
+    console.log(`Emergency service selected: ${type}`);
+    
+    if (!AppState.userLocation) {
+        EnhancedUIUpdater.showToast('Please allow location access for emergency services', 'warning');
+        return;
+    }
+    
+    if (!AppState.currentCity) {
+        EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
+        return;
+    }
+    
+    EnhancedFirebaseManager.loadEmergencyStations(AppState.currentCity, type)
+        .then(() => {
+            const emergencyServiceType = document.getElementById('emergencyServiceType');
+            if (emergencyServiceType) {
+                emergencyServiceType.textContent = 
+                    type.charAt(0).toUpperCase() + type.slice(1) + ' Ride';
+                emergencyServiceType.dataset.type = type;
+            }
+            
+            EnhancedEmergencyLocator.showEmergencyStationsOnMap(type);
+            
+            showModal('emergency');
+        });
+}
+
+function triggerSOS() {
+    console.log('Triggering SOS');
+    
+    if (!AppState.sosConfig) {
+        EnhancedUIUpdater.showToast('Please setup SOS contacts first', 'warning');
+        return;
+    }
+    
+    if (!AppState.currentRide) {
+        EnhancedUIUpdater.showToast('No active ride to report SOS for', 'warning');
+        return;
+    }
+    
+    if (!confirm('Are you sure you want to send an SOS alert to your emergency contacts?')) {
+        return;
+    }
+    
+    const sosData = {
+        emergencyContact1: AppState.sosConfig.contact1Phone,
+        emergencyContact1Name: AppState.sosConfig.contact1Name,
+        emergencyContact2: AppState.sosConfig.contact2Phone,
+        emergencyContact2Name: AppState.sosConfig.contact2Name,
+        message: AppState.sosConfig.message,
+        location: AppState.userLocation,
+        rideDetails: {
+            pickup: AppState.currentRide.pickupDisplay,
+            destination: AppState.currentRide.destinationDisplay,
+            driver: AppState.currentRide.driverName
+        },
+        city: AppState.currentCity
+    };
+    
+    EnhancedFirebaseManager.sendSOSAlert(AppState.currentRide.id, sosData)
+        .then(() => {
+            EnhancedUIUpdater.showToast('SOS alert sent to emergency contacts', 'success');
+        })
+        .catch(error => {
+            console.error('SOS error:', error);
+            EnhancedUIUpdater.showToast('Error sending SOS alert', 'error');
+        });
+}
+
 function showModal(modalId) {
     console.log(`Showing modal: ${modalId}`);
     const modal = document.getElementById(`${modalId}Modal`);
@@ -13590,9 +13409,11 @@ function hideAllModals() {
     });
 }
 
-// ============================================
-// TRANSACTIONS DISPLAY
-// ============================================
+function togglePanel() {
+    const panel = document.getElementById('mainPanel');
+    panel.classList.toggle('collapsed');
+}
+
 function displayTransactions(transactions) {
     const container = document.getElementById('transactionsList');
     if (!container) return;
@@ -13663,41 +13484,32 @@ function displayTransactions(transactions) {
     container.innerHTML = html;
 }
 
-// ============================================
-// SHOW PAYMENT MODAL
-// ============================================
+function callEmergencyContact(contactType) {
+    console.log(`Calling emergency contact: ${contactType}`);
+    
+    let phoneNumber = '';
+    
+    if (contactType === 'contact1') {
+        phoneNumber = AppState.sosConfig?.contact1Phone;
+    } else if (contactType === 'contact2') {
+        phoneNumber = AppState.sosConfig?.contact2Phone;
+    }
+    
+    if (phoneNumber) {
+        window.open(`tel:${phoneNumber}`, '_blank');
+    } else {
+        EnhancedUIUpdater.showToast('Phone number not available', 'warning');
+    }
+}
+
 function showPaymentModal(serviceType, amount, rideData = null) {
     if (rideData) {
         window.pendingRideData = rideData;
     } else {
-        const stops = EnhancedLocationManager.getStopLocations();
-        const totalStops = stops.length;
-        
-        let totalDistance = 0;
-        if (stops.length > 0) {
-            // Calculate distance with stops
-            totalDistance += EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                stops[0].lat, stops[0].lng
-            );
-            
-            for (let i = 0; i < stops.length - 1; i++) {
-                totalDistance += EnhancedPriceCalculator.calculateDistance(
-                    stops[i].lat, stops[i].lng,
-                    stops[i + 1].lat, stops[i + 1].lng
-                );
-            }
-            
-            totalDistance += EnhancedPriceCalculator.calculateDistance(
-                stops[stops.length - 1].lat, stops[stops.length - 1].lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-        } else {
-            totalDistance = EnhancedPriceCalculator.calculateDistance(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng
-            );
-        }
+        const distance = EnhancedPriceCalculator.calculateDistance(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng
+        );
         
         window.pendingRideData = {
             pickup: AppState.pickup.address,
@@ -13710,31 +13522,38 @@ function showPaymentModal(serviceType, amount, rideData = null) {
             destLng: AppState.destination.lng,
             rideType: AppState.selectedRideType,
             fare: amount,
-            distance: totalDistance,
-            stops: stops.map(stop => ({
-                address: stop.address || stop.name,
-                lat: stop.lat,
-                lng: stop.lng
-            }))
+            distance: distance
         };
     }
     
     AppState.rideFare = amount;
     
-    const paymentAmount = document.getElementById('paymentAmount');
-    if (paymentAmount) paymentAmount.textContent = `ZMW ${amount.toFixed(2)}`;
+    document.getElementById('paymentAmount').textContent = `ZMW ${amount.toFixed(2)}`;
     
     showModal('payment');
 }
 
-// ============================================
-// INITIALIZE SHOPPING ITEMS
-// ============================================
 function initializeShoppingItems() {
+    console.log('Initializing shopping items...');
     const itemsContainer = document.getElementById('shoppingItems');
     const addItemBtn = document.getElementById('addItemBtn');
     
-    if (!itemsContainer || !addItemBtn) return;
+    if (!itemsContainer || !addItemBtn) {
+        console.warn('Shopping items elements not found');
+        return;
+    }
+    
+    const firstItem = itemsContainer.querySelector('.item-entry');
+    if (firstItem) {
+        const removeBtn = firstItem.querySelector('.remove-item');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function() {
+                if (itemsContainer.children.length > 1) {
+                    firstItem.remove();
+                }
+            });
+        }
+    }
     
     addItemBtn.addEventListener('click', function() {
         const itemEntry = document.createElement('div');
@@ -13750,19 +13569,11 @@ function initializeShoppingItems() {
         
         const removeBtn = itemEntry.querySelector('.remove-item');
         removeBtn.addEventListener('click', function() {
-            if (itemsContainer.children.length > 1) {
-                itemEntry.remove();
-            }
+            itemEntry.remove();
         });
     });
-}
-
-// ============================================
-// TOGGLE PANEL
-// ============================================
-function togglePanel() {
-    const panel = document.getElementById('mainPanel');
-    panel.classList.toggle('collapsed');
+    
+    console.log('Shopping items initialized');
 }
 
 // ============================================
@@ -13840,19 +13651,6 @@ function setupEventListeners() {
                 destinationMarker = null;
             }
             
-            // Clear stop markers
-            stopMarkers.forEach(marker => {
-                map.removeLayer(marker.marker);
-            });
-            stopMarkers = [];
-            
-            // Clear stops from state
-            AppState.rideStops.forEach(stop => {
-                const stopElement = document.getElementById(stop.id);
-                if (stopElement) stopElement.remove();
-            });
-            AppState.rideStops = [];
-            
             const destinationInput = document.getElementById('destinationLocation');
             if (destinationInput) {
                 destinationInput.value = '';
@@ -13881,17 +13679,25 @@ function setupEventListeners() {
                 return;
             }
             
-            const stops = EnhancedLocationManager.getStopLocations();
-            let totalDistance = 0;
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
             
-            if (stops.length > 0) {
-                // Validate all stops are within city
-                for (const stop of stops) {
-                    if (!EnhancedSearchEngine.validateCoordinatesInCity(stop.lat, stop.lng, AppState.currentCity)) {
-                        EnhancedUIUpdater.showToast(`Stop "${stop.address}" is outside city boundaries`, 'warning');
-                        return;
-                    }
-                }
+            if (distance < 0.5) {
+                EnhancedUIUpdater.showToast('Minimum ride distance is 0.5 km', 'warning');
+                return;
+            }
+            
+            const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng,
+                AppState.currentCity
+            );
+            
+            if (!validation.valid) {
+                EnhancedUIUpdater.showToast(validation.message, 'warning');
+                return;
             }
             
             showPaymentModal('car', AppState.rideFare);
@@ -13907,33 +13713,10 @@ function setupEventListeners() {
         });
     }
     
-    // More option items
-    document.querySelectorAll('#moreOptionsMenu .dropdown-item').forEach(item => {
-        item.addEventListener('click', () => {
-            const option = item.dataset.option;
-            switch(option) {
-                case 'schedule':
-                    showModal('schedule');
-                    break;
-                case 'orderForSomeone':
-                    showModal('orderForSomeone');
-                    break;
-                case 'shareRide':
-                    showModal('shareRide');
-                    break;
-                case 'broadcast':
-                    switchService('broadcast');
-                    break;
-            }
-        });
-    });
-    
     // SOS button
     const sosButton = document.getElementById('sosButton');
     if (sosButton) {
-        sosButton.addEventListener('click', () => {
-            EmergencyManager.triggerSOS();
-        });
+        sosButton.addEventListener('click', triggerSOS);
     }
     
     // Cancel Ride button
@@ -14008,6 +13791,32 @@ function setupEventListeners() {
             }
         });
     }
+    
+    // Emergency services
+    document.querySelectorAll('.emergency-service').forEach(service => {
+        service.addEventListener('click', () => {
+            const type = service.dataset.type;
+            
+            if (type === 'sos') {
+                showModal('sos');
+            } else {
+                handleEmergencyService(type);
+            }
+        });
+    });
+    
+    // Emergency reasons
+    document.querySelectorAll('.emergency-reason').forEach(reason => {
+        reason.addEventListener('click', () => {
+            document.querySelectorAll('.emergency-reason').forEach(r => {
+                r.classList.remove('selected');
+            });
+            
+            reason.classList.add('selected');
+            
+            EnhancedUIUpdater.updateEmergencyReason(reason.dataset.reason);
+        });
+    });
     
     // Close modals
     document.querySelectorAll('.modal-close').forEach(btn => {
@@ -14112,7 +13921,6 @@ function setupEventListeners() {
                 rideData.referredBy = AppState.referralCodeUsed;
                 rideData.referralOwnerName = AppState.referralOwnerName;
                 rideData.referralDiscount = AppState.rideFare * 0.5;
-                rideData.originalFare = AppState.rideFare;
             }
             
             try {
@@ -14170,148 +13978,80 @@ function setupEventListeners() {
         });
     }
     
-    // Confirm Transfer button
-    const confirmTransferBtn = document.getElementById('confirmTransferBtn');
-    if (confirmTransferBtn) {
-        confirmTransferBtn.addEventListener('click', async () => {
-            const recipientCode = document.getElementById('recipientCode')?.value.trim();
-            const amountInput = document.getElementById('transferAmount')?.value;
-            const message = document.getElementById('transferMessage')?.value.trim() || '';
-            
-            if (!recipientCode) {
-                EnhancedUIUpdater.showToast('Please enter recipient referral code', 'warning');
-                return;
-            }
-            
-            const amount = parseFloat(amountInput);
-            if (!amount || amount <= 0) {
-                EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning');
-                return;
-            }
-            
-            try {
-                await EnhancedFirebaseManager.transferMoney(recipientCode, amount, message);
-                hideModal('transfer');
-            } catch (error) {
-                console.error('Transfer error:', error);
-            }
-        });
-    }
-    
-    // Save SOS button
-    const saveSOSBtn = document.getElementById('saveSOSBtn');
-    if (saveSOSBtn) {
-        saveSOSBtn.addEventListener('click', async () => {
-            const contact1Name = document.getElementById('sosContact1Name')?.value.trim();
-            const contact1Phone = document.getElementById('sosContact1Phone')?.value.trim();
-            const contact2Name = document.getElementById('sosContact2Name')?.value.trim();
-            const contact2Phone = document.getElementById('sosContact2Phone')?.value.trim();
-            const message = document.getElementById('sosMessage')?.value.trim();
-            
-            if (!contact1Name || !contact1Phone) {
-                EnhancedUIUpdater.showToast('Please fill primary emergency contact details', 'warning');
-                return;
-            }
-            
-            const sosConfig = {
-                contact1Name: contact1Name,
-                contact1Phone: contact1Phone,
-                contact2Name: contact2Name || '',
-                contact2Phone: contact2Phone || '',
-                message: message || 'I need help! My current location and ride details will be shared with you.'
-            };
-            
-            await EnhancedFirebaseManager.saveSOSConfig(sosConfig);
-            hideModal('sos');
-        });
-    }
-    
-    // Save Profile button
-    const saveProfileBtn = document.getElementById('saveProfileBtn');
-    if (saveProfileBtn) {
-        saveProfileBtn.addEventListener('click', async () => {
-            const name = document.getElementById('updateName')?.value.trim();
-            const phone = document.getElementById('updatePhone')?.value.trim();
-            const homeAddress = document.getElementById('updateHomeAddress')?.value.trim();
-            const workAddress = document.getElementById('updateWorkAddress')?.value.trim();
-            
-            if (!name || !phone) {
-                EnhancedUIUpdater.showToast('Please fill required fields', 'warning');
-                return;
-            }
-            
-            try {
-                await database.ref(`users/${AppState.currentUser.uid}`).update({
-                    name: name,
-                    phone: phone,
-                    homeAddress: homeAddress || '',
-                    workAddress: workAddress || '',
-                    updatedAt: Date.now()
-                });
-                
-                EnhancedUIUpdater.showToast('Profile updated successfully', 'success');
-                hideModal('updateProfile');
-            } catch (error) {
-                console.error('Error updating profile:', error);
-                EnhancedUIUpdater.showToast('Error updating profile', 'error');
-            }
-        });
-    }
-    
-    // Logout button
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            if (confirm('Are you sure you want to logout?')) {
-                try {
-                    await auth.signOut();
-                    window.location.href = 'signup.html';
-                } catch (error) {
-                    console.error('Error logging out:', error);
-                    EnhancedUIUpdater.showToast('Error logging out', 'error');
-                }
-            }
-        });
-    }
-    
-    // Notification bell
-    const notificationBell = document.getElementById('notificationBell');
-    const notificationsPanel = document.getElementById('notificationsPanel');
-    const notificationsClose = document.getElementById('notificationsClose');
-    
-    if (notificationBell && notificationsPanel) {
-        notificationBell.addEventListener('click', () => {
-            notificationsPanel.classList.toggle('active');
-            AppState.notificationsOpen = !AppState.notificationsOpen;
-        });
-    }
-    
-    if (notificationsClose) {
-        notificationsClose.addEventListener('click', () => {
-            notificationsPanel.classList.remove('active');
-            AppState.notificationsOpen = false;
-        });
-    }
-    
-    // History filters
-    document.querySelectorAll('.history-filters .filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('.history-filters .filter-btn').forEach(b => {
-                b.classList.remove('active');
-            });
-            btn.classList.add('active');
-            
-            AppState.activeFilter = btn.dataset.filter;
-            EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+    // More option items
+    document.querySelectorAll('#moreOptionsMenu .dropdown-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const option = item.dataset.option;
+            handleMoreOptionSelection(option);
         });
     });
     
-    // Recent destinations button
+    // Add Stop button
+    const addStopBtn = document.getElementById('addStopBtn');
+    if (addStopBtn) {
+        addStopBtn.addEventListener('click', () => {
+            EnhancedUIUpdater.addStop();
+        });
+    }
+    
+    // Recent Destinations button
     const recentDestinationsBtn = document.getElementById('recentDestinationsBtn');
     if (recentDestinationsBtn) {
         recentDestinationsBtn.addEventListener('click', () => {
-            const inputId = 'destinationLocation';
-            EnhancedUIUpdater.showSearchHistory(inputId);
+            EnhancedUIUpdater.showSearchHistory('destinationLocation');
+        });
+    }
+    
+    // Share Ride buttons
+    const addShareMemberBtn = document.getElementById('addShareMemberBtn');
+    const shareMemberInput = document.getElementById('shareMemberInput');
+    if (addShareMemberBtn && shareMemberInput) {
+        addShareMemberBtn.addEventListener('click', () => {
+            const friendCode = shareMemberInput.value.trim();
+            if (friendCode) {
+                EnhancedUIUpdater.addShareFriend(friendCode);
+                shareMemberInput.value = '';
+            }
+        });
+        
+        shareMemberInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addShareMemberBtn.click();
+            }
+        });
+    }
+    
+    // Broadcast Ride button
+    const startBroadcastRideBtn = document.getElementById('startBroadcastRideBtn');
+    if (startBroadcastRideBtn) {
+        startBroadcastRideBtn.addEventListener('click', () => {
+            if (!AppState.pickup || !AppState.destination) {
+                EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+                return;
+            }
+            
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
+            
+            const fare = AppState.rideFare;
+            
+            showPaymentModal('broadcast', fare, {
+                pickup: AppState.pickup.address,
+                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+                destination: AppState.destination.address,
+                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+                pickupLat: AppState.pickup.lat,
+                pickupLng: AppState.pickup.lng,
+                destLat: AppState.destination.lat,
+                destLng: AppState.destination.lng,
+                rideType: AppState.selectedRideType,
+                fare: fare,
+                distance: distance,
+                broadcast: true,
+                broadcastRecipients: AppState.broadcastRecipients
+            });
         });
     }
     
@@ -14323,11 +14063,111 @@ function setupEventListeners() {
         });
     }
     
-    // Broadcast Ride button
-    const broadcastRideBtn = document.getElementById('broadcastRideBtn');
-    if (broadcastRideBtn) {
-        broadcastRideBtn.addEventListener('click', () => {
-            switchService('broadcast');
+    // Save SOS button
+    const saveSOSBtn = document.getElementById('saveSOSBtn');
+    if (saveSOSBtn) {
+        saveSOSBtn.addEventListener('click', async () => {
+            const contact1Name = document.getElementById('sosContact1Name').value.trim();
+            const contact1Phone = document.getElementById('sosContact1Phone').value.trim();
+            const contact2Name = document.getElementById('sosContact2Name').value.trim();
+            const contact2Phone = document.getElementById('sosContact2Phone').value.trim();
+            const message = document.getElementById('sosMessage').value.trim();
+            
+            if (!contact1Name || !contact1Phone) {
+                EnhancedUIUpdater.showToast('Please provide at least primary emergency contact details', 'warning');
+                return;
+            }
+            
+            const sosConfig = {
+                contact1Name: contact1Name,
+                contact1Phone: contact1Phone,
+                contact2Name: contact2Name,
+                contact2Phone: contact2Phone,
+                message: message || 'I need help! My current location and ride details will be shared with you.',
+                updatedAt: Date.now()
+            };
+            
+            try {
+                await database.ref(`sosConfig/${AppState.currentUser.uid}`).set(sosConfig);
+                AppState.sosConfig = sosConfig;
+                hideModal('sos');
+                EnhancedUIUpdater.showToast('SOS setup saved successfully', 'success');
+            } catch (error) {
+                console.error('Error saving SOS config:', error);
+                EnhancedUIUpdater.showToast('Error saving SOS setup', 'error');
+            }
+        });
+    }
+    
+    // Schedule Ride button
+    const confirmScheduleBtn = document.getElementById('confirmScheduleBtn');
+    if (confirmScheduleBtn) {
+        confirmScheduleBtn.addEventListener('click', async () => {
+            if (!AppState.pickup || !AppState.destination) {
+                EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+                return;
+            }
+            
+            const scheduleDate = document.getElementById('scheduleDate').value;
+            const scheduleTime = document.getElementById('scheduleTime').value;
+            
+            if (!scheduleDate || !scheduleTime) {
+                EnhancedUIUpdater.showToast('Please select date and time', 'warning');
+                return;
+            }
+            
+            const scheduledTime = new Date(`${scheduleDate}T${scheduleTime}`).getTime();
+            const now = Date.now();
+            
+            if (scheduledTime <= now) {
+                EnhancedUIUpdater.showToast('Please select a future time', 'warning');
+                return;
+            }
+            
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                AppState.pickup.lat, AppState.pickup.lng,
+                AppState.destination.lat, AppState.destination.lng
+            );
+            
+            const fare = AppState.rideFare;
+            
+            const scheduledRideId = database.ref().child('scheduledRides').push().key;
+            const scheduledRide = {
+                id: scheduledRideId,
+                pickup: AppState.pickup.address,
+                pickupDisplay: AppState.pickup.fullDisplay || AppState.pickup.name,
+                destination: AppState.destination.address,
+                destinationDisplay: AppState.destination.fullAddress || AppState.destination.name,
+                pickupLat: AppState.pickup.lat,
+                pickupLng: AppState.pickup.lng,
+                destLat: AppState.destination.lat,
+                destLng: AppState.destination.lng,
+                rideType: AppState.selectedRideType,
+                fare: fare,
+                distance: distance,
+                scheduledTime: scheduledTime,
+                status: 'scheduled',
+                passengerId: AppState.currentUser.uid,
+                passengerName: AppState.userData.name,
+                passengerPhone: AppState.userData.phone,
+                city: AppState.currentCity,
+                createdAt: Date.now()
+            };
+            
+            try {
+                await database.ref(`scheduledRides/${scheduledRideId}`).set(scheduledRide);
+                hideModal('schedule');
+                EnhancedUIUpdater.showToast('Ride scheduled successfully', 'success');
+                
+                // Show countdown if within 1 hour
+                const timeUntilRide = scheduledTime - now;
+                if (timeUntilRide <= 3600000) {
+                    EnhancedUIUpdater.showScheduleCountdown(scheduledTime);
+                }
+            } catch (error) {
+                console.error('Error scheduling ride:', error);
+                EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
+            }
         });
     }
     
@@ -14342,13 +14182,12 @@ async function initializeApp() {
         console.log('Initializing Jubel Passenger App...');
         EnhancedUIUpdater.showLoading('Initializing app...');
         
+        // Initialize modules
         EnhancedSearchEngine.init();
         EnhancedLocationManager.init();
         RideTypeManager.init();
-        EmergencyManager.init();
-        WalletManager.init();
-        ScheduleRideManager.init();
         
+        // Check for URL parameters (from signup)
         const urlParams = new URLSearchParams(window.location.search);
         const email = urlParams.get('email');
         const uid = urlParams.get('uid');
@@ -14371,17 +14210,33 @@ async function initializeApp() {
             });
         }
         
+        // Initialize map
         initializeMap();
+        
+        // Setup event listeners
         setupEventListeners();
+        
+        // Get current location
         getCurrentLocation();
+        
+        // Set minimum date for schedule to today
+        const today = new Date().toISOString().split('T')[0];
+        const scheduleDate = document.getElementById('scheduleDate');
+        if (scheduleDate) scheduleDate.min = today;
+        
+        // Initialize shopping items
         initializeShoppingItems();
         
+        // Request notification permission
         await NotificationManager.requestNotificationPermission();
+        
+        // Schedule periodic checks
         NotificationManager.schedulePeriodicChecks();
         
+        // Start sync interval
         AppState.syncInterval = setInterval(() => {
             EnhancedFirebaseManager.syncUserData();
-        }, 60000);
+        }, 60000); // Sync every minute
         
         EnhancedUIUpdater.hideLoading();
         EnhancedUIUpdater.showToast('Jubel Passenger App Ready', 'success');
@@ -14398,9 +14253,23 @@ async function initializeApp() {
 // START THE APPLICATION
 // ============================================
 window.addEventListener('load', initializeApp);
+
+// Make functions available globally
+window.switchScreen = switchScreen;
+window.switchService = switchService;
+window.showModal = showModal;
+window.hideModal = hideModal;
+window.hideAllModals = hideAllModals;
+window.togglePanel = togglePanel;
+window.callEmergencyContact = callEmergencyContact;
+window.triggerSOS = triggerSOS;
+window.getCurrentLocation = getCurrentLocation;
+
+console.log('JavaScript loaded successfully');
 </script>
 </body>
 </html>
+
 
 
 
