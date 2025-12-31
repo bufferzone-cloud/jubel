@@ -4002,93 +4002,6 @@
             color: var(--dark-gray);
             line-height: 1.3;
         }
-        
-/* Pulse animation for countdown */
-@keyframes pulse {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7); }
-    50% { transform: scale(1.05); }
-    70% { box-shadow: 0 0 0 10px rgba(255, 107, 53, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 107, 53, 0); }
-}
-
-/* Notification badge pulse */
-@keyframes notificationPulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.2); }
-    100% { transform: scale(1); }
-}
-
-/* Live status indicator */
-.live-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 8px;
-    background: #4CAF50;
-    color: white;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-    animation: pulse 2s infinite;
-}
-
-.live-status::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    background: white;
-    border-radius: 50%;
-    animation: pulse 1s infinite;
-}
-
-/* Transaction status colors */
-.transaction-status-completed { color: #4CAF50; }
-.transaction-status-pending { color: #FFC107; }
-.transaction-status-failed { color: #F44336; }
-.transaction-status-refunded { color: #2196F3; }
-
-/* Expandable transaction item */
-.transaction-item.expandable:hover {
-    background: #f9f9f9;
-}
-
-.transaction-details {
-    animation: slideDown 0.3s ease;
-}
-
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* Location editor modal */
-.location-editor-modal .search-result-item:hover {
-    background: #f0f7ff;
-}
-
-.location-editor-modal .recent-location-item:hover {
-    background: #f9f9f9;
-}
-
-/* Broadcast tracking */
-.broadcast-tracking-modal .participant-item {
-    transition: all 0.2s;
-}
-
-.broadcast-tracking-modal .participant-item:hover {
-    background: #f5f5f5;
-}
-
-/* Schedule countdown minimized state */
-#scheduleCountdown.minimized {
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-#scheduleCountdown.minimized:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-}
     </style>
 </head>
 <body>
@@ -6797,535 +6710,55 @@ const EnhancedLocationManager = {
     },
     
     setupPickupInput: function(inputElement) {
-    const inputId = inputElement.id;
-    
-    // Make pickup input clickable to open edit modal
-    inputElement.addEventListener('click', () => {
-        this.openPickupLocationEditor(inputId);
-    });
-    
-    // Keep focus for manual typing
-    inputElement.addEventListener('focus', () => {
-        this.handlePickupInputFocus(inputId);
-    });
-    
-    inputElement.addEventListener('input', (e) => {
-        this.handlePickupInputChange(inputId, e.target.value);
-    });
-    
-    inputElement.addEventListener('blur', () => {
-        setTimeout(() => {
-            this.handlePickupInputBlur(inputId);
-        }, 200);
-    });
-    
-    // Add current location button
-    if (!inputElement.nextElementSibling?.classList.contains('location-action-btns')) {
-        const actionContainer = document.createElement('div');
-        actionContainer.className = 'location-action-btns';
-        actionContainer.style.cssText = `
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: flex;
-            gap: 5px;
-            z-index: 10;
-        `;
+        const inputId = inputElement.id;
         
-        // Current location button
-        const currentLocBtn = document.createElement('button');
-        currentLocBtn.type = 'button';
-        currentLocBtn.className = 'location-action-btn';
-        currentLocBtn.title = 'Use my current location';
-        currentLocBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
-        currentLocBtn.style.cssText = `
-            background: #2196F3;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        `;
-        
-        // Edit location button
-        const editLocBtn = document.createElement('button');
-        editLocBtn.type = 'button';
-        editLocBtn.className = 'location-action-btn';
-        editLocBtn.title = 'Edit location';
-        editLocBtn.innerHTML = '<i class="fas fa-edit"></i>';
-        editLocBtn.style.cssText = `
-            background: #FF6B35;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            width: 30px;
-            height: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        `;
-        
-        currentLocBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.setCurrentLocationAsPickup(inputId);
+        inputElement.addEventListener('focus', () => {
+            this.handlePickupInputFocus(inputId);
         });
         
-        editLocBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.openPickupLocationEditor(inputId);
+        inputElement.addEventListener('input', (e) => {
+            this.handlePickupInputChange(inputId, e.target.value);
         });
         
-        actionContainer.appendChild(currentLocBtn);
-        actionContainer.appendChild(editLocBtn);
+        inputElement.addEventListener('blur', () => {
+            setTimeout(() => {
+                this.handlePickupInputBlur(inputId);
+            }, 200);
+        });
         
-        inputElement.parentNode.style.position = 'relative';
-        inputElement.parentNode.appendChild(actionContainer);
-    }
-},
-
-    openPickupLocationEditor: function(inputId) {
-    const input = document.getElementById(inputId);
-    if (!input) return;
-    
-    // Create location editor modal
-    const modal = document.createElement('div');
-    modal.className = 'location-editor-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        width: 90%;
-        max-width: 500px;
-        max-height: 80vh;
-        overflow-y: auto;
-        z-index: 10000;
-        padding: 20px;
-    `;
-    
-    modal.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin: 0; color: #333;">
-                <i class="fas fa-map-marker-alt" style="color: #FF6B35;"></i>
-                Edit Pickup Location
-            </h3>
-            <button id="closeLocationEditor" style="
+        // Add clear button
+        if (!inputElement.nextElementSibling?.classList.contains('clear-input-btn')) {
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'clear-input-btn';
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+            clearBtn.style.cssText = `
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
                 background: none;
                 border: none;
-                font-size: 24px;
-                cursor: pointer;
                 color: #999;
-            ">×</button>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button id="useCurrentLocationBtn" style="
-                    flex: 1;
-                    padding: 12px;
-                    background: #2196F3;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-weight: 600;
-                ">
-                    <i class="fas fa-location-arrow"></i> Use Current Location
-                </button>
-                <button id="searchLocationBtn" style="
-                    flex: 1;
-                    padding: 12px;
-                    background: #4CAF50;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-weight: 600;
-                ">
-                    <i class="fas fa-search"></i> Search Location
-                </button>
-            </div>
-        </div>
-        
-        <div id="searchLocationSection" style="display: none;">
-            <div style="position: relative; margin-bottom: 15px;">
-                <input type="text" id="locationSearchInput" placeholder="Search for location..." style="
-                    width: 100%;
-                    padding: 12px 15px;
-                    border: 2px solid #e0e0e0;
-                    border-radius: 8px;
-                    font-size: 14px;
-                ">
-                <div id="locationSearchResults" style="
-                    position: absolute;
-                    top: 100%;
-                    left: 0;
-                    right: 0;
-                    background: white;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 8px;
-                    max-height: 300px;
-                    overflow-y: auto;
-                    display: none;
-                    z-index: 100;
-                    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-                "></div>
-            </div>
-            
-            <div id="recentLocationsSection" style="
-                border-top: 1px solid #e0e0e0;
-                padding-top: 15px;
-                margin-top: 15px;
-            ">
-                <div style="font-weight: 600; margin-bottom: 10px; color: #666;">
-                    <i class="fas fa-history"></i> Recent Locations
-                </div>
-                <div id="recentLocationsList" style="
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                "></div>
-            </div>
-        </div>
-        
-        <div id="currentLocationSection" style="display: none;">
-            <div style="text-align: center; padding: 20px;">
-                <div style="font-size: 48px; color: #2196F3; margin-bottom: 15px;">
-                    <i class="fas fa-compass fa-spin"></i>
-                </div>
-                <div style="font-weight: 600; margin-bottom: 10px;">Getting your location...</div>
-                <div style="color: #666; margin-bottom: 20px;">Please allow location access</div>
-                <div id="currentLocationInfo"></div>
-            </div>
-        </div>
-        
-        <div style="display: flex; gap: 10px; margin-top: 20px;">
-            <button id="confirmLocationBtn" style="
-                flex: 1;
-                padding: 15px;
-                background: #FF6B35;
-                color: white;
-                border: none;
-                border-radius: 8px;
                 cursor: pointer;
-                font-weight: 600;
-                font-size: 16px;
-            ">
-                <i class="fas fa-check"></i> Confirm Location
-            </button>
-            <button id="cancelLocationBtn" style="
-                padding: 15px 30px;
-                background: #f5f5f5;
-                color: #666;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-            ">
-                Cancel
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Add overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 9999;
-    `;
-    document.body.appendChild(overlay);
-    
-    // State
-    let selectedLocation = null;
-    let currentLocation = null;
-    
-    // Event listeners
-    modal.querySelector('#closeLocationEditor').addEventListener('click', closeModal);
-    overlay.addEventListener('click', closeModal);
-    modal.querySelector('#cancelLocationBtn').addEventListener('click', closeModal);
-    
-    modal.querySelector('#useCurrentLocationBtn').addEventListener('click', () => {
-        showCurrentLocationSection();
-        getCurrentLocationForEditor();
-    });
-    
-    modal.querySelector('#searchLocationBtn').addEventListener('click', () => {
-        showSearchLocationSection();
-        loadRecentLocations();
-    });
-    
-    // Location search input
-    const searchInput = modal.querySelector('#locationSearchInput');
-    searchInput.addEventListener('input', () => {
-        if (searchInput.value.length >= 2) {
-            searchLocations(searchInput.value);
-        } else {
-            hideSearchResults();
-        }
-    });
-    
-    // Confirm button
-    modal.querySelector('#confirmLocationBtn').addEventListener('click', () => {
-        if (selectedLocation) {
-            // Update the pickup input
-            this.selectPickupLocation(inputId, selectedLocation);
-            closeModal();
-        } else {
-            EnhancedUIUpdater.showToast('Please select a location', 'warning');
-        }
-    });
-    
-    function closeModal() {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    }
-    
-    function showCurrentLocationSection() {
-        modal.querySelector('#searchLocationSection').style.display = 'none';
-        modal.querySelector('#currentLocationSection').style.display = 'block';
-    }
-    
-    function showSearchLocationSection() {
-        modal.querySelector('#currentLocationSection').style.display = 'none';
-        modal.querySelector('#searchLocationSection').style.display = 'block';
-    }
-    
-    async function getCurrentLocationForEditor() {
-        try {
-            const position = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, {
-                    enableHighAccuracy: true,
-                    timeout: 10000
-                });
-            });
-            
-            const { latitude, longitude } = position.coords;
-            currentLocation = { lat: latitude, lng: longitude };
-            
-            // Get address details
-            const address = await CityDetector.getDetailedAddress(latitude, longitude);
-            
-            selectedLocation = {
-                lat: latitude,
-                lng: longitude,
-                name: 'Current Location',
-                address: address.address,
-                fullAddress: address.fullAddress
-            };
-            
-            // Update UI
-            const locationInfo = modal.querySelector('#currentLocationInfo');
-            locationInfo.innerHTML = `
-                <div style="background: #f9f9f9; padding: 15px; border-radius: 8px;">
-                    <div style="font-weight: 600; margin-bottom: 5px;">${address.address}</div>
-                    <div style="font-size: 13px; color: #666;">${address.fullAddress}</div>
-                    <div style="font-size: 12px; color: #FF6B35; margin-top: 10px;">
-                        <i class="fas fa-check-circle"></i> Location ready
-                    </div>
-                </div>
+                display: none;
+                z-index: 10;
             `;
             
-        } catch (error) {
-            modal.querySelector('#currentLocationInfo').innerHTML = `
-                <div style="color: #F44336;">
-                    <i class="fas fa-exclamation-triangle"></i> Unable to get location: ${error.message}
-                </div>
-            `;
-        }
-    }
-    
-    async function searchLocations(query) {
-        if (!AppState.currentCity) {
-            EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
-            return;
-        }
-        
-        try {
-            const results = await EnhancedSearchEngine.search(
-                query,
-                'pickup',
-                AppState.userLocation,
-                AppState.currentCity
-            );
+            inputElement.parentNode.style.position = 'relative';
+            inputElement.parentNode.appendChild(clearBtn);
             
-            const resultsContainer = modal.querySelector('#locationSearchResults');
-            if (results.length === 0) {
-                resultsContainer.innerHTML = `
-                    <div style="padding: 20px; text-align: center; color: #666;">
-                        No results found
-                    </div>
-                `;
-                resultsContainer.style.display = 'block';
-                return;
-            }
-            
-            let html = '';
-            results.forEach((result, index) => {
-                html += `
-                    <div class="search-result-item" data-index="${index}" style="
-                        padding: 12px 15px;
-                        border-bottom: 1px solid #f5f5f5;
-                        cursor: pointer;
-                        transition: background 0.2s;
-                    ">
-                        <div style="display: flex; align-items: flex-start; gap: 10px;">
-                            <div style="color: #FF6B35; font-size: 18px;">
-                                <i class="fas fa-map-marker-alt"></i>
-                            </div>
-                            <div>
-                                <div style="font-weight: 600; margin-bottom: 4px;">${result.name}</div>
-                                <div style="font-size: 13px; color: #666;">${result.address}</div>
-                                ${result.distance ? `
-                                <div style="font-size: 12px; color: #FF6B35; margin-top: 4px;">
-                                    <i class="fas fa-location-arrow"></i> ${result.distance.toFixed(1)} km away
-                                </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
+            clearBtn.addEventListener('click', () => {
+                inputElement.value = '';
+                clearBtn.style.display = 'none';
+                this.clearPickupLocation(inputId);
             });
             
-            resultsContainer.innerHTML = html;
-            resultsContainer.style.display = 'block';
-            
-            // Add click handlers
-            resultsContainer.querySelectorAll('.search-result-item').forEach((item, index) => {
-                item.addEventListener('click', () => {
-                    const result = results[index];
-                    selectedLocation = {
-                        lat: result.lat,
-                        lng: result.lng,
-                        name: result.name,
-                        address: result.address,
-                        fullAddress: result.fullAddress
-                    };
-                    
-                    // Highlight selected
-                    resultsContainer.querySelectorAll('.search-result-item').forEach(i => {
-                        i.style.background = 'white';
-                    });
-                    item.style.background = '#f0f7ff';
-                    
-                    // Update search input
-                    searchInput.value = result.address;
-                    
-                    EnhancedUIUpdater.showToast('Location selected', 'success');
-                });
+            inputElement.addEventListener('input', () => {
+                clearBtn.style.display = inputElement.value ? 'block' : 'none';
             });
-            
-        } catch (error) {
-            console.error('Location search error:', error);
-            EnhancedUIUpdater.showToast('Error searching locations', 'error');
         }
-    }
-    
-    function hideSearchResults() {
-        const resultsContainer = modal.querySelector('#locationSearchResults');
-        resultsContainer.style.display = 'none';
-    }
-    
-    async function loadRecentLocations() {
-        const recentLocations = EnhancedSearchEngine.recentLocations.slice(0, 5);
-        const container = modal.querySelector('#recentLocationsList');
-        
-        if (recentLocations.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 20px; color: #999;">
-                    No recent locations
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '';
-        recentLocations.forEach((location, index) => {
-            html += `
-                <div class="recent-location-item" data-index="${index}" style="
-                    padding: 10px;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                ">
-                    <div style="font-weight: 600; margin-bottom: 4px;">${location.name}</div>
-                    <div style="font-size: 13px; color: #666;">${location.address}</div>
-                </div>
-            `;
-        });
-        
-        container.innerHTML = html;
-        
-        // Add click handlers
-        container.querySelectorAll('.recent-location-item').forEach((item, index) => {
-            item.addEventListener('click', () => {
-                const location = recentLocations[index];
-                selectedLocation = {
-                    lat: location.coordinates.lat,
-                    lng: location.coordinates.lng,
-                    name: location.name,
-                    address: location.address,
-                    fullAddress: location.address
-                };
-                
-                // Update search input
-                searchInput.value = location.address;
-                
-                EnhancedUIUpdater.showToast('Recent location selected', 'success');
-            });
-        });
-    }
-},
-
-setCurrentLocationAsPickup: async function(inputId) {
-    try {
-        EnhancedUIUpdater.showLoading('Getting your location...');
-        
-        const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-                enableHighAccuracy: true,
-                timeout: 10000
-            });
-        });
-        
-        const { latitude, longitude } = position.coords;
-        const address = await CityDetector.getDetailedAddress(latitude, longitude);
-        
-        const location = {
-            lat: latitude,
-            lng: longitude,
-            name: 'Current Location',
-            address: address.address,
-            fullAddress: address.fullAddress
-        };
-        
-        this.selectPickupLocation(inputId, location);
-        
-        EnhancedUIUpdater.hideLoading();
-        EnhancedUIUpdater.showToast('Current location set as pickup', 'success');
-        
-    } catch (error) {
-        EnhancedUIUpdater.hideLoading();
-        console.error('Error getting current location:', error);
-        EnhancedUIUpdater.showToast('Unable to get current location', 'error');
-    }
-},
+    },
     
     setupDestinationInput: function(inputElement) {
         const inputId = inputElement.id;
@@ -8675,260 +8108,6 @@ const EnhancedUIUpdater = {
             if (referralCode) referralCode.textContent = userData.referralCode;
         }
     },
-
-showTransactionDetails: function(transaction) {
-    const modal = document.createElement('div');
-    modal.className = 'transaction-details-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        width: 90%;
-        max-width: 500px;
-        max-height: 80vh;
-        overflow-y: auto;
-        z-index: 10000;
-        padding: 20px;
-    `;
-    
-    const time = new Date(transaction.timestamp);
-    const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    
-    let detailsHtml = '';
-    
-    switch(transaction.type) {
-        case 'ride_payment':
-            detailsHtml = `
-                <div style="margin-bottom: 15px;">
-                    <div style="font-weight: 600; margin-bottom: 5px; color: #333;">Ride Details</div>
-                    <div style="font-size: 14px; color: #666;">
-                        <div><strong>From:</strong> ${transaction.rideData?.pickupDisplay || transaction.rideData?.pickup || 'N/A'}</div>
-                        <div><strong>To:</strong> ${transaction.rideData?.destinationDisplay || transaction.rideData?.destination || 'N/A'}</div>
-                        <div><strong>Distance:</strong> ${transaction.rideData?.distance?.toFixed(1) || '0'} km</div>
-                        <div><strong>Ride Type:</strong> ${transaction.rideData?.rideType || 'Standard'}</div>
-                    </div>
-                </div>
-            `;
-            break;
-            
-        case 'refund':
-            detailsHtml = `
-                <div style="margin-bottom: 15px;">
-                    <div style="font-weight: 600; margin-bottom: 5px; color: #333;">Refund Details</div>
-                    <div style="font-size: 14px; color: #666;">
-                        <div><strong>Reason:</strong> Ride cancellation</div>
-                        ${transaction.rideData ? `
-                        <div><strong>Original Ride:</strong> ${transaction.rideData.pickupDisplay || transaction.rideData.pickup} to ${transaction.rideData.destinationDisplay || transaction.rideData.destination}</div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-            break;
-            
-        case 'transfer_sent':
-        case 'transfer_received':
-            detailsHtml = `
-                <div style="margin-bottom: 15px;">
-                    <div style="font-weight: 600; margin-bottom: 5px; color: #333;">Transfer Details</div>
-                    <div style="font-size: 14px; color: #666;">
-                        <div><strong>${transaction.type === 'transfer_sent' ? 'To:' : 'From:'}</strong> ${transaction.transferData?.recipientName || transaction.transferData?.senderName || 'N/A'}</div>
-                        ${transaction.transferData?.message ? `
-                        <div><strong>Message:</strong> ${transaction.transferData.message}</div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-            break;
-            
-        case 'referral_bonus':
-            detailsHtml = `
-                <div style="margin-bottom: 15px;">
-                    <div style="font-weight: 600; margin-bottom: 5px; color: #333;">Referral Bonus</div>
-                    <div style="font-size: 14px; color: #666;">
-                        <div><strong>Type:</strong> New user referral</div>
-                        <div><strong>Amount:</strong> ZMW 25.00</div>
-                        <div><strong>Description:</strong> Earned for referring a new user who completed their first ride</div>
-                    </div>
-                </div>
-            `;
-            break;
-    }
-
-    minimizeCountdown: function(countdownContainer, rideData) {
-    // Store original content
-    countdownContainer.dataset.originalContent = countdownContainer.innerHTML;
-    
-    // Create minimized version
-    countdownContainer.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="color: #FF6B35; font-size: 18px;">
-                    <i class="fas fa-clock"></i>
-                </div>
-                <div style="font-weight: 600; font-size: 14px;">Scheduled Ride</div>
-            </div>
-            <button id="expandScheduleBtn" style="
-                background: none;
-                border: none;
-                color: #666;
-                cursor: pointer;
-                font-size: 16px;
-            ">
-                <i class="fas fa-chevron-up"></i>
-            </button>
-        </div>
-    `;
-    
-    countdownContainer.style.width = '200px';
-    countdownContainer.style.padding = '12px';
-    
-    // Add expand button listener
-    countdownContainer.querySelector('#expandScheduleBtn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.expandCountdown(countdownContainer, rideData);
-    });
-    
-    // Add click to expand
-    countdownContainer.addEventListener('click', (e) => {
-        if (e.target.id !== 'expandScheduleBtn' && !e.target.closest('#expandScheduleBtn')) {
-            this.expandCountdown(countdownContainer, rideData);
-        }
-    });
-},
-
-expandCountdown: function(countdownContainer, rideData) {
-    // Restore original content
-    if (countdownContainer.dataset.originalContent) {
-        countdownContainer.innerHTML = countdownContainer.dataset.originalContent;
-        delete countdownContainer.dataset.originalContent;
-        
-        countdownContainer.style.width = '280px';
-        countdownContainer.style.padding = '20px';
-        
-        // Reattach event listeners
-        this.reattachCountdownListeners(countdownContainer, rideData);
-    }
-},
-
-reattachCountdownListeners: function(countdownContainer, rideData) {
-    // Reattach cancel button listener
-    const cancelBtn = countdownContainer.querySelector('#cancelScheduleBtn');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to cancel this scheduled ride?')) {
-                EnhancedFirebaseManager.cancelScheduledRide(rideData.id);
-                countdownContainer.remove();
-                
-                if (AppState.scheduledCountdowns.has(rideData.id)) {
-                    clearInterval(AppState.scheduledCountdowns.get(rideData.id));
-                    AppState.scheduledCountdowns.delete(rideData.id);
-                }
-                
-                this.showToast('Scheduled ride cancelled', 'success');
-            }
-        });
-    }
-    
-    // Reattach edit button listener
-    const editBtn = countdownContainer.querySelector('#editScheduleBtn');
-    if (editBtn) {
-        editBtn.addEventListener('click', () => {
-            this.showScheduleEditor(rideData);
-        });
-    }
-},
-
-showScheduleEditor: function(rideData) {
-    // This would open a modal to edit the scheduled ride
-    // Implementation depends on your specific requirements
-    EnhancedUIUpdater.showToast('Schedule editing coming soon', 'info');
-},
-    
-    modal.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin: 0; color: #333;">
-                <i class="fas fa-receipt"></i> Transaction Details
-            </h3>
-            <button id="closeTransactionDetails" style="
-                background: none;
-                border: none;
-                font-size: 24px;
-                cursor: pointer;
-                color: #999;
-            ">×</button>
-        </div>
-        
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                <div>
-                    <div style="font-size: 12px; color: #666;">Transaction ID</div>
-                    <div style="font-weight: 600; font-size: 14px;">${transaction.id.substring(0, 8)}...</div>
-                </div>
-                <div style="text-align: right;">
-                    <div style="font-size: 12px; color: #666;">Amount</div>
-                    <div style="font-weight: 700; font-size: 24px; color: ${transaction.amount > 0 ? '#4CAF50' : '#F44336'}">
-                        ${transaction.amount > 0 ? '+' : ''}ZMW ${Math.abs(transaction.amount).toFixed(2)}
-                    </div>
-                </div>
-            </div>
-            
-            <div style="border-top: 1px solid #e0e0e0; padding-top: 10px;">
-                <div style="font-size: 12px; color: #666;">Description</div>
-                <div style="font-weight: 600; font-size: 14px;">${transaction.description || 'No description'}</div>
-            </div>
-            
-            <div style="border-top: 1px solid #e0e0e0; padding-top: 10px; margin-top: 10px;">
-                <div style="font-size: 12px; color: #666;">Date & Time</div>
-                <div style="font-weight: 600; font-size: 14px;">${timeString}</div>
-            </div>
-        </div>
-        
-        ${detailsHtml}
-        
-        <div style="text-align: center;">
-            <button id="closeTransactionDetailsBtn" style="
-                padding: 10px 30px;
-                background: #FF6B35;
-                color: white;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                font-weight: 600;
-            ">
-                Close
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Add overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 9999;
-    `;
-    document.body.appendChild(overlay);
-    
-    // Event listeners
-    modal.querySelector('#closeTransactionDetails').addEventListener('click', closeModal);
-    modal.querySelector('#closeTransactionDetailsBtn').addEventListener('click', closeModal);
-    overlay.addEventListener('click', closeModal);
-    
-    function closeModal() {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    }
-},
     
     showToast: function(message, type = 'info', duration = 5000) {
         const toastContainer = document.getElementById('toastContainer');
@@ -9769,205 +8948,124 @@ showScheduleEditor: function(rideData) {
     },
     
     showScheduleCountdown: function(scheduledTime, rideData) {
-    const now = Date.now();
-    const timeUntilRide = scheduledTime - now;
-    
-    if (timeUntilRide <= 0) {
-        EnhancedFirebaseManager.requestScheduledRide(rideData);
-        return;
-    }
-    
-    // Remove existing countdown if any
-    let countdownContainer = document.getElementById('scheduleCountdown');
-    if (countdownContainer) {
-        countdownContainer.remove();
-    }
-    
-    // Create countdown container
-    countdownContainer = document.createElement('div');
-    countdownContainer.id = 'scheduleCountdown';
-    countdownContainer.style.cssText = `
-        position: fixed;
-        bottom: 100px;
-        right: 20px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-        padding: 20px;
-        z-index: 1000;
-        min-width: 280px;
-        animation: pulse 2s infinite;
-        border: 2px solid #FF6B35;
-    `;
-    
-    // Add CSS for pulse animation
-    if (!document.getElementById('pulse-animation-style')) {
-        const style = document.createElement('style');
-        style.id = 'pulse-animation-style';
-        style.textContent = `
-            @keyframes pulse {
-                0% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.4); }
-                70% { box-shadow: 0 0 0 10px rgba(255, 107, 53, 0); }
-                100% { box-shadow: 0 0 0 0 rgba(255, 107, 53, 0); }
-            }
-        `;
-        document.head.appendChild(style);
-    }
-    
-    countdownContainer.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <div style="font-weight: 700; color: #FF6B35; font-size: 16px;">
-                <i class="fas fa-clock"></i> Scheduled Ride
-            </div>
-            <div style="display: flex; gap: 5px;">
-                <button id="cancelScheduleBtn" style="
-                    background: #f44336;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 6px 12px;
-                    cursor: pointer;
-                    font-size: 12px;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                ">
-                    <i class="fas fa-times"></i> Cancel
-                </button>
-                <button id="editScheduleBtn" style="
-                    background: #2196F3;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 6px 12px;
-                    cursor: pointer;
-                    font-size: 12px;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                ">
-                    <i class="fas fa-edit"></i> Edit
-                </button>
-            </div>
-        </div>
-        
-        <div style="text-align: center; margin-bottom: 15px;">
-            <div style="font-size: 32px; font-weight: 800; color: #333; font-family: monospace;" id="countdownTimer">
-                00:00:00
-            </div>
-            <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                Ride will auto-request when timer ends
-            </div>
-        </div>
-        
-        <div style="background: #f9f9f9; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 12px; color: #666;">Pickup:</div>
-                <div style="font-weight: 600; font-size: 13px; text-align: right;">${rideData.pickupDisplay || rideData.pickup?.address || 'Current location'}</div>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                <div style="font-size: 12px; color: #666;">Destination:</div>
-                <div style="font-weight: 600; font-size: 13px; text-align: right;">${rideData.destinationDisplay || rideData.destination?.address || 'Unknown'}</div>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-                <div style="font-size: 12px; color: #666;">Fare:</div>
-                <div style="font-weight: 700; color: #FF6B35; font-size: 14px;">ZMW ${rideData.fare?.toFixed(2) || '0.00'}</div>
-            </div>
-        </div>
-        
-        <div style="font-size: 11px; color: #999; text-align: center;">
-            Scheduled for: <span id="scheduledTimeDisplay">${new Date(scheduledTime).toLocaleString()}</span>
-        </div>
-    `;
-    
-    document.body.appendChild(countdownContainer);
-    
-    // Add event listeners
-    const cancelBtn = countdownContainer.querySelector('#cancelScheduleBtn');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to cancel this scheduled ride?')) {
-                EnhancedFirebaseManager.cancelScheduledRide(rideData.id);
-                countdownContainer.remove();
-                
-                if (AppState.scheduledCountdowns.has(rideData.id)) {
-                    clearInterval(AppState.scheduledCountdowns.get(rideData.id));
-                    AppState.scheduledCountdowns.delete(rideData.id);
-                }
-                
-                this.showToast('Scheduled ride cancelled', 'success');
-            }
-        });
-    }
-    
-    const editBtn = countdownContainer.querySelector('#editScheduleBtn');
-    if (editBtn) {
-        editBtn.addEventListener('click', () => {
-            this.showScheduleEditor(rideData);
-        });
-    }
-    
-    // Update countdown
-    const updateCountdown = () => {
         const now = Date.now();
-        const timeLeft = scheduledTime - now;
+        const timeUntilRide = scheduledTime - now;
         
-        if (timeLeft <= 0) {
-            clearInterval(intervalId);
+        if (timeUntilRide <= 0) {
             EnhancedFirebaseManager.requestScheduledRide(rideData);
-            countdownContainer.remove();
-            AppState.scheduledCountdowns.delete(rideData.id);
-            
-            // Show notification
-            this.showToast('Scheduled ride is being requested', 'success');
             return;
         }
         
-        const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-        
-        const timerElement = countdownContainer.querySelector('#countdownTimer');
-        if (timerElement) {
-            timerElement.textContent = 
-                `${hours.toString().padStart(2, '0')}:` +
-                `${minutes.toString().padStart(2, '0')}:` +
-                `${seconds.toString().padStart(2, '0')}`;
+        // Create or update countdown container
+        let countdownContainer = document.getElementById('scheduleCountdown');
+        if (!countdownContainer) {
+            countdownContainer = document.createElement('div');
+            countdownContainer.id = 'scheduleCountdown';
+            countdownContainer.style.cssText = `
+                position: fixed;
+                bottom: 100px;
+                right: 20px;
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                padding: 20px;
+                z-index: 1000;
+                min-width: 250px;
+            `;
             
-            // Change color when less than 5 minutes
-            if (timeLeft < 5 * 60 * 1000) {
-                timerElement.style.color = '#F44336';
-            } else if (timeLeft < 15 * 60 * 1000) {
-                timerElement.style.color = '#FFC107';
-            } else {
-                timerElement.style.color = '#333';
+            countdownContainer.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="font-weight: 600; color: #FF6B35;">
+                        <i class="fas fa-clock"></i> Scheduled Ride
+                    </div>
+                    <button id="cancelScheduleBtn" style="
+                        background: #f44336;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 5px 10px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <div style="font-size: 24px; font-weight: 700; color: #333;" id="countdownTimer">
+                        00:00:00
+                    </div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Ride will auto-request when timer ends
+                    </div>
+                </div>
+                <div style="font-size: 13px; color: #333;">
+                    <div><strong>From:</strong> ${rideData.pickupDisplay || rideData.pickup}</div>
+                    <div><strong>To:</strong> ${rideData.destinationDisplay || rideData.destination}</div>
+                    <div><strong>Fare:</strong> ZMW ${rideData.fare?.toFixed(2) || '0.00'}</div>
+                </div>
+            `;
+            
+            document.body.appendChild(countdownContainer);
+            
+            // Add cancel button listener
+            const cancelBtn = countdownContainer.querySelector('#cancelScheduleBtn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    if (confirm('Are you sure you want to cancel this scheduled ride?')) {
+                        EnhancedFirebaseManager.cancelScheduledRide(rideData.id);
+                        countdownContainer.remove();
+                        
+                        if (AppState.scheduledCountdowns.has(rideData.id)) {
+                            clearInterval(AppState.scheduledCountdowns.get(rideData.id));
+                            AppState.scheduledCountdowns.delete(rideData.id);
+                        }
+                        
+                        this.showToast('Scheduled ride cancelled', 'success');
+                    }
+                });
             }
         }
-    };
-    
-    // Clear existing interval for this ride
-    if (AppState.scheduledCountdowns.has(rideData.id)) {
-        clearInterval(AppState.scheduledCountdowns.get(rideData.id));
-    }
-    
-    // Start new interval
-    const intervalId = setInterval(updateCountdown, 1000);
-    AppState.scheduledCountdowns.set(rideData.id, intervalId);
-    
-    // Initial update
-    updateCountdown();
-    
-    // Add auto-hide functionality after 10 seconds (peek mode)
-    let isMinimized = false;
-    setTimeout(() => {
-        if (!isMinimized) {
-            this.minimizeCountdown(countdownContainer, rideData);
-            isMinimized = true;
+        
+        // Update countdown
+        const updateCountdown = () => {
+            const now = Date.now();
+            const timeLeft = scheduledTime - now;
+            
+            if (timeLeft <= 0) {
+                clearInterval(intervalId);
+                EnhancedFirebaseManager.requestScheduledRide(rideData);
+                countdownContainer.remove();
+                AppState.scheduledCountdowns.delete(rideData.id);
+                return;
+            }
+            
+            const hours = Math.floor(timeLeft / (1000 * 60 * 60));
+            const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+            
+            const timerElement = countdownContainer.querySelector('#countdownTimer');
+            if (timerElement) {
+                timerElement.textContent = 
+                    `${hours.toString().padStart(2, '0')}:` +
+                    `${minutes.toString().padStart(2, '0')}:` +
+                    `${seconds.toString().padStart(2, '0')}`;
+            }
+        };
+        
+        // Clear existing interval for this ride
+        if (AppState.scheduledCountdowns.has(rideData.id)) {
+            clearInterval(AppState.scheduledCountdowns.get(rideData.id));
         }
-    }, 10000);
-},
+        
+        // Start new interval
+        const intervalId = setInterval(updateCountdown, 1000);
+        AppState.scheduledCountdowns.set(rideData.id, intervalId);
+        
+        // Initial update
+        updateCountdown();
+        
+        this.showToast('Ride scheduled successfully', 'success');
+    },
     
     showSplitRidePopup: function() {
         // Create split ride modal
@@ -11171,13 +10269,7 @@ showScheduleEditor: function(rideData) {
     updateNotifications: function(notifications) {
         const container = document.getElementById('notificationsList');
         if (!container) return;
-        // Sort by timestamp (newest first) and read status (unread first)
-    const sortedNotifications = notifications.sort((a, b) => {
-        if (a.read !== b.read) {
-            return a.read ? 1 : -1; // Unread first
-        }
-        return b.timestamp - a.timestamp; // Newest first
-    });
+        
         // Sort by timestamp (newest first)
         const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
         
@@ -11611,211 +10703,19 @@ showScheduleEditor: function(rideData) {
     },
     
     updateWalletTransactions: function(transactions) {
-    const container = document.getElementById('enhancedTransactionsList') || document.getElementById('transactionsList');
-    if (!container) return;
-    
-    if (transactions.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: #999;">
-                <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i>
-                <div style="font-weight: 600; margin-bottom: 10px;">No transactions</div>
-                <div>Your transaction history will appear here</div>
-            </div>
-        `;
-        return;
-    }
-    
-    // Group transactions by date
-    const groupedTransactions = {};
-    transactions.forEach(transaction => {
-        const date = new Date(transaction.timestamp);
-        const dateKey = date.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        const container = document.getElementById('transactionsList');
+        if (!container) return;
         
-        if (!groupedTransactions[dateKey]) {
-            groupedTransactions[dateKey] = [];
-        }
-        groupedTransactions[dateKey].push(transaction);
-    });
-    
-    let html = '';
-    Object.entries(groupedTransactions).forEach(([date, dayTransactions]) => {
-        html += `
-            <div class="transaction-date-group" style="margin-bottom: 20px;">
-                <div style="font-weight: 600; color: #666; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid #eee;">
-                    ${date}
-                </div>
-        `;
-        
-        dayTransactions.forEach(transaction => {
-            const time = new Date(transaction.timestamp);
-            const timeString = time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            
-            const isPositive = transaction.amount > 0;
-            let icon = 'fa-exchange-alt';
-            let iconColor = '#2196F3';
-            let typeLabel = 'Transaction';
-            
-            // Determine icon and color based on transaction type
-            switch(transaction.type) {
-                case 'deposit':
-                    icon = 'fa-arrow-down';
-                    iconColor = '#4CAF50';
-                    typeLabel = 'Deposit';
-                    break;
-                case 'withdrawal':
-                    icon = 'fa-arrow-up';
-                    iconColor = '#F44336';
-                    typeLabel = 'Withdrawal';
-                    break;
-                case 'ride_payment':
-                    icon = 'fa-car';
-                    iconColor = '#FF6B35';
-                    typeLabel = 'Ride Payment';
-                    break;
-                case 'refund':
-                    icon = 'fa-undo';
-                    iconColor = '#4CAF50';
-                    typeLabel = 'Refund';
-                    break;
-                case 'referral_bonus':
-                    icon = 'fa-gift';
-                    iconColor = '#FFC107';
-                    typeLabel = 'Referral Bonus';
-                    break;
-                case 'transfer_sent':
-                    icon = 'fa-paper-plane';
-                    iconColor = '#F44336';
-                    typeLabel = 'Transfer Sent';
-                    break;
-                case 'transfer_received':
-                    icon = 'fa-inbox';
-                    iconColor = '#4CAF50';
-                    typeLabel = 'Transfer Received';
-                    break;
-                case 'bonus':
-                    icon = 'fa-star';
-                    iconColor = '#FFC107';
-                    typeLabel = 'Bonus';
-                    break;
-            }
-            
-            html += `
-                <div class="transaction-item expandable" data-transaction-id="${transaction.id}" style="
-                    padding: 15px;
-                    border-bottom: 1px solid #f5f5f5;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                ">
-                    <div style="display: flex; gap: 12px;">
-                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                            <i class="fas ${icon}"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                                <div style="font-weight: 600; color: #333;">
-                                    ${typeLabel}
-                                </div>
-                                <div style="font-weight: 700; color: ${isPositive ? '#4CAF50' : '#F44336'};">
-                                    ${isPositive ? '+' : ''}ZMW ${Math.abs(transaction.amount).toFixed(2)}
-                                </div>
-                            </div>
-                            <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
-                                ${transaction.description || ''}
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div style="font-size: 11px; color: #999;">
-                                    ${timeString}
-                                </div>
-                                <div style="font-size: 12px; color: #999;">
-                                    <i class="fas fa-chevron-down expand-icon"></i>
-                                </div>
-                            </div>
-                            
-                            <!-- Expanded details (hidden by default) -->
-                            <div class="transaction-details" style="
-                                display: none;
-                                margin-top: 10px;
-                                padding-top: 10px;
-                                border-top: 1px solid #f0f0f0;
-                            ">
-                                ${transaction.reference ? `
-                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
-                                    <strong>Reference:</strong> ${transaction.reference}
-                                </div>
-                                ` : ''}
-                                
-                                ${transaction.rideData ? `
-                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
-                                    <strong>Ride:</strong> ${transaction.rideData.pickupDisplay || transaction.rideData.pickup} to ${transaction.rideData.destinationDisplay || transaction.rideData.destination}
-                                </div>
-                                ` : ''}
-                                
-                                ${transaction.transferData ? `
-                                <div style="font-size: 12px; color: #666;">
-                                    <strong>Transfer ID:</strong> ${transaction.id.substring(0, 8)}...
-                                </div>
-                                ` : ''}
-                                
-                                <div style="font-size: 12px; color: #666; margin-top: 8px;">
-                                    <button class="btn-view-details" style="
-                                        padding: 4px 12px;
-                                        background: #f5f5f5;
-                                        border: none;
-                                        border-radius: 4px;
-                                        font-size: 11px;
-                                        cursor: pointer;
-                                    ">View Details</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        if (transactions.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #999;">
+                    <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i>
+                    <div style="font-weight: 600; margin-bottom: 10px;">No transactions</div>
+                    <div>Your transaction history will appear here</div>
                 </div>
             `;
-        });
-        
-        html += `</div>`;
-    });
-    
-    container.innerHTML = html;
-    
-    // Add expand/collapse functionality
-    container.querySelectorAll('.transaction-item.expandable').forEach(item => {
-        item.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('btn-view-details')) {
-                const details = item.querySelector('.transaction-details');
-                const icon = item.querySelector('.expand-icon');
-                
-                if (details.style.display === 'none') {
-                    details.style.display = 'block';
-                    icon.className = 'fas fa-chevron-up expand-icon';
-                } else {
-                    details.style.display = 'none';
-                    icon.className = 'fas fa-chevron-down expand-icon';
-                }
-            }
-        });
-    });
-    
-    // Add view details button functionality
-    container.querySelectorAll('.btn-view-details').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const transactionItem = btn.closest('.transaction-item');
-            const transactionId = transactionItem.dataset.transactionId;
-            
-            // Find transaction data
-            const transaction = transactions.find(t => t.id === transactionId);
-            if (transaction) {
-                this.showTransactionDetails(transaction);
-            }
-        });
-    });
-},
+            return;
+        }
         
         // Sort by timestamp (newest first)
         const sortedTransactions = transactions.sort((a, b) => b.timestamp - a.timestamp);
@@ -12322,45 +11222,6 @@ const EnhancedFirebaseManager = {
             return false;
         }
     },
-
-showDesktopNotification: function(notification) {
-    if (!("Notification" in window)) {
-        return;
-    }
-    
-    if (Notification.permission === "granted") {
-        const options = {
-            body: notification.message,
-            icon: 'jubel.png',
-            tag: notification.id,
-            requireInteraction: notification.type === 'ride' || notification.type === 'emergency'
-        };
-        
-        const desktopNotification = new Notification(notification.title, options);
-        
-        desktopNotification.onclick = function() {
-            window.focus();
-            this.close();
-            
-            // Handle notification action
-            if (notification.action) {
-                EnhancedUIUpdater.handleNotificationAction(notification.action, notification.data);
-            }
-        };
-        
-        // Auto close after 10 seconds
-        setTimeout(() => {
-            desktopNotification.close();
-        }, 10000);
-        
-    } else if (Notification.permission !== "denied") {
-        Notification.requestPermission().then(permission => {
-            if (permission === "granted") {
-                this.showDesktopNotification(notification);
-            }
-        });
-    }
-},
     
     startRealtimeSync: function(uid) {
         this.stopRealtimeSync();
@@ -12379,208 +11240,7 @@ showDesktopNotification: function(notification) {
                     EnhancedUIUpdater.updateUserInfo(userData);
                 }
             })
-      );
-
-    // Add this section to the startRealtimeSync function (around line where notifications are set up)
-// Notifications with real-time updates
-const notificationsRef = database.ref(`notifications/${uid}`)
-    .orderByChild('timestamp')
-    .limitToLast(100); // Increased limit
-
-AppState.realtimeListeners.push(
-    notificationsRef.on('child_added', (snapshot) => {
-        const notification = { id: snapshot.key, ...snapshot.val() };
-        
-        // Update notifications array
-        const existingIndex = AppState.notifications.findIndex(n => n.id === notification.id);
-        if (existingIndex === -1) {
-            AppState.notifications.unshift(notification);
-        } else {
-            AppState.notifications[existingIndex] = notification;
-        }
-        
-        // Keep only latest 100 notifications
-        if (AppState.notifications.length > 100) {
-            AppState.notifications = AppState.notifications.slice(0, 100);
-        }
-        
-        // Update unread count
-        AppState.unreadNotifications = AppState.notifications.filter(n => !n.read).length;
-        
-        // Update notification badge
-        const badge = document.getElementById('notificationCount');
-        if (badge) {
-            badge.textContent = AppState.unreadNotifications;
-            badge.style.display = AppState.unreadNotifications > 0 ? 'flex' : 'none';
-            
-            // Add pulse animation for new notifications
-            if (!notification.read) {
-                badge.style.animation = 'pulse 0.5s 3';
-                setTimeout(() => {
-                    badge.style.animation = '';
-                }, 1500);
-            }
-        }
-        
-        // Update notifications panel if open
-        if (AppState.notificationsOpen) {
-            EnhancedUIUpdater.updateNotifications(AppState.notifications);
-        }
-        
-        // Show desktop notification if not in focus
-        if (!notification.read && document.hidden) {
-            this.showDesktopNotification(notification);
-        }
-    })
-);
-
-AppState.realtimeListeners.push(
-    notificationsRef.on('child_changed', (snapshot) => {
-        const updatedNotification = { id: snapshot.key, ...snapshot.val() };
-        
-        // Update in array
-        const index = AppState.notifications.findIndex(n => n.id === updatedNotification.id);
-        if (index !== -1) {
-            AppState.notifications[index] = updatedNotification;
-        }
-        
-        // Update UI if panel is open
-        if (AppState.notificationsOpen) {
-            EnhancedUIUpdater.updateNotifications(AppState.notifications);
-        }
-    })
-);
-
-AppState.realtimeListeners.push(
-    notificationsRef.on('child_removed', (snapshot) => {
-        const removedId = snapshot.key;
-        AppState.notifications = AppState.notifications.filter(n => n.id !== removedId);
-        
-        // Update UI if panel is open
-        if (AppState.notificationsOpen) {
-            EnhancedUIUpdater.updateNotifications(AppState.notifications);
-        }
-    })
-);
-
-startTrackingBroadcast: function(broadcastId, modal) {
-    const broadcastRef = database.ref(`broadcasts/${broadcastId}`);
-    
-    // Listen to broadcast updates
-    const broadcastListener = broadcastRef.on('value', (snapshot) => {
-        const broadcast = snapshot.val();
-        if (broadcast) {
-            this.updateBroadcastTrackingUI(broadcast, modal);
-            
-            // If broadcast has associated ride, track it too
-            if (broadcast.rideId && !AppState.activeBroadcastRideListener) {
-                this.trackBroadcastRide(broadcast.rideId, modal);
-            }
-        }
-    });
-    
-    AppState.realtimeListeners.push(() => {
-        broadcastRef.off('value', broadcastListener);
-    });
-    
-    // Also listen to broadcast participants
-    const participantsRef = database.ref(`broadcastParticipants/${broadcastId}`);
-    const participantsListener = participantsRef.on('value', (snapshot) => {
-        const participants = snapshot.val();
-        this.updateBroadcastParticipants(participants, modal);
-    });
-    
-    AppState.realtimeListeners.push(() => {
-        participantsRef.off('value', participantsListener);
-    });
-},
-
-trackBroadcastRide: function(rideId, modal) {
-    const rideRef = database.ref(`rides/${rideId}`);
-    
-    const rideListener = rideRef.on('value', (snapshot) => {
-        const ride = snapshot.val();
-        if (ride) {
-            this.updateBroadcastRideStatus(ride, modal);
-            
-            // If ride has driver location, track it on map
-            if (ride.driverId) {
-                this.trackBroadcastDriverLocation(ride.driverId, modal);
-            }
-        }
-    });
-    
-    AppState.activeBroadcastRideListener = rideListener;
-    
-    AppState.realtimeListeners.push(() => {
-        rideRef.off('value', rideListener);
-        AppState.activeBroadcastRideListener = null;
-    });
-},
-
-updateBroadcastTrackingUI: function(broadcast, modal) {
-    if (!modal || !modal.parentNode) return;
-    
-    // Update host name
-    const hostName = modal.querySelector('#broadcastHostName');
-    if (hostName) hostName.textContent = broadcast.hostName || 'Host';
-    
-    // Update addresses
-    const pickupAddress = modal.querySelector('#broadcastPickupAddress');
-    const destAddress = modal.querySelector('#broadcastDestinationAddress');
-    
-    if (pickupAddress) pickupAddress.textContent = broadcast.pickup || 'Loading...';
-    if (destAddress) destAddress.textContent = broadcast.destination || 'Loading...';
-    
-    // Update stats
-    const distance = modal.querySelector('#broadcastDistance');
-    const eta = modal.querySelector('#broadcastETA');
-    const speed = modal.querySelector('#broadcastSpeed');
-    
-    if (distance) distance.textContent = `${broadcast.distance?.toFixed(1) || '0'} km`;
-    if (eta) eta.textContent = `${broadcast.estimatedTime || '0'} min`;
-    if (speed) speed.textContent = `${broadcast.currentSpeed || '0'} km/h`;
-},
-
-updateBroadcastParticipants: function(participants, modal) {
-    if (!modal || !modal.parentNode || !participants) return;
-    
-    const container = modal.querySelector('#broadcastParticipantsList');
-    if (!container) return;
-    
-    let html = '';
-    Object.entries(participants).forEach(([userId, participant]) => {
-        const isYou = userId === AppState.currentUser.uid;
-        html += `
-            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <div style="width: 24px; height: 24px; background: ${isYou ? '#4CAF50' : '#2196F3'}; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px;">
-                        ${isYou ? 'Y' : participant.userName?.charAt(0) || 'U'}
-                    </div>
-                    <div>
-                        <div style="font-weight: ${isYou ? '600' : '400'};">${participant.userName || 'User'}</div>
-                        <div style="font-size: 11px; color: #999;">${isYou ? 'You' : 'Viewing'}</div>
-                    </div>
-                </div>
-                <div style="color: #4CAF50; font-size: 12px;">
-                    <i class="fas fa-eye"></i> Live
-                </div>
-            </div>
-        `;
-    });
-    
-    if (html === '') {
-        html = '<div style="text-align: center; padding: 20px; color: #999;">No participants</div>';
-    }
-    
-    container.innerHTML = html;
-},
-
-stopTrackingBroadcast: function(broadcastId) {
-    // Remove listener for this specific broadcast
-    // The cleanup will be handled by the realtimeListeners array
-    console.log('Stopped tracking broadcast:', broadcastId);
-},
+        );
         
         // Active ride updates
         const activeRideRef = database.ref('rides')
@@ -12895,122 +11555,26 @@ stopTrackingBroadcast: function(broadcastId) {
     },
     
     async loadWalletTransactions(uid) {
-    try {
-        const snapshot = await database.ref(`walletTransactions/${uid}`)
-            .orderByChild('timestamp')
-            .once('value');
-        
-        const transactions = snapshot.val();
-        if (transactions) {
-            const transactionsArray = Object.keys(transactions).map(id => ({
-                id,
-                ...transactions[id]
-            })).sort((a, b) => b.timestamp - a.timestamp);
-            
-            AppState.walletTransactions = transactionsArray;
-            
-            // Load ride transactions
-            const rideSnapshot = await database.ref('rides')
-                .orderByChild('passengerId')
-                .equalTo(uid)
+        try {
+            const snapshot = await database.ref(`walletTransactions/${uid}`)
+                .orderByChild('timestamp')
+                .limitToLast(50)
                 .once('value');
             
-            const rides = rideSnapshot.val();
-            if (rides) {
-                Object.entries(rides).forEach(([rideId, ride]) => {
-                    if (ride.status === 'completed' && ride.paymentMethod === 'wallet') {
-                        // Add ride payment
-                        transactionsArray.push({
-                            id: rideId,
-                            type: 'ride_payment',
-                            amount: -ride.fare,
-                            description: `Ride from ${ride.pickupDisplay || ride.pickup} to ${ride.destinationDisplay || ride.destination}`,
-                            reference: rideId,
-                            timestamp: ride.timestamp || Date.now(),
-                            rideData: ride
-                        });
-                        
-                        // Add referral bonus if applicable
-                        if (ride.referredBy && ride.referralDiscount) {
-                            transactionsArray.push({
-                                id: rideId + '_bonus',
-                                type: 'referral_bonus',
-                                amount: 25,
-                                description: `Referral bonus for ${ride.referredBy}`,
-                                reference: rideId,
-                                timestamp: ride.timestamp || Date.now() + 1000
-                            });
-                        }
-                    }
-                    
-                    if (ride.status === 'cancelled' && ride.paymentMethod === 'wallet' && ride.fare) {
-                        // Add refund for cancelled ride
-                        transactionsArray.push({
-                            id: rideId + '_refund',
-                            type: 'refund',
-                            amount: ride.fare,
-                            description: `Refund for cancelled ride`,
-                            reference: rideId,
-                            timestamp: ride.cancelledAt || Date.now(),
-                            rideData: ride
-                        });
-                    }
-                });
+            const transactions = snapshot.val();
+            if (transactions) {
+                const transactionsArray = Object.keys(transactions).map(id => ({
+                    id,
+                    ...transactions[id]
+                })).sort((a, b) => b.timestamp - a.timestamp);
+                
+                AppState.walletTransactions = transactionsArray;
+                console.log(`Loaded ${transactionsArray.length} wallet transactions`);
             }
-            
-            // Load transfer transactions
-            const sentTransfersSnapshot = await database.ref('transfers')
-                .orderByChild('senderId')
-                .equalTo(uid)
-                .once('value');
-            
-            const sentTransfers = sentTransfersSnapshot.val();
-            if (sentTransfers) {
-                Object.entries(sentTransfers).forEach(([transferId, transfer]) => {
-                    transactionsArray.push({
-                        id: transferId,
-                        type: 'transfer_sent',
-                        amount: -transfer.amount,
-                        description: `Transfer to ${transfer.recipientName}`,
-                        reference: transferId,
-                        timestamp: transfer.timestamp,
-                        transferData: transfer
-                    });
-                });
-            }
-            
-            const receivedTransfersSnapshot = await database.ref('transfers')
-                .orderByChild('recipientId')
-                .equalTo(uid)
-                .once('value');
-            
-            const receivedTransfers = receivedTransfersSnapshot.val();
-            if (receivedTransfers) {
-                Object.entries(receivedTransfers).forEach(([transferId, transfer]) => {
-                    transactionsArray.push({
-                        id: transferId,
-                        type: 'transfer_received',
-                        amount: transfer.amount,
-                        description: `Transfer from ${transfer.senderName}`,
-                        reference: transferId,
-                        timestamp: transfer.timestamp,
-                        transferData: transfer
-                    });
-                });
-            }
-            
-            // Sort by timestamp
-            transactionsArray.sort((a, b) => b.timestamp - a.timestamp);
-            
-            console.log(`Loaded ${transactionsArray.length} wallet transactions`);
-            
-            // Update UI
-            EnhancedUIUpdater.updateWalletTransactions(transactionsArray);
+        } catch (error) {
+            console.error('Error loading wallet transactions:', error);
         }
-    } catch (error) {
-        console.error('Error loading wallet transactions:', error);
-    }
-},
+    },
     
     listenToRideUpdates: function(rideId) {
         const rideRef = database.ref(`rides/${rideId}`);
@@ -14063,226 +12627,6 @@ stopTrackingBroadcast: function(broadcastId) {
             EnhancedUIUpdater.showToast('Error sending SOS alert', 'error');
             throw error;
         }
-
-        // Add this to listen for share ride invitations
-listenToShareRideInvitations: function(uid) {
-    const shareInvitationsRef = database.ref('shareRideInvitations')
-        .orderByChild('recipientId')
-        .equalTo(uid)
-        .orderByChild('status')
-        .equalTo('pending');
-    
-    AppState.realtimeListeners.push(
-        shareInvitationsRef.on('child_added', (snapshot) => {
-            const invitation = snapshot.val();
-            if (invitation && invitation.status === 'pending') {
-                this.showShareRideInvitation(invitation);
-            }
-        })
-    );
-},
-
-showShareRideInvitation: function(invitation) {
-    // Create invitation modal
-    const modal = document.createElement('div');
-    modal.className = 'share-ride-invitation-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        width: 90%;
-        max-width: 400px;
-        z-index: 10000;
-        padding: 20px;
-    `;
-    
-    modal.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <div style="font-size: 48px; color: #2196F3; margin-bottom: 15px;">
-                <i class="fas fa-user-friends"></i>
-            </div>
-            <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">
-                Share Ride Invitation
-            </div>
-            <div style="color: #666; margin-bottom: 5px;">
-                From: <strong>${invitation.hostName}</strong>
-            </div>
-        </div>
-        
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div>
-                <div style="font-weight: 600;">${invitation.pickup}</div>
-            </div>
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div>
-                <div style="font-weight: 600;">${invitation.destination}</div>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-                <div>
-                    <div style="font-size: 12px; color: #666;">Your Share</div>
-                    <div style="font-weight: 700; color: #FF6B35; font-size: 18px;">ZMW ${invitation.yourShare?.toFixed(2) || '0.00'}</div>
-                </div>
-                <div>
-                    <div style="font-size: 12px; color: #666;">Total Fare</div>
-                    <div style="font-weight: 600; font-size: 16px;">ZMW ${invitation.totalFare?.toFixed(2) || '0.00'}</div>
-                </div>
-            </div>
-        </div>
-        
-        <div style="font-size: 14px; color: #666; margin-bottom: 20px; text-align: center;">
-            Accept to join this ride and split the fare
-        </div>
-        
-        <div style="display: flex; gap: 10px;">
-            <button id="acceptShareInviteBtn" style="
-                flex: 1;
-                padding: 15px;
-                background: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 16px;
-            ">
-                <i class="fas fa-check"></i> Accept
-            </button>
-            <button id="rejectShareInviteBtn" style="
-                flex: 1;
-                padding: 15px;
-                background: #f44336;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 16px;
-            ">
-                <i class="fas fa-times"></i> Decline
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Add overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 9999;
-    `;
-    document.body.appendChild(overlay);
-    
-    // Event listeners
-    modal.querySelector('#acceptShareInviteBtn').addEventListener('click', async () => {
-        try {
-            // Update invitation status
-            await database.ref(`shareRideInvitations/${invitation.id}`).update({
-                status: 'accepted',
-                acceptedAt: Date.now()
-            });
-            
-            // Add user to share ride
-            await database.ref(`shareRides/${invitation.shareRideId}/participants/${AppState.currentUser.uid}`).set({
-                userId: AppState.currentUser.uid,
-                userName: AppState.userData.name,
-                acceptedAt: Date.now(),
-                shareAmount: invitation.yourShare
-            });
-            
-            // Show payment modal for user's share
-            EnhancedUIUpdater.showPaymentModal(invitation.yourShare, {
-                ...invitation,
-                isShareRide: true,
-                shareRideId: invitation.shareRideId
-            });
-            
-            closeModal();
-            
-        } catch (error) {
-            console.error('Error accepting share ride:', error);
-            EnhancedUIUpdater.showToast('Error accepting invitation', 'error');
-        }
-    });
-    
-    modal.querySelector('#rejectShareInviteBtn').addEventListener('click', async () => {
-        try {
-            await database.ref(`shareRideInvitations/${invitation.id}`).update({
-                status: 'rejected',
-                rejectedAt: Date.now()
-            });
-            
-            closeModal();
-            EnhancedUIUpdater.showToast('Invitation declined', 'info');
-            
-        } catch (error) {
-            console.error('Error rejecting share ride:', error);
-            EnhancedUIUpdater.showToast('Error declining invitation', 'error');
-        }
-    });
-    
-    function closeModal() {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    }
-    
-    overlay.addEventListener('click', closeModal);
-},
-
-// Add this function to start tracking a shared ride
-startTrackingSharedRide: function(shareRideId) {
-    const shareRideRef = database.ref(`shareRides/${shareRideId}`);
-    
-    AppState.realtimeListeners.push(
-        shareRideRef.on('value', (snapshot) => {
-            const shareRide = snapshot.val();
-            if (shareRide) {
-                this.updateSharedRideTracking(shareRide);
-            }
-        })
-    );
-    
-    // Also listen to the associated ride
-    if (shareRide.rideId) {
-        this.listenToRideUpdates(shareRide.rideId);
-    }
-},
-
-updateSharedRideTracking: function(shareRide) {
-    // Update tracking UI for shared ride
-    const modal = document.getElementById('shareRideTrackingModal');
-    if (modal && modal.style.display === 'block') {
-        // Update tracking information
-        const participantsList = modal.querySelector('#shareParticipantsList');
-        const rideStatus = modal.querySelector('#shareRideStatus');
-        const rideMap = modal.querySelector('#shareRideMap');
-        
-        if (participantsList) {
-            let html = '';
-            Object.values(shareRide.participants || {}).forEach(participant => {
-                html += `
-                    <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
-                        <span>${participant.userName}</span>
-                        <span style="color: ${participant.userId === AppState.currentUser.uid ? '#4CAF50' : '#666'}">
-                            ${participant.userId === AppState.currentUser.uid ? 'You' : 'Friend'}
-                        </span>
-                    </div>
-                `;
-            });
-            participantsList.innerHTML = html;
-        }
-    }
-},
     }
 };
 
@@ -14872,49 +13216,6 @@ function setupEventListeners() {
             if (map) map.zoomOut();
         });
     }
-// Add these to the existing setupEventListeners function
-
-// Initialize notification permission
-if ("Notification" in window && Notification.permission === "default") {
-    Notification.requestPermission();
-}
-
-// Listen for share ride invitations
-if (AppState.currentUser) {
-    EnhancedFirebaseManager.listenToShareRideInvitations(AppState.currentUser.uid);
-}
-
-// Add event listener for deposit quick amounts
-document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('quick-amount-btn')) {
-        const amount = parseFloat(e.target.dataset.amount);
-        const depositAmount = document.getElementById('depositAmount');
-        const withdrawAmount = document.getElementById('withdrawAmount');
-        
-        if (depositAmount) {
-            depositAmount.value = amount;
-        }
-        if (withdrawAmount) {
-            withdrawAmount.value = amount;
-        }
-    }
-});
-
-// Add event listener for payment methods in deposit/withdraw modals
-document.addEventListener('click', function(e) {
-    if (e.target.closest('.payment-method')) {
-        const methodElement = e.target.closest('.payment-method');
-        const container = methodElement.closest('.modal-content');
-        
-        // Remove selected class from all methods in this modal
-        container.querySelectorAll('.payment-method').forEach(m => {
-            m.classList.remove('selected');
-        });
-        
-        // Add selected class to clicked method
-        methodElement.classList.add('selected');
-    }
-});
     
     const clearRouteBtn = document.getElementById('clearRouteBtn');
     if (clearRouteBtn) {
@@ -15760,7 +14061,6 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
-
 
 
 
