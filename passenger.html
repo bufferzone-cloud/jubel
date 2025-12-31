@@ -4002,130 +4002,6 @@
             color: var(--dark-gray);
             line-height: 1.3;
         }
-
-        <style>
-/* Pulsing animation for countdown timer */
-@keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
-}
-
-@keyframes pulse-glow {
-    0% { box-shadow: 0 0 5px rgba(255, 107, 53, 0.5); }
-    50% { box-shadow: 0 0 20px rgba(255, 107, 53, 0.8); }
-    100% { box-shadow: 0 0 5px rgba(255, 107, 53, 0.5); }
-}
-
-/* Unread notification badge */
-.unread-badge {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    width: 8px;
-    height: 8px;
-    background: #FF6B35;
-    border-radius: 50%;
-    animation: pulse 2s infinite;
-}
-
-/* Transaction item hover effect */
-.transaction-item:hover {
-    background: #f9f9f9 !important;
-}
-
-/* History item hover effect */
-.history-item:hover {
-    background: #f9f9f9 !important;
-}
-
-/* Modal animations */
-@keyframes slideIn {
-    from {
-        transform: translate(-50%, -50%) translateY(20px);
-        opacity: 0;
-    }
-    to {
-        transform: translate(-50%, -50%) translateY(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideOut {
-    from {
-        transform: translate(-50%, -50%) translateY(0);
-        opacity: 1;
-    }
-    to {
-        transform: translate(-50%, -50%) translateY(20px);
-        opacity: 0;
-    }
-}
-
-/* Pickup location modal specific */
-.pickup-location-item {
-    padding: 12px;
-    border-bottom: 1px solid #eee;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.pickup-location-item:hover {
-    background: #f5f5f5;
-}
-
-.pickup-location-item.selected {
-    background: #E8F5E9;
-    border-left: 4px solid #4CAF50;
-}
-
-/* Broadcast tracking map */
-.broadcast-tracking-popup {
-    animation: slideIn 0.3s ease;
-}
-
-/* Responsive adjustments */
-@media (max-width: 768px) {
-    .broadcast-tracking-popup {
-        flex-direction: column !important;
-    }
-    
-    .broadcast-tracking-popup > div:first-child {
-        height: 60vh !important;
-    }
-    
-    .broadcast-tracking-popup > div:last-child {
-        height: 40vh !important;
-    }
-}
-
-/* Toast animations */
-.toast {
-    animation: slideInRight 0.3s ease;
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideOutRight {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-}
-</style>
     </style>
 </head>
 <body>
@@ -6833,244 +6709,56 @@ const EnhancedLocationManager = {
         }
     },
     
-   setupPickupInput: function(inputElement) {
-    const inputId = inputElement.id;
-    
-    inputElement.addEventListener('focus', () => {
-        this.handlePickupInputFocus(inputId);
-    });
-    
-    inputElement.addEventListener('click', (e) => {
-        this.showPickupLocationPopup(inputElement);
-    });
-    
-    inputElement.addEventListener('input', (e) => {
-        this.handlePickupInputChange(inputId, e.target.value);
-    });
-    
-    inputElement.addEventListener('blur', () => {
-        setTimeout(() => {
-            this.handlePickupInputBlur(inputId);
-        }, 200);
-    });
-    
-    // Add detect current location button
-    const parentDiv = inputElement.parentNode;
-    if (!parentDiv.querySelector('.detect-location-btn')) {
-        const detectBtn = document.createElement('button');
-        detectBtn.type = 'button';
-        detectBtn.className = 'detect-location-btn';
-        detectBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
-        detectBtn.title = 'Use my current location';
-        detectBtn.style.cssText = `
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: #FF6B35;
-            cursor: pointer;
-            z-index: 10;
-            padding: 5px;
-            border-radius: 4px;
-        `;
+    setupPickupInput: function(inputElement) {
+        const inputId = inputElement.id;
         
-        parentDiv.style.position = 'relative';
-        parentDiv.appendChild(detectBtn);
-        
-        detectBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.useCurrentLocation(inputId);
+        inputElement.addEventListener('focus', () => {
+            this.handlePickupInputFocus(inputId);
         });
-    }
-},
-
-showPickupLocationPopup: function(inputElement) {
-    const modal = document.createElement('div');
-    modal.className = 'pickup-location-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        width: 90%;
-        max-width: 400px;
-        max-height: 80vh;
-        overflow-y: auto;
-        z-index: 10000;
-        padding: 20px;
-    `;
-    
-    modal.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 style="margin: 0; color: #333;">
-                <i class="fas fa-map-marker-alt"></i> Select Pickup Location
-            </h3>
-            <button id="closePickupModal" style="
+        
+        inputElement.addEventListener('input', (e) => {
+            this.handlePickupInputChange(inputId, e.target.value);
+        });
+        
+        inputElement.addEventListener('blur', () => {
+            setTimeout(() => {
+                this.handlePickupInputBlur(inputId);
+            }, 200);
+        });
+        
+        // Add clear button
+        if (!inputElement.nextElementSibling?.classList.contains('clear-input-btn')) {
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'clear-input-btn';
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+            clearBtn.style.cssText = `
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
                 background: none;
                 border: none;
-                font-size: 24px;
-                cursor: pointer;
                 color: #999;
-            ">×</button>
-        </div>
-        
-        <div style="margin-bottom: 20px;">
-            <div style="margin-bottom: 15px;">
-                <button id="useCurrentLocationBtn" style="
-                    width: 100%;
-                    padding: 12px;
-                    background: #FF6B35;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 10px;
-                ">
-                    <i class="fas fa-location-arrow"></i>
-                    Use My Current Location
-                </button>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <div style="font-weight: 600; margin-bottom: 10px; color: #333;">
-                    <i class="fas fa-history"></i> Recent Locations
-                </div>
-                <div id="recentPickupLocationsList" style="
-                    max-height: 200px;
-                    overflow-y: auto;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 6px;
-                    padding: 10px;
-                ">
-                    <div style="text-align: center; padding: 20px; color: #999;">
-                        Loading recent locations...
-                    </div>
-                </div>
-            </div>
-            
-            <div>
-                <div style="font-weight: 600; margin-bottom: 10px; color: #333;">
-                    <i class="fas fa-search"></i> Search Location
-                </div>
-                <input type="text" id="pickupSearchInput" placeholder="Enter address or place name" style="
-                    width: 100%;
-                    padding: 10px;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 6px;
-                    font-size: 14px;
-                    margin-bottom: 10px;
-                ">
-                <div id="pickupSearchResults" style="
-                    max-height: 200px;
-                    overflow-y: auto;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 6px;
-                    padding: 10px;
-                    display: none;
-                "></div>
-            </div>
-        </div>
-        
-        <div style="display: flex; gap: 10px;">
-            <button id="savePickupLocationBtn" style="
-                flex: 1;
-                padding: 12px;
-                background: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 8px;
                 cursor: pointer;
-                font-weight: 600;
                 display: none;
-            ">
-                <i class="fas fa-check"></i> Select Location
-            </button>
-            <button id="cancelPickupBtn" style="
-                padding: 12px 20px;
-                background: #f5f5f5;
-                color: #666;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-            ">
-                Cancel
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Add overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 9999;
-    `;
-    document.body.appendChild(overlay);
-    
-    // Store reference to input
-    modal.dataset.targetInput = inputElement.id;
-    
-    // Load recent locations
-    this.loadRecentPickupLocations(modal);
-    
-    // Event listeners
-    modal.querySelector('#closePickupModal').addEventListener('click', () => {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    });
-    
-    overlay.addEventListener('click', () => {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    });
-    
-    modal.querySelector('#cancelPickupBtn').addEventListener('click', () => {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    });
-    
-    // Use current location button
-    modal.querySelector('#useCurrentLocationBtn').addEventListener('click', () => {
-        this.useCurrentLocationForPopup(modal, inputElement);
-    });
-    
-    // Search input
-    const searchInput = modal.querySelector('#pickupSearchInput');
-    let searchTimeout;
-    searchInput.addEventListener('input', () => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            this.searchPickupLocations(modal, searchInput.value);
-        }, 500);
-    });
-    
-    // Save button (will be enabled when location is selected)
-    let selectedLocation = null;
-    
-    modal.querySelector('#savePickupLocationBtn').addEventListener('click', () => {
-        if (selectedLocation) {
-            this.selectPickupLocation(inputElement.id, selectedLocation);
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
+                z-index: 10;
+            `;
+            
+            inputElement.parentNode.style.position = 'relative';
+            inputElement.parentNode.appendChild(clearBtn);
+            
+            clearBtn.addEventListener('click', () => {
+                inputElement.value = '';
+                clearBtn.style.display = 'none';
+                this.clearPickupLocation(inputId);
+            });
+            
+            inputElement.addEventListener('input', () => {
+                clearBtn.style.display = inputElement.value ? 'block' : 'none';
+            });
         }
-    });
-},
+    },
     
     setupDestinationInput: function(inputElement) {
         const inputId = inputElement.id;
@@ -8420,143 +8108,6 @@ const EnhancedUIUpdater = {
             if (referralCode) referralCode.textContent = userData.referralCode;
         }
     },
-
-    showShareRideAcceptancePopup: function(invitationId, invitation) {
-    const modal = document.createElement('div');
-    modal.className = 'share-ride-acceptance-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        width: 90%;
-        max-width: 400px;
-        z-index: 10000;
-        padding: 20px;
-    `;
-    
-    modal.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <div style="font-size: 48px; color: #2196F3; margin-bottom: 15px;">
-                <i class="fas fa-user-friends"></i>
-            </div>
-            <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">
-                Share Ride Invitation
-            </div>
-            <div style="color: #666; margin-bottom: 5px;">
-                From: <strong>${invitation.hostName}</strong>
-            </div>
-        </div>
-        
-        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div>
-                <div style="font-weight: 600;">${invitation.pickup}</div>
-            </div>
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div>
-                <div style="font-weight: 600;">${invitation.destination}</div>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-                <div>
-                    <div style="font-size: 12px; color: #666;">Your Share</div>
-                    <div style="font-weight: 700; color: #FF6B35; font-size: 18px;">ZMW ${invitation.eachShare.toFixed(2)}</div>
-                </div>
-                <div>
-                    <div style="font-size: 12px; color: #666;">Participants</div>
-                    <div style="font-weight: 600; font-size: 16px;">${invitation.participants}</div>
-                </div>
-            </div>
-        </div>
-        
-        <div style="font-size: 14px; color: #666; margin-bottom: 20px; text-align: center;">
-            Accept to track this ride in real-time
-        </div>
-        
-        <div style="display: flex; gap: 10px;">
-            <button id="acceptShareInviteBtn" style="
-                flex: 1;
-                padding: 15px;
-                background: #4CAF50;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 16px;
-            ">
-                <i class="fas fa-check"></i> Accept & Track
-            </button>
-            <button id="rejectShareInviteBtn" style="
-                flex: 1;
-                padding: 15px;
-                background: #f44336;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 16px;
-            ">
-                <i class="fas fa-times"></i> Decline
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Add overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        z-index: 9999;
-    `;
-    document.body.appendChild(overlay);
-    
-    // Event listeners
-    modal.querySelector('#acceptShareInviteBtn').addEventListener('click', () => {
-        EnhancedFirebaseManager.acceptShareRideInvitation(invitationId)
-            .then(() => {
-                document.body.removeChild(modal);
-                document.body.removeChild(overlay);
-                
-                // Start tracking the ride
-                this.startShareRideTracking(invitation.rideId);
-                
-                EnhancedUIUpdater.showToast('Share ride accepted! Now tracking the ride.', 'success');
-            })
-            .catch(error => {
-                console.error('Error accepting share ride:', error);
-                EnhancedUIUpdater.showToast('Error accepting invitation', 'error');
-            });
-    });
-    
-    modal.querySelector('#rejectShareInviteBtn').addEventListener('click', () => {
-        EnhancedFirebaseManager.rejectShareRideInvitation(invitationId)
-            .then(() => {
-                document.body.removeChild(modal);
-                document.body.removeChild(overlay);
-                EnhancedUIUpdater.showToast('Invitation declined', 'info');
-            })
-            .catch(error => {
-                console.error('Error rejecting share ride:', error);
-                EnhancedUIUpdater.showToast('Error rejecting invitation', 'error');
-            });
-    });
-    
-    overlay.addEventListener('click', () => {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    });
-},
     
     showToast: function(message, type = 'info', duration = 5000) {
         const toastContainer = document.getElementById('toastContainer');
@@ -10715,233 +10266,112 @@ const EnhancedUIUpdater = {
         }
     },
     
-   updateNotifications: function(notifications) {
-    const container = document.getElementById('notificationsList');
-    if (!container) return;
-    
-    // Sort by timestamp (newest first) and unread first
-    const sortedNotifications = notifications.sort((a, b) => {
-        // Unread first
-        if (a.read !== b.read) return a.read ? 1 : -1;
-        // Then by timestamp
-        return b.timestamp - a.timestamp;
-    });
-    
-    if (sortedNotifications.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: #999;">
-                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
-                <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
-                <div>You're all caught up!</div>
-            </div>
-        `;
-        return;
-    }
-    
-    let html = '';
-    let unreadCount = 0;
-    
-    sortedNotifications.forEach(notification => {
-        const time = new Date(notification.timestamp);
-        const timeString = this.formatTimeAgo(notification.timestamp);
+    updateNotifications: function(notifications) {
+        const container = document.getElementById('notificationsList');
+        if (!container) return;
         
-        let icon = 'fa-info-circle';
-        let iconColor = '#2196F3';
-        let bgColor = notification.read ? 'white' : '#E3F2FD';
-        let badge = notification.read ? '' : '<div class="unread-badge"></div>';
+        // Sort by timestamp (newest first)
+        const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
         
-        switch(notification.type) {
-            case 'success':
-                icon = 'fa-check-circle';
-                iconColor = '#4CAF50';
-                bgColor = notification.read ? 'white' : '#E8F5E9';
-                break;
-            case 'error':
-                icon = 'fa-exclamation-circle';
-                iconColor = '#F44336';
-                bgColor = notification.read ? 'white' : '#FFEBEE';
-                break;
-            case 'warning':
-                icon = 'fa-exclamation-triangle';
-                iconColor = '#FFC107';
-                bgColor = notification.read ? 'white' : '#FFF8E1';
-                break;
-            case 'ride':
-                icon = 'fa-car';
-                iconColor = '#FF6B35';
-                bgColor = notification.read ? 'white' : '#FFF3E0';
-                break;
-            case 'payment':
-                icon = 'fa-money-bill-wave';
-                iconColor = '#4CAF50';
-                bgColor = notification.read ? 'white' : '#E8F5E9';
-                break;
-            case 'referral':
-                icon = 'fa-gift';
-                iconColor = '#FF6B35';
-                bgColor = notification.read ? 'white' : '#FFF3E0';
-                break;
-            case 'split':
-                icon = 'fa-user-friends';
-                iconColor = '#2196F3';
-                bgColor = notification.read ? 'white' : '#E3F2FD';
-                break;
-            case 'broadcast':
-                icon = 'fa-broadcast-tower';
-                iconColor = '#FFC107';
-                bgColor = notification.read ? 'white' : '#FFF8E1';
-                break;
-            case 'scheduled':
-                icon = 'fa-clock';
-                iconColor = '#9C27B0';
-                bgColor = notification.read ? 'white' : '#F3E5F5';
-                break;
+        if (sortedNotifications.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #999;">
+                    <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
+                    <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
+                    <div>You're all caught up!</div>
+                </div>
+            `;
+            return;
         }
         
-        if (!notification.read) unreadCount++;
+        let html = '';
         
-        html += `
-            <div class="notification-item ${notification.read ? '' : 'unread'}" data-notification-id="${notification.id}" style="
-                padding: 15px;
-                border-bottom: 1px solid #eee;
-                background: ${bgColor};
-                cursor: pointer;
-                transition: background 0.2s;
-                position: relative;
-            ">
-                ${badge}
-                <div style="display: flex; gap: 12px;">
-                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                        <i class="fas ${icon}"></i>
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                            <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
-                            <div style="font-size: 12px; color: #999;">${timeString}</div>
+        sortedNotifications.forEach(notification => {
+            const time = new Date(notification.timestamp);
+            const timeString = this.formatTimeAgo(notification.timestamp);
+            
+            let icon = 'fa-info-circle';
+            let iconColor = '#2196F3';
+            let bgColor = '#E3F2FD';
+            
+            switch(notification.type) {
+                case 'success':
+                    icon = 'fa-check-circle';
+                    iconColor = '#4CAF50';
+                    bgColor = '#E8F5E9';
+                    break;
+                case 'error':
+                    icon = 'fa-exclamation-circle';
+                    iconColor = '#F44336';
+                    bgColor = '#FFEBEE';
+                    break;
+                case 'warning':
+                    icon = 'fa-exclamation-triangle';
+                    iconColor = '#FFC107';
+                    bgColor = '#FFF8E1';
+                    break;
+                case 'ride':
+                    icon = 'fa-car';
+                    iconColor = '#FF6B35';
+                    bgColor = '#FFF3E0';
+                    break;
+                case 'payment':
+                    icon = 'fa-money-bill-wave';
+                    iconColor = '#4CAF50';
+                    bgColor = '#E8F5E9';
+                    break;
+                case 'referral':
+                    icon = 'fa-gift';
+                    iconColor = '#FF6B35';
+                    bgColor = '#FFF3E0';
+                    break;
+                case 'split':
+                    icon = 'fa-user-friends';
+                    iconColor = '#2196F3';
+                    bgColor = '#E3F2FD';
+                    break;
+                case 'broadcast':
+                    icon = 'fa-broadcast-tower';
+                    iconColor = '#FFC107';
+                    bgColor = '#FFF8E1';
+                    break;
+            }
+            
+            html += `
+                <div class="notification-item ${notification.read ? '' : 'unread'}" style="
+                    padding: 15px;
+                    border-bottom: 1px solid #eee;
+                    background: ${notification.read ? 'white' : bgColor};
+                    cursor: pointer;
+                ">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                            <i class="fas ${icon}"></i>
                         </div>
-                        <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
-                        ${notification.data ? `
-                        <div style="font-size: 12px; color: #999;">
-                            ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
-                        </div>
-                        ` : ''}
-                        
-                        <!-- Action buttons for specific notification types -->
-                        <div class="notification-actions" style="
-                            display: ${notification.action ? 'flex' : 'none'};
-                            gap: 10px;
-                            margin-top: 10px;
-                        ">
-                            ${notification.action === 'accept_split_invite' ? `
-                            <button class="notification-action-btn accept" style="
-                                padding: 6px 12px;
-                                background: #4CAF50;
-                                color: white;
-                                border: none;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                font-size: 12px;
-                            ">
-                                <i class="fas fa-check"></i> Accept
-                            </button>
-                            <button class="notification-action-btn reject" style="
-                                padding: 6px 12px;
-                                background: #f44336;
-                                color: white;
-                                border: none;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                font-size: 12px;
-                            ">
-                                <i class="fas fa-times"></i> Decline
-                            </button>
-                            ` : ''}
-                            
-                            ${notification.action === 'open_chat' ? `
-                            <button class="notification-action-btn chat" style="
-                                padding: 6px 12px;
-                                background: #2196F3;
-                                color: white;
-                                border: none;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                font-size: 12px;
-                            ">
-                                <i class="fas fa-comment"></i> Open Chat
-                            </button>
-                            ` : ''}
-                            
-                            ${notification.action === 'track_ride' ? `
-                            <button class="notification-action-btn track" style="
-                                padding: 6px 12px;
-                                background: #FF6B35;
-                                color: white;
-                                border: none;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                font-size: 12px;
-                            ">
-                                <i class="fas fa-map-marker-alt"></i> Track Ride
-                            </button>
-                            ` : ''}
-                            
-                            ${notification.action === 'view_payment' ? `
-                            <button class="notification-action-btn payment" style="
-                                padding: 6px 12px;
-                                background: #4CAF50;
-                                color: white;
-                                border: none;
-                                border-radius: 4px;
-                                cursor: pointer;
-                                font-size: 12px;
-                            ">
-                                <i class="fas fa-eye"></i> View Details
-                            </button>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
+                                <div style="font-size: 12px; color: #999;">${timeString}</div>
+                            </div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
+                            ${notification.data ? `
+                            <div style="font-size: 12px; color: #999;">
+                                ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
+                            </div>
                             ` : ''}
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
-    });
-    
-    // Add header with clear all button
-    html = `
-        <div style="padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-            <div style="font-weight: 600; color: #333;">Notifications</div>
-            ${unreadCount > 0 ? `
-            <button id="markAllReadBtn" style="
-                padding: 6px 12px;
-                background: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-            ">
-                <i class="fas fa-check-double"></i> Mark all read
-            </button>
-            ` : ''}
-        </div>
-        ${html}
-    `;
-    
-    container.innerHTML = html;
-    
-    // Update unread count
-    AppState.unreadNotifications = unreadCount;
-    const badge = document.getElementById('notificationCount');
-    if (badge) {
-        badge.textContent = unreadCount;
-        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-    }
-    
-    // Add click handlers for notifications
-    container.querySelectorAll('.notification-item').forEach((item, index) => {
-        const notification = sortedNotifications[index];
+            `;
+        });
         
-        item.addEventListener('click', (e) => {
-            if (!e.target.closest('.notification-action-btn')) {
+        container.innerHTML = html;
+        
+        // Add click handlers
+        container.querySelectorAll('.notification-item').forEach((item, index) => {
+            item.addEventListener('click', () => {
+                const notification = sortedNotifications[index];
+                
                 // Mark as read
                 if (!notification.read) {
                     EnhancedFirebaseManager.markNotificationAsRead(notification.id);
@@ -10951,59 +10381,9 @@ const EnhancedUIUpdater = {
                 if (notification.action) {
                     this.handleNotificationAction(notification.action, notification.data);
                 }
-            }
+            });
         });
-        
-        // Add action button handlers
-        const acceptBtn = item.querySelector('.notification-action-btn.accept');
-        if (acceptBtn) {
-            acceptBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (notification.data && notification.data.splitRideId) {
-                    EnhancedFirebaseManager.acceptSplitRideInvitation(notification.data.splitRideId, AppState.currentUser.uid);
-                }
-            });
-        }
-        
-        const rejectBtn = item.querySelector('.notification-action-btn.reject');
-        if (rejectBtn) {
-            rejectBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (notification.data && notification.data.splitRideId) {
-                    EnhancedFirebaseManager.rejectSplitRideInvitation(notification.data.splitRideId, AppState.currentUser.uid);
-                }
-            });
-        }
-        
-        const trackBtn = item.querySelector('.notification-action-btn.track');
-        if (trackBtn) {
-            trackBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (notification.data && notification.data.rideId) {
-                    this.startRideTracking(notification.data.rideId);
-                }
-            });
-        }
-        
-        const chatBtn = item.querySelector('.notification-action-btn.chat');
-        if (chatBtn) {
-            chatBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (notification.data && notification.data.rideId) {
-                    this.openChatForRide(notification.data.rideId);
-                }
-            });
-        }
-    });
-    
-    // Mark all read button
-    const markAllReadBtn = document.getElementById('markAllReadBtn');
-    if (markAllReadBtn) {
-        markAllReadBtn.addEventListener('click', () => {
-            EnhancedFirebaseManager.markAllNotificationsAsRead();
-        });
-    }
-},
+    },
     
     handleNotificationAction: function(action, data) {
         switch(action) {
@@ -11177,188 +10557,139 @@ const EnhancedUIUpdater = {
             });
     },
     
-   showBroadcastTrackingPopup: function(broadcastId, broadcast) {
-    const modal = document.createElement('div');
-    modal.className = 'broadcast-tracking-popup';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: white;
-        z-index: 10000;
-    `;
-    
-    // Create a map container for tracking
-    const mapId = 'broadcastLiveMap-' + Date.now();
-    
-    modal.innerHTML = `
-        <div style="height: 100%; display: flex; flex-direction: column;">
-            <div style="padding: 20px; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <div style="font-weight: 600; font-size: 18px; color: #333;">
-                        <i class="fas fa-broadcast-tower" style="color: #FFC107; margin-right: 10px;"></i>
-                        Live Ride Broadcast
-                    </div>
-                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                        Host: ${broadcast.hostName}
-                    </div>
-                </div>
-                <button id="closeBroadcastPopup" style="
-                    background: none;
-                    border: none;
-                    font-size: 24px;
-                    cursor: pointer;
-                    color: #999;
-                ">×</button>
-            </div>
-            
-            <div style="flex: 1; display: flex;">
-                <div style="flex: 2; position: relative;">
-                    <div id="${mapId}" style="width: 100%; height: 100%;"></div>
-                    <div style="position: absolute; top: 20px; left: 20px; right: 20px; display: flex; gap: 10px;">
-                        <div style="flex: 1; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Current Location</div>
-                            <div style="font-weight: 600;">${broadcast.currentLocation || 'Tracking...'}</div>
-                        </div>
-                        <div style="flex: 1; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Next Stop</div>
-                            <div style="font-weight: 600;">${broadcast.nextStop || broadcast.destination}</div>
-                        </div>
-                    </div>
-                </div>
+    showBroadcastTrackingModal: function(broadcastId) {
+        // Fetch broadcast details
+        EnhancedFirebaseManager.getBroadcastDetails(broadcastId)
+            .then(broadcast => {
+                if (!broadcast) {
+                    this.showToast('Broadcast not found', 'error');
+                    return;
+                }
                 
-                <div style="flex: 1; border-left: 1px solid #e0e0e0; display: flex; flex-direction: column;">
-                    <div style="padding: 20px; border-bottom: 1px solid #e0e0e0;">
-                        <div style="font-weight: 600; margin-bottom: 15px; color: #333;">
-                            <i class="fas fa-info-circle"></i> Ride Details
+                // Create tracking modal
+                const modal = document.createElement('div');
+                modal.className = 'broadcast-tracking-modal';
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: white;
+                    border-radius: 12px;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                    width: 90%;
+                    max-width: 400px;
+                    z-index: 10000;
+                    padding: 20px;
+                `;
+                
+                modal.innerHTML = `
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <div style="font-size: 48px; color: #FFC107; margin-bottom: 15px;">
+                            <i class="fas fa-broadcast-tower"></i>
                         </div>
+                        <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">
+                            Broadcast Ride
+                        </div>
+                        <div style="color: #666; margin-bottom: 5px;">
+                            From: <strong>${broadcast.hostName}</strong>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
                         <div style="margin-bottom: 10px;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 3px;">Pickup</div>
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div>
                             <div style="font-weight: 600;">${broadcast.pickup}</div>
                         </div>
                         <div style="margin-bottom: 10px;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 3px;">Destination</div>
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div>
                             <div style="font-weight: 600;">${broadcast.destination}</div>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between;">
                             <div>
                                 <div style="font-size: 12px; color: #666;">Distance</div>
                                 <div style="font-weight: 600;">${broadcast.distance.toFixed(1)} km</div>
                             </div>
                             <div>
-                                <div style="font-size: 12px; color: #666;">ETA</div>
-                                <div style="font-weight: 600;">${broadcast.eta || 'Calculating...'}</div>
+                                <div style="font-size: 12px; color: #666;">Fare</div>
+                                <div style="font-weight: 700; color: #FF6B35;">ZMW ${broadcast.fare.toFixed(2)}</div>
                             </div>
                         </div>
                     </div>
                     
-                    <div style="flex: 1; padding: 20px; overflow-y: auto;">
-                        <div style="font-weight: 600; margin-bottom: 15px; color: #333;">
-                            <i class="fas fa-users"></i> Participants (${broadcast.participants || 1})
-                        </div>
-                        <div id="broadcastParticipants" style="margin-bottom: 20px;">
-                            <!-- Participants will be loaded here -->
-                        </div>
-                        
-                        <div style="font-weight: 600; margin-bottom: 15px; color: #333;">
-                            <i class="fas fa-comments"></i> Live Chat
-                        </div>
-                        <div id="broadcastLiveChat" style="
-                            height: 200px;
-                            overflow-y: auto;
-                            margin-bottom: 10px;
-                            padding: 10px;
-                            background: #f9f9f9;
-                            border-radius: 6px;
-                        ">
-                            <!-- Chat messages will be loaded here -->
-                        </div>
-                        <div style="display: flex; gap: 10px;">
-                            <input type="text" id="broadcastChatInput" placeholder="Type a message..." style="
-                                flex: 1;
-                                padding: 10px;
-                                border: 1px solid #e0e0e0;
-                                border-radius: 6px;
-                                font-size: 14px;
-                            ">
-                            <button id="broadcastSendMessage" style="
-                                padding: 10px 15px;
-                                background: #FF6B35;
-                                color: white;
-                                border: none;
-                                border-radius: 6px;
-                                cursor: pointer;
-                            ">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
+                    <div style="font-size: 14px; color: #666; margin-bottom: 20px; text-align: center;">
+                        You can track this ride in real-time
                     </div>
                     
-                    <div style="padding: 15px; border-top: 1px solid #e0e0e0; background: #f9f9f9;">
-                        <button id="stopTrackingBtn" style="
-                            width: 100%;
-                            padding: 12px;
-                            background: #f44336;
+                    <div style="display: flex; gap: 10px;">
+                        <button id="trackBroadcastBtn" style="
+                            flex: 1;
+                            padding: 15px;
+                            background: #FF6B35;
                             color: white;
                             border: none;
                             border-radius: 8px;
                             cursor: pointer;
                             font-weight: 600;
+                            font-size: 16px;
                         ">
-                            <i class="fas fa-stop-circle"></i> Stop Tracking
+                            <i class="fas fa-map-marker-alt"></i> Track Ride
+                        </button>
+                        <button id="closeBroadcastTrackingBtn" style="
+                            padding: 15px 30px;
+                            background: #f5f5f5;
+                            color: #666;
+                            border: none;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 600;
+                        ">
+                            Close
                         </button>
                     </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Initialize broadcast tracking map
-    setTimeout(() => {
-        this.initializeBroadcastTrackingMap(mapId, broadcast);
-    }, 100);
-    
-    // Load participants and chat
-    this.loadBroadcastParticipants(broadcastId);
-    this.loadBroadcastChat(broadcastId);
-    
-    // Start real-time updates
-    const unsubscribe = this.startBroadcastRealtimeUpdates(broadcastId, broadcast);
-    
-    // Event listeners
-    modal.querySelector('#closeBroadcastPopup').addEventListener('click', () => {
-        if (unsubscribe) unsubscribe();
-        document.body.removeChild(modal);
-    });
-    
-    modal.querySelector('#stopTrackingBtn').addEventListener('click', () => {
-        if (unsubscribe) unsubscribe();
-        document.body.removeChild(modal);
-        EnhancedUIUpdater.showToast('Stopped tracking broadcast', 'info');
-    });
-    
-    // Chat functionality
-    const chatInput = modal.querySelector('#broadcastChatInput');
-    const sendMessageBtn = modal.querySelector('#broadcastSendMessage');
-    
-    sendMessageBtn.addEventListener('click', () => {
-        const message = chatInput.value.trim();
-        if (message) {
-            this.sendBroadcastMessage(broadcastId, message);
-            chatInput.value = '';
-        }
-    });
-    
-    chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendMessageBtn.click();
-        }
-    });
-},
+                `;
+                
+                document.body.appendChild(modal);
+                
+                // Add overlay
+                const overlay = document.createElement('div');
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.5);
+                    z-index: 9999;
+                `;
+                document.body.appendChild(overlay);
+                
+                // Event listeners
+                modal.querySelector('#trackBroadcastBtn').addEventListener('click', () => {
+                    // Start tracking the broadcast ride
+                    EnhancedFirebaseManager.startTrackingBroadcast(broadcastId);
+                    
+                    document.body.removeChild(modal);
+                    document.body.removeChild(overlay);
+                    
+                    this.showToast('Now tracking broadcast ride', 'success');
+                });
+                
+                modal.querySelector('#closeBroadcastTrackingBtn').addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                    document.body.removeChild(overlay);
+                });
+                
+                overlay.addEventListener('click', () => {
+                    document.body.removeChild(modal);
+                    document.body.removeChild(overlay);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching broadcast details:', error);
+                this.showToast('Error loading broadcast', 'error');
+            });
+    },
     
     formatTimeAgo: function(timestamp) {
         const now = Date.now();
@@ -11372,417 +10703,205 @@ const EnhancedUIUpdater = {
     },
     
     updateWalletTransactions: function(transactions) {
-    const container = document.getElementById('enhancedTransactionsList') || document.getElementById('transactionsList');
-    if (!container) return;
-    
-    if (transactions.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: #999;">
-                <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i>
-                <div style="font-weight: 600; margin-bottom: 10px;">No transactions</div>
-                <div>Your transaction history will appear here</div>
-            </div>
-        `;
-        return;
-    }
-    
-    // Sort by timestamp (newest first)
-    const sortedTransactions = transactions.sort((a, b) => b.timestamp - a.timestamp);
-    
-    let html = '';
-    
-    sortedTransactions.forEach(transaction => {
-        const time = new Date(transaction.timestamp);
-        const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const container = document.getElementById('transactionsList');
+        if (!container) return;
         
-        let icon = 'fa-exchange-alt';
-        let iconColor = '#2196F3';
-        let sign = '';
-        let typeLabel = transaction.type;
-        let details = '';
+        if (transactions.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #999;">
+                    <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i>
+                    <div style="font-weight: 600; margin-bottom: 10px;">No transactions</div>
+                    <div>Your transaction history will appear here</div>
+                </div>
+            `;
+            return;
+        }
         
-        // Determine transaction type and details
-        switch(transaction.type) {
-            case 'deposit':
-                icon = 'fa-arrow-down';
-                iconColor = '#4CAF50';
-                sign = '+';
-                typeLabel = 'Deposit';
-                details = transaction.method ? `via ${transaction.method}` : '';
-                break;
-                
-            case 'withdrawal':
+        // Sort by timestamp (newest first)
+        const sortedTransactions = transactions.sort((a, b) => b.timestamp - a.timestamp);
+        
+        let html = '';
+        
+        sortedTransactions.forEach(transaction => {
+            const time = new Date(transaction.timestamp);
+            const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            const isSent = transaction.type === 'sent' || transaction.type === 'withdrawal' || transaction.type === 'payment';
+            const isReceived = transaction.type === 'received' || transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral';
+            
+            let icon = 'fa-exchange-alt';
+            let iconColor = '#2196F3';
+            let sign = '';
+            
+            if (isSent) {
                 icon = 'fa-arrow-up';
                 iconColor = '#F44336';
                 sign = '-';
-                typeLabel = 'Withdrawal';
-                details = transaction.method ? `to ${transaction.method}` : '';
-                break;
-                
-            case 'payment':
-                icon = 'fa-credit-card';
-                iconColor = '#FF6B35';
-                sign = '-';
-                typeLabel = 'Ride Payment';
-                details = transaction.rideId ? `Ride ${transaction.rideId.substring(0, 8)}...` : '';
-                break;
-                
-            case 'refund':
-                icon = 'fa-undo';
+            } else if (isReceived) {
+                icon = 'fa-arrow-down';
                 iconColor = '#4CAF50';
                 sign = '+';
-                typeLabel = 'Refund';
-                details = transaction.reason || 'Ride cancelled';
-                break;
-                
-            case 'bonus':
+            }
+            
+            if (transaction.type === 'referral') {
                 icon = 'fa-gift';
-                iconColor = '#FFC107';
-                sign = '+';
-                typeLabel = 'Bonus';
-                details = transaction.reason || 'Referral bonus';
-                break;
-                
-            case 'transfer_sent':
-                icon = 'fa-paper-plane';
-                iconColor = '#F44336';
-                sign = '-';
-                typeLabel = 'Transfer Sent';
-                details = transaction.toName ? `to ${transaction.toName}` : '';
-                break;
-                
-            case 'transfer_received':
-                icon = 'fa-envelope';
-                iconColor = '#4CAF50';
-                sign = '+';
-                typeLabel = 'Transfer Received';
-                details = transaction.fromName ? `from ${transaction.fromName}` : '';
-                break;
-                
-            case 'referral':
-                icon = 'fa-user-plus';
-                iconColor = '#9C27B0';
-                sign = '+';
-                typeLabel = 'Referral Bonus';
-                details = transaction.referredUser ? `from ${transaction.referredUser}` : '';
-                break;
-        }
-        
-        html += `
-            <div class="transaction-item" data-transaction-id="${transaction.id}" style="
-                padding: 15px;
-                border-bottom: 1px solid #eee;
-                cursor: pointer;
-                transition: background 0.2s;
-            ">
-                <div style="display: flex; gap: 12px;">
-                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                        <i class="fas ${icon}"></i>
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                            <div style="font-weight: 600; color: #333;">
-                                ${typeLabel}
-                            </div>
-                            <div style="font-weight: 700; color: ${sign === '+' ? '#4CAF50' : '#F44336'};">
-                                ${sign}ZMW ${transaction.amount.toFixed(2)}
-                            </div>
-                        </div>
-                        <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
-                            ${transaction.description || details}
-                        </div>
-                        ${transaction.reference ? `
-                        <div style="font-size: 12px; color: #999; margin-bottom: 5px;">
-                            Ref: ${transaction.reference}
-                        </div>
-                        ` : ''}
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                            <div style="font-size: 11px; color: #999;">
-                                ${timeString}
-                            </div>
-                            <div style="font-size: 11px; color: #999;">
-                                Balance: ZMW ${(transaction.balanceAfter || 0).toFixed(2)}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Expanded Details (hidden by default) -->
-                <div class="transaction-details" style="
-                    display: none;
-                    margin-top: 15px;
-                    padding: 15px;
-                    background: #f9f9f9;
-                    border-radius: 8px;
-                    font-size: 13px;
-                    color: #666;
-                ">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">Transaction ID</div>
-                            <div style="font-family: monospace;">${transaction.id.substring(0, 16)}...</div>
-                        </div>
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">Status</div>
-                            <div style="color: #4CAF50;">Completed</div>
-                        </div>
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">Previous Balance</div>
-                            <div>ZMW ${(transaction.balanceBefore || 0).toFixed(2)}</div>
-                        </div>
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">New Balance</div>
-                            <div>ZMW ${(transaction.balanceAfter || 0).toFixed(2)}</div>
-                        </div>
-                    </div>
-                    ${transaction.rideId ? `
-                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
-                        <div style="color: #999; margin-bottom: 3px;">Ride Details</div>
-                        <div>Ride ID: ${transaction.rideId}</div>
-                    </div>
-                    ` : ''}
-                </div>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
-    
-    // Add click handlers for expand/collapse
-    container.querySelectorAll('.transaction-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            if (!e.target.closest('.transaction-details')) {
-                const details = item.querySelector('.transaction-details');
-                details.style.display = details.style.display === 'none' ? 'block' : 'none';
-                
-                // Animate icon
-                const icon = item.querySelector('.fas');
-                if (details.style.display === 'block') {
-                    icon.style.transform = 'rotate(180deg)';
-                } else {
-                    icon.style.transform = 'rotate(0deg)';
-                }
+                iconColor = '#FF6B35';
             }
-        });
-    });
-},
-    
-   updateRideHistory: function(rides) {
-    const container = document.getElementById('historyList');
-    if (!container) return;
-    
-    if (rides.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: #999;">
-                <i class="fas fa-history" style="font-size: 48px; margin-bottom: 20px;"></i>
-                <div style="font-weight: 600; margin-bottom: 10px;">No ride history</div>
-                <div>Your completed rides will appear here</div>
-            </div>
-        `;
-        return;
-    }
-    
-    // Sort by timestamp (newest first)
-    const sortedRides = rides.sort((a, b) => b.timestamp - a.timestamp);
-    
-    let html = '';
-    
-    sortedRides.forEach(ride => {
-        const time = new Date(ride.timestamp);
-        const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
-        let icon = 'fa-car';
-        let iconColor = '#FF6B35';
-        let typeLabel = 'Ride';
-        let additionalInfo = '';
-        
-        if (ride.serviceType === 'delivery') {
-            icon = 'fa-shipping-fast';
-            iconColor = '#9C27B0';
-            typeLabel = 'Delivery';
-        } else if (ride.serviceType === 'truck') {
-            icon = 'fa-truck';
-            iconColor = '#795548';
-            typeLabel = 'Truck';
-        } else if (ride.serviceType === 'shopping') {
-            icon = 'fa-shopping-bag';
-            iconColor = '#4CAF50';
-            typeLabel = 'Shopping';
-        } else if (ride.emergency) {
-            icon = 'fa-ambulance';
-            iconColor = '#F44336';
-            typeLabel = 'Emergency';
-        } else if (ride.splitRide) {
-            icon = 'fa-user-friends';
-            iconColor = '#2196F3';
-            typeLabel = 'Split Ride';
-            additionalInfo = `<div style="font-size: 11px; color: #2196F3; margin-top: 2px;">
-                <i class="fas fa-users"></i> ${ride.participants || 2} passengers
-            </div>`;
-        } else if (ride.broadcast) {
-            icon = 'fa-broadcast-tower';
-            iconColor = '#FFC107';
-            typeLabel = 'Broadcast';
-            additionalInfo = `<div style="font-size: 11px; color: #FFC107; margin-top: 2px;">
-                <i class="fas fa-share-alt"></i> Shared ride
-            </div>`;
-        }
-        
-        const statusColor = ride.status === 'completed' ? '#4CAF50' : 
-                           ride.status === 'cancelled' ? '#F44336' : '#FFC107';
-        
-        html += `
-            <div class="history-item" data-ride-id="${ride.id}" style="
-                padding: 15px;
-                border-bottom: 1px solid #eee;
-                cursor: pointer;
-                transition: background 0.2s;
-            ">
-                <div style="display: flex; gap: 12px;">
-                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                        <i class="fas ${icon}"></i>
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                            <div style="font-weight: 600; color: #333;">${typeLabel}</div>
-                            <div style="font-weight: 700; color: #FF6B35;">ZMW ${ride.fare?.toFixed(2) || '0.00'}</div>
+            
+            html += `
+                <div class="transaction-item" style="
+                    padding: 15px;
+                    border-bottom: 1px solid #eee;
+                ">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                            <i class="fas ${icon}"></i>
                         </div>
-                        <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
-                            ${ride.pickupDisplay || ride.pickup}
-                        </div>
-                        <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
-                            <i class="fas fa-arrow-right" style="font-size: 12px; margin: 0 5px;"></i>
-                            ${ride.destinationDisplay || ride.destination}
-                        </div>
-                        ${additionalInfo}
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                <div style="font-weight: 600; color: #333;">
+                                    ${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                                </div>
+                                <div style="font-weight: 700; color: ${isSent ? '#F44336' : '#4CAF50'};">
+                                    ${sign}ZMW ${transaction.amount.toFixed(2)}
+                                </div>
+                            </div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
+                                ${transaction.description || ''}
+                            </div>
+                            ${transaction.reference ? `
+                            <div style="font-size: 12px; color: #999; margin-bottom: 5px;">
+                                Ref: ${transaction.reference}
+                            </div>
+                            ` : ''}
+                            ${transaction.fromName || transaction.toName ? `
                             <div style="font-size: 12px; color: #999;">
+                                ${transaction.fromName ? `From: ${transaction.fromName}` : ''}
+                                ${transaction.toName ? `To: ${transaction.toName}` : ''}
+                            </div>
+                            ` : ''}
+                            <div style="font-size: 11px; color: #999; margin-top: 5px;">
                                 ${timeString}
                             </div>
-                            <div style="
-                                padding: 3px 8px;
-                                background: ${statusColor};
-                                color: white;
-                                border-radius: 12px;
-                                font-size: 11px;
-                                font-weight: 600;
-                            ">
-                                ${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}
-                            </div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Expanded Details (hidden by default) -->
-                <div class="ride-details" style="
-                    display: none;
-                    margin-top: 15px;
-                    padding: 15px;
-                    background: #f9f9f9;
-                    border-radius: 8px;
-                    font-size: 13px;
-                    color: #666;
-                ">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">Distance</div>
-                            <div>${ride.distance?.toFixed(1) || '0'} km</div>
-                        </div>
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">Duration</div>
-                            <div>${ride.duration || ride.estimatedTime || '0'} min</div>
-                        </div>
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">Payment</div>
-                            <div>${ride.paymentMethod?.charAt(0).toUpperCase() + ride.paymentMethod?.slice(1) || 'Wallet'}</div>
-                        </div>
-                        <div>
-                            <div style="color: #999; margin-bottom: 3px;">Ride Type</div>
-                            <div>${ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1) || 'Standard'}</div>
-                        </div>
-                    </div>
-                    
-                    ${ride.driverName ? `
-                    <div style="padding: 10px; background: white; border-radius: 6px; margin-top: 10px;">
-                        <div style="color: #999; margin-bottom: 5px;">Driver</div>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div style="
-                                width: 30px;
-                                height: 30px;
-                                background: #2196F3;
-                                color: white;
-                                border-radius: 50%;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                font-weight: 600;
-                            ">
-                                ${ride.driverName.charAt(0).toUpperCase()}
-                            </div>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 600;">${ride.driverName}</div>
-                                <div style="font-size: 12px; color: #999;">${ride.vehicleDetails || 'Car'}</div>
-                            </div>
-                            <div style="color: #FFC107;">
-                                <i class="fas fa-star"></i> ${ride.driverRating || '4.8'}
-                            </div>
-                        </div>
-                    </div>
-                    ` : ''}
-                    
-                    ${ride.cancellationReason ? `
-                    <div style="padding: 10px; background: #ffebee; border-radius: 6px; margin-top: 10px;">
-                        <div style="color: #F44336; margin-bottom: 5px;">
-                            <i class="fas fa-times-circle"></i> Cancellation Reason
-                        </div>
-                        <div>${ride.cancellationReason}</div>
-                    </div>
-                    ` : ''}
-                    
-                    <div style="margin-top: 10px; text-align: center;">
-                        <button class="view-full-details" style="
-                            padding: 8px 16px;
-                            background: none;
-                            border: 1px solid #FF6B35;
-                            color: #FF6B35;
-                            border-radius: 6px;
-                            cursor: pointer;
-                            font-size: 12px;
-                        ">
-                            View Full Details
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
-    
-    // Add click handlers
-    container.querySelectorAll('.history-item').forEach(item => {
-        const rideId = item.dataset.rideId;
-        const expandBtn = item;
-        
-        expandBtn.addEventListener('click', (e) => {
-            if (!e.target.closest('.ride-details') && !e.target.closest('.view-full-details')) {
-                const details = item.querySelector('.ride-details');
-                details.style.display = details.style.display === 'none' ? 'block' : 'none';
-            }
+            `;
         });
         
-        // View full details button
-        const viewFullBtn = item.querySelector('.view-full-details');
-        if (viewFullBtn) {
-            viewFullBtn.addEventListener('click', () => {
-                const ride = sortedRides.find(r => r.id === rideId);
-                if (ride) {
-                    this.showRideDetailsModal(ride);
-                }
-            });
+        container.innerHTML = html;
+    },
+    
+    updateRideHistory: function(rides) {
+        const container = document.getElementById('historyList');
+        if (!container) return;
+        
+        if (rides.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #999;">
+                    <i class="fas fa-history" style="font-size: 48px; margin-bottom: 20px;"></i>
+                    <div style="font-weight: 600; margin-bottom: 10px;">No ride history</div>
+                    <div>Your completed rides will appear here</div>
+                </div>
+            `;
+            return;
         }
-    });
-},
+        
+        // Sort by timestamp (newest first)
+        const sortedRides = rides.sort((a, b) => b.timestamp - a.timestamp);
+        
+        let html = '';
+        
+        sortedRides.forEach(ride => {
+            const time = new Date(ride.timestamp);
+            const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            let icon = 'fa-car';
+            let iconColor = '#FF6B35';
+            let typeLabel = 'Ride';
+            
+            if (ride.serviceType === 'delivery') {
+                icon = 'fa-shipping-fast';
+                iconColor = '#9C27B0';
+                typeLabel = 'Delivery';
+            } else if (ride.serviceType === 'truck') {
+                icon = 'fa-truck';
+                iconColor = '#795548';
+                typeLabel = 'Truck';
+            } else if (ride.serviceType === 'shopping') {
+                icon = 'fa-shopping-bag';
+                iconColor = '#4CAF50';
+                typeLabel = 'Shopping';
+            } else if (ride.emergency) {
+                icon = 'fa-ambulance';
+                iconColor = '#F44336';
+                typeLabel = 'Emergency';
+            } else if (ride.splitRide) {
+                icon = 'fa-user-friends';
+                iconColor = '#2196F3';
+                typeLabel = 'Split Ride';
+            } else if (ride.broadcast) {
+                icon = 'fa-broadcast-tower';
+                iconColor = '#FFC107';
+                typeLabel = 'Broadcast';
+            }
+            
+            const statusColor = ride.status === 'completed' ? '#4CAF50' : 
+                               ride.status === 'cancelled' ? '#F44336' : '#FFC107';
+            
+            html += `
+                <div class="history-item" style="
+                    padding: 15px;
+                    border-bottom: 1px solid #eee;
+                    cursor: pointer;
+                ">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                <div style="font-weight: 600; color: #333;">${typeLabel}</div>
+                                <div style="font-weight: 700; color: #FF6B35;">ZMW ${ride.fare?.toFixed(2) || '0.00'}</div>
+                            </div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
+                                ${ride.pickupDisplay || ride.pickup}
+                            </div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
+                                <i class="fas fa-arrow-right" style="font-size: 12px; margin: 0 5px;"></i>
+                                ${ride.destinationDisplay || ride.destination}
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-size: 12px; color: #999;">
+                                    ${timeString}
+                                </div>
+                                <div style="
+                                    padding: 3px 8px;
+                                    background: ${statusColor};
+                                    color: white;
+                                    border-radius: 12px;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                ">
+                                    ${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        
+        // Add click handlers
+        container.querySelectorAll('.history-item').forEach((item, index) => {
+            item.addEventListener('click', () => {
+                const ride = sortedRides[index];
+                this.showRideDetailsModal(ride);
+            });
+        });
+    },
     
     showRideDetailsModal: function(ride) {
         const modal = document.createElement('div');
@@ -13954,33 +13073,6 @@ async function initializeApp() {
                 }
             });
         }
-
-        // Add this inside loadUserData function after loading other data
-await this.loadShareRideInvitations(uid);
-
-// Then add this function to EnhancedFirebaseManager
-loadShareRideInvitations: async function(uid) {
-    try {
-        const snapshot = await database.ref('shareRideInvitations')
-            .orderByChild('recipientId')
-            .equalTo(uid)
-            .orderByChild('status')
-            .equalTo('pending')
-            .once('value');
-        
-        const invitations = snapshot.val();
-        if (invitations) {
-            Object.entries(invitations).forEach(([invitationId, invitation]) => {
-                // Show popup for each invitation
-                setTimeout(() => {
-                    EnhancedUIUpdater.handleShareRideInvitation(invitationId, invitation);
-                }, 2000); // Show after 2 seconds delay
-            });
-        }
-    } catch (error) {
-        console.error('Error loading share ride invitations:', error);
-    }
-},
         
         // Initialize map
         initializeMap();
@@ -14969,5 +14061,8 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
+
+
+
 
 
