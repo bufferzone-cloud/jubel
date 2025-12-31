@@ -6710,56 +6710,175 @@ const EnhancedLocationManager = {
     },
     
     setupPickupInput: function(inputElement) {
-        const inputId = inputElement.id;
-        
-        inputElement.addEventListener('focus', () => {
-            this.handlePickupInputFocus(inputId);
-        });
-        
-        inputElement.addEventListener('input', (e) => {
-            this.handlePickupInputChange(inputId, e.target.value);
-        });
-        
-        inputElement.addEventListener('blur', () => {
-            setTimeout(() => {
-                this.handlePickupInputBlur(inputId);
-            }, 200);
-        });
-        
-        // Add clear button
-        if (!inputElement.nextElementSibling?.classList.contains('clear-input-btn')) {
-            const clearBtn = document.createElement('button');
-            clearBtn.type = 'button';
-            clearBtn.className = 'clear-input-btn';
-            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
-            clearBtn.style.cssText = `
-                position: absolute;
-                right: 10px;
-                top: 50%;
-                transform: translateY(-50%);
-                background: none;
-                border: none;
-                color: #999;
-                cursor: pointer;
-                display: none;
-                z-index: 10;
-            `;
-            
-            inputElement.parentNode.style.position = 'relative';
-            inputElement.parentNode.appendChild(clearBtn);
-            
-            clearBtn.addEventListener('click', () => {
-                inputElement.value = '';
-                clearBtn.style.display = 'none';
-                this.clearPickupLocation(inputId);
-            });
-            
-            inputElement.addEventListener('input', () => {
-                clearBtn.style.display = inputElement.value ? 'block' : 'none';
-            });
-        }
-    },
+    const inputId = inputElement.id;
     
+    // Make input editable (remove readonly attribute)
+    inputElement.removeAttribute('readonly');
+    inputElement.setAttribute('placeholder', 'Enter pickup location or use current');
+    
+    // Add current location button
+    const locationBtn = document.createElement('button');
+    locationBtn.type = 'button';
+    locationBtn.className = 'current-location-btn';
+    locationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+    locationBtn.style.cssText = `
+        position: absolute;
+        right: 40px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: #2196F3;
+        border: none;
+        color: white;
+        cursor: pointer;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        font-size: 14px;
+    `;
+    
+    inputElement.parentNode.style.position = 'relative';
+    
+    // Remove existing clear button if present
+    const existingClearBtn = inputElement.parentNode.querySelector('.clear-input-btn');
+    if (existingClearBtn) {
+        existingClearBtn.remove();
+    }
+    
+    // Remove existing location button if present
+    const existingLocationBtn = inputElement.parentNode.querySelector('.current-location-btn');
+    if (existingLocationBtn) {
+        existingLocationBtn.remove();
+    }
+    
+    inputElement.parentNode.appendChild(locationBtn);
+    
+    // Add clear button
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'clear-input-btn';
+    clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+    clearBtn.style.cssText = `
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #999;
+        cursor: pointer;
+        display: none;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    `;
+    
+    inputElement.parentNode.appendChild(clearBtn);
+    
+    // Event Listeners
+    inputElement.addEventListener('focus', () => {
+        this.handlePickupInputFocus(inputId);
+        inputElement.parentElement.classList.add('active');
+    });
+    
+    inputElement.addEventListener('input', (e) => {
+        this.handlePickupInputChange(inputId, e.target.value);
+        clearBtn.style.display = inputElement.value ? 'flex' : 'none';
+    });
+    
+    inputElement.addEventListener('blur', () => {
+        setTimeout(() => {
+            this.handlePickupInputBlur(inputId);
+            inputElement.parentElement.classList.remove('active');
+        }, 200);
+    });
+    
+    // Current location button click
+    locationBtn.addEventListener('click', async () => {
+        try {
+            EnhancedUIUpdater.showLoading('Getting your current location...');
+            
+            if (!navigator.geolocation) {
+                throw new Error('Geolocation not supported');
+            }
+            
+            const position = await new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                });
+            });
+            
+            const { latitude, longitude } = position.coords;
+            
+            // Get address from coordinates
+            const address = await CityDetector.getDetailedAddress(latitude, longitude);
+            
+            // Update input
+            inputElement.value = address.address;
+            inputElement.dataset.lat = latitude;
+            inputElement.dataset.lng = longitude;
+            
+            // Update state
+            AppState.pickup = {
+                lat: latitude,
+                lng: longitude,
+                address: address.address,
+                name: 'Current Location',
+                fullAddress: address.fullAddress
+            };
+            
+            // Update map
+            EnhancedUIUpdater.updatePickupMarker(AppState.pickup);
+            
+            // Show clear button
+            clearBtn.style.display = 'flex';
+            
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Current location set as pickup', 'success');
+            
+            // Recalculate prices if destination exists
+            if (AppState.destination) {
+                EnhancedUIUpdater.calculateAndUpdatePrices();
+            }
+            
+        } catch (error) {
+            console.error('Error getting location:', error);
+            EnhancedUIUpdater.hideLoading();
+            
+            if (error.code === error.PERMISSION_DENIED) {
+                EnhancedUIUpdater.showToast('Location access denied. Please enable location services.', 'error');
+            } else {
+                EnhancedUIUpdater.showToast('Unable to get current location. Please try again.', 'error');
+            }
+        }
+    });
+    
+    // Clear button click
+    clearBtn.addEventListener('click', () => {
+        inputElement.value = '';
+        clearBtn.style.display = 'none';
+        delete inputElement.dataset.lat;
+        delete inputElement.dataset.lng;
+        
+        AppState.pickup = null;
+        
+        if (pickupMarker) {
+            map.removeLayer(pickupMarker);
+            pickupMarker = null;
+        }
+        
+        EnhancedUIUpdater.showToast('Pickup location cleared', 'info');
+    });
+},
     setupDestinationInput: function(inputElement) {
         const inputId = inputElement.id;
         
@@ -8360,6 +8479,245 @@ const EnhancedUIUpdater = {
         // Update price calculator
         this.updatePriceCalculator(distance, AppState.selectedRideType, surge, stopsCount);
     },
+
+    updateWalletTransactions: function(transactions) {
+    const container = document.getElementById('transactionsList');
+    if (!container) return;
+    
+    if (transactions.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #999;">
+                <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i>
+                <div style="font-weight: 600; margin-bottom: 10px;">No transactions yet</div>
+                <div>Your transaction history will appear here</div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Sort by timestamp (newest first)
+    const sortedTransactions = transactions.sort((a, b) => b.timestamp - a.timestamp);
+    
+    // Add wallet statistics header
+    let html = `
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <i class="fas fa-chart-pie"></i> Wallet Summary
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px;">
+                    <div style="font-size: 12px; opacity: 0.8;">Total Deposits</div>
+                    <div style="font-weight: 700; font-size: 18px; color: #4CAF50;">ZMW ${(AppState.walletStats?.totalDeposits || 0).toFixed(2)}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px;">
+                    <div style="font-size: 12px; opacity: 0.8;">Ride Payments</div>
+                    <div style="font-weight: 700; font-size: 18px; color: #FF6B35;">ZMW ${(AppState.walletStats?.ridePayments || 0).toFixed(2)}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px;">
+                    <div style="font-size: 12px; opacity: 0.8;">Referral Earnings</div>
+                    <div style="font-weight: 700; font-size: 18px; color: #FFC107;">ZMW ${(AppState.walletStats?.totalReferrals || 0).toFixed(2)}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px;">
+                    <div style="font-size: 12px; opacity: 0.8;">Refunds Received</div>
+                    <div style="font-weight: 700; font-size: 18px; color: #9C27B0;">ZMW ${(AppState.walletStats?.totalRefunds || 0).toFixed(2)}</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add filter buttons
+    html += `
+        <div style="display: flex; gap: 8px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px;">
+            <button class="filter-btn active" data-filter="all" style="white-space: nowrap;">All</button>
+            <button class="filter-btn" data-filter="deposit" style="white-space: nowrap;"><i class="fas fa-arrow-down"></i> Deposits</button>
+            <button class="filter-btn" data-filter="withdrawal" style="white-space: nowrap;"><i class="fas fa-arrow-up"></i> Payments</button>
+            <button class="filter-btn" data-filter="referral_bonus" style="white-space: nowrap;"><i class="fas fa-gift"></i> Referrals</button>
+            <button class="filter-btn" data-filter="refund" style="white-space: nowrap;"><i class="fas fa-undo"></i> Refunds</button>
+            <button class="filter-btn" data-filter="transfer" style="white-space: nowrap;"><i class="fas fa-exchange-alt"></i> Transfers</button>
+        </div>
+    `;
+    
+    sortedTransactions.forEach(transaction => {
+        const time = new Date(transaction.timestamp);
+        const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        const isSent = transaction.type === 'withdrawal' || transaction.type === 'ride_payment';
+        const isReceived = transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral_bonus';
+        const isTransfer = transaction.type === 'transfer_sent' || transaction.type === 'transfer_received';
+        
+        let icon = 'fa-exchange-alt';
+        let iconColor = '#2196F3';
+        let sign = '';
+        let bgColor = '#E3F2FD';
+        let statusText = '';
+        
+        if (isSent) {
+            icon = 'fa-arrow-up';
+            iconColor = '#F44336';
+            sign = '-';
+            bgColor = '#FFEBEE';
+            statusText = 'Paid';
+        } else if (isReceived) {
+            icon = 'fa-arrow-down';
+            iconColor = '#4CAF50';
+            sign = '+';
+            bgColor = '#E8F5E9';
+            statusText = 'Received';
+        }
+        
+        if (transaction.type === 'referral_bonus') {
+            icon = 'fa-gift';
+            iconColor = '#FFC107';
+            bgColor = '#FFF8E1';
+            statusText = 'Bonus';
+        } else if (transaction.type === 'refund') {
+            icon = 'fa-undo';
+            iconColor = '#9C27B0';
+            bgColor = '#F3E5F5';
+            statusText = 'Refund';
+        } else if (isTransfer) {
+            icon = 'fa-exchange-alt';
+            iconColor = '#795548';
+            bgColor = '#EFEBE9';
+            statusText = transaction.type === 'transfer_sent' ? 'Sent' : 'Received';
+        }
+        
+        html += `
+            <div class="transaction-item" data-type="${transaction.type}" style="
+                padding: 15px;
+                border-bottom: 1px solid #eee;
+                background: ${bgColor};
+                border-radius: 8px;
+                margin-bottom: 10px;
+                cursor: pointer;
+                transition: transform 0.2s;
+            " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                <div style="display: flex; gap: 12px;">
+                    <div style="color: ${iconColor}; font-size: 24px; margin-top: 2px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                            <div style="font-weight: 600; color: #333; font-size: 15px;">
+                                ${transaction.description || transaction.type.replace('_', ' ').toUpperCase()}
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="
+                                    padding: 2px 8px;
+                                    background: ${iconColor};
+                                    color: white;
+                                    border-radius: 12px;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                ">
+                                    ${statusText}
+                                </div>
+                                <div style="font-weight: 700; color: ${isSent ? '#F44336' : '#4CAF50'}; font-size: 18px;">
+                                    ${sign}ZMW ${transaction.amount.toFixed(2)}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        ${transaction.reference ? `
+                        <div style="font-size: 13px; color: #666; margin-bottom: 8px; display: flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-hashtag" style="font-size: 11px;"></i>
+                            <span>Ref: ${transaction.reference.substring(0, 12)}...</span>
+                        </div>
+                        ` : ''}
+                        
+                        ${transaction.fromName ? `
+                        <div style="font-size: 13px; color: #666; margin-bottom: 5px; display: flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-user" style="font-size: 11px;"></i>
+                            <span>From: ${transaction.fromName}</span>
+                        </div>
+                        ` : ''}
+                        
+                        ${transaction.toName ? `
+                        <div style="font-size: 13px; color: #666; margin-bottom: 5px; display: flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-user" style="font-size: 11px;"></i>
+                            <span>To: ${transaction.toName}</span>
+                        </div>
+                        ` : ''}
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                            <div style="font-size: 11px; color: #999; display: flex; align-items: center; gap: 5px;">
+                                <i class="fas fa-clock"></i>
+                                ${timeString}
+                            </div>
+                            <div style="font-size: 12px; color: #666;">
+                                Balance: ZMW ${(transaction.balanceAfter || 0).toFixed(2)}
+                            </div>
+                        </div>
+                        
+                        <!-- Expandable Details -->
+                        <div class="transaction-details" style="display: none; margin-top: 10px; padding: 10px; background: rgba(255,255,255,0.5); border-radius: 6px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
+                                <strong>Transaction ID:</strong> ${transaction.id}
+                            </div>
+                            ${transaction.reference ? `
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">
+                                <strong>Reference:</strong> ${transaction.reference}
+                            </div>
+                            ` : ''}
+                            <div style="font-size: 12px; color: #666;">
+                                <strong>Previous Balance:</strong> ZMW ${(transaction.balanceBefore || 0).toFixed(2)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // Add filter functionality
+    container.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove active class from all filters
+            container.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            
+            // Add active class to clicked filter
+            this.classList.add('active');
+            
+            const filter = this.dataset.filter;
+            
+            // Filter transactions
+            container.querySelectorAll('.transaction-item').forEach(item => {
+                if (filter === 'all') {
+                    item.style.display = 'block';
+                } else {
+                    const type = item.dataset.type;
+                    if (type === filter || 
+                        (filter === 'withdrawal' && (type === 'withdrawal' || type === 'ride_payment')) ||
+                        (filter === 'transfer' && (type === 'transfer_sent' || type === 'transfer_received'))) {
+                        item.style.display = 'block';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                }
+            });
+        });
+    });
+    
+    // Add expand/collapse functionality
+    container.querySelectorAll('.transaction-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const details = this.querySelector('.transaction-details');
+            if (details) {
+                if (details.style.display === 'none') {
+                    details.style.display = 'block';
+                    this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                } else {
+                    details.style.display = 'none';
+                    this.style.boxShadow = 'none';
+                }
+            }
+        });
+    });
+},
     
     updatePriceCalculator: function(distanceKm, rideType = 'standard', surge = 1.0, stopsCount = 0) {
         const calculator = document.getElementById('priceCalculator');
@@ -8727,6 +9085,28 @@ const EnhancedUIUpdater = {
             AppState.rideRequestPulsingIcons[serviceType] = marker;
         }
     },
+
+    showPulsingShoppingIcon: function() {
+    this.removePulsingRideIcon();
+    
+    pulsingIcon = L.divIcon({
+        className: 'pulsing-shopping-icon',
+        html: `<i class="fas fa-shopping-bag" style="color: #4CAF50; font-size: 40px;"></i>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 40]
+    });
+    
+    if (AppState.pickup) {
+        const marker = L.marker([AppState.pickup.lat, AppState.pickup.lng], {
+            icon: pulsingIcon
+        }).addTo(map);
+        
+        // Add pulsing animation
+        marker.getElement().style.animation = 'pulse 1.5s infinite';
+        
+        AppState.rideRequestPulsingIcons.shopping = marker;
+    }
+},
     
     removePulsingRideIcon: function() {
         Object.values(AppState.rideRequestPulsingIcons).forEach(marker => {
@@ -10384,6 +10764,179 @@ const EnhancedUIUpdater = {
             });
         });
     },
+
+    setupRealTimeNotificationPanel: function() {
+    // Create enhanced notification panel if it doesn't exist
+    const panel = document.getElementById('notificationsPanel');
+    if (!panel) return;
+    
+    // Add real-time indicator
+    const realTimeIndicator = document.createElement('div');
+    realTimeIndicator.className = 'notification-real-time-indicator';
+    realTimeIndicator.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: #E3F2FD; border-bottom: 1px solid #BBDEFB;">
+            <div style="width: 8px; height: 8px; background: #4CAF50; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
+            <div style="font-size: 12px; color: #2196F3; font-weight: 600;">Live Updates</div>
+            <div style="margin-left: auto; font-size: 11px; color: #666;" id="notificationLastUpdate">Just now</div>
+        </div>
+    `;
+    
+    const header = panel.querySelector('.notifications-header');
+    if (header) {
+        header.parentNode.insertBefore(realTimeIndicator, header.nextSibling);
+    }
+    
+    // Add notification filters
+    const filterContainer = document.createElement('div');
+    filterContainer.className = 'notification-filters';
+    filterContainer.style.cssText = `
+        display: flex;
+        gap: 8px;
+        padding: 15px;
+        border-bottom: 1px solid #eee;
+        background: #f9f9f9;
+        overflow-x: auto;
+    `;
+    
+    const filters = [
+        { id: 'all', label: 'All', icon: 'fa-bell' },
+        { id: 'unread', label: 'Unread', icon: 'fa-circle' },
+        { id: 'ride', label: 'Rides', icon: 'fa-car' },
+        { id: 'payment', label: 'Payments', icon: 'fa-credit-card' },
+        { id: 'referral', label: 'Referrals', icon: 'fa-gift' },
+        { id: 'chat', label: 'Chats', icon: 'fa-comment' }
+    ];
+    
+    filters.forEach(filter => {
+        const button = document.createElement('button');
+        button.className = `notification-filter-btn ${filter.id === 'all' ? 'active' : ''}`;
+        button.dataset.filter = filter.id;
+        button.innerHTML = `
+            <i class="fas ${filter.icon}"></i>
+            <span>${filter.label}</span>
+        `;
+        button.style.cssText = `
+            padding: 8px 12px;
+            background: ${filter.id === 'all' ? '#2196F3' : 'white'};
+            color: ${filter.id === 'all' ? 'white' : '#666'};
+            border: 1px solid ${filter.id === 'all' ? '#2196F3' : '#e0e0e0'};
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        `;
+        
+        button.addEventListener('click', () => {
+            // Remove active class from all buttons
+            filterContainer.querySelectorAll('.notification-filter-btn').forEach(btn => {
+                btn.style.background = 'white';
+                btn.style.color = '#666';
+                btn.style.borderColor = '#e0e0e0';
+            });
+            
+            // Add active class to clicked button
+            button.style.background = '#2196F3';
+            button.style.color = 'white';
+            button.style.borderColor = '#2196F3';
+            
+            // Filter notifications
+            this.filterNotifications(filter.id);
+        });
+        
+        filterContainer.appendChild(button);
+    });
+    
+    realTimeIndicator.parentNode.insertBefore(filterContainer, realTimeIndicator.nextSibling);
+    
+    // Add mark all as read button
+    const markAllReadBtn = document.createElement('button');
+    markAllReadBtn.id = 'markAllNotificationsRead';
+    markAllReadBtn.innerHTML = '<i class="fas fa-check-double"></i> Mark all as read';
+    markAllReadBtn.style.cssText = `
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        z-index: 10;
+        display: none;
+    `;
+    
+    panel.appendChild(markAllReadBtn);
+    
+    // Show/hide mark all button based on unread count
+    const updateMarkAllButton = () => {
+        const unreadCount = AppState.notifications.filter(n => !n.read).length;
+        markAllReadBtn.style.display = unreadCount > 0 ? 'block' : 'none';
+    };
+    
+    // Mark all as read functionality
+    markAllReadBtn.addEventListener('click', () => {
+        EnhancedFirebaseManager.markAllNotificationsAsRead();
+        EnhancedUIUpdater.showToast('All notifications marked as read', 'success');
+        markAllReadBtn.style.display = 'none';
+    });
+    
+    // Update last update time
+    const updateLastUpdateTime = () => {
+        const lastUpdateElement = document.getElementById('notificationLastUpdate');
+        if (lastUpdateElement) {
+            const now = new Date();
+            lastUpdateElement.textContent = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+    };
+    
+    // Update every minute
+    setInterval(updateLastUpdateTime, 60000);
+    
+    // Initial update
+    updateLastUpdateTime();
+    updateMarkAllButton();
+},
+
+filterNotifications: function(filterType) {
+    const container = document.getElementById('notificationsList');
+    if (!container) return;
+    
+    let filteredNotifications = [...AppState.notifications];
+    
+    switch(filterType) {
+        case 'unread':
+            filteredNotifications = filteredNotifications.filter(n => !n.read);
+            break;
+        case 'ride':
+            filteredNotifications = filteredNotifications.filter(n => 
+                n.type === 'ride' || n.data?.action?.includes('ride'));
+            break;
+        case 'payment':
+            filteredNotifications = filteredNotifications.filter(n => 
+                n.type === 'payment' || n.description?.includes('payment'));
+            break;
+        case 'referral':
+            filteredNotifications = filteredNotifications.filter(n => 
+                n.type === 'referral' || n.title?.includes('Referral'));
+            break;
+        case 'chat':
+            filteredNotifications = filteredNotifications.filter(n => 
+                n.type === 'chat' || n.title?.includes('Chat') || n.message?.includes('message'));
+            break;
+        // 'all' shows all notifications
+    }
+    
+    // Update the displayed notifications
+    this.updateNotifications(filteredNotifications);
+},
     
     handleNotificationAction: function(action, data) {
         switch(action) {
@@ -10405,64 +10958,101 @@ const EnhancedUIUpdater = {
         }
     },
     
-    showSplitRideAcceptanceModal: function(splitRideId) {
-        // Fetch split ride details
-        EnhancedFirebaseManager.getSplitRideDetails(splitRideId)
-            .then(splitRide => {
-                if (!splitRide) {
-                    this.showToast('Split ride not found', 'error');
-                    return;
-                }
-                
-                // Create acceptance modal
-                const modal = document.createElement('div');
-                modal.className = 'split-acceptance-modal';
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: white;
-                    border-radius: 12px;
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                    width: 90%;
-                    max-width: 400px;
-                    z-index: 10000;
-                    padding: 20px;
-                `;
-                
-                const yourShare = splitRide.totalFare / splitRide.participants;
-                
-                modal.innerHTML = `
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <div style="font-size: 48px; color: #2196F3; margin-bottom: 15px;">
+   showSplitRideAcceptanceModal: function(splitRideId) {
+    // Fetch split ride details
+    EnhancedFirebaseManager.getSplitRideDetails(splitRideId)
+        .then(splitRide => {
+            if (!splitRide) {
+                this.showToast('Split ride not found', 'error');
+                return;
+            }
+            
+            // Create enhanced acceptance modal with tracking
+            const modal = document.createElement('div');
+            modal.className = 'split-acceptance-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                width: 90%;
+                max-width: 450px;
+                z-index: 10000;
+                padding: 0;
+                overflow: hidden;
+            `;
+            
+            const yourShare = splitRide.totalFare / splitRide.participants;
+            
+            modal.innerHTML = `
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px 20px; color: white;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">
                             <i class="fas fa-user-friends"></i>
                         </div>
-                        <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">
-                            Split Ride Invitation
+                        <div style="font-weight: 600; font-size: 20px; margin-bottom: 5px;">
+                            Ride Share Invitation
                         </div>
-                        <div style="color: #666; margin-bottom: 5px;">
+                        <div style="font-size: 14px; opacity: 0.9;">
                             From: <strong>${splitRide.hostName}</strong>
                         </div>
                     </div>
-                    
+                </div>
+                
+                <div style="padding: 20px;">
                     <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <div style="margin-bottom: 10px;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div>
-                            <div style="font-weight: 600;">${splitRide.pickup}</div>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                            <div style="flex-shrink: 0;">
+                                <div style="width: 40px; height: 40px; background: #2196F3; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                </div>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 12px; color: #666;">Pickup</div>
+                                <div style="font-weight: 600;">${splitRide.pickup}</div>
+                            </div>
                         </div>
-                        <div style="margin-bottom: 10px;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div>
-                            <div style="font-weight: 600;">${splitRide.destination}</div>
+                        
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                            <div style="flex-shrink: 0;">
+                                <div style="width: 40px; height: 40px; background: #4CAF50; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-flag"></i>
+                                </div>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-size: 12px; color: #666;">Destination</div>
+                                <div style="font-weight: 600;">${splitRide.destination}</div>
+                            </div>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 1px solid #eee;">
                             <div>
                                 <div style="font-size: 12px; color: #666;">Your Share</div>
-                                <div style="font-weight: 700; color: #FF6B35; font-size: 18px;">ZMW ${yourShare.toFixed(2)}</div>
+                                <div style="font-weight: 700; color: #FF6B35; font-size: 22px;">ZMW ${yourShare.toFixed(2)}</div>
                             </div>
                             <div>
-                                <div style="font-size: 12px; color: #666;">Participants</div>
-                                <div style="font-weight: 600; font-size: 16px;">${splitRide.participants}</div>
+                                <div style="font-size: 12px; color: #666;">Total Participants</div>
+                                <div style="font-weight: 600; font-size: 18px; text-align: center;">${splitRide.participants}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tracking Section (will be shown after acceptance) -->
+                    <div id="trackingSection" style="display: none; margin-bottom: 20px;">
+                        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <div style="font-weight: 600; color: #2196F3;">
+                                    <i class="fas fa-map-marker-alt"></i> Live Tracking
+                                </div>
+                                <div id="trackingStatus" style="font-size: 12px; color: #4CAF50; font-weight: 600;">
+                                    <i class="fas fa-circle"></i> Active
+                                </div>
+                            </div>
+                            <div id="trackingInfo" style="font-size: 13px; color: #666;">
+                                Tracking will start once the ride begins
                             </div>
                         </div>
                     </div>
@@ -10471,141 +11061,224 @@ const EnhancedUIUpdater = {
                         <button id="acceptSplitInviteBtn" style="
                             flex: 1;
                             padding: 15px;
-                            background: #4CAF50;
+                            background: linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%);
                             color: white;
                             border: none;
                             border-radius: 8px;
                             cursor: pointer;
                             font-weight: 600;
                             font-size: 16px;
-                        ">
-                            <i class="fas fa-check"></i> Accept
+                            transition: transform 0.2s;
+                        " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                            <i class="fas fa-check"></i> Accept & Pay
                         </button>
                         <button id="rejectSplitInviteBtn" style="
                             flex: 1;
                             padding: 15px;
-                            background: #f44336;
-                            color: white;
-                            border: none;
+                            background: #f5f5f5;
+                            color: #666;
+                            border: 1px solid #ddd;
                             border-radius: 8px;
                             cursor: pointer;
                             font-weight: 600;
                             font-size: 16px;
-                        ">
-                            <i class="fas fa-times"></i> Reject
+                            transition: all 0.2s;
+                        " onmouseover="this.style.background='#ffebee'; this.style.color='#f44336'; this.style.borderColor='#f44336'" onmouseout="this.style.background='#f5f5f5'; this.style.color='#666'; this.style.borderColor='#ddd'">
+                            <i class="fas fa-times"></i> Decline
                         </button>
                     </div>
-                `;
-                
-                document.body.appendChild(modal);
-                
-                // Add overlay
-                const overlay = document.createElement('div');
-                overlay.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(0,0,0,0.5);
-                    z-index: 9999;
-                `;
-                document.body.appendChild(overlay);
-                
-                // Event listeners
-                modal.querySelector('#acceptSplitInviteBtn').addEventListener('click', () => {
-                    EnhancedFirebaseManager.acceptSplitRideInvitation(splitRideId, AppState.currentUser.uid)
-                        .then(() => {
-                            document.body.removeChild(modal);
-                            document.body.removeChild(overlay);
-                            
-                            // Show payment modal for user's share
+                    
+                    <div style="margin-top: 15px; font-size: 12px; color: #999; text-align: center;">
+                        <i class="fas fa-info-circle"></i> Your share will be deducted from your wallet upon acceptance
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Add overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 9999;
+            `;
+            document.body.appendChild(overlay);
+            
+            // State for tracking
+            let isTracking = false;
+            let trackingInterval = null;
+            
+            // Event listeners
+            const acceptBtn = modal.querySelector('#acceptSplitInviteBtn');
+            const rejectBtn = modal.querySelector('#rejectSplitInviteBtn');
+            const trackingSection = modal.querySelector('#trackingSection');
+            const trackingStatus = modal.querySelector('#trackingStatus');
+            const trackingInfo = modal.querySelector('#trackingInfo');
+            
+            acceptBtn.addEventListener('click', () => {
+                EnhancedFirebaseManager.acceptSplitRideInvitation(splitRideId, AppState.currentUser.uid)
+                    .then(() => {
+                        // Change button text
+                        acceptBtn.innerHTML = '<i class="fas fa-check"></i> Accepted!';
+                        acceptBtn.style.background = 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)';
+                        acceptBtn.disabled = true;
+                        
+                        // Show tracking section
+                        trackingSection.style.display = 'block';
+                        
+                        // Start tracking
+                        startTracking(splitRide.rideId);
+                        
+                        // Show payment modal for user's share
+                        setTimeout(() => {
                             this.showPaymentModal(yourShare, {
                                 ...splitRide,
                                 isSplitRide: true,
                                 yourShare: yourShare,
-                                splitRideId: splitRideId
+                                splitRideId: splitRideId,
+                                rideId: splitRide.rideId
                             });
-                        })
-                        .catch(error => {
-                            console.error('Error accepting split ride:', error);
-                            this.showToast('Error accepting invitation', 'error');
-                        });
-                });
-                
-                modal.querySelector('#rejectSplitInviteBtn').addEventListener('click', () => {
-                    EnhancedFirebaseManager.rejectSplitRideInvitation(splitRideId, AppState.currentUser.uid)
-                        .then(() => {
-                            document.body.removeChild(modal);
-                            document.body.removeChild(overlay);
-                            this.showToast('Invitation rejected', 'info');
-                        })
-                        .catch(error => {
-                            console.error('Error rejecting split ride:', error);
-                            this.showToast('Error rejecting invitation', 'error');
-                        });
-                });
-                
-                overlay.addEventListener('click', () => {
-                    document.body.removeChild(modal);
-                    document.body.removeChild(overlay);
-                });
-            })
-            .catch(error => {
-                console.error('Error fetching split ride details:', error);
-                this.showToast('Error loading invitation', 'error');
+                        }, 1000);
+                        
+                        this.showToast('Invitation accepted! You can now track the ride.', 'success');
+                    })
+                    .catch(error => {
+                        console.error('Error accepting split ride:', error);
+                        this.showToast('Error accepting invitation', 'error');
+                    });
             });
-    },
+            
+            rejectBtn.addEventListener('click', () => {
+                EnhancedFirebaseManager.rejectSplitRideInvitation(splitRideId, AppState.currentUser.uid)
+                    .then(() => {
+                        document.body.removeChild(modal);
+                        document.body.removeChild(overlay);
+                        this.showToast('Invitation declined', 'info');
+                    })
+                    .catch(error => {
+                        console.error('Error rejecting split ride:', error);
+                        this.showToast('Error rejecting invitation', 'error');
+                    });
+            });
+            
+            overlay.addEventListener('click', () => {
+                if (trackingInterval) {
+                    clearInterval(trackingInterval);
+                }
+                document.body.removeChild(modal);
+                document.body.removeChild(overlay);
+            });
+            
+            // Start tracking function
+            function startTracking(rideId) {
+                if (isTracking) return;
+                
+                isTracking = true;
+                
+                // Update tracking info
+                trackingStatus.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Connecting...';
+                trackingInfo.textContent = 'Connecting to ride tracking...';
+                
+                // Simulate tracking updates
+                trackingInterval = setInterval(() => {
+                    const statuses = [
+                        'Driver on the way to pickup',
+                        'Arriving in 5 minutes',
+                        'At pickup location',
+                        'Ride in progress',
+                        'Approaching destination'
+                    ];
+                    
+                    const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+                    const eta = Math.floor(Math.random() * 15) + 1;
+                    
+                    trackingStatus.innerHTML = '<i class="fas fa-circle" style="color: #4CAF50"></i> Live';
+                    trackingInfo.innerHTML = `
+                        ${randomStatus}<br>
+                        <small style="color: #FF6B35;">ETA: ${eta} minutes</small>
+                    `;
+                }, 5000);
+                
+                // Also listen to actual ride updates from Firebase
+                const rideRef = database.ref(`rides/${rideId}`);
+                rideRef.on('value', (snapshot) => {
+                    const ride = snapshot.val();
+                    if (ride) {
+                        if (ride.status === 'completed' || ride.status === 'cancelled') {
+                            trackingStatus.innerHTML = '<i class="fas fa-flag-checkered"></i> Completed';
+                            trackingInfo.textContent = 'Ride has been completed';
+                            if (trackingInterval) {
+                                clearInterval(trackingInterval);
+                            }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching split ride details:', error);
+            this.showToast('Error loading invitation', 'error');
+        });
+},
     
     showBroadcastTrackingModal: function(broadcastId) {
-        // Fetch broadcast details
-        EnhancedFirebaseManager.getBroadcastDetails(broadcastId)
-            .then(broadcast => {
-                if (!broadcast) {
-                    this.showToast('Broadcast not found', 'error');
-                    return;
-                }
-                
-                // Create tracking modal
-                const modal = document.createElement('div');
-                modal.className = 'broadcast-tracking-modal';
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: white;
-                    border-radius: 12px;
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                    width: 90%;
-                    max-width: 400px;
-                    z-index: 10000;
-                    padding: 20px;
-                `;
-                
-                modal.innerHTML = `
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <div style="font-size: 48px; color: #FFC107; margin-bottom: 15px;">
+    // Fetch broadcast details
+    EnhancedFirebaseManager.getBroadcastDetails(broadcastId)
+        .then(broadcast => {
+            if (!broadcast) {
+                this.showToast('Broadcast not found', 'error');
+                return;
+            }
+            
+            // Create enhanced broadcast tracking modal
+            const modal = document.createElement('div');
+            modal.className = 'broadcast-tracking-modal';
+            modal.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                width: 90%;
+                max-width: 450px;
+                z-index: 10000;
+                padding: 0;
+                overflow: hidden;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: linear-gradient(135deg, #FFC107 0%, #FF9800 100%); padding: 25px 20px; color: white;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 15px;">
                             <i class="fas fa-broadcast-tower"></i>
                         </div>
-                        <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">
-                            Broadcast Ride
+                        <div style="font-weight: 600; font-size: 20px; margin-bottom: 5px;">
+                            Live Broadcast Ride
                         </div>
-                        <div style="color: #666; margin-bottom: 5px;">
-                            From: <strong>${broadcast.hostName}</strong>
+                        <div style="font-size: 14px; opacity: 0.9;">
+                            Hosted by: <strong>${broadcast.hostName}</strong>
                         </div>
                     </div>
-                    
+                </div>
+                
+                <div style="padding: 20px;">
                     <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <div style="margin-bottom: 10px;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div>
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From</div>
                             <div style="font-weight: 600;">${broadcast.pickup}</div>
                         </div>
-                        <div style="margin-bottom: 10px;">
-                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div>
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To</div>
                             <div style="font-weight: 600;">${broadcast.destination}</div>
                         </div>
-                        <div style="display: flex; justify-content: space-between;">
+                        <div style="display: flex; justify-content: space-between; padding-top: 15px; border-top: 1px solid #eee;">
                             <div>
                                 <div style="font-size: 12px; color: #666;">Distance</div>
                                 <div style="font-weight: 600;">${broadcast.distance.toFixed(1)} km</div>
@@ -10617,79 +11290,313 @@ const EnhancedUIUpdater = {
                         </div>
                     </div>
                     
-                    <div style="font-size: 14px; color: #666; margin-bottom: 20px; text-align: center;">
-                        You can track this ride in real-time
+                    <!-- Live Tracking Section -->
+                    <div id="broadcastTrackingSection" style="margin-bottom: 20px;">
+                        <div style="background: #FFF8E1; padding: 15px; border-radius: 8px; border: 2px solid #FFC107;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <div style="font-weight: 600; color: #FF9800; display: flex; align-items: center; gap: 8px;">
+                                    <i class="fas fa-satellite-dish"></i>
+                                    <span>Live Tracking</span>
+                                </div>
+                                <div id="broadcastStatus" style="font-size: 12px; color: #4CAF50; font-weight: 600; display: flex; align-items: center; gap: 5px;">
+                                    <div style="width: 8px; height: 8px; background: #4CAF50; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
+                                    <span>LIVE</span>
+                                </div>
+                            </div>
+                            
+                            <div id="broadcastTrackingInfo" style="font-size: 14px; color: #666; margin-bottom: 15px;">
+                                Connecting to broadcast...
+                            </div>
+                            
+                            <!-- Progress bar -->
+                            <div style="margin-bottom: 15px;">
+                                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666; margin-bottom: 5px;">
+                                    <span>Progress</span>
+                                    <span id="broadcastProgressText">0%</span>
+                                </div>
+                                <div style="height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden;">
+                                    <div id="broadcastProgressBar" style="height: 100%; background: linear-gradient(90deg, #FFC107, #FF9800); width: 0%; transition: width 0.5s;"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- Live Stats -->
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 11px; color: #666;">ETA</div>
+                                    <div id="broadcastETA" style="font-weight: 700; color: #FF6B35; font-size: 16px;">-- min</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 11px; color: #666;">Speed</div>
+                                    <div id="broadcastSpeed" style="font-weight: 700; color: #2196F3; font-size: 16px;">-- km/h</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 11px; color: #666;">Distance Left</div>
+                                    <div id="broadcastDistanceLeft" style="font-weight: 700; color: #4CAF50; font-size: 16px;">-- km</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Broadcast Participants -->
+                    <div style="margin-bottom: 20px;">
+                        <div style="font-weight: 600; margin-bottom: 10px; color: #333; display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-users"></i>
+                            <span>Broadcast Participants</span>
+                            <span style="font-size: 12px; background: #FFC107; color: white; padding: 2px 8px; border-radius: 10px;">${broadcast.participants || 1}</span>
+                        </div>
+                        <div id="broadcastParticipants" style="max-height: 150px; overflow-y: auto;">
+                            <div style="padding: 10px; background: #f5f5f5; border-radius: 6px; text-align: center; color: #999;">
+                                Loading participants...
+                            </div>
+                        </div>
                     </div>
                     
                     <div style="display: flex; gap: 10px;">
                         <button id="trackBroadcastBtn" style="
                             flex: 1;
                             padding: 15px;
-                            background: #FF6B35;
+                            background: linear-gradient(135deg, #FF6B35 0%, #E65100 100%);
                             color: white;
                             border: none;
                             border-radius: 8px;
                             cursor: pointer;
                             font-weight: 600;
                             font-size: 16px;
-                        ">
-                            <i class="fas fa-map-marker-alt"></i> Track Ride
+                            transition: transform 0.2s;
+                        " onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                            <i class="fas fa-map-marker-alt"></i> Start Tracking
                         </button>
                         <button id="closeBroadcastTrackingBtn" style="
                             padding: 15px 30px;
                             background: #f5f5f5;
                             color: #666;
-                            border: none;
+                            border: 1px solid #ddd;
                             border-radius: 8px;
                             cursor: pointer;
                             font-weight: 600;
-                        ">
-                            Close
+                            transition: all 0.2s;
+                        " onmouseover="this.style.background='#ffebee'; this.style.color='#f44336'; this.style.borderColor='#f44336'" onmouseout="this.style.background='#f5f5f5'; this.style.color='#666'; this.style.borderColor='#ddd'">
+                            <i class="fas fa-times"></i> Close
                         </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Add overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 9999;
+            `;
+            document.body.appendChild(overlay);
+            
+            // State for tracking
+            let isTracking = false;
+            let trackingInterval = null;
+            let simulatedProgress = 0;
+            
+            // Elements
+            const trackBtn = modal.querySelector('#trackBroadcastBtn');
+            const closeBtn = modal.querySelector('#closeBroadcastTrackingBtn');
+            const trackingInfo = modal.querySelector('#broadcastTrackingInfo');
+            const progressBar = modal.querySelector('#broadcastProgressBar');
+            const progressText = modal.querySelector('#broadcastProgressText');
+            const etaElement = modal.querySelector('#broadcastETA');
+            const speedElement = modal.querySelector('#broadcastSpeed');
+            const distanceLeftElement = modal.querySelector('#broadcastDistanceLeft');
+            const participantsContainer = modal.querySelector('#broadcastParticipants');
+            
+            // Load participants
+            this.loadBroadcastParticipants(broadcastId, participantsContainer);
+            
+            // Start tracking function
+            function startTracking() {
+                if (isTracking) return;
+                
+                isTracking = true;
+                trackBtn.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Tracking...';
+                trackBtn.disabled = true;
+                
+                // Update tracking info
+                trackingInfo.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <div style="width: 40px; height: 40px; background: #FFC107; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-car" style="color: white;"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 600;">${broadcast.hostName}'s Vehicle</div>
+                            <div style="font-size: 12px; color: #666;">Toyota Corolla • ABC 123</div>
+                        </div>
                     </div>
                 `;
                 
-                document.body.appendChild(modal);
-                
-                // Add overlay
-                const overlay = document.createElement('div');
-                overlay.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(0,0,0,0.5);
-                    z-index: 9999;
-                `;
-                document.body.appendChild(overlay);
-                
-                // Event listeners
-                modal.querySelector('#trackBroadcastBtn').addEventListener('click', () => {
-                    // Start tracking the broadcast ride
-                    EnhancedFirebaseManager.startTrackingBroadcast(broadcastId);
+                // Start simulation
+                trackingInterval = setInterval(() => {
+                    simulatedProgress += Math.random() * 5;
+                    if (simulatedProgress > 100) simulatedProgress = 100;
                     
-                    document.body.removeChild(modal);
-                    document.body.removeChild(overlay);
+                    // Update progress bar
+                    progressBar.style.width = `${simulatedProgress}%`;
+                    progressText.textContent = `${Math.round(simulatedProgress)}%`;
                     
-                    this.showToast('Now tracking broadcast ride', 'success');
-                });
+                    // Update stats
+                    const eta = Math.max(1, Math.round((100 - simulatedProgress) / 5));
+                    const speed = 30 + Math.random() * 20;
+                    const distanceLeft = (broadcast.distance * (100 - simulatedProgress) / 100).toFixed(1);
+                    
+                    etaElement.textContent = `${eta} min`;
+                    speedElement.textContent = `${speed.toFixed(0)} km/h`;
+                    distanceLeftElement.textContent = `${distanceLeft} km`;
+                    
+                    // Update tracking info based on progress
+                    let status = '';
+                    if (simulatedProgress < 25) {
+                        status = 'Driver on the way to pickup';
+                    } else if (simulatedProgress < 50) {
+                        status = 'At pickup location';
+                    } else if (simulatedProgress < 75) {
+                        status = 'Ride in progress';
+                    } else if (simulatedProgress < 100) {
+                        status = 'Approaching destination';
+                    } else {
+                        status = 'Ride completed';
+                        clearInterval(trackingInterval);
+                    }
+                    
+                    trackingInfo.innerHTML = `
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                            <div style="width: 40px; height: 40px; background: #FFC107; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-car" style="color: white;"></i>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;">${broadcast.hostName}'s Vehicle</div>
+                                <div style="font-size: 12px; color: #666;">Toyota Corolla • ABC 123</div>
+                            </div>
+                        </div>
+                        <div style="font-size: 13px; color: #333;">
+                            <i class="fas fa-info-circle" style="color: #FF6B35;"></i> ${status}
+                        </div>
+                    `;
+                }, 2000);
                 
-                modal.querySelector('#closeBroadcastTrackingBtn').addEventListener('click', () => {
-                    document.body.removeChild(modal);
-                    document.body.removeChild(overlay);
+                // Also listen to actual broadcast updates from Firebase
+                const broadcastRef = database.ref(`broadcasts/${broadcastId}`);
+                broadcastRef.on('value', (snapshot) => {
+                    const updatedBroadcast = snapshot.val();
+                    if (updatedBroadcast) {
+                        if (updatedBroadcast.status === 'completed' || updatedBroadcast.status === 'cancelled') {
+                            clearInterval(trackingInterval);
+                            trackBtn.innerHTML = '<i class="fas fa-flag-checkered"></i> Broadcast Ended';
+                            trackingInfo.innerHTML = `
+                                <div style="text-align: center; padding: 10px; background: #f5f5f5; border-radius: 6px;">
+                                    <i class="fas fa-flag-checkered" style="font-size: 24px; color: #4CAF50; margin-bottom: 10px;"></i>
+                                    <div style="font-weight: 600;">Broadcast has ended</div>
+                                    <div style="font-size: 12px; color: #666;">${updatedBroadcast.status === 'completed' ? 'Ride completed successfully' : 'Ride was cancelled'}</div>
+                                </div>
+                            `;
+                        }
+                    }
                 });
-                
-                overlay.addEventListener('click', () => {
-                    document.body.removeChild(modal);
-                    document.body.removeChild(overlay);
-                });
-            })
-            .catch(error => {
-                console.error('Error fetching broadcast details:', error);
-                this.showToast('Error loading broadcast', 'error');
+            }
+            
+            // Event listeners
+            trackBtn.addEventListener('click', startTracking);
+            
+            closeBtn.addEventListener('click', () => {
+                if (trackingInterval) {
+                    clearInterval(trackingInterval);
+                }
+                document.body.removeChild(modal);
+                document.body.removeChild(overlay);
             });
-    },
+            
+            overlay.addEventListener('click', () => {
+                if (trackingInterval) {
+                    clearInterval(trackingInterval);
+                }
+                document.body.removeChild(modal);
+                document.body.removeChild(overlay);
+            });
+            
+            // Auto-start tracking after 2 seconds
+            setTimeout(() => {
+                if (!isTracking) {
+                    startTracking();
+                }
+            }, 2000);
+        })
+        .catch(error => {
+            console.error('Error fetching broadcast details:', error);
+            this.showToast('Error loading broadcast', 'error');
+        });
+},
+
+loadBroadcastParticipants: function(broadcastId, container) {
+    // Fetch broadcast participants
+    const invitationsRef = database.ref('broadcastInvitations');
+    invitationsRef.orderByChild('broadcastId').equalTo(broadcastId).once('value')
+        .then(snapshot => {
+            const invitations = snapshot.val();
+            if (invitations) {
+                const participants = Object.values(invitations).filter(inv => inv.status === 'accepted');
+                
+                if (participants.length === 0) {
+                    container.innerHTML = `
+                        <div style="padding: 15px; background: #f5f5f5; border-radius: 6px; text-align: center; color: #999;">
+                            <i class="fas fa-users-slash" style="font-size: 24px; margin-bottom: 10px;"></i>
+                            <div>No other participants yet</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                participants.forEach(participant => {
+                    html += `
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 10px; background: white; border-radius: 6px; margin-bottom: 8px; border: 1px solid #eee;">
+                            <div style="
+                                width: 36px;
+                                height: 36px;
+                                background: #2196F3;
+                                color: white;
+                                border-radius: 50%;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-weight: 600;
+                            ">
+                                ${participant.recipientName?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; font-size: 14px;">${participant.recipientName || 'User'}</div>
+                                <div style="font-size: 11px; color: #666;">
+                                    <i class="fas fa-eye" style="margin-right: 5px;"></i> Watching live
+                                </div>
+                            </div>
+                            <div style="width: 8px; height: 8px; background: #4CAF50; border-radius: 50%; animation: pulse 1.5s infinite;"></div>
+                        </div>
+                    `;
+                });
+                
+                container.innerHTML = html;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading participants:', error);
+            container.innerHTML = `
+                <div style="padding: 10px; background: #ffebee; border-radius: 6px; color: #f44336; font-size: 12px;">
+                    <i class="fas fa-exclamation-circle"></i> Error loading participants
+                </div>
+            `;
+        });
+},
     
     formatTimeAgo: function(timestamp) {
         const now = Date.now();
@@ -10904,134 +11811,146 @@ const EnhancedUIUpdater = {
     },
     
     showRideDetailsModal: function(ride) {
-        const modal = document.createElement('div');
-        modal.className = 'ride-details-modal';
-        modal.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            width: 90%;
-            max-width: 500px;
-            max-height: 80vh;
-            overflow-y: auto;
-            z-index: 10000;
-            padding: 20px;
-        `;
-        
-        const time = new Date(ride.timestamp);
-        const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
-        let icon = 'fa-car';
-        let iconColor = '#FF6B35';
-        let typeLabel = 'Ride';
-        
-        if (ride.serviceType === 'delivery') {
-            icon = 'fa-shipping-fast';
-            iconColor = '#9C27B0';
-            typeLabel = 'Delivery';
-        } else if (ride.serviceType === 'truck') {
-            icon = 'fa-truck';
-            iconColor = '#795548';
-            typeLabel = 'Truck';
-        } else if (ride.serviceType === 'shopping') {
-            icon = 'fa-shopping-bag';
-            iconColor = '#4CAF50';
-            typeLabel = 'Shopping';
-        } else if (ride.emergency) {
-            icon = 'fa-ambulance';
-            iconColor = '#F44336';
-            typeLabel = 'Emergency Ride';
-        } else if (ride.splitRide) {
-            icon = 'fa-user-friends';
-            iconColor = '#2196F3';
-            typeLabel = 'Split Ride';
-        } else if (ride.broadcast) {
-            icon = 'fa-broadcast-tower';
-            iconColor = '#FFC107';
-            typeLabel = 'Broadcast Ride';
-        }
-        
-        const statusColor = ride.status === 'completed' ? '#4CAF50' : 
-                           ride.status === 'cancelled' ? '#F44336' : '#FFC107';
-        
-        let html = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="margin: 0; color: ${iconColor};">
-                    <i class="fas ${icon}"></i> ${typeLabel} Details
-                </h3>
-                <button id="closeRideDetailsModal" style="
-                    background: none;
-                    border: none;
-                    font-size: 24px;
-                    cursor: pointer;
-                    color: #999;
-                ">×</button>
+    const modal = document.createElement('div');
+    modal.className = 'ride-details-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        width: 90%;
+        max-width: 500px;
+        max-height: 85vh;
+        overflow-y: auto;
+        z-index: 10000;
+        padding: 0;
+    `;
+    
+    const time = new Date(ride.timestamp);
+    const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    const completedTime = ride.completedAt ? new Date(ride.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A';
+    
+    let icon = 'fa-car';
+    let iconColor = '#FF6B35';
+    let typeLabel = 'Ride';
+    let statusColor = ride.status === 'completed' ? '#4CAF50' : 
+                     ride.status === 'cancelled' ? '#F44336' : '#FFC107';
+    
+    if (ride.serviceType === 'delivery') {
+        icon = 'fa-shipping-fast';
+        iconColor = '#9C27B0';
+        typeLabel = 'Delivery';
+    } else if (ride.serviceType === 'truck') {
+        icon = 'fa-truck';
+        iconColor = '#795548';
+        typeLabel = 'Truck';
+    } else if (ride.serviceType === 'shopping' || ride.serviceType === 'express_shopping') {
+        icon = 'fa-shopping-bag';
+        iconColor = '#4CAF50';
+        typeLabel = 'Shopping';
+    } else if (ride.emergency) {
+        icon = 'fa-ambulance';
+        iconColor = '#F44336';
+        typeLabel = 'Emergency Ride';
+    } else if (ride.splitRide) {
+        icon = 'fa-user-friends';
+        iconColor = '#2196F3';
+        typeLabel = 'Split Ride';
+    } else if (ride.broadcast) {
+        icon = 'fa-broadcast-tower';
+        iconColor = '#FFC107';
+        typeLabel = 'Broadcast Ride';
+    }
+    
+    let html = `
+        <div style="background: linear-gradient(135deg, ${iconColor}20 0%, ${iconColor}40 100%); padding: 25px 20px; border-bottom: 1px solid #eee;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="color: ${iconColor}; font-size: 32px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight: 700; font-size: 20px; color: #333;">${typeLabel}</div>
+                        <div style="font-size: 12px; color: #666;">${timeString}</div>
+                    </div>
+                </div>
+                <div style="
+                    padding: 6px 12px;
+                    background: ${statusColor};
+                    color: white;
+                    border-radius: 20px;
+                    font-size: 12px;
+                    font-weight: 600;
+                ">
+                    ${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}
+                </div>
             </div>
             
-            <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <div>
-                        <div style="font-size: 12px; color: #666;">Status</div>
-                        <div style="
-                            padding: 3px 8px;
-                            background: ${statusColor};
-                            color: white;
-                            border-radius: 12px;
-                            font-size: 12px;
-                            font-weight: 600;
-                            display: inline-block;
-                        ">
-                            ${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 12px; color: #666;">Fare</div>
-                        <div style="font-weight: 700; color: #FF6B35; font-size: 24px;">ZMW ${ride.fare?.toFixed(2) || '0.00'}</div>
-                    </div>
+            <div style="text-align: center;">
+                <div style="font-size: 36px; font-weight: 700; color: #FF6B35; margin-bottom: 5px;">
+                    ZMW ${ride.fare?.toFixed(2) || '0.00'}
                 </div>
-                
-                <div style="margin-bottom: 15px;">
-                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From</div>
-                    <div style="font-weight: 600; font-size: 14px;">${ride.pickupDisplay || ride.pickup}</div>
-                </div>
-                
-                <div style="margin-bottom: 15px;">
-                    <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To</div>
-                    <div style="font-weight: 600; font-size: 14px;">${ride.destinationDisplay || ride.destination}</div>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between;">
-                    <div>
-                        <div style="font-size: 12px; color: #666;">Distance</div>
-                        <div style="font-weight: 600;">${ride.distance?.toFixed(1) || '0'} km</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 12px; color: #666;">Time</div>
-                        <div style="font-weight: 600;">${ride.estimatedTime || '0'} min</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 12px; color: #666;">Date</div>
-                        <div style="font-weight: 600;">${timeString}</div>
-                    </div>
+                <div style="font-size: 12px; color: #666;">
+                    ${ride.distance?.toFixed(1) || '0'} km • ${ride.estimatedTime || '0'} min
                 </div>
             </div>
-        `;
+        </div>
         
-        // Add driver info if available
-        if (ride.driverName) {
-            html += `
-                <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <div style="font-weight: 600; margin-bottom: 10px; color: #2196F3;">
+        <div style="padding: 20px;">
+            <!-- Expandable Sections -->
+            <div class="expandable-section" style="margin-bottom: 20px;">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
+                    <div style="font-weight: 600; color: #333;">
+                        <i class="fas fa-route"></i> Route Details
+                    </div>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content" style="display: none; padding: 15px; background: #f9f9f9; border-radius: 0 0 8px 8px; margin-top: -8px;">
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From</div>
+                        <div style="font-weight: 600; font-size: 14px; padding: 10px; background: white; border-radius: 6px; border-left: 3px solid ${iconColor};">
+                            <i class="fas fa-map-marker-alt" style="color: ${iconColor}; margin-right: 8px;"></i>
+                            ${ride.pickupDisplay || ride.pickup}
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To</div>
+                        <div style="font-weight: 600; font-size: 14px; padding: 10px; background: white; border-radius: 6px; border-left: 3px solid #4CAF50;">
+                            <i class="fas fa-flag" style="color: #4CAF50; margin-right: 8px;"></i>
+                            ${ride.destinationDisplay || ride.destination}
+                        </div>
+                    </div>
+                    ${ride.stops && ride.stops.length > 0 ? `
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Stops (${ride.stops.length})</div>
+                        ${ride.stops.map((stop, index) => `
+                            <div style="font-size: 13px; padding: 8px 10px; background: white; border-radius: 6px; margin-bottom: 5px; border-left: 3px solid #FFC107;">
+                                <i class="fas fa-map-pin" style="color: #FFC107; margin-right: 8px;"></i>
+                                ${stop.name || 'Stop'}${stop.address ? ` - ${stop.address}` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <!-- Driver Info Section -->
+            ${ride.driverName ? `
+            <div class="expandable-section" style="margin-bottom: 20px;">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f0f7ff; border-radius: 8px; cursor: pointer;">
+                    <div style="font-weight: 600; color: #2196F3;">
                         <i class="fas fa-user"></i> Driver Info
                     </div>
-                    <div style="display: flex; gap: 10px; align-items: center;">
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content" style="display: none; padding: 15px; background: #f0f7ff; border-radius: 0 0 8px 8px; margin-top: -8px;">
+                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
                         <div style="
-                            width: 40px;
-                            height: 40px;
+                            width: 50px;
+                            height: 50px;
                             background: #2196F3;
                             color: white;
                             border-radius: 50%;
@@ -11039,127 +11958,280 @@ const EnhancedUIUpdater = {
                             align-items: center;
                             justify-content: center;
                             font-weight: 600;
+                            font-size: 20px;
                         ">
                             ${ride.driverName.charAt(0).toUpperCase()}
                         </div>
                         <div style="flex: 1;">
-                            <div style="font-weight: 600;">${ride.driverName}</div>
+                            <div style="font-weight: 600; font-size: 16px;">${ride.driverName}</div>
                             <div style="font-size: 13px; color: #666;">
                                 ${ride.vehicleDetails || 'Vehicle info not available'}
                             </div>
-                        </div>
-                        <div style="color: #FFC107; font-weight: 600;">
-                            <i class="fas fa-star"></i> ${ride.driverRating || '4.8'}
+                            <div style="display: flex; align-items: center; gap: 5px; margin-top: 5px;">
+                                <div style="color: #FFC107; font-weight: 600;">
+                                    <i class="fas fa-star"></i> ${ride.driverRating || '4.8'}
+                                </div>
+                                ${ride.driverPhone ? `
+                                <div style="margin-left: 15px; font-size: 12px; color: #666;">
+                                    <i class="fas fa-phone"></i> ${ride.driverPhone}
+                                </div>
+                                ` : ''}
+                            </div>
                         </div>
                     </div>
-                </div>
-            `;
-        }
-        
-        // Add payment info
-        html += `
-            <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <div style="font-weight: 600; margin-bottom: 10px; color: #333;">
-                    <i class="fas fa-credit-card"></i> Payment Info
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                    <span style="color: #666;">Method:</span>
-                    <span style="font-weight: 600;">${ride.paymentMethod?.charAt(0).toUpperCase() + ride.paymentMethod?.slice(1) || 'Wallet'}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #666;">Transaction ID:</span>
-                    <span style="font-size: 12px; color: #999;">${ride.id.substring(0, 8)}...</span>
+                    ${ride.driverImageUrl ? `
+                    <div style="text-align: center; margin-top: 15px;">
+                        <img src="${ride.driverImageUrl}" style="width: 100px; height: 100px; border-radius: 8px; object-fit: cover;">
+                    </div>
+                    ` : ''}
                 </div>
             </div>
-        `;
-        
-        // Add split ride info if applicable
-        if (ride.splitRide) {
-            html += `
-                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <div style="font-weight: 600; margin-bottom: 10px; color: #2196F3;">
-                        <i class="fas fa-user-friends"></i> Split Ride Info
+            ` : ''}
+            
+            <!-- Payment Info Section -->
+            <div class="expandable-section" style="margin-bottom: 20px;">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
+                    <div style="font-weight: 600; color: #333;">
+                        <i class="fas fa-credit-card"></i> Payment Info
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                        <span style="color: #666;">Participants:</span>
-                        <span style="font-weight: 600;">${ride.participants || 2}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: #666;">Your Share:</span>
-                        <span style="font-weight: 600; color: #FF6B35;">ZMW ${(ride.fare / (ride.participants || 2)).toFixed(2)}</span>
-                    </div>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
                 </div>
-            `;
-        }
-        
-        // Add emergency info if applicable
-        if (ride.emergency) {
-            html += `
-                <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                    <div style="font-weight: 600; margin-bottom: 10px; color: #F44336;">
-                        <i class="fas fa-exclamation-triangle"></i> Emergency Info
+                <div class="section-content" style="display: none; padding: 15px; background: #f9f9f9; border-radius: 0 0 8px 8px; margin-top: -8px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #666;">Method:</span>
+                        <span style="font-weight: 600;">${ride.paymentMethod?.charAt(0).toUpperCase() + ride.paymentMethod?.slice(1) || 'Wallet'}</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                        <span style="color: #666;">Type:</span>
-                        <span style="font-weight: 600;">${ride.emergencyType?.charAt(0).toUpperCase() + ride.emergencyType?.slice(1) || 'Emergency'}</span>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #666;">Transaction ID:</span>
+                        <span style="font-size: 12px; color: #999; font-family: monospace;">${ride.id.substring(0, 12)}...</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span style="color: #666;">Reason:</span>
-                        <span style="font-weight: 600;">${ride.reason || 'Not specified'}</span>
+                    ${ride.paymentTime ? `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="color: #666;">Paid At:</span>
+                        <span style="font-size: 12px; color: #666;">${new Date(ride.paymentTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                     </div>
+                    ` : ''}
+                    ${ride.referralDiscount ? `
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px; background: #E8F5E9; padding: 8px; border-radius: 4px;">
+                        <span style="color: #666;">Referral Discount:</span>
+                        <span style="font-weight: 600; color: #4CAF50;">-ZMW ${ride.referralDiscount.toFixed(2)}</span>
+                    </div>
+                    ` : ''}
                 </div>
-            `;
-        }
-        
-        html += `
-            <div style="text-align: center;">
+            </div>
+            
+            <!-- Timeline Section -->
+            <div class="expandable-section" style="margin-bottom: 20px;">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #f9f9f9; border-radius: 8px; cursor: pointer;">
+                    <div style="font-weight: 600; color: #333;">
+                        <i class="fas fa-history"></i> Ride Timeline
+                    </div>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content" style="display: none; padding: 15px; background: #f9f9f9; border-radius: 0 0 8px 8px; margin-top: -8px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div style="width: 12px; height: 12px; background: #4CAF50; border-radius: 50%; margin-right: 10px;"></div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">Requested</div>
+                            <div style="font-size: 12px; color: #666;">${timeString}</div>
+                        </div>
+                    </div>
+                    ${ride.acceptedAt ? `
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div style="width: 12px; height: 12px; background: #2196F3; border-radius: 50%; margin-right: 10px;"></div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">Accepted by Driver</div>
+                            <div style="font-size: 12px; color: #666;">${new Date(ride.acceptedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${ride.startedAt ? `
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div style="width: 12px; height: 12px; background: #FF6B35; border-radius: 50%; margin-right: 10px;"></div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">Ride Started</div>
+                            <div style="font-size: 12px; color: #666;">${new Date(ride.startedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${ride.completedAt ? `
+                    <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                        <div style="width: 12px; height: 12px; background: #9C27B0; border-radius: 50%; margin-right: 10px;"></div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">Completed</div>
+                            <div style="font-size: 12px; color: #666;">${completedTime}</div>
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            
+            <!-- Shopping Details (if applicable) -->
+            ${ride.shoppingDetails ? `
+            <div class="expandable-section" style="margin-bottom: 20px;">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #E8F5E9; border-radius: 8px; cursor: pointer;">
+                    <div style="font-weight: 600; color: #4CAF50;">
+                        <i class="fas fa-shopping-bag"></i> Shopping Details
+                    </div>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content" style="display: none; padding: 15px; background: #E8F5E9; border-radius: 0 0 8px 8px; margin-top: -8px;">
+                    ${ride.shoppingDetails.shopName ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Shop Name</div>
+                        <div style="font-weight: 600;">${ride.shoppingDetails.shopName}</div>
+                    </div>
+                    ` : ''}
+                    ${ride.shoppingDetails.items && ride.shoppingDetails.items.length > 0 ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Items (${ride.shoppingDetails.items.length})</div>
+                        <div style="background: white; padding: 10px; border-radius: 6px; max-height: 150px; overflow-y: auto;">
+                            ${ride.shoppingDetails.items.map(item => `
+                                <div style="padding: 5px 0; border-bottom: 1px solid #eee; font-size: 13px;">• ${item}</div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${ride.shoppingDetails.budget ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Budget</div>
+                        <div style="font-weight: 600; color: #FF6B35;">ZMW ${ride.shoppingDetails.budget.toFixed(2)}</div>
+                    </div>
+                    ` : ''}
+                    ${ride.shoppingDetails.instructions ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Special Instructions</div>
+                        <div style="background: white; padding: 10px; border-radius: 6px; font-size: 13px;">${ride.shoppingDetails.instructions}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Emergency Details (if applicable) -->
+            ${ride.emergency ? `
+            <div class="expandable-section" style="margin-bottom: 20px;">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #ffebee; border-radius: 8px; cursor: pointer;">
+                    <div style="font-weight: 600; color: #F44336;">
+                        <i class="fas fa-exclamation-triangle"></i> Emergency Details
+                    </div>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content" style="display: none; padding: 15px; background: #ffebee; border-radius: 0 0 8px 8px; margin-top: -8px;">
+                    ${ride.emergencyType ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Emergency Type</div>
+                        <div style="font-weight: 600;">${ride.emergencyType.charAt(0).toUpperCase() + ride.emergencyType.slice(1)}</div>
+                    </div>
+                    ` : ''}
+                    ${ride.emergencyReason ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Reason</div>
+                        <div style="font-weight: 600;">${ride.emergencyReason}</div>
+                    </div>
+                    ` : ''}
+                    ${ride.emergencyStation ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Station</div>
+                        <div style="font-weight: 600;">${ride.emergencyStation.name || 'Emergency Station'}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            ` : ''}
+            
+            <!-- Split Ride Details (if applicable) -->
+            ${ride.splitRide ? `
+            <div class="expandable-section" style="margin-bottom: 20px;">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #e3f2fd; border-radius: 8px; cursor: pointer;">
+                    <div style="font-weight: 600; color: #2196F3;">
+                        <i class="fas fa-user-friends"></i> Split Ride Details
+                    </div>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </div>
+                <div class="section-content" style="display: none; padding: 15px; background: #e3f2fd; border-radius: 0 0 8px 8px; margin-top: -8px;">
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Total Participants</div>
+                        <div style="font-weight: 600; font-size: 18px;">${ride.participants || 2}</div>
+                    </div>
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Your Share</div>
+                        <div style="font-weight: 600; color: #FF6B35; font-size: 20px;">ZMW ${(ride.fare / (ride.participants || 2)).toFixed(2)}</div>
+                    </div>
+                    ${ride.splitRideId ? `
+                    <div style="margin-bottom: 10px;">
+                        <div style="font-size: 12px; color: #666;">Split Ride ID</div>
+                        <div style="font-size: 11px; color: #999; font-family: monospace;">${ride.splitRideId.substring(0, 12)}...</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+            ` : ''}
+            
+            <div style="text-align: center; padding-top: 20px; border-top: 1px solid #eee;">
                 <button id="closeRideDetailsBtn" style="
-                    padding: 10px 30px;
+                    padding: 12px 40px;
                     background: #FF6B35;
                     color: white;
                     border: none;
-                    border-radius: 6px;
+                    border-radius: 8px;
                     cursor: pointer;
                     font-weight: 600;
-                ">
-                    Close
+                    font-size: 16px;
+                    transition: transform 0.2s;
+                " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <i class="fas fa-times"></i> Close
                 </button>
             </div>
-        `;
+        </div>
+    `;
+    
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    // Add overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(overlay);
+    
+    // Expand/collapse functionality
+    modal.querySelectorAll('.expandable-section').forEach(section => {
+        const header = section.querySelector('.section-header');
+        const content = section.querySelector('.section-content');
+        const icon = section.querySelector('.toggle-icon');
         
-        modal.innerHTML = html;
-        document.body.appendChild(modal);
-        
-        // Add overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 9999;
-        `;
-        document.body.appendChild(overlay);
-        
-        // Event listeners
-        modal.querySelector('#closeRideDetailsModal').addEventListener('click', () => {
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
+        header.addEventListener('click', () => {
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            } else {
+                content.style.display = 'none';
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            }
         });
-        
-        modal.querySelector('#closeRideDetailsBtn').addEventListener('click', () => {
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
-        });
-        
-        overlay.addEventListener('click', () => {
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
-        });
-    }
-};
+    });
+    
+    // Event listeners
+    modal.querySelector('#closeRideDetailsBtn').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+    
+    overlay.addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+},
 
 // ============================================
 // ENHANCED FIREBASE MANAGER
@@ -11928,6 +13000,124 @@ const EnhancedFirebaseManager = {
             throw error;
         }
     },
+
+    async requestExpressShopping(rideData) {
+    try {
+        EnhancedUIUpdater.showLoading('Requesting express shopping...');
+        
+        if (!rideData.pickup || !rideData.destination) {
+            throw new Error('Shop and delivery locations are required');
+        }
+        
+        // Generate ride ID
+        const rideId = database.ref().child('rides').push().key;
+        
+        // Calculate distance
+        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
+            rideData.pickup,
+            rideData.destination,
+            rideData.stops || []
+        );
+        
+        // Calculate estimated time
+        const estimatedTime = EnhancedPriceCalculator.estimateTime(
+            distance,
+            'standard', // Express shopping uses standard rates
+            null,
+            rideData.stops || []
+        );
+        
+        // Calculate fare using shopping fare calculator
+        const fare = EnhancedPriceCalculator.calculateShoppingFare(
+            distance,
+            rideData.itemsCount || 1,
+            rideData.budget || 0
+        );
+        
+        // Create ride object specifically for express shopping
+        const ride = {
+            id: rideId,
+            passengerId: AppState.currentUser.uid,
+            passengerName: AppState.userData.name,
+            passengerPhone: AppState.userData.phone,
+            pickup: rideData.pickup.address,
+            pickupDisplay: rideData.pickup.name || rideData.pickup.address,
+            pickupLat: rideData.pickup.lat,
+            pickupLng: rideData.pickup.lng,
+            destination: rideData.destination.address,
+            destinationDisplay: rideData.destination.name || rideData.destination.address,
+            destLat: rideData.destination.lat,
+            destLng: rideData.destination.lng,
+            serviceType: 'express_shopping',
+            vehicleType: rideData.vehicleType || 'car', // Can be 'car' or 'bike' only
+            fare: fare,
+            distance: distance,
+            estimatedTime: estimatedTime,
+            status: 'requested',
+            timestamp: Date.now(),
+            city: AppState.currentCity,
+            paymentMethod: rideData.paymentMethod || 'wallet',
+            shoppingDetails: {
+                items: rideData.items || [],
+                instructions: rideData.instructions || '',
+                budget: rideData.budget || 0,
+                shopName: rideData.shopName || '',
+                itemsCount: rideData.itemsCount || 1
+            },
+            // Restrict to bikes and cars only
+            allowedVehicleTypes: ['car', 'bike']
+        };
+        
+        // Save ride to database
+        await database.ref(`rides/${rideId}`).set(ride);
+        
+        // Update user's ride count
+        const userRef = database.ref(`users/${AppState.currentUser.uid}`);
+        const userSnapshot = await userRef.once('value');
+        const userData = userSnapshot.val();
+        
+        const totalRides = (userData.totalRides || 0) + 1;
+        await userRef.update({ totalRides });
+        
+        // Deduct fare from wallet if payment method is wallet
+        if (rideData.paymentMethod === 'wallet') {
+            await this.withdrawMoney(fare, 'Express shopping payment', rideId);
+        }
+        
+        // Set current ride
+        AppState.currentRide = ride;
+        
+        // Update UI
+        EnhancedUIUpdater.showRideInfo(ride);
+        EnhancedUIUpdater.updateRideStatus('requested');
+        EnhancedUIUpdater.updateTimeline('requested');
+        
+        // Show pulsing icon for shopping
+        EnhancedUIUpdater.showPulsingShoppingIcon();
+        
+        // Start listening to ride updates
+        this.listenToRideUpdates(rideId);
+        
+        EnhancedUIUpdater.hideLoading();
+        EnhancedUIUpdater.showToast('Express shopping requested successfully!', 'success');
+        
+        // Send notification
+        this.sendNotification(
+            AppState.currentUser.uid,
+            'Express Shopping Requested',
+            'Your shopping request has been submitted. Searching for a shopper...',
+            'ride',
+            { rideId: rideId, action: 'view_ride' }
+        );
+        
+        return rideId;
+    } catch (error) {
+        console.error('Error requesting express shopping:', error);
+        EnhancedUIUpdater.hideLoading();
+        EnhancedUIUpdater.showToast(error.message, 'error');
+        throw error;
+    }
+},
     
     async requestScheduledRide(rideData) {
         try {
@@ -12191,6 +13381,211 @@ const EnhancedFirebaseManager = {
             throw error;
         }
     },
+
+    // Add after the existing depositMoney function
+async depositMoney(amount, description = 'Deposit', reference = null, fromName = null) {
+    try {
+        const transactionId = database.ref().child('walletTransactions').push().key;
+        
+        const transaction = {
+            id: transactionId,
+            userId: AppState.currentUser.uid,
+            type: 'deposit',
+            amount: amount,
+            description: description,
+            reference: reference,
+            timestamp: Date.now(),
+            balanceBefore: AppState.walletBalance,
+            balanceAfter: AppState.walletBalance + amount,
+            fromName: fromName || 'System'
+        };
+        
+        // Update wallet balance
+        const newBalance = AppState.walletBalance + amount;
+        await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+        
+        // Save transaction
+        await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
+        
+        // Update local state
+        AppState.walletBalance = newBalance;
+        EnhancedUIUpdater.updateWalletBalance(newBalance);
+        
+        // Send notification
+        this.sendNotification(
+            AppState.currentUser.uid,
+            'Deposit Successful',
+            `ZMW ${amount.toFixed(2)} deposited to your wallet`,
+            'payment',
+            { transactionId: transactionId }
+        );
+        
+        return transactionId;
+    } catch (error) {
+        console.error('Error depositing money:', error);
+        throw error;
+    }
+},
+
+async processRidePayment(rideId, amount, description = 'Ride Payment') {
+    try {
+        return await this.withdrawMoney(amount, description, rideId);
+    } catch (error) {
+        console.error('Error processing ride payment:', error);
+        throw error;
+    }
+},
+
+async processRideRefund(rideId, amount, description = 'Ride Cancellation Refund') {
+    try {
+        return await this.depositMoney(amount, description, rideId, 'Jubel Refund System');
+    } catch (error) {
+        console.error('Error processing ride refund:', error);
+        throw error;
+    }
+},
+
+async processReferralBonus(referrerId, amount, referredUserId, rideId) {
+    try {
+        const transactionId = database.ref().child('walletTransactions').push().key;
+        
+        const transaction = {
+            id: transactionId,
+            userId: referrerId,
+            type: 'referral_bonus',
+            amount: amount,
+            description: `Referral bonus from ${AppState.userData.name}`,
+            reference: rideId,
+            timestamp: Date.now(),
+            fromName: 'Jubel Referral System',
+            referredUserId: referredUserId
+        };
+        
+        // Get referrer's current balance
+        const referrerRef = database.ref(`users/${referrerId}`);
+        const referrerSnapshot = await referrerRef.once('value');
+        const referrerData = referrerSnapshot.val();
+        
+        const balanceBefore = referrerData.walletBalance || 0;
+        const balanceAfter = balanceBefore + amount;
+        
+        transaction.balanceBefore = balanceBefore;
+        transaction.balanceAfter = balanceAfter;
+        
+        // Update referrer's balance
+        await referrerRef.update({ walletBalance: balanceAfter });
+        
+        // Save transaction
+        await database.ref(`walletTransactions/${referrerId}/${transactionId}`).set(transaction);
+        
+        // Send notification to referrer
+        this.sendNotification(
+            referrerId,
+            'Referral Bonus!',
+            `You earned ZMW ${amount.toFixed(2)} from your referral!`,
+            'referral',
+            { transactionId: transactionId, rideId: rideId }
+        );
+        
+        return transactionId;
+    } catch (error) {
+        console.error('Error processing referral bonus:', error);
+        throw error;
+    }
+},
+
+// Enhanced withdraw function to handle all deductions
+async withdrawMoney(amount, description = 'Withdrawal', reference = null) {
+    try {
+        if (amount > AppState.walletBalance) {
+            throw new Error('Insufficient balance');
+        }
+        
+        const transactionId = database.ref().child('walletTransactions').push().key;
+        
+        const transaction = {
+            id: transactionId,
+            userId: AppState.currentUser.uid,
+            type: 'withdrawal',
+            amount: amount,
+            description: description,
+            reference: reference,
+            timestamp: Date.now(),
+            balanceBefore: AppState.walletBalance,
+            balanceAfter: AppState.walletBalance - amount
+        };
+        
+        // Update wallet balance
+        const newBalance = AppState.walletBalance - amount;
+        await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+        
+        // Save transaction
+        await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
+        
+        // Update local state
+        AppState.walletBalance = newBalance;
+        EnhancedUIUpdater.updateWalletBalance(newBalance);
+        
+        return transactionId;
+    } catch (error) {
+        console.error('Error withdrawing money:', error);
+        throw error;
+    }
+},
+
+// Enhanced loadWalletTransactions to include all types
+async loadWalletTransactions(uid) {
+    try {
+        const snapshot = await database.ref(`walletTransactions/${uid}`)
+            .orderByChild('timestamp')
+            .once('value');
+        
+        const transactions = snapshot.val();
+        if (transactions) {
+            const transactionsArray = Object.keys(transactions).map(id => ({
+                id,
+                ...transactions[id]
+            })).sort((a, b) => b.timestamp - a.timestamp);
+            
+            AppState.walletTransactions = transactionsArray;
+            
+            // Calculate statistics
+            const stats = {
+                totalDeposits: 0,
+                totalWithdrawals: 0,
+                totalReferrals: 0,
+                totalRefunds: 0,
+                ridePayments: 0
+            };
+            
+            transactionsArray.forEach(t => {
+                switch(t.type) {
+                    case 'deposit':
+                        stats.totalDeposits += t.amount;
+                        break;
+                    case 'withdrawal':
+                    case 'ride_payment':
+                        stats.totalWithdrawals += t.amount;
+                        if (t.description?.includes('Ride')) {
+                            stats.ridePayments += t.amount;
+                        }
+                        break;
+                    case 'referral_bonus':
+                        stats.totalReferrals += t.amount;
+                        break;
+                    case 'refund':
+                        stats.totalRefunds += t.amount;
+                        break;
+                }
+            });
+            
+            AppState.walletStats = stats;
+            console.log(`Loaded ${transactionsArray.length} wallet transactions with stats:`, stats);
+        }
+    } catch (error) {
+        console.error('Error loading wallet transactions:', error);
+    }
+},
     
     async withdrawMoney(amount, description = 'Withdrawal', reference = null) {
         try {
@@ -12629,6 +14024,648 @@ const EnhancedFirebaseManager = {
         }
     }
 };
+
+// ============================================
+// ADVANCED CHAT SYSTEM
+// ============================================
+const AdvancedChatSystem = {
+    currentChatId: null,
+    currentChatType: null, // 'driver' or 'friend'
+    friendChats: new Map(),
+    typingStatus: {},
+    unreadMessages: new Map(),
+    
+    init: function() {
+        console.log('Advanced Chat System initialized');
+        this.setupFriendChatModal();
+        this.loadFriendChats();
+    },
+    
+    setupFriendChatModal: function() {
+        // Create friend chat modal if it doesn't exist
+        if (!document.getElementById('friendChatModal')) {
+            const modal = document.createElement('div');
+            modal.id = 'friendChatModal';
+            modal.className = 'modal-overlay';
+            modal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                display: none;
+                z-index: 10001;
+                align-items: center;
+                justify-content: center;
+            `;
+            
+            modal.innerHTML = `
+                <div class="modal" style="width: 95%; max-width: 400px; max-height: 80vh; display: flex; flex-direction: column;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 12px 12px 0 0;">
+                        <div class="modal-title" style="display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-comments"></i>
+                            <span id="friendChatTitle">Friend Chat</span>
+                        </div>
+                        <button class="modal-close" id="closeFriendChatModal" style="background: none; border: none; color: white; font-size: 20px; cursor: pointer;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-content" style="flex: 1; padding: 0; overflow: hidden; background: #f5f5f5;">
+                        <!-- Friend Chat Interface -->
+                        <div class="chat-container" style="height: 100%; display: flex; flex-direction: column;">
+                            <!-- Chat header with friend info -->
+                            <div class="chat-header" style="background: white; padding: 15px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px;">
+                                <div id="friendAvatar" style="width: 40px; height: 40px; background: #667eea; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                    F
+                                </div>
+                                <div style="flex: 1;">
+                                    <div id="friendName" style="font-weight: 600; font-size: 16px;">Friend</div>
+                                    <div id="friendStatus" style="font-size: 12px; color: #4CAF50;">
+                                        <i class="fas fa-circle" style="font-size: 8px;"></i> Online
+                                    </div>
+                                </div>
+                                <button id="friendChatInfo" style="background: none; border: none; color: #666; cursor: pointer; font-size: 18px;">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Chat messages -->
+                            <div class="chat-messages" id="friendChatMessages" style="flex: 1; overflow-y: auto; padding: 15px; background: #f5f5f5;">
+                                <!-- Messages will be inserted here -->
+                            </div>
+                            
+                            <!-- Typing indicator -->
+                            <div class="chat-typing-indicator" id="friendTypingIndicator" style="display: none; padding: 10px 15px; font-size: 12px; color: #666; background: white; border-top: 1px solid #eee;">
+                                <i class="fas fa-pencil-alt"></i> Friend is typing...
+                            </div>
+                            
+                            <!-- Chat input -->
+                            <div class="chat-input-container" style="background: white; padding: 15px; border-top: 1px solid #eee; display: flex; gap: 10px;">
+                                <button class="chat-attachment-btn" id="friendAttachmentBtn" style="background: none; border: none; color: #666; cursor: pointer; font-size: 18px;">
+                                    <i class="fas fa-paperclip"></i>
+                                </button>
+                                <input type="text" class="chat-input" id="friendChatInput" placeholder="Type your message..." style="flex: 1; padding: 10px 15px; border: 1px solid #e0e0e0; border-radius: 20px; font-size: 14px;">
+                                <button class="chat-send-btn" id="friendChatSend" style="background: #667eea; color: white; border: none; border-radius: 50%; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            
+            // Setup event listeners
+            modal.querySelector('#closeFriendChatModal').addEventListener('click', () => {
+                this.closeFriendChat();
+            });
+            
+            modal.querySelector('#friendChatSend').addEventListener('click', () => {
+                this.sendFriendMessage();
+            });
+            
+            modal.querySelector('#friendChatInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.sendFriendMessage();
+                }
+            });
+            
+            modal.querySelector('#friendChatInput').addEventListener('input', () => {
+                this.sendTypingStatus();
+            });
+        }
+    },
+    
+    openFriendChat: function(friendReferralCode = null) {
+        if (friendReferralCode) {
+            // Open chat with specific friend
+            this.startChatWithFriend(friendReferralCode);
+        } else {
+            // Show friend chat selector
+            this.showFriendChatSelector();
+        }
+    },
+    
+    showFriendChatSelector: function() {
+        const modal = document.createElement('div');
+        modal.className = 'friend-selector-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 400px;
+            z-index: 10000;
+            padding: 0;
+        `;
+        
+        modal.innerHTML = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px 20px; border-radius: 12px 12px 0 0;">
+                <div style="text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 15px;">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <div style="font-weight: 600; font-size: 20px; margin-bottom: 10px;">
+                        Chat with Friends
+                    </div>
+                    <div style="font-size: 14px; opacity: 0.9;">
+                        Start chatting with your Jubel friends
+                    </div>
+                </div>
+            </div>
+            
+            <div style="padding: 20px;">
+                <!-- Friend List -->
+                <div id="friendChatList" style="max-height: 300px; overflow-y: auto; margin-bottom: 20px;">
+                    ${this.friendChats.size > 0 ? '' : `
+                    <div style="text-align: center; padding: 40px 20px; color: #999;">
+                        <i class="fas fa-user-friends" style="font-size: 48px; margin-bottom: 20px;"></i>
+                        <div style="font-weight: 600; margin-bottom: 10px;">No friends yet</div>
+                        <div>Add friends using their referral code to start chatting</div>
+                    </div>
+                    `}
+                </div>
+                
+                <!-- Add Friend Section -->
+                <div style="margin-bottom: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #333; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Add Friend</span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="addFriendCode" placeholder="Enter friend's referral code" style="
+                            flex: 1;
+                            padding: 10px 15px;
+                            border: 1px solid #e0e0e0;
+                            border-radius: 8px;
+                            font-size: 14px;
+                        ">
+                        <button id="addFriendBtn" style="
+                            padding: 10px 20px;
+                            background: #667eea;
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-weight: 600;
+                        ">
+                            <i class="fas fa-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button id="startNewChatBtn" style="
+                        flex: 1;
+                        padding: 15px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 600;
+                        font-size: 16px;
+                    ">
+                        <i class="fas fa-comment-medical"></i> New Chat
+                    </button>
+                    <button id="closeFriendSelectorBtn" style="
+                        padding: 15px 30px;
+                        background: #f5f5f5;
+                        color: #666;
+                        border: none;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-weight: 600;
+                    ">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // Add overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+        `;
+        document.body.appendChild(overlay);
+        
+        // Load friend list
+        this.loadFriendList(modal.querySelector('#friendChatList'));
+        
+        // Event listeners
+        modal.querySelector('#addFriendBtn').addEventListener('click', () => {
+            const code = modal.querySelector('#addFriendCode').value.trim();
+            if (code) {
+                this.addFriendByCode(code);
+                modal.querySelector('#addFriendCode').value = '';
+            }
+        });
+        
+        modal.querySelector('#startNewChatBtn').addEventListener('click', () => {
+            const code = prompt("Enter your friend's referral code:");
+            if (code) {
+                this.startChatWithFriend(code);
+                document.body.removeChild(modal);
+                document.body.removeChild(overlay);
+            }
+        });
+        
+        modal.querySelector('#closeFriendSelectorBtn').addEventListener('click', () => {
+            document.body.removeChild(modal);
+            document.body.removeChild(overlay);
+        });
+        
+        overlay.addEventListener('click', () => {
+            document.body.removeChild(modal);
+            document.body.removeChild(overlay);
+        });
+    },
+    
+    loadFriendList: function(container) {
+        // Load friends from Firebase
+        const friendsRef = database.ref(`userFriends/${AppState.currentUser.uid}`);
+        friendsRef.once('value')
+            .then(snapshot => {
+                const friends = snapshot.val();
+                if (friends) {
+                    let html = '';
+                    Object.entries(friends).forEach(([friendId, friendData]) => {
+                        const unreadCount = this.unreadMessages.get(friendId) || 0;
+                        
+                        html += `
+                            <div class="friend-item" data-friend-id="${friendId}" style="
+                                display: flex;
+                                align-items: center;
+                                gap: 12px;
+                                padding: 15px;
+                                background: white;
+                                border-radius: 8px;
+                                margin-bottom: 10px;
+                                cursor: pointer;
+                                border: 1px solid #eee;
+                                transition: all 0.2s;
+                            " onmouseover="this.style.borderColor='#667eea'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.1)'" onmouseout="this.style.borderColor='#eee'; this.style.boxShadow='none'">
+                                <div style="
+                                    width: 45px;
+                                    height: 45px;
+                                    background: #667eea;
+                                    color: white;
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-weight: 600;
+                                    font-size: 18px;
+                                ">
+                                    ${friendData.name?.charAt(0).toUpperCase() || 'F'}
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                        <div style="font-weight: 600; font-size: 15px;">${friendData.name || 'Friend'}</div>
+                                        ${unreadCount > 0 ? `
+                                        <div style="background: #f44336; color: white; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600;">
+                                            ${unreadCount}
+                                        </div>
+                                        ` : ''}
+                                    </div>
+                                    <div style="font-size: 12px; color: #666; display: flex; align-items: center; gap: 5px;">
+                                        <i class="fas fa-hashtag" style="font-size: 10px;"></i>
+                                        <span>${friendData.referralCode || friendId.substring(0, 8)}</span>
+                                    </div>
+                                    <div style="font-size: 11px; color: #999; margin-top: 3px;">
+                                        Last seen: ${friendData.lastSeen ? new Date(friendData.lastSeen).toLocaleDateString() : 'Recently'}
+                                    </div>
+                                </div>
+                                <div style="color: #667eea; font-size: 20px;">
+                                    <i class="fas fa-chevron-right"></i>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    container.innerHTML = html;
+                    
+                    // Add click event to friend items
+                    container.querySelectorAll('.friend-item').forEach(item => {
+                        item.addEventListener('click', () => {
+                            const friendId = item.dataset.friendId;
+                            this.startChatWithFriend(friends[friendId].referralCode);
+                            document.body.removeChild(modal);
+                            document.body.removeChild(overlay);
+                        });
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading friend list:', error);
+            });
+    },
+    
+    addFriendByCode: function(referralCode) {
+        if (!referralCode) {
+            EnhancedUIUpdater.showToast('Please enter a referral code', 'warning');
+            return;
+        }
+        
+        if (referralCode === AppState.userData?.referralCode) {
+            EnhancedUIUpdater.showToast('Cannot add yourself as friend', 'warning');
+            return;
+        }
+        
+        EnhancedFirebaseManager.findUserByReferralCode(referralCode)
+            .then(friendData => {
+                if (friendData) {
+                    // Add friend to user's friend list
+                    const friendsRef = database.ref(`userFriends/${AppState.currentUser.uid}/${friendData.uid}`);
+                    friendsRef.set({
+                        name: friendData.name,
+                        referralCode: referralCode,
+                        addedAt: Date.now(),
+                        lastSeen: Date.now()
+                    });
+                    
+                    // Also add current user to friend's friend list
+                    const userFriendRef = database.ref(`userFriends/${friendData.uid}/${AppState.currentUser.uid}`);
+                    userFriendRef.set({
+                        name: AppState.userData.name,
+                        referralCode: AppState.userData.referralCode,
+                        addedAt: Date.now(),
+                        lastSeen: Date.now()
+                    });
+                    
+                    EnhancedUIUpdater.showToast(`${friendData.name} added as friend!`, 'success');
+                    
+                    // Start chat with new friend
+                    this.startChatWithFriend(referralCode);
+                } else {
+                    EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error adding friend:', error);
+                EnhancedUIUpdater.showToast('Error adding friend', 'error');
+            });
+    },
+    
+    startChatWithFriend: async function(friendReferralCode) {
+        try {
+            // Find friend by referral code
+            const friendData = await EnhancedFirebaseManager.findUserByReferralCode(friendReferralCode);
+            if (!friendData) {
+                EnhancedUIUpdater.showToast('Friend not found', 'error');
+                return;
+            }
+            
+            // Generate chat ID (sorted user IDs to ensure consistency)
+            const userIds = [AppState.currentUser.uid, friendData.uid].sort();
+            const chatId = `friend_chat_${userIds[0]}_${userIds[1]}`;
+            
+            this.currentChatId = chatId;
+            this.currentChatType = 'friend';
+            
+            // Open chat modal
+            const modal = document.getElementById('friendChatModal');
+            if (modal) {
+                modal.style.display = 'flex';
+                
+                // Update chat title and info
+                document.getElementById('friendChatTitle').textContent = `Chat with ${friendData.name}`;
+                document.getElementById('friendName').textContent = friendData.name;
+                document.getElementById('friendAvatar').textContent = friendData.name.charAt(0).toUpperCase();
+                document.getElementById('friendAvatar').style.background = this.getColorFromName(friendData.name);
+                
+                // Load messages
+                this.loadFriendChatMessages(chatId);
+                
+                // Setup real-time listener for new messages
+                this.setupFriendChatListener(chatId);
+                
+                // Setup typing indicator listener
+                this.setupTypingListener(chatId, friendData.uid);
+            }
+        } catch (error) {
+            console.error('Error starting chat:', error);
+            EnhancedUIUpdater.showToast('Error starting chat', 'error');
+        }
+    },
+    
+    getColorFromName: function(name) {
+        const colors = [
+            '#667eea', '#764ba2', '#f093fb', '#f5576c',
+            '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
+            '#fa709a', '#fee140', '#30cfd0', '#330867'
+        ];
+        const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return colors[hash % colors.length];
+    },
+    
+    loadFriendChatMessages: function(chatId) {
+        const messagesRef = database.ref(`friendChats/${chatId}/messages`).orderByChild('timestamp').limitToLast(50);
+        messagesRef.once('value')
+            .then(snapshot => {
+                const messages = snapshot.val();
+                const container = document.getElementById('friendChatMessages');
+                if (container) {
+                    container.innerHTML = '';
+                    
+                    if (messages) {
+                        const messagesArray = Object.values(messages).sort((a, b) => a.timestamp - b.timestamp);
+                        messagesArray.forEach(message => {
+                            this.displayFriendMessage(message);
+                        });
+                        
+                        // Scroll to bottom
+                        setTimeout(() => {
+                            container.scrollTop = container.scrollHeight;
+                        }, 100);
+                    } else {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 40px 20px; color: #999;">
+                                <i class="fas fa-comment-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
+                                <div style="font-weight: 600; margin-bottom: 10px;">No messages yet</div>
+                                <div>Start the conversation!</div>
+                            </div>
+                        `;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error loading messages:', error);
+            });
+    },
+    
+    setupFriendChatListener: function(chatId) {
+        const messagesRef = database.ref(`friendChats/${chatId}/messages`);
+        messagesRef.orderByChild('timestamp').limitToLast(1).on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            if (message && this.currentChatId === chatId) {
+                this.displayFriendMessage(message);
+                
+                // Scroll to bottom
+                const container = document.getElementById('friendChatMessages');
+                if (container) {
+                    setTimeout(() => {
+                        container.scrollTop = container.scrollHeight;
+                    }, 100);
+                }
+            }
+        });
+    },
+    
+    displayFriendMessage: function(message) {
+        const container = document.getElementById('friendChatMessages');
+        if (!container) return;
+        
+        const isCurrentUser = message.senderId === AppState.currentUser.uid;
+        const time = new Date(message.timestamp);
+        const timeString = time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        const messageElement = document.createElement('div');
+        messageElement.className = `friend-message ${isCurrentUser ? 'sent' : 'received'}`;
+        messageElement.style.cssText = `
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: ${isCurrentUser ? 'flex-end' : 'flex-start'};
+        `;
+        
+        messageElement.innerHTML = `
+            <div style="
+                max-width: 70%;
+                background: ${isCurrentUser ? '#667eea' : 'white'};
+                color: ${isCurrentUser ? 'white' : '#333'};
+                padding: 10px 15px;
+                border-radius: ${isCurrentUser ? '15px 15px 5px 15px' : '15px 15px 15px 5px'};
+                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                word-wrap: break-word;
+            ">
+                <div style="font-size: 14px; line-height: 1.4;">${message.text}</div>
+                <div style="font-size: 10px; opacity: 0.7; margin-top: 5px; text-align: ${isCurrentUser ? 'right' : 'left'};">
+                    ${timeString}
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(messageElement);
+    },
+    
+    sendFriendMessage: function() {
+        const input = document.getElementById('friendChatInput');
+        const message = input.value.trim();
+        
+        if (!message || !this.currentChatId) {
+            return;
+        }
+        
+        const messageId = database.ref().child('messages').push().key;
+        const messageData = {
+            id: messageId,
+            chatId: this.currentChatId,
+            senderId: AppState.currentUser.uid,
+            senderName: AppState.userData.name,
+            text: message,
+            timestamp: Date.now(),
+            read: false
+        };
+        
+        // Save message to Firebase
+        database.ref(`friendChats/${this.currentChatId}/messages/${messageId}`).set(messageData)
+            .then(() => {
+                input.value = '';
+                
+                // Clear typing indicator
+                this.clearTypingIndicator();
+            })
+            .catch(error => {
+                console.error('Error sending message:', error);
+                EnhancedUIUpdater.showToast('Error sending message', 'error');
+            });
+    },
+    
+    setupTypingListener: function(chatId, friendId) {
+        const typingRef = database.ref(`typingStatus/${chatId}/${friendId}`);
+        typingRef.on('value', (snapshot) => {
+            const typing = snapshot.val();
+            const indicator = document.getElementById('friendTypingIndicator');
+            if (indicator) {
+                indicator.style.display = typing ? 'block' : 'none';
+            }
+        });
+    },
+    
+    sendTypingStatus: function() {
+        if (!this.currentChatId) return;
+        
+        // Get friend ID from chat ID
+        const parts = this.currentChatId.split('_');
+        const friendId = parts[2] === AppState.currentUser.uid ? parts[3] : parts[2];
+        
+        const typingRef = database.ref(`typingStatus/${this.currentChatId}/${AppState.currentUser.uid}`);
+        typingRef.set(true);
+        
+        // Clear typing status after 3 seconds
+        if (this.typingTimeout) {
+            clearTimeout(this.typingTimeout);
+        }
+        
+        this.typingTimeout = setTimeout(() => {
+            typingRef.set(false);
+        }, 3000);
+    },
+    
+    clearTypingIndicator: function() {
+        if (!this.currentChatId) return;
+        
+        const typingRef = database.ref(`typingStatus/${this.currentChatId}/${AppState.currentUser.uid}`);
+        typingRef.set(false);
+        
+        if (this.typingTimeout) {
+            clearTimeout(this.typingTimeout);
+        }
+    },
+    
+    closeFriendChat: function() {
+        const modal = document.getElementById('friendChatModal');
+        if (modal) {
+            modal.style.display = 'none';
+            this.clearTypingIndicator();
+            this.currentChatId = null;
+            this.currentChatType = null;
+        }
+    },
+    
+    loadFriendChats: function() {
+        // Load friend chats from Firebase
+        const chatsRef = database.ref(`userFriends/${AppState.currentUser.uid}`);
+        chatsRef.on('value', (snapshot) => {
+            const friends = snapshot.val();
+            if (friends) {
+                this.friendChats.clear();
+                Object.entries(friends).forEach(([friendId, friendData]) => {
+                    this.friendChats.set(friendId, friendData);
+                });
+            }
+        });
+    }
+};
+
+// Initialize chat system in initializeApp function
+AdvancedChatSystem.init();
 
 // ============================================
 // CITY DETECTOR
@@ -13088,6 +15125,9 @@ async function initializeApp() {
         
         // Initialize shopping items
         initializeShoppingItems();
+
+        // In initializeApp function, add:
+EnhancedUIUpdater.setupRealTimeNotificationPanel();
         
         // Set min date for schedule date input
         const scheduleDateInput = document.getElementById('scheduleDate');
@@ -14061,6 +16101,7 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
+
 
 
 
