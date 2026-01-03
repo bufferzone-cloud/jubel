@@ -4002,37 +4002,6 @@
             color: var(--dark-gray);
             line-height: 1.3;
         }
-
-        /* Add to your existing CSS */
-.user-location-marker {
-    animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    50% {
-        transform: scale(1.2);
-        opacity: 0.8;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
-
-.accuracy-circle {
-    stroke-dasharray: 10, 10;
-    animation: dash 20s linear infinite;
-}
-
-@keyframes dash {
-    to {
-        stroke-dashoffset: 1000;
-    }
-}
     </style>
 </head>
 <body>
@@ -12759,50 +12728,85 @@ const CityDetector = {
         return 'Lusaka';
     },
     
-    async getDetailedAddress(lat, lng) {
-        try {
-            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
-            
-            const response = await fetch(url, {
-                headers: {
-                    'User-Agent': 'JubelRideApp/2.0'
-                }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                const address = data.address;
-                
-                // Build address string
-                const parts = [];
-                
-                if (address.road) parts.push(address.road);
-                if (address.suburb) parts.push(address.suburb);
-                if (address.city || address.town) parts.push(address.city || address.town);
-                
-                const shortAddress = parts.length > 0 ? parts.join(', ') : 'Current Location';
-                const fullAddress = data.display_name || shortAddress;
-                
-                return {
-                    address: shortAddress,
-                    fullAddress: fullAddress,
-                    city: address.city || address.town,
-                    road: address.road,
-                    suburb: address.suburb
-                };
-            }
-        } catch (error) {
-            console.error('Error getting detailed address:', error);
-        }
+   getDetailedAddress: async function(lat, lng) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`;
         
-        return {
-            address: 'Current Location',
-            fullAddress: 'Current Location',
-            city: AppState.currentCity
-        };
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'JubelRideApp/3.0',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const address = data.address || {};
+            
+            // Build comprehensive address object
+            const addressObj = {
+                // Primary address components
+                houseNumber: address.house_number || address.housenumber || '',
+                building: address.building || '',
+                road: address.road || address.street || '',
+                neighbourhood: address.neighbourhood || address.suburb || '',
+                suburb: address.suburb || address.neighbourhood || '',
+                
+                // City/Town
+                city: address.city || address.town || address.municipality || '',
+                town: address.town || address.city || '',
+                
+                // Administrative areas
+                district: address.district || '',
+                county: address.county || '',
+                state: address.state || address.region || '',
+                
+                // Country
+                country: address.country || 'Zambia',
+                
+                // Postal
+                postcode: address.postcode || '',
+                
+                // Full display
+                displayName: data.display_name || '',
+                
+                // Raw address for debugging
+                rawAddress: address
+            };
+            
+            // Build formatted address string
+            const addressParts = [];
+            if (addressObj.houseNumber) addressParts.push(`House ${addressObj.houseNumber}`);
+            if (addressObj.building) addressParts.push(addressObj.building);
+            if (addressObj.road) addressParts.push(addressObj.road);
+            if (addressObj.neighbourhood) addressParts.push(addressObj.neighbourhood);
+            
+            const formattedAddress = addressParts.length > 0 
+                ? addressParts.join(', ')
+                : 'Current Location';
+            
+            return {
+                address: formattedAddress,
+                fullAddress: addressObj.displayName,
+                city: addressObj.city || addressObj.town,
+                road: addressObj.road,
+                suburb: addressObj.suburb,
+                houseNumber: addressObj.houseNumber,
+                building: addressObj.building,
+                neighbourhood: addressObj.neighbourhood,
+                country: addressObj.country
+            };
+        }
+    } catch (error) {
+        console.error('Error getting detailed address:', error);
     }
-};
-
+    
+    return {
+        address: 'Current Location',
+        fullAddress: 'Current Location',
+        city: AppState.currentCity
+    };
+},
 // ============================================
 // INITIALIZE MAP
 // ============================================
@@ -12836,9 +12840,6 @@ function initializeMap() {
 // ============================================
 // GET CURRENT LOCATION
 // ============================================
-// ============================================
-// GET CURRENT LOCATION
-// ============================================
 async function getCurrentLocation() {
     if (!navigator.geolocation) {
         console.warn('Geolocation is not supported by this browser');
@@ -12853,188 +12854,304 @@ async function getCurrentLocation() {
         const position = await new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
                 enableHighAccuracy: true,
-                timeout: 15000, // Increased timeout
+                timeout: 15000,
                 maximumAge: 0
             });
         });
         
-        const { latitude, longitude, accuracy } = position.coords;
-        console.log(`Location obtained: ${latitude}, ${longitude} (Accuracy: ${accuracy}m)`);
-        
-        // Validate coordinates
-        if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-            throw new Error('Invalid coordinates received');
-        }
+        const { latitude, longitude } = position.coords;
+        console.log(`Location obtained: ${latitude}, ${longitude}`);
         
         // Update user location
-        AppState.userLocation = { 
-            lat: latitude, 
-            lng: longitude,
-            accuracy: accuracy
-        };
+        AppState.userLocation = { lat: latitude, lng: longitude };
         
         // Center map on user location
         if (map) {
-            map.setView([latitude, longitude], 15);
-            
-            // Remove existing marker if it exists
-            if (currentLocationMarker) {
-                map.removeLayer(currentLocationMarker);
-            }
-            
-            // Add user location marker with better styling
+            map.setView([latitude, longitude], 17);
+        }
+        
+        // Add user location marker
+        if (currentLocationMarker) {
+            currentLocationMarker.setLatLng([latitude, longitude]);
+        } else {
             currentLocationMarker = L.marker([latitude, longitude], {
                 icon: L.divIcon({
                     className: 'user-location-marker',
-                    html: '<i class="fas fa-location-dot" style="color: #2196F3; font-size: 24px; text-shadow: 0 0 3px white;"></i>',
+                    html: '<i class="fas fa-circle" style="color: #2196F3; font-size: 24px;"></i>',
                     iconSize: [24, 24],
                     iconAnchor: [12, 24]
                 })
             }).addTo(map).bindPopup('Your Current Location');
-            
-            // Add accuracy circle if accuracy is available
-            if (accuracy) {
-                const accuracyCircle = L.circle([latitude, longitude], {
-                    radius: accuracy,
-                    color: '#2196F3',
-                    fillColor: '#2196F3',
-                    fillOpacity: 0.1,
-                    weight: 1
-                }).addTo(map);
-                
-                // Store reference to remove later if needed
-                AppState.accuracyCircle = accuracyCircle;
-            }
         }
         
-        // Get detailed address
-        const address = await CityDetector.getDetailedAddress(latitude, longitude);
-        console.log('Address:', address);
+        // Get detailed address with reverse geocoding
+        console.log('Fetching detailed address...');
+        const detailedAddress = await getDetailedAddressFromCoordinates(latitude, longitude);
         
         // Detect city
-        let city;
-        try {
-            city = await CityDetector.detectCityFromLocation(latitude, longitude);
-            console.log(`City detected: ${city}`);
-            
-            // Ensure city is set in state
-            if (!AppState.currentCity) {
-                AppState.currentCity = city;
-                AppState.detectedCity = city;
-                EnhancedUIUpdater.updateCityDisplay(city);
-                
-                // Update all location inputs that show city
-                const cityDisplayElements = document.querySelectorAll('#currentCityDisplay');
-                cityDisplayElements.forEach(el => {
-                    if (el) el.textContent = `City: ${city}`;
-                });
-            }
-        } catch (cityError) {
-            console.error('City detection failed:', cityError);
-            // Use fallback city detection
-            city = CityDetector.detectCityByCoordinates(latitude, longitude);
-        }
+        const city = await CityDetector.detectCityFromLocation(latitude, longitude);
+        console.log(`City detected: ${city}`);
         
-        // Update pickup location input
-        const pickupInput = document.getElementById('pickupLocation');
-        if (pickupInput) {
-            pickupInput.value = address.address || 'Current Location';
-            pickupInput.dataset.lat = latitude;
-            pickupInput.dataset.lng = longitude;
-            
-            AppState.pickup = {
-                lat: latitude,
-                lng: longitude,
-                address: address.address || 'Current Location',
-                name: 'Current Location',
-                fullAddress: address.fullAddress || 'Current Location'
-            };
-            
-            // Update other pickup inputs
-            const otherPickupInputs = document.querySelectorAll(
-                '#deliveryPickup, #shortDeliveryPickup, #truckPickup, #broadcastPickup, #emergencyPickup'
-            );
-            
-            otherPickupInputs.forEach(input => {
-                if (input && input.id !== 'pickupLocation') {
-                    input.value = address.address || 'Current Location';
-                    input.dataset.lat = latitude;
-                    input.dataset.lng = longitude;
-                }
-            });
-        }
+        // Format the complete address
+        const fullAddress = formatCompleteAddress(detailedAddress, city);
+        
+        // Update ALL pickup inputs in the app
+        updateAllPickupInputs(latitude, longitude, fullAddress, detailedAddress);
+        
+        // Update AppState
+        AppState.pickup = {
+            lat: latitude,
+            lng: longitude,
+            address: fullAddress.address,
+            name: 'Current Location',
+            fullAddress: fullAddress.fullAddress,
+            details: detailedAddress
+        };
         
         EnhancedUIUpdater.hideLoading();
-        EnhancedUIUpdater.showToast(`Location detected: ${address.address || 'Current Location'}`, 'success');
-        
-        // Schedule a location update after 30 seconds
-        setTimeout(() => {
-            updateLocationPeriodically();
-        }, 30000);
+        EnhancedUIUpdater.showToast(`Location detected: ${city}`, 'success');
         
     } catch (error) {
         console.error('Error getting location:', error);
         EnhancedUIUpdater.hideLoading();
         
-        let errorMessage = 'Unable to get your location. ';
-        
         if (error.code === error.PERMISSION_DENIED) {
-            errorMessage = 'Location access denied. Please enable location services in your browser settings and refresh the page.';
-            EnhancedUIUpdater.showToast(errorMessage, 'error', 8000);
-            
-            // Show help modal for location permissions
-            showLocationPermissionHelp();
+            EnhancedUIUpdater.showToast('Location access denied. Please enable location services.', 'error');
         } else if (error.code === error.TIMEOUT) {
-            errorMessage = 'Location request timed out. Please check your internet connection and try again.';
-            EnhancedUIUpdater.showToast(errorMessage, 'warning');
-        } else if (error.code === error.POSITION_UNAVAILABLE) {
-            errorMessage = 'Location information is unavailable. Please check your device location settings.';
-            EnhancedUIUpdater.showToast(errorMessage, 'warning');
+            EnhancedUIUpdater.showToast('Location request timed out. Please try again.', 'warning');
         } else {
-            errorMessage = 'Unable to get your location. Using default location.';
-            EnhancedUIUpdater.showToast(errorMessage, 'warning');
+            EnhancedUIUpdater.showToast('Unable to get your location. Using default location.', 'warning');
         }
         
-        // Use default location as fallback
+        // Use default location (Lusaka)
         useDefaultLocation();
     }
 }
 
-// Function to update location periodically
-function updateLocationPeriodically() {
-    if (!AppState.userLocation || !navigator.geolocation) return;
-    
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
-            const { latitude, longitude } = position.coords;
-            
-            // Update marker position
-            if (currentLocationMarker) {
-                currentLocationMarker.setLatLng([latitude, longitude]);
+// Enhanced function to get detailed address from coordinates
+async function getDetailedAddressFromCoordinates(lat, lng) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`;
+        
+        console.log(`Fetching address from: ${url}`);
+        
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'JubelRideApp/3.0',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': window.location.origin
             }
-            
-            // Update user location in state
-            AppState.userLocation.lat = latitude;
-            AppState.userLocation.lng = longitude;
-            
-            console.log('Location updated:', latitude, longitude);
-        },
-        (error) => {
-            console.warn('Periodic location update failed:', error);
-        },
-        {
-            enableHighAccuracy: false,
-            timeout: 5000,
-            maximumAge: 30000
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
-    );
+        
+        const data = await response.json();
+        console.log('Address data received:', data);
+        
+        if (!data.address) {
+            throw new Error('No address data received');
+        }
+        
+        const address = data.address;
+        
+        // Extract address components with multiple fallbacks
+        const addressDetails = {
+            // Building/House details
+            houseNumber: address.house_number || address.housenumber || '',
+            building: address.building || address.construction || '',
+            house: address.house || '',
+            
+            // Road/Street details
+            road: address.road || address.street || address.footway || '',
+            
+            // Neighborhood details
+            neighbourhood: address.neighbourhood || address.suburb || address.residential || '',
+            suburb: address.suburb || address.neighbourhood || '',
+            quarter: address.quarter || '',
+            
+            // City/Town details
+            city: address.city || address.town || address.municipality || address.county || '',
+            town: address.town || address.city || '',
+            
+            // District/Region details
+            district: address.district || '',
+            county: address.county || '',
+            state: address.state || address.region || '',
+            
+            // Country
+            country: address.country || 'Zambia',
+            countryCode: address.country_code || 'zm',
+            
+            // Postal code
+            postcode: address.postcode || '',
+            
+            // Raw display name
+            displayName: data.display_name || ''
+        };
+        
+        console.log('Parsed address details:', addressDetails);
+        return addressDetails;
+        
+    } catch (error) {
+        console.error('Error fetching detailed address:', error);
+        
+        // Fallback to a simpler reverse geocoding
+        try {
+            const fallbackUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+            const fallbackResponse = await fetch(fallbackUrl);
+            const fallbackData = await fallbackResponse.json();
+            
+            return {
+                displayName: fallbackData.display_name || 'Current Location',
+                city: AppState.currentCity || 'Lusaka',
+                country: 'Zambia'
+            };
+        } catch (fallbackError) {
+            console.error('Fallback geocoding failed:', fallbackError);
+            return {
+                displayName: 'Current Location',
+                city: AppState.currentCity || 'Lusaka',
+                country: 'Zambia'
+            };
+        }
+    }
 }
 
-// Function to use default location
-function useDefaultLocation() {
-    console.log('Using default location');
+// Function to format complete address from components
+function formatCompleteAddress(addressDetails, city) {
+    // Build parts array in order of specificity
+    const parts = [];
     
-    // Use Lusaka as default
+    // Add house/building info if available
+    if (addressDetails.houseNumber) {
+        parts.push(`House ${addressDetails.houseNumber}`);
+    }
+    if (addressDetails.building && !parts.includes(addressDetails.building)) {
+        parts.push(addressDetails.building);
+    }
+    if (addressDetails.house && !parts.includes(addressDetails.house)) {
+        parts.push(addressDetails.house);
+    }
+    
+    // Add road/street if available
+    if (addressDetails.road) {
+        parts.push(addressDetails.road);
+    }
+    
+    // Add neighborhood/suburb if available
+    if (addressDetails.neighbourhood && !parts.includes(addressDetails.neighbourhood)) {
+        parts.push(addressDetails.neighbourhood);
+    }
+    if (addressDetails.suburb && !parts.includes(addressDetails.suburb)) {
+        parts.push(addressDetails.suburb);
+    }
+    
+    // Add city
+    const cityName = addressDetails.city || city || 'Unknown City';
+    parts.push(cityName);
+    
+    // Create full address string
+    const fullAddressString = parts.join(', ');
+    
+    // Create display address (shorter version for input fields)
+    let displayAddress;
+    if (addressDetails.road && addressDetails.suburb) {
+        displayAddress = `${addressDetails.road}, ${addressDetails.suburb}, ${cityName}`;
+    } else if (addressDetails.road) {
+        displayAddress = `${addressDetails.road}, ${cityName}`;
+    } else if (addressDetails.displayName) {
+        // Use first part of display name
+        const shortName = addressDetails.displayName.split(',')[0];
+        displayAddress = `${shortName}, ${cityName}`;
+    } else {
+        displayAddress = `Current Location, ${cityName}`;
+    }
+    
+    return {
+        fullAddress: fullAddressString,
+        address: displayAddress,
+        city: cityName,
+        components: addressDetails
+    };
+}
+
+// Function to update ALL pickup inputs in the application
+function updateAllPickupInputs(lat, lng, address, details) {
+    console.log('Updating all pickup inputs...');
+    
+    // List of all pickup input IDs in your application
+    const pickupInputIds = [
+        'pickupLocation',
+        'deliveryPickup',
+        'shortDeliveryPickup',
+        'truckPickup',
+        'broadcastPickup',
+        'emergencyPickup',
+        'schedulePickup',
+        'someonePickup',
+        'sharePickup',
+        'shopLocation'
+    ];
+    
+    // Update each pickup input
+    pickupInputIds.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.value = address.address;
+            input.dataset.lat = lat;
+            input.dataset.lng = lng;
+            input.dataset.address = address.fullAddress;
+            
+            // Also update any associated hidden fields
+            const latInput = document.getElementById(`${inputId}Lat`);
+            const lngInput = document.getElementById(`${inputId}Lng`);
+            if (latInput) latInput.value = lat;
+            if (lngInput) lngInput.value = lng;
+        }
+    });
+    
+    // Also update any pickup inputs in active forms
+    const activeService = AppState.activeService;
+    switch(activeService) {
+        case 'car':
+            // Already handled by pickupLocation
+            break;
+        case 'delivery':
+            const deliveryPickup = document.getElementById('deliveryPickup');
+            if (deliveryPickup && !deliveryPickup.value) {
+                deliveryPickup.value = address.address;
+                deliveryPickup.dataset.lat = lat;
+                deliveryPickup.dataset.lng = lng;
+            }
+            break;
+        case 'truck':
+            const truckPickup = document.getElementById('truckPickup');
+            if (truckPickup && !truckPickup.value) {
+                truckPickup.value = address.address;
+                truckPickup.dataset.lat = lat;
+                truckPickup.dataset.lng = lng;
+            }
+            break;
+    }
+    
+    // Update the location in EnhancedSearchEngine recent locations
+    EnhancedSearchEngine.addToRecentLocations({
+        lat: lat,
+        lng: lng,
+        name: 'Current Location',
+        address: address.address,
+        fullAddress: address.fullAddress,
+        category: 'current_location'
+    });
+    
+    console.log('All pickup inputs updated');
+}
+
+// Fallback function to use default location
+function useDefaultLocation() {
+    // Default to Lusaka coordinates
     const defaultLat = -15.4167;
     const defaultLng = 28.2833;
     
@@ -13042,150 +13159,93 @@ function useDefaultLocation() {
     
     if (map) {
         map.setView([defaultLat, defaultLng], 13);
-        
-        // Add default location marker
-        if (currentLocationMarker) {
-            map.removeLayer(currentLocationMarker);
-        }
-        
-        currentLocationMarker = L.marker([defaultLat, defaultLng], {
-            icon: L.divIcon({
-                className: 'user-location-marker',
-                html: '<i class="fas fa-location-dot" style="color: #FF6B35; font-size: 24px;"></i>',
-                iconSize: [24, 24],
-                iconAnchor: [12, 24]
-            })
-        }).addTo(map).bindPopup('Default Location (Lusaka)');
     }
     
-    // Set default city
-    AppState.currentCity = 'Lusaka';
-    AppState.detectedCity = 'Lusaka';
-    EnhancedUIUpdater.updateCityDisplay('Lusaka');
+    // Create default address
+    const defaultAddress = {
+        address: 'Current Location, Lusaka',
+        fullAddress: 'Lusaka, Zambia',
+        city: 'Lusaka'
+    };
     
-    // Update pickup input
-    const pickupInput = document.getElementById('pickupLocation');
-    if (pickupInput) {
-        pickupInput.value = 'Lusaka, Zambia';
-        pickupInput.dataset.lat = defaultLat;
-        pickupInput.dataset.lng = defaultLng;
-        
-        AppState.pickup = {
-            lat: defaultLat,
-            lng: defaultLng,
-            address: 'Lusaka, Zambia',
-            name: 'Lusaka',
-            fullAddress: 'Lusaka, Zambia'
-        };
-    }
+    // Update pickup inputs with default location
+    updateAllPickupInputs(defaultLat, defaultLng, defaultAddress, {});
     
-    EnhancedUIUpdater.showToast('Using Lusaka as default location', 'info');
+    // Detect city for default location
+    CityDetector.detectCityFromLocation(defaultLat, defaultLng);
 }
 
-// Function to show location permission help
-function showLocationPermissionHelp() {
-    const modal = document.createElement('div');
-    modal.className = 'location-help-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-        width: 90%;
-        max-width: 500px;
-        z-index: 10000;
-        padding: 25px;
-    `;
+// ============================================
+// SWITCH SCREEN
+// ============================================
+function switchScreen(screen) {
+    console.log(`Switching to screen: ${screen}`);
     
-    modal.innerHTML = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <div style="font-size: 48px; color: #2196F3; margin-bottom: 15px;">
-                <i class="fas fa-map-marker-alt"></i>
-            </div>
-            <h3 style="margin: 0 0 10px 0; color: #333;">Location Permission Required</h3>
-            <p style="color: #666; margin-bottom: 20px;">
-                Jubel needs your location to provide accurate ride services. Please enable location access.
-            </p>
-        </div>
-        
-        <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-            <h4 style="margin: 0 0 10px 0; color: #2196F3;">How to enable location:</h4>
-            <div style="display: flex; align-items: flex-start; margin-bottom: 10px;">
-                <div style="color: #2196F3; margin-right: 10px; font-size: 18px;">1.</div>
-                <div style="color: #333;">Click the lock icon (🔒) in your browser's address bar</div>
-            </div>
-            <div style="display: flex; align-items: flex-start; margin-bottom: 10px;">
-                <div style="color: #2196F3; margin-right: 10px; font-size: 18px;">2.</div>
-                <div style="color: #333;">Click "Site settings" or "Permissions"</div>
-            </div>
-            <div style="display: flex; align-items: flex-start;">
-                <div style="color: #2196F3; margin-right: 10px; font-size: 18px;">3.</div>
-                <div style="color: #333;">Change "Location" to "Allow"</div>
-            </div>
-        </div>
-        
-        <div style="display: flex; gap: 10px;">
-            <button id="refreshPageBtn" style="
-                flex: 1;
-                padding: 15px;
-                background: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 16px;
-            ">
-                <i class="fas fa-sync-alt"></i> Refresh Page
-            </button>
-            <button id="continueWithoutLocationBtn" style="
-                padding: 15px 30px;
-                background: #f5f5f5;
-                color: #666;
-                border: none;
-                border-radius: 8px;
-                cursor: pointer;
-                font-weight: 600;
-            ">
-                Continue Without Location
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Add overlay
-    const overlay = document.createElement('div');
-    overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.7);
-        z-index: 9999;
-    `;
-    document.body.appendChild(overlay);
-    
-    // Event listeners
-    modal.querySelector('#refreshPageBtn').addEventListener('click', () => {
-        location.reload();
+    // Hide all screens
+    document.querySelectorAll('.history-screen, .account-screen, .emergency-screen').forEach(s => {
+        s.style.display = 'none';
     });
     
-    modal.querySelector('#continueWithoutLocationBtn').addEventListener('click', () => {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-        useDefaultLocation();
+    // Hide home content initially
+    const homeContent = document.getElementById('homeContent');
+    if (homeContent) {
+        homeContent.style.display = 'none';
+    }
+    
+    // Update active tab
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.remove('active');
     });
     
-    overlay.addEventListener('click', () => {
-        document.body.removeChild(modal);
-        document.body.removeChild(overlay);
-    });
+    // Set active screen
+    AppState.activeScreen = screen;
+    
+    // Show selected screen
+    switch(screen) {
+        case 'home':
+            const homeTab = document.querySelector('.nav-tab[data-screen="home"]');
+            if (homeTab) homeTab.classList.add('active');
+            
+            if (homeContent) {
+                homeContent.style.display = 'block';
+            }
+            break;
+            
+        case 'history':
+            const historyScreen = document.getElementById('historyScreen');
+            const historyTab = document.querySelector('.nav-tab[data-screen="history"]');
+            
+            if (historyScreen && historyTab) {
+                historyScreen.style.display = 'block';
+                historyTab.classList.add('active');
+                
+                // Load ride history
+                EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
+            }
+            break;
+            
+        case 'account':
+            const accountScreen = document.getElementById('accountScreen');
+            const accountTab = document.querySelector('.nav-tab[data-screen="account"]');
+            
+            if (accountScreen && accountTab) {
+                accountScreen.style.display = 'block';
+                accountTab.classList.add('active');
+            }
+            break;
+            
+        case 'emergency':
+            const emergencyScreen = document.getElementById('emergencyScreen');
+            const emergencyTab = document.querySelector('.nav-tab[data-screen="emergency"]');
+            
+            if (emergencyScreen && emergencyTab) {
+                emergencyScreen.style.display = 'block';
+                emergencyTab.classList.add('active');
+            }
+            break;
+    }
 }
+
 // ============================================
 // SWITCH SERVICE
 // ============================================
@@ -13264,12 +13324,6 @@ async function initializeApp() {
         // Show initial loading
         EnhancedUIUpdater.showLoading('Initializing app...');
         
-        // Initialize map first
-        initializeMap();
-        
-        // Initialize location manager
-        EnhancedLocationManager.init();
-        
         // Check authentication
         const urlParams = new URLSearchParams(window.location.search);
         const email = urlParams.get('email');
@@ -13295,10 +13349,14 @@ async function initializeApp() {
             });
         }
         
-        // Get current location with a delay to ensure map is loaded
-        setTimeout(() => {
-            getCurrentLocation();
-        }, 1000);
+        // Initialize map
+        initializeMap();
+        
+        // Initialize location manager
+        EnhancedLocationManager.init();
+        
+        // Get current location
+        getCurrentLocation();
         
         // Setup event listeners
         setupEventListeners();
