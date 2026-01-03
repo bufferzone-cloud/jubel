@@ -7024,7 +7024,15 @@ const EnhancedLocationManager = {
                     pickupInput.dataset.lat = location.lat;
                     pickupInput.dataset.lng = location.lng;
                 }
-                
+                // Allow editing of pickup location
+if (inputElement.id === 'pickupLocation') {
+    inputElement.removeAttribute('readonly');
+    inputElement.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && inputElement.value.trim()) {
+            this.handleManualPickupEntry(inputElement.value.trim(), inputId);
+        }
+    });
+}
                 // Update map
                 EnhancedUIUpdater.updatePickupMarker(location);
                 
@@ -7705,6 +7713,84 @@ const EnhancedLocationManager = {
             console.error('Stop search error:', error);
         }
     },
+handleManualPickupEntry: async function(query, inputId) {
+    if (!AppState.currentCity) {
+        EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
+        return;
+    }
+    
+    EnhancedUIUpdater.showLoading('Searching location...');
+    
+    try {
+        const results = await EnhancedSearchEngine.search(
+            query,
+            'pickup',
+            AppState.userLocation,
+            AppState.currentCity
+        );
+        
+        if (results.length > 0) {
+            this.showManualPickupSuggestions(inputId, results);
+        } else {
+            EnhancedUIUpdater.showToast('No location found. Please try a different address.', 'warning');
+        }
+    } catch (error) {
+        console.error('Error searching pickup:', error);
+        EnhancedUIUpdater.showToast('Error searching location', 'error');
+    } finally {
+        EnhancedUIUpdater.hideLoading();
+    }
+},
+
+showManualPickupSuggestions: function(inputId, results) {
+    const container = document.getElementById('globalSuggestionsContainer');
+    if (!container) return;
+    
+    const input = document.getElementById(inputId);
+    const rect = input.getBoundingClientRect();
+    
+    container.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    container.style.left = `${rect.left + window.scrollX}px`;
+    container.style.width = `${rect.width}px`;
+    
+    let html = '<div style="padding: 10px;">';
+    html += '<div style="font-weight: 600; margin-bottom: 10px; color: #333;">Select pickup location:</div>';
+    
+    results.forEach((result, index) => {
+        html += `
+            <div class="manual-pickup-item" data-index="${index}" style="
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+                cursor: pointer;
+                border-radius: 6px;
+                margin-bottom: 5px;
+                background: #f9f9f9;
+            ">
+                <div style="font-weight: 600; margin-bottom: 5px;">${result.name}</div>
+                <div style="font-size: 13px; color: #666;">${result.address}</div>
+                ${result.distance ? `
+                <div style="font-size: 12px; color: #FF6B35; margin-top: 5px;">
+                    <i class="fas fa-location-arrow"></i> ${result.distance.toFixed(1)} km away
+                </div>
+                ` : ''}
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+    container.style.display = 'block';
+    
+    container.querySelectorAll('.manual-pickup-item').forEach((item, index) => {
+        item.addEventListener('click', () => {
+            const result = results[index];
+            this.selectPickupLocation(inputId, result);
+            container.style.display = 'none';
+        });
+    });
+    
+    document.addEventListener('click', this.handleClickOutsideSuggestions);
+}
     
     showStopSuggestions: function(input, results, stopId) {
         const container = document.getElementById('globalSuggestionsContainer');
@@ -11869,7 +11955,24 @@ const EnhancedFirebaseManager = {
                 
                 ride.broadcastId = broadcastId;
             }
-            
+            // In the requestRide method, add this condition after calculating distance:
+if (rideData.serviceType === 'express') {
+    // Set vehicle restrictions for express shopping
+    rideData.allowedVehicleTypes = ['car', 'bike']; // Only cars and bikes
+    rideData.serviceType = 'express';
+    
+    // Add shopping details
+    rideData.shoppingItems = [];
+    rideData.shoppingBudget = document.getElementById('shoppingBudget')?.value;
+    rideData.shoppingInstructions = document.getElementById('shoppingInstructions')?.value;
+    
+    // Collect shopping items
+    document.querySelectorAll('#shoppingItems .item-input').forEach(input => {
+        if (input.value.trim()) {
+            rideData.shoppingItems.push(input.value.trim());
+        }
+    });
+}
             // Add emergency info if applicable
             if (rideData.isEmergency) {
                 ride.emergency = true;
@@ -14061,6 +14164,7 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
+
 
 
 
