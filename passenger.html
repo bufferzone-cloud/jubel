@@ -6713,17 +6713,20 @@ const EnhancedSearchEngine = {
 // ============================================
 // ENHANCED LOCATION MANAGER
 // ============================================
-// In EnhancedLocationManager initialization
 EnhancedLocationManager = {
+    // Properties
+    searchTimeout: null,
+    activeSearchInput: null,
+    
+    // Main Initialization
     init: function() {
         console.log('Enhanced Location Manager initialized');
         this.setupLocationInputs();
         this.setupSearchSuggestions();
-        
-        // Setup editable pickup functionality
         this.setupEditablePickup();
     },
     
+    // Setup Functions
     setupEditablePickup: function() {
         // Make all pickup inputs editable by default
         const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
@@ -6810,8 +6813,25 @@ EnhancedLocationManager = {
                 clearBtn.style.display = input.value ? 'block' : 'none';
             });
         }
-    }
-};    
+    },
+    
+    setupLocationInputs: function() {
+        // Setup pickup inputs
+        const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
+        pickupInputs.forEach(input => {
+            this.setupPickupInput(input);
+        });
+        
+        // Setup destination inputs
+        const destinationInputs = document.querySelectorAll('input[id*="destination"], input[id*="Destination"]');
+        destinationInputs.forEach(input => {
+            this.setupDestinationInput(input);
+        });
+        
+        // Setup shopping categories
+        this.setupShoppingCategories();
+    },
+    
     setupSearchSuggestions: function() {
         // Create global suggestion container if it doesn't exist
         if (!document.getElementById('globalSuggestionsContainer')) {
@@ -6834,6 +6854,7 @@ EnhancedLocationManager = {
         }
     },
     
+    // Input Setup Functions
     setupPickupInput: function(inputElement) {
         const inputId = inputElement.id;
         
@@ -6986,181 +7007,7 @@ EnhancedLocationManager = {
         }
     },
     
-    handleShoppingCategoryClick: async function(category) {
-        if (!AppState.currentCity) {
-            EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
-            return;
-        }
-        
-        EnhancedUIUpdater.showLoading(`Finding ${AppState.shoppingCategories[category].name}...`);
-        
-        try {
-            const results = await EnhancedSearchEngine.searchShoppingLocations(category, AppState.currentCity);
-            
-            if (results.length > 0) {
-                this.showShoppingLocationsPopup(category, results);
-            } else {
-                EnhancedUIUpdater.showToast(`No ${AppState.shoppingCategories[category].name} found in your city`, 'info');
-            }
-        } catch (error) {
-            console.error('Error searching shopping locations:', error);
-            EnhancedUIUpdater.showToast('Error searching locations', 'error');
-        } finally {
-            EnhancedUIUpdater.hideLoading();
-        }
-    },
-    
-    showShoppingLocationsPopup: function(category, locations) {
-        const modal = document.createElement('div');
-        modal.className = 'shopping-locations-modal';
-        modal.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            width: 90%;
-            max-width: 500px;
-            max-height: 80vh;
-            overflow-y: auto;
-            z-index: 10000;
-            padding: 20px;
-        `;
-        
-        let html = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="margin: 0;">
-                    <i class="fas ${AppState.shoppingCategories[category].icon}"></i>
-                    ${AppState.shoppingCategories[category].name}
-                </h3>
-                <button id="closeShoppingModal" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
-            </div>
-            <div style="margin-bottom: 15px; color: #666;">
-                Select a location (closest first):
-            </div>
-            <div class="shopping-locations-list" style="display: flex; flex-direction: column; gap: 10px;">
-        `;
-        
-        locations.forEach((location, index) => {
-            html += `
-                <div class="shopping-location-item" data-index="${index}" style="
-                    padding: 15px;
-                    border: 1px solid #e0e0e0;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                ">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <div style="font-weight: 600; margin-bottom: 5px;">${location.name}</div>
-                            <div style="font-size: 13px; color: #666; margin-bottom: 5px;">${location.address}</div>
-                            <div style="font-size: 12px; color: #FF6B35;">
-                                <i class="fas fa-location-arrow"></i> ${location.distance.toFixed(1)} km away
-                            </div>
-                        </div>
-                        <div style="color: #4CAF50; font-size: 24px;">
-                            <i class="fas ${AppState.shoppingCategories[category].icon}"></i>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        
-        html += `
-            </div>
-            <div style="margin-top: 20px; text-align: center;">
-                <button id="cancelShoppingSelect" style="
-                    padding: 10px 20px;
-                    background: #f5f5f5;
-                    border: none;
-                    border-radius: 6px;
-                    cursor: pointer;
-                ">Cancel</button>
-            </div>
-        `;
-        
-        modal.innerHTML = html;
-        document.body.appendChild(modal);
-        
-        // Add overlay
-        const overlay = document.createElement('div');
-        overlay.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 9999;
-        `;
-        document.body.appendChild(overlay);
-        
-        // Event listeners
-        modal.querySelector('#closeShoppingModal').addEventListener('click', () => {
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
-        });
-        
-        overlay.addEventListener('click', () => {
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
-        });
-        
-        modal.querySelector('#cancelShoppingSelect').addEventListener('click', () => {
-            document.body.removeChild(modal);
-            document.body.removeChild(overlay);
-        });
-        
-        modal.querySelectorAll('.shopping-location-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const index = parseInt(item.dataset.index);
-                const location = locations[index];
-                
-                // Update shop name input
-                const shopNameInput = document.getElementById('shopName');
-                if (shopNameInput) {
-                    shopNameInput.value = location.name;
-                    shopNameInput.dataset.lat = location.lat;
-                    shopNameInput.dataset.lng = location.lng;
-                }
-                
-                // Update shop location input
-                const shopLocationInput = document.getElementById('shopLocation');
-                if (shopLocationInput) {
-                    shopLocationInput.value = location.address;
-                    shopLocationInput.dataset.lat = location.lat;
-                    shopLocationInput.dataset.lng = location.lng;
-                }
-                
-                // Update pickup location
-                AppState.pickup = {
-                    lat: location.lat,
-                    lng: location.lng,
-                    address: location.address,
-                    name: location.name
-                };
-                
-                // Update pickup input
-                const pickupInput = document.getElementById('pickupLocation');
-                if (pickupInput) {
-                    pickupInput.value = location.address;
-                    pickupInput.dataset.lat = location.lat;
-                    pickupInput.dataset.lng = location.lng;
-                }
-                
-                // Update map
-                EnhancedUIUpdater.updatePickupMarker(location);
-                
-                document.body.removeChild(modal);
-                document.body.removeChild(overlay);
-                
-                EnhancedUIUpdater.showToast(`${location.name} selected`, 'success');
-            });
-        });
-    },
-    
+    // Event Handlers - Pickup
     handlePickupInputFocus: function(inputId) {
         const input = document.getElementById(inputId);
         if (input) {
@@ -7192,6 +7039,7 @@ EnhancedLocationManager = {
         }, 200);
     },
     
+    // Event Handlers - Destination
     handleDestinationInputFocus: function(inputId) {
         const input = document.getElementById(inputId);
         if (input) {
@@ -7223,6 +7071,32 @@ EnhancedLocationManager = {
         }, 200);
     },
     
+    // Shopping Category Handler
+    handleShoppingCategoryClick: async function(category) {
+        if (!AppState.currentCity) {
+            EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
+            return;
+        }
+        
+        EnhancedUIUpdater.showLoading(`Finding ${AppState.shoppingCategories[category].name}...`);
+        
+        try {
+            const results = await EnhancedSearchEngine.searchShoppingLocations(category, AppState.currentCity);
+            
+            if (results.length > 0) {
+                this.showShoppingLocationsPopup(category, results);
+            } else {
+                EnhancedUIUpdater.showToast(`No ${AppState.shoppingCategories[category].name} found in your city`, 'info');
+            }
+        } catch (error) {
+            console.error('Error searching shopping locations:', error);
+            EnhancedUIUpdater.showToast('Error searching locations', 'error');
+        } finally {
+            EnhancedUIUpdater.hideLoading();
+        }
+    },
+    
+    // Search Functions
     async searchLocations(inputId, query, type) {
         if (!AppState.currentCity) {
             EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
@@ -7254,6 +7128,7 @@ EnhancedLocationManager = {
         }
     },
     
+    // Suggestion Display Functions
     showSearchSuggestions: function(input, results, type) {
         const container = document.getElementById('globalSuggestionsContainer');
         if (!container) return;
@@ -7473,26 +7348,7 @@ EnhancedLocationManager = {
         document.addEventListener('click', this.handleClickOutsideSuggestions);
     },
     
-    handleClickOutsideSuggestions: function(event) {
-        const container = document.getElementById('globalSuggestionsContainer');
-        if (!container) return;
-        
-        if (!container.contains(event.target)) {
-            const activeInput = document.querySelector('.location-input.active input');
-            if (!activeInput || !activeInput.contains(event.target)) {
-                container.style.display = 'none';
-                document.removeEventListener('click', EnhancedLocationManager.handleClickOutsideSuggestions);
-            }
-        }
-    },
-    
-    hideSuggestions: function() {
-        const container = document.getElementById('globalSuggestionsContainer');
-        if (container) {
-            container.style.display = 'none';
-        }
-    },
-    
+    // Suggestion Selection Functions
     selectPickupLocation: function(inputId, location) {
         const input = document.getElementById(inputId);
         if (!input) return;
@@ -7571,6 +7427,7 @@ EnhancedLocationManager = {
         EnhancedUIUpdater.showToast('Destination set', 'success');
     },
     
+    // Clear Functions
     clearPickupLocation: function(inputId) {
         const input = document.getElementById(inputId);
         if (input) {
@@ -7624,6 +7481,180 @@ EnhancedLocationManager = {
         }
     },
     
+    // Suggestion UI Management
+    handleClickOutsideSuggestions: function(event) {
+        const container = document.getElementById('globalSuggestionsContainer');
+        if (!container) return;
+        
+        if (!container.contains(event.target)) {
+            const activeInput = document.querySelector('.location-input.active input');
+            if (!activeInput || !activeInput.contains(event.target)) {
+                container.style.display = 'none';
+                document.removeEventListener('click', EnhancedLocationManager.handleClickOutsideSuggestions);
+            }
+        }
+    },
+    
+    hideSuggestions: function() {
+        const container = document.getElementById('globalSuggestionsContainer');
+        if (container) {
+            container.style.display = 'none';
+        }
+    },
+    
+    // Shopping Popup
+    showShoppingLocationsPopup: function(category, locations) {
+        const modal = document.createElement('div');
+        modal.className = 'shopping-locations-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            z-index: 10000;
+            padding: 20px;
+        `;
+        
+        let html = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0;">
+                    <i class="fas ${AppState.shoppingCategories[category].icon}"></i>
+                    ${AppState.shoppingCategories[category].name}
+                </h3>
+                <button id="closeShoppingModal" style="background: none; border: none; font-size: 20px; cursor: pointer;">×</button>
+            </div>
+            <div style="margin-bottom: 15px; color: #666;">
+                Select a location (closest first):
+            </div>
+            <div class="shopping-locations-list" style="display: flex; flex-direction: column; gap: 10px;">
+        `;
+        
+        locations.forEach((location, index) => {
+            html += `
+                <div class="shopping-location-item" data-index="${index}" style="
+                    padding: 15px;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 5px;">${location.name}</div>
+                            <div style="font-size: 13px; color: #666; margin-bottom: 5px;">${location.address}</div>
+                            <div style="font-size: 12px; color: #FF6B35;">
+                                <i class="fas fa-location-arrow"></i> ${location.distance.toFixed(1)} km away
+                            </div>
+                        </div>
+                        <div style="color: #4CAF50; font-size: 24px;">
+                            <i class="fas ${AppState.shoppingCategories[category].icon}"></i>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+                <button id="cancelShoppingSelect" style="
+                    padding: 10px 20px;
+                    background: #f5f5f5;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                ">Cancel</button>
+            </div>
+        `;
+        
+        modal.innerHTML = html;
+        document.body.appendChild(modal);
+        
+        // Add overlay
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+        `;
+        document.body.appendChild(overlay);
+        
+        // Event listeners
+        modal.querySelector('#closeShoppingModal').addEventListener('click', () => {
+            document.body.removeChild(modal);
+            document.body.removeChild(overlay);
+        });
+        
+        overlay.addEventListener('click', () => {
+            document.body.removeChild(modal);
+            document.body.removeChild(overlay);
+        });
+        
+        modal.querySelector('#cancelShoppingSelect').addEventListener('click', () => {
+            document.body.removeChild(modal);
+            document.body.removeChild(overlay);
+        });
+        
+        modal.querySelectorAll('.shopping-location-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.dataset.index);
+                const location = locations[index];
+                
+                // Update shop name input
+                const shopNameInput = document.getElementById('shopName');
+                if (shopNameInput) {
+                    shopNameInput.value = location.name;
+                    shopNameInput.dataset.lat = location.lat;
+                    shopNameInput.dataset.lng = location.lng;
+                }
+                
+                // Update shop location input
+                const shopLocationInput = document.getElementById('shopLocation');
+                if (shopLocationInput) {
+                    shopLocationInput.value = location.address;
+                    shopLocationInput.dataset.lat = location.lat;
+                    shopLocationInput.dataset.lng = location.lng;
+                }
+                
+                // Update pickup location
+                AppState.pickup = {
+                    lat: location.lat,
+                    lng: location.lng,
+                    address: location.address,
+                    name: location.name
+                };
+                
+                // Update pickup input
+                const pickupInput = document.getElementById('pickupLocation');
+                if (pickupInput) {
+                    pickupInput.value = location.address;
+                    pickupInput.dataset.lat = location.lat;
+                    pickupInput.dataset.lng = location.lng;
+                }
+                
+                // Update map
+                EnhancedUIUpdater.updatePickupMarker(location);
+                
+                document.body.removeChild(modal);
+                document.body.removeChild(overlay);
+                
+                EnhancedUIUpdater.showToast(`${location.name} selected`, 'success');
+            });
+        });
+    },
+    
+    // Stop Management Functions
     addStop: function() {
         const stopsContainer = document.getElementById('stopsContainer');
         if (!stopsContainer) return;
@@ -7709,6 +7740,7 @@ EnhancedLocationManager = {
         EnhancedUIUpdater.showToast('Stop removed', 'info');
     },
     
+    // Stop Input Handlers
     handleStopInputFocus: function(stopId, input) {
         this.activeSearchInput = stopId;
         this.showRecentLocationsForStop(input);
@@ -13496,50 +13528,55 @@ async function initializeApp() {
         // Show initial loading
         EnhancedUIUpdater.showLoading('Initializing app...');
         
-        // Check authentication
+        // Check authentication FIRST (synchronous URL check)
         const urlParams = new URLSearchParams(window.location.search);
         const email = urlParams.get('email');
         const uid = urlParams.get('uid');
         
+        let authPromise;
+        
         if (email && uid) {
             console.log('Authenticated via URL parameters');
             AppState.currentUser = { uid, email };
-            await EnhancedFirebaseManager.loadUserData(uid);
+            authPromise = EnhancedFirebaseManager.loadUserData(uid);
         } else {
             console.log('Checking Firebase auth state...');
-            
-            auth.onAuthStateChanged(async (user) => {
-                if (user) {
-                    console.log('User authenticated:', user.uid);
-                    AppState.currentUser = user;
-                    await EnhancedFirebaseManager.loadUserData(user.uid);
-                } else {
-                    console.log('No user logged in');
-                    window.location.href = 'signup.html';
-                    return;
-                }
+            // Create a promise to handle auth state change
+            authPromise = new Promise((resolve, reject) => {
+                auth.onAuthStateChanged(async (user) => {
+                    try {
+                        if (user) {
+                            console.log('User authenticated:', user.uid);
+                            AppState.currentUser = user;
+                            await EnhancedFirebaseManager.loadUserData(user.uid);
+                            resolve();
+                        } else {
+                            console.log('No user logged in');
+                            window.location.href = 'signup.html';
+                            reject(new Error('No user authenticated'));
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
             });
         }
         
-        // Initialize map
+        // Wait for authentication to complete
+        await authPromise;
+        
+        // Initialize map AFTER authentication
         initializeMap();
         
-        // Initialize location manager
+        // Initialize location manager AFTER map
         EnhancedLocationManager.init();
         
-        // Get current location
-        getCurrentLocation().then(() => {
-    // After location is detected, initialize other components
-    EnhancedLocationManager.init();
-    setupEventListeners();
-    
-    // Start periodic location updates (every 30 seconds)
-    setInterval(() => {
-        if (AppState.activeScreen === 'home' && !AppState.currentRide) {
-            getCurrentLocation();
-        }
-    }, 30000);
-});
+        // Get current location with proper error handling
+        const locationPromise = getCurrentLocation().catch(error => {
+            console.warn('Could not get initial location:', error);
+            // Continue even if location fails
+            return null;
+        });
         
         // Setup event listeners
         setupEventListeners();
@@ -13564,6 +13601,20 @@ async function initializeApp() {
             scheduleTimeInput.value = `${hours}:${minutes}`;
         }
         
+        // Wait for location to resolve (or fail gracefully)
+        await locationPromise;
+        
+        // Set up periodic location updates AFTER initial location
+        if (!AppState.locationUpdateInterval) {
+            AppState.locationUpdateInterval = setInterval(() => {
+                if (AppState.activeScreen === 'home' && !AppState.currentRide) {
+                    getCurrentLocation().catch(error => 
+                        console.warn('Periodic location update failed:', error)
+                    );
+                }
+            }, 30000);
+        }
+        
         EnhancedUIUpdater.hideLoading();
         EnhancedUIUpdater.showToast('Jubel Passenger App Ready', 'success');
         
@@ -13572,9 +13623,19 @@ async function initializeApp() {
     } catch (error) {
         console.error('Error initializing app:', error);
         EnhancedUIUpdater.hideLoading();
-        EnhancedUIUpdater.showToast('Error initializing app. Please refresh.', 'error');
+        
+        // Don't redirect if it's an auth error (already handled)
+        if (!error.message.includes('No user authenticated')) {
+            EnhancedUIUpdater.showToast('Error initializing app. Please refresh.', 'error');
+        }
     }
 }
+
+// Make sure to call initializeApp when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Small delay to ensure all DOM is ready
+    setTimeout(initializeApp, 100);
+});
 
 // ============================================
 // INITIALIZE SHOPPING ITEMS
@@ -14519,6 +14580,7 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
+
 
 
 
