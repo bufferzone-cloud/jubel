@@ -3093,28 +3093,83 @@
         }
         
         /* City Detection Indicator */
-        .city-detection {
-            position: absolute;
-            top: 60px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 150;
-            background: var(--white);
-            padding: 8px 16px;
-            border-radius: var(--button-radius);
-            box-shadow: var(--shadow-heavy);
-            border: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--dark-gray);
-        }
-        
-        .city-detection i {
-            color: var(--primary-orange);
-        }
+       /* City detection indicator */
+.city-detection {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: white;
+    padding: 10px 20px;
+    border-radius: 25px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 1000;
+    animation: slideDown 0.3s ease;
+}
+
+.city-detection i {
+    color: #FF6B35;
+}
+
+/* Pulsing location dot */
+.pulsing-dot {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: #FF6B35;
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.7;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.3;
+    }
+    100% {
+        transform: scale(0.8);
+        opacity: 0.7;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        transform: translate(-50%, -20px);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+/* Location input with buttons */
+.location-input {
+    position: relative;
+}
+
+.current-location-btn:hover {
+    color: #e55a2b;
+}
+
+.clear-input-btn:hover {
+    color: #333;
+}
+
+/* City boundary on map */
+.city-boundary {
+    stroke: #FF6B35;
+    stroke-width: 2;
+    stroke-dasharray: 5, 5;
+    fill: rgba(255, 107, 53, 0.1);
+}
         
         /* Enhanced Notifications Panel */
         .notifications-panel {
@@ -6658,35 +6713,105 @@ const EnhancedSearchEngine = {
 // ============================================
 // ENHANCED LOCATION MANAGER
 // ============================================
-const EnhancedLocationManager = {
-    currentPickupInput: null,
-    pickupEditMode: false,
-    searchTimeout: null,
-    activeSearchInput: null,
-    
+// In EnhancedLocationManager initialization
+EnhancedLocationManager = {
     init: function() {
         console.log('Enhanced Location Manager initialized');
         this.setupLocationInputs();
         this.setupSearchSuggestions();
+        
+        // Setup editable pickup functionality
+        this.setupEditablePickup();
     },
     
-    setupLocationInputs: function() {
-        // Setup all pickup inputs
+    setupEditablePickup: function() {
+        // Make all pickup inputs editable by default
         const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
+        
         pickupInputs.forEach(input => {
-            this.setupPickupInput(input);
+            // Remove readonly attribute
+            input.removeAttribute('readonly');
+            
+            // Add clear button functionality
+            this.addClearButton(input);
+            
+            // Add current location button
+            this.addCurrentLocationButton(input);
         });
-        
-        // Setup all destination inputs
-        const destinationInputs = document.querySelectorAll('input[id*="destination"], input[id*="Destination"], input[id*="shopName"]');
-        destinationInputs.forEach(input => {
-            this.setupDestinationInput(input);
-        });
-        
-        // Setup shopping category buttons
-        this.setupShoppingCategories();
     },
     
+    addCurrentLocationButton: function(input) {
+        const parent = input.parentNode;
+        if (!parent.querySelector('.current-location-btn')) {
+            const currentLocationBtn = document.createElement('button');
+            currentLocationBtn.type = 'button';
+            currentLocationBtn.className = 'current-location-btn';
+            currentLocationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+            currentLocationBtn.style.cssText = `
+                position: absolute;
+                right: 40px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: #FF6B35;
+                cursor: pointer;
+                font-size: 16px;
+                z-index: 10;
+            `;
+            
+            currentLocationBtn.addEventListener('click', () => {
+                getCurrentLocation();
+            });
+            
+            parent.style.position = 'relative';
+            parent.appendChild(currentLocationBtn);
+        }
+    },
+    
+    addClearButton: function(input) {
+        if (!input.nextElementSibling?.classList.contains('clear-input-btn')) {
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'clear-input-btn';
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+            clearBtn.style.cssText = `
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: #999;
+                cursor: pointer;
+                display: none;
+                z-index: 10;
+            `;
+            
+            const parent = input.parentNode;
+            parent.style.position = 'relative';
+            parent.appendChild(clearBtn);
+            
+            clearBtn.addEventListener('click', () => {
+                input.value = '';
+                clearBtn.style.display = 'none';
+                
+                // Clear pickup location in state if this is the main pickup input
+                if (input.id === 'pickupLocation') {
+                    AppState.pickup = null;
+                    if (pickupMarker) {
+                        map.removeLayer(pickupMarker);
+                        pickupMarker = null;
+                    }
+                }
+            });
+            
+            input.addEventListener('input', () => {
+                clearBtn.style.display = input.value ? 'block' : 'none';
+            });
+        }
+    }
+};    
     setupSearchSuggestions: function() {
         // Create global suggestion container if it doesn't exist
         if (!document.getElementById('globalSuggestionsContainer')) {
@@ -12633,142 +12758,315 @@ const EnhancedFirebaseManager = {
 // ============================================
 // CITY DETECTOR
 // ============================================
-const CityDetector = {
-    async detectCityFromLocation(lat, lng) {
+// ============================================
+// ENHANCED CITY DETECTION WITH FALLBACK
+// ============================================
+const EnhancedCityDetector = {
+    zambianCities: {
+        'Lusaka': { lat: -15.4167, lng: 28.2833, bounds: [27.8, -15.8, 28.8, -15.2] },
+        'Ndola': { lat: -12.9667, lng: 28.6333, bounds: [28.5, -13.1, 28.8, -12.9] },
+        'Kitwe': { lat: -12.8167, lng: 28.2000, bounds: [27.9, -13.1, 28.4, -12.7] },
+        'Kabwe': { lat: -14.4333, lng: 28.4500, bounds: [28.3, -14.6, 28.6, -14.3] },
+        'Livingstone': { lat: -17.8500, lng: 25.8667, bounds: [25.7, -18.0, 26.0, -17.7] },
+        'Chipata': { lat: -13.6333, lng: 32.6500, bounds: [32.5, -13.8, 32.8, -13.6] },
+        'Chingola': { lat: -12.5333, lng: 27.8500, bounds: [27.8, -12.8, 27.9, -12.4] },
+        'Mufulira': { lat: -12.5500, lng: 28.2333, bounds: [28.1, -12.7, 28.3, -12.5] },
+        'Luanshya': { lat: -13.1333, lng: 28.4000, bounds: [28.3, -13.2, 28.5, -13.0] },
+        'Kasama': { lat: -10.2000, lng: 31.2000, bounds: [31.1, -10.3, 31.3, -10.1] },
+        'Solwezi': { lat: -12.1833, lng: 26.4000, bounds: [26.3, -12.3, 26.5, -12.1] },
+        'Mazabuka': { lat: -15.8667, lng: 27.7667, bounds: [27.7, -15.9, 27.9, -15.7] },
+        'Choma': { lat: -16.8167, lng: 26.9833, bounds: [26.8, -16.9, 27.1, -16.7] },
+        'Mongu': { lat: -15.2500, lng: 23.1333, bounds: [23.0, -15.3, 23.3, -15.2] },
+        'Kafue': { lat: -15.7667, lng: 28.1833, bounds: [28.1, -15.8, 28.3, -15.7] }
+    },
+
+    async detectCityFromCoordinates(lat, lng) {
         try {
             console.log(`Detecting city for coordinates: ${lat}, ${lng}`);
             
-            // Use reverse geocoding to get city name
-            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
+            // Try reverse geocoding first for accurate city detection
+            const reverseGeocodeUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&countrycodes=zm`;
             
-            const response = await fetch(url, {
+            const response = await fetch(reverseGeocodeUrl, {
                 headers: {
-                    'User-Agent': 'JubelRideApp/2.0'
+                    'User-Agent': 'JubelRideApp/2.0',
+                    'Accept': 'application/json'
                 }
             });
             
             if (response.ok) {
                 const data = await response.json();
-                const address = data.address;
+                const address = data.address || {};
                 
-                // Try to get city from various address fields
-                let city = address.city || address.town || address.village || address.municipality;
+                // Extract city/town from various address fields
+                let detectedCity = address.city || address.town || address.village || 
+                                  address.municipality || address.county;
                 
-                if (city) {
-                    console.log(`City detected: ${city}`);
+                console.log('Reverse geocoding result:', address);
+                
+                if (detectedCity) {
+                    // Check if detected city is in our Zambian cities list
+                    const normalizedCity = this.normalizeCityName(detectedCity);
+                    const knownCity = Object.keys(this.zambianCities).find(city => 
+                        city.toLowerCase().includes(normalizedCity.toLowerCase()) || 
+                        normalizedCity.toLowerCase().includes(city.toLowerCase())
+                    );
                     
-                    // Validate if city is in Zambia
+                    if (knownCity) {
+                        console.log(`City detected via reverse geocoding: ${knownCity}`);
+                        return knownCity;
+                    }
+                    
+                    // If city not in our list but in Zambia, return it anyway
                     if (address.country === 'Zambia' || address.country_code === 'zm') {
-                        AppState.currentCity = city;
-                        AppState.detectedCity = city;
-                        
-                        // Update UI
-                        EnhancedUIUpdater.updateCityDisplay(city);
-                        
-                        // Show city boundary on map
-                        EnhancedUIUpdater.showCityBoundaryOnMap(city);
-                        
-                        return city;
+                        console.log(`New Zambian city detected: ${detectedCity}`);
+                        return detectedCity;
                     }
                 }
             }
             
-            // If reverse geocoding fails, use fallback detection
-            return this.detectCityByCoordinates(lat, lng);
+            // Fallback: Check coordinates against known city boundaries
+            return this.detectCityByProximity(lat, lng);
+            
         } catch (error) {
-            console.error('Error detecting city:', error);
-            return this.detectCityByCoordinates(lat, lng);
+            console.error('Error in reverse geocoding:', error);
+            return this.detectCityByProximity(lat, lng);
         }
     },
-    
-    detectCityByCoordinates(lat, lng) {
-        // Define city coordinates and boundaries
-        const cities = {
-            'Lusaka': { lat: -15.4167, lng: 28.2833, radius: 0.3 },
-            'Ndola': { lat: -12.9667, lng: 28.6333, radius: 0.2 },
-            'Kitwe': { lat: -12.8167, lng: 28.2000, radius: 0.2 },
-            'Kabwe': { lat: -14.4333, lng: 28.4500, radius: 0.15 },
-            'Livingstone': { lat: -17.8500, lng: 25.8667, radius: 0.15 },
-            'Chipata': { lat: -13.6333, lng: 32.6500, radius: 0.1 },
-            'Chingola': { lat: -12.5333, lng: 27.8500, radius: 0.1 },
-            'Mufulira': { lat: -12.5500, lng: 28.2333, radius: 0.1 },
-            'Luanshya': { lat: -13.1333, lng: 28.4000, radius: 0.1 },
-            'Kasama': { lat: -10.2000, lng: 31.2000, radius: 0.1 },
-            'Solwezi': { lat: -12.1833, lng: 26.4000, radius: 0.1 },
-            'Mazabuka': { lat: -15.8667, lng: 27.7667, radius: 0.1 }
-        };
-        
+
+    detectCityByProximity(lat, lng) {
         let closestCity = null;
         let minDistance = Infinity;
         
-        for (const [cityName, cityData] of Object.entries(cities)) {
-            const distance = EnhancedSearchEngine.calculateDistance(lat, lng, cityData.lat, cityData.lng);
+        for (const [cityName, cityData] of Object.entries(this.zambianCities)) {
+            const distance = this.calculateDistance(lat, lng, cityData.lat, cityData.lng);
             
-            if (distance < minDistance && distance <= cityData.radius * 111) { // Convert radius to km
+            // Use a dynamic threshold based on city size
+            const threshold = cityName === 'Lusaka' ? 50 :  // Lusaka has larger radius
+                              cityName === 'Ndola' || cityName === 'Kitwe' ? 30 : 20;
+            
+            if (distance < minDistance && distance <= threshold) {
                 minDistance = distance;
                 closestCity = cityName;
             }
         }
         
         if (closestCity) {
-            console.log(`City detected by coordinates: ${closestCity} (${minDistance.toFixed(1)} km from center)`);
-            AppState.currentCity = closestCity;
-            AppState.detectedCity = closestCity;
-            EnhancedUIUpdater.updateCityDisplay(closestCity);
-            EnhancedUIUpdater.showCityBoundaryOnMap(closestCity);
+            console.log(`City detected by proximity: ${closestCity} (${minDistance.toFixed(1)} km from center)`);
             return closestCity;
         }
         
-        // If no city found, use Lusaka as default
-        console.log('No city detected, using Lusaka as default');
-        AppState.currentCity = 'Lusaka';
-        AppState.detectedCity = 'Lusaka';
-        EnhancedUIUpdater.updateCityDisplay('Lusaka');
-        EnhancedUIUpdater.showCityBoundaryOnMap('Lusaka');
+        // Final fallback: Check if in Zambia
+        if (this.isInZambia(lat, lng)) {
+            console.log('Location is in Zambia, but no specific city detected. Using Lusaka as default.');
+            return 'Lusaka';
+        }
+        
+        console.log('Location outside Zambia. Using Lusaka as default.');
         return 'Lusaka';
     },
-    
+
     async getDetailedAddress(lat, lng) {
         try {
-            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`;
             
             const response = await fetch(url, {
                 headers: {
-                    'User-Agent': 'JubelRideApp/2.0'
+                    'User-Agent': 'JubelRideApp/2.0',
+                    'Accept': 'application/json'
                 }
             });
             
             if (response.ok) {
                 const data = await response.json();
-                const address = data.address;
+                const address = data.address || {};
                 
-                // Build address string
-                const parts = [];
+                // Build detailed address components
+                const addressComponents = [];
                 
-                if (address.road) parts.push(address.road);
-                if (address.suburb) parts.push(address.suburb);
-                if (address.city || address.town) parts.push(address.city || address.town);
+                // House number/building
+                if (address.house_number || address.housenumber) {
+                    addressComponents.push(`#${address.house_number || address.housenumber}`);
+                }
                 
-                const shortAddress = parts.length > 0 ? parts.join(', ') : 'Current Location';
-                const fullAddress = data.display_name || shortAddress;
+                // Building name
+                if (address.building) {
+                    addressComponents.push(address.building);
+                }
+                
+                // Road/Street
+                if (address.road) {
+                    addressComponents.push(address.road);
+                }
+                
+                // Suburb/Neighborhood
+                if (address.suburb || address.neighbourhood) {
+                    addressComponents.push(address.suburb || address.neighbourhood);
+                }
+                
+                // City/Town
+                if (address.city || address.town) {
+                    addressComponents.push(address.city || address.town);
+                }
+                
+                // Province (for Zambia)
+                if (address.state) {
+                    addressComponents.push(address.state);
+                }
+                
+                const detailedAddress = addressComponents.join(', ');
+                const shortAddress = addressComponents.slice(-3).join(', '); // Show last 3 components
                 
                 return {
-                    address: shortAddress,
-                    fullAddress: fullAddress,
+                    address: shortAddress || 'Current Location',
+                    detailedAddress: detailedAddress || 'Current Location',
+                    fullAddress: data.display_name || 'Current Location',
                     city: address.city || address.town,
                     road: address.road,
-                    suburb: address.suburb
+                    suburb: address.suburb || address.neighbourhood,
+                    houseNumber: address.house_number || address.housenumber,
+                    building: address.building,
+                    latitude: lat,
+                    longitude: lng
                 };
             }
         } catch (error) {
             console.error('Error getting detailed address:', error);
         }
         
+        // Fallback address
         return {
             address: 'Current Location',
+            detailedAddress: 'Current Location',
             fullAddress: 'Current Location',
-            city: AppState.currentCity
+            city: AppState.currentCity,
+            latitude: lat,
+            longitude: lng
         };
+    },
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = this.toRad(lat2 - lat1);
+        const dLon = this.toRad(lon2 - lon1);
+        const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    },
+
+    toRad(value) {
+        return value * Math.PI / 180;
+    },
+
+    normalizeCityName(cityName) {
+        if (!cityName) return '';
+        return cityName.replace(/ City$/i, '').replace(/ Town$/i, '').trim();
+    },
+
+    isInZambia(lat, lng) {
+        // Rough bounding box for Zambia
+        const zambiaBounds = {
+            north: -8.2,
+            south: -18.0,
+            east: 33.7,
+            west: 22.0
+        };
+        
+        return lat >= zambiaBounds.south && lat <= zambiaBounds.north &&
+               lng >= zambiaBounds.west && lng <= zambiaBounds.east;
+    },
+
+    async updateCityAndAddress(lat, lng) {
+        try {
+            // Detect city first
+            const detectedCity = await this.detectCityFromCoordinates(lat, lng);
+            AppState.currentCity = detectedCity;
+            AppState.detectedCity = detectedCity;
+            
+            // Update city display
+            EnhancedUIUpdater.updateCityDisplay(detectedCity);
+            
+            // Show city boundary on map
+            EnhancedUIUpdater.showCityBoundaryOnMap(detectedCity);
+            
+            // Get detailed address
+            const addressDetails = await this.getDetailedAddress(lat, lng);
+            
+            // Update all pickup location inputs
+            this.updateAllPickupLocations(addressDetails);
+            
+            // Center map on user location
+            if (map) {
+                map.setView([lat, lng], 15);
+                
+                // Add/update user location marker
+                if (currentLocationMarker) {
+                    currentLocationMarker.setLatLng([lat, lng]);
+                } else {
+                    currentLocationMarker = L.marker([lat, lng], {
+                        icon: L.divIcon({
+                            className: 'user-location-marker',
+                            html: '<div class="pulsing-dot"></div><i class="fas fa-user"></i>',
+                            iconSize: [40, 40],
+                            iconAnchor: [20, 40]
+                        })
+                    }).addTo(map).bindPopup('Your Current Location');
+                }
+            }
+            
+            EnhancedUIUpdater.showToast(`Location detected: ${detectedCity}`, 'success');
+            
+            return { city: detectedCity, address: addressDetails };
+            
+        } catch (error) {
+            console.error('Error updating city and address:', error);
+            return null;
+        }
+    },
+
+    updateAllPickupLocations(addressDetails) {
+        // Update all pickup input fields
+        const pickupInputs = [
+            'pickupLocation',
+            'deliveryPickup',
+            'shortDeliveryPickup',
+            'truckPickup',
+            'emergencyPickup',
+            'schedulePickup',
+            'someonePickup',
+            'sharePickup',
+            'broadcastPickup'
+        ];
+        
+        pickupInputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.value = addressDetails.detailedAddress;
+                input.dataset.lat = addressDetails.latitude;
+                input.dataset.lng = addressDetails.longitude;
+                input.dataset.address = JSON.stringify(addressDetails);
+            }
+        });
+        
+        // Update AppState
+        AppState.pickup = {
+            lat: addressDetails.latitude,
+            lng: addressDetails.longitude,
+            address: addressDetails.address,
+            detailedAddress: addressDetails.detailedAddress,
+            fullAddress: addressDetails.fullAddress,
+            city: addressDetails.city,
+            road: addressDetails.road,
+            suburb: addressDetails.suburb,
+            houseNumber: addressDetails.houseNumber,
+            building: addressDetails.building
+        };
+        
+        // Update pickup marker on map
+        EnhancedUIUpdater.updatePickupMarker(AppState.pickup);
     }
 };
 
@@ -12813,13 +13111,13 @@ async function getCurrentLocation() {
     }
     
     console.log('Getting current location...');
-    EnhancedUIUpdater.showLoading('Getting your location...');
+    EnhancedUIUpdater.showLoading('Detecting your location and city...');
     
     try {
         const position = await new Promise((resolve, reject) => {
             navigator.geolocation.getCurrentPosition(resolve, reject, {
                 enableHighAccuracy: true,
-                timeout: 10000,
+                timeout: 15000,
                 maximumAge: 0
             });
         });
@@ -12827,54 +13125,30 @@ async function getCurrentLocation() {
         const { latitude, longitude } = position.coords;
         console.log(`Location obtained: ${latitude}, ${longitude}`);
         
-        // Update user location
+        // Update user location in AppState
         AppState.userLocation = { lat: latitude, lng: longitude };
         
-        // Center map on user location
-        if (map) {
-            map.setView([latitude, longitude], 15);
-        }
+        // Use enhanced city detector
+        const result = await EnhancedCityDetector.updateCityAndAddress(latitude, longitude);
         
-        // Add user location marker
-        if (currentLocationMarker) {
-            currentLocationMarker.setLatLng([latitude, longitude]);
-        } else {
-            currentLocationMarker = L.marker([latitude, longitude], {
-                icon: L.divIcon({
-                    className: 'user-location-marker',
-                    html: '<i class="fas fa-user" style="color: #2196F3; font-size: 18px;"></i>',
-                    iconSize: [18, 18],
-                    iconAnchor: [9, 18]
-                })
-            }).addTo(map).bindPopup('Your Location');
-        }
-        
-        // Get detailed address
-        const address = await CityDetector.getDetailedAddress(latitude, longitude);
-        console.log('Address:', address);
-        
-        // Detect city
-        const city = await CityDetector.detectCityFromLocation(latitude, longitude);
-        console.log(`City: ${city}`);
-        
-        // Update pickup location input
-        const pickupInput = document.getElementById('pickupLocation');
-        if (pickupInput) {
-            pickupInput.value = address.address;
-            pickupInput.dataset.lat = latitude;
-            pickupInput.dataset.lng = longitude;
+        if (result) {
+            EnhancedUIUpdater.hideLoading();
             
-            AppState.pickup = {
+            // Show notification with city and address
+            EnhancedUIUpdater.showToast(`Location set: ${result.city}`, 'success');
+            
+            // Add to recent locations
+            EnhancedSearchEngine.addToRecentLocations({
                 lat: latitude,
                 lng: longitude,
-                address: address.address,
                 name: 'Current Location',
-                fullAddress: address.fullAddress
-            };
+                address: result.address.detailedAddress,
+                fullAddress: result.address.fullAddress,
+                city: result.city
+            });
+        } else {
+            throw new Error('Could not detect location details');
         }
-        
-        EnhancedUIUpdater.hideLoading();
-        EnhancedUIUpdater.showToast(`Location detected: ${city}`, 'success');
         
     } catch (error) {
         console.error('Error getting location:', error);
@@ -12882,22 +13156,195 @@ async function getCurrentLocation() {
         
         if (error.code === error.PERMISSION_DENIED) {
             EnhancedUIUpdater.showToast('Location access denied. Please enable location services.', 'error');
+            
+            // Show manual city selection
+            showManualCitySelection();
+            
         } else if (error.code === error.TIMEOUT) {
             EnhancedUIUpdater.showToast('Location request timed out. Please try again.', 'warning');
         } else {
             EnhancedUIUpdater.showToast('Unable to get your location. Using default location.', 'warning');
+            
+            // Use default Lusaka location
+            AppState.userLocation = { lat: -15.4167, lng: 28.2833 };
+            
+            if (map) {
+                map.setView([-15.4167, 28.2833], 13);
+            }
+            
+            // Detect city for default location
+            EnhancedCityDetector.updateCityAndAddress(-15.4167, 28.2833);
         }
-        
-        // Use default location
-        AppState.userLocation = { lat: -15.4167, lng: 28.2833 };
-        
-        if (map) {
-            map.setView([-15.4167, 28.2833], 13);
-        }
-        
-        // Detect city for default location
-        CityDetector.detectCityFromLocation(-15.4167, 28.2833);
     }
+}
+
+function showManualCitySelection() {
+    const modal = document.createElement('div');
+    modal.className = 'city-selection-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        width: 90%;
+        max-width: 400px;
+        z-index: 10000;
+        padding: 20px;
+    `;
+    
+    const cities = Object.keys(EnhancedCityDetector.zambianCities);
+    
+    let html = `
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="font-size: 48px; color: #FF6B35; margin-bottom: 15px;">
+                <i class="fas fa-map-marker-alt"></i>
+            </div>
+            <div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">
+                Select Your City
+            </div>
+            <div style="color: #666; margin-bottom: 20px;">
+                We couldn't detect your location. Please select your city manually.
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+            <input type="text" id="citySearchInput" placeholder="Search for your city..." style="
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                font-size: 14px;
+                margin-bottom: 15px;
+            ">
+        </div>
+        
+        <div id="cityList" style="
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+        ">
+    `;
+    
+    cities.forEach(city => {
+        html += `
+            <div class="city-item" data-city="${city}" style="
+                padding: 12px;
+                border-bottom: 1px solid #eee;
+                cursor: pointer;
+                transition: background 0.2s;
+            ">
+                <div style="font-weight: 600; color: #333;">${city}</div>
+            </div>
+        `;
+    });
+    
+    html += `
+        </div>
+        
+        <div style="margin-top: 20px; text-align: center;">
+            <button id="cancelCitySelect" style="
+                padding: 10px 20px;
+                background: #f5f5f5;
+                color: #666;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                margin-right: 10px;
+            ">Cancel</button>
+        </div>
+    `;
+    
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    // Add overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(overlay);
+    
+    // City search
+    const citySearchInput = modal.querySelector('#citySearchInput');
+    const cityList = modal.querySelector('#cityList');
+    
+    citySearchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const cityItems = cityList.querySelectorAll('.city-item');
+        
+        cityItems.forEach(item => {
+            const cityName = item.dataset.city.toLowerCase();
+            if (cityName.includes(searchTerm)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+    
+    // City selection
+    modal.querySelectorAll('.city-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const selectedCity = this.dataset.city;
+            
+            // Set city in AppState
+            AppState.currentCity = selectedCity;
+            AppState.detectedCity = selectedCity;
+            
+            // Update UI
+            EnhancedUIUpdater.updateCityDisplay(selectedCity);
+            
+            // Use city center coordinates
+            const cityData = EnhancedCityDetector.zambianCities[selectedCity];
+            if (cityData) {
+                AppState.userLocation = { lat: cityData.lat, lng: cityData.lng };
+                
+                // Center map
+                if (map) {
+                    map.setView([cityData.lat, cityData.lng], 13);
+                }
+                
+                // Update address
+                const addressDetails = {
+                    address: selectedCity,
+                    detailedAddress: selectedCity,
+                    fullAddress: selectedCity,
+                    city: selectedCity,
+                    latitude: cityData.lat,
+                    longitude: cityData.lng
+                };
+                
+                EnhancedCityDetector.updateAllPickupLocations(addressDetails);
+            }
+            
+            document.body.removeChild(modal);
+            document.body.removeChild(overlay);
+            
+            EnhancedUIUpdater.showToast(`City set to ${selectedCity}`, 'success');
+        });
+    });
+    
+    // Cancel button
+    modal.querySelector('#cancelCitySelect').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+    
+    overlay.addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
 }
 
 // ============================================
@@ -13081,7 +13528,18 @@ async function initializeApp() {
         EnhancedLocationManager.init();
         
         // Get current location
-        getCurrentLocation();
+        getCurrentLocation().then(() => {
+    // After location is detected, initialize other components
+    EnhancedLocationManager.init();
+    setupEventListeners();
+    
+    // Start periodic location updates (every 30 seconds)
+    setInterval(() => {
+        if (AppState.activeScreen === 'home' && !AppState.currentRide) {
+            getCurrentLocation();
+        }
+    }, 30000);
+});
         
         // Setup event listeners
         setupEventListeners();
@@ -14061,6 +14519,7 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
+
 
 
 
