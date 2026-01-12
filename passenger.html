@@ -4367,6 +4367,202 @@
         opacity: 1;
     }
 }
+        /* Wallet Transaction Styles */
+.text-success {
+    color: #4CAF50 !important;
+}
+
+.text-danger {
+    color: #F44336 !important;
+}
+
+.text-warning {
+    color: #FFC107 !important;
+}
+
+.transaction-item:hover {
+    background: #f8f9fa !important;
+    cursor: pointer;
+}
+
+.transaction-item.unread {
+    border-left: 3px solid #FF6B35;
+}
+
+/* Notification Styles */
+.notification-item:hover {
+    background: #f8f9fa !important;
+}
+
+.notification-item.unread {
+    border-left: 3px solid #FF6B35;
+}
+
+/* Modal Styles */
+.modal {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    max-width: 500px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-title {
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+}
+
+.modal-content {
+    padding: 20px;
+}
+
+/* Form Styles */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #FF6B35;
+}
+
+/* Button Styles */
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #FF6B35;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #FF8B35;
+}
+
+.btn-secondary {
+    background: #f5f5f5;
+    color: #666;
+}
+
+.btn-secondary:hover {
+    background: #e0e0e0;
+}
+
+.btn-danger {
+    background: #F44336;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #D32F2F;
+}
+
+/* Wallet Action Buttons */
+.btn-wallet {
+    flex: 1;
+    padding: 15px;
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+}
+
+.btn-wallet:hover {
+    background: #f8f9fa;
+    border-color: #FF6B35;
+}
+
+.btn-wallet i {
+    font-size: 24px;
+    color: #FF6B35;
+}
+
+/* Toast Animations */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
     </style>
 </head>
 <body>
@@ -5879,7 +6075,104 @@ I need help! My current location and ride details will be shared with you.
             </div>
         </div>
     </div>
-    
+    <!-- Deposit Modal -->
+<div class="modal-overlay" id="depositModal" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">
+                <i class="fas fa-money-bill-wave"></i>
+                Deposit Money
+            </div>
+            <button class="modal-close" data-modal="deposit">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-content">
+            <div class="form-group">
+                <div class="form-label">Available Balance: <span id="depositCurrentBalance">ZMW 0.00</span></div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Amount to Deposit (ZMW)</label>
+                <input type="number" class="form-control" id="depositAmount" placeholder="Enter amount" min="1" step="0.01">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Payment Method</label>
+                <select class="form-control" id="depositMethod">
+                    <option value="mtn">MTN Mobile Money</option>
+                    <option value="airtel">Airtel Money</option>
+                    <option value="zamtel">Zamtel Money</option>
+                    <option value="bank">Bank Transfer</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-control" id="depositPhone" placeholder="Your phone number" value="">
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="confirmDepositBtn">
+                    <i class="fas fa-arrow-down"></i>
+                    Deposit Now
+                </button>
+                <button class="btn btn-secondary" data-modal="deposit">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Withdraw Modal -->
+<div class="modal-overlay" id="withdrawModal" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">
+                <i class="fas fa-money-bill-wave"></i>
+                Withdraw Money
+            </div>
+            <button class="modal-close" data-modal="withdraw">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-content">
+            <div class="form-group">
+                <div class="form-label">Available Balance: <span id="withdrawCurrentBalance">ZMW 0.00</span></div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Amount to Withdraw (ZMW)</label>
+                <input type="number" class="form-control" id="withdrawAmount" placeholder="Enter amount" min="1" step="0.01">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Payment Method</label>
+                <select class="form-control" id="withdrawMethod">
+                    <option value="mtn">MTN Mobile Money</option>
+                    <option value="airtel">Airtel Money</option>
+                    <option value="zamtel">Zamtel Money</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Phone Number</label>
+                <input type="tel" class="form-control" id="withdrawPhone" placeholder="Your phone number" value="">
+            </div>
+            
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="confirmWithdrawBtn">
+                    <i class="fas fa-arrow-up"></i>
+                    Withdraw Now
+                </button>
+                <button class="btn btn-secondary" data-modal="withdraw">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
     <!-- Wallet Transactions Modal -->
     <div class="modal-overlay" id="transactionsModal" style="display: none;">
         <div class="modal">
@@ -9428,6 +9721,355 @@ const EnhancedUIUpdater = {
                 break;
         }
     },
+
+    // In EnhancedUIUpdater object, add this method:
+
+updateWalletTransactions: function(transactions) {
+    const container = document.getElementById('transactionsList');
+    if (!container) return;
+    
+    if (transactions.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #999;">
+                <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i>
+                <div style="font-weight: 600; margin-bottom: 10px;">No transactions yet</div>
+                <div>Your transaction history will appear here</div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: 600; color: #333;">Recent Transactions</div>
+                <div style="font-size: 12px; color: #666;">${transactions.length} transactions</div>
+            </div>
+        </div>
+    `;
+    
+    transactions.forEach(transaction => {
+        const time = new Date(transaction.timestamp);
+        const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        const isDeposit = transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral';
+        const isWithdrawal = transaction.type === 'withdrawal' || transaction.type === 'payment';
+        const isPending = transaction.status === 'pending';
+        
+        let icon = 'fa-exchange-alt';
+        let iconColor = '#2196F3';
+        let sign = '';
+        let amountClass = '';
+        
+        if (isDeposit) {
+            icon = 'fa-arrow-down';
+            iconColor = '#4CAF50';
+            sign = '+';
+            amountClass = 'text-success';
+        } else if (isWithdrawal) {
+            icon = 'fa-arrow-up';
+            iconColor = '#F44336';
+            sign = '-';
+            amountClass = 'text-danger';
+        }
+        
+        if (transaction.type === 'referral') {
+            icon = 'fa-gift';
+            iconColor = '#FF6B35';
+        }
+        
+        if (isPending) {
+            icon = 'fa-clock';
+            iconColor = '#FFC107';
+        }
+        
+        const statusColors = {
+            completed: '#4CAF50',
+            pending: '#FFC107',
+            failed: '#F44336',
+            processing: '#2196F3'
+        };
+        
+        html += `
+            <div class="transaction-item" style="
+                padding: 15px;
+                border-bottom: 1px solid #eee;
+                background: ${isPending ? '#FFF8E1' : 'white'};
+            ">
+                <div style="display: flex; gap: 12px;">
+                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                            <div style="font-weight: 600; color: #333;">
+                                ${transaction.description || transaction.type}
+                            </div>
+                            <div style="font-weight: 700; color: ${amountClass ? '' : (isDeposit ? '#4CAF50' : '#F44336')};" class="${amountClass}">
+                                ${sign}ZMW ${transaction.amount.toFixed(2)}
+                            </div>
+                        </div>
+                        
+                        <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
+                            <div style="display: flex; gap: 15px; font-size: 12px;">
+                                <span style="color: #999;">
+                                    <i class="fas fa-calendar"></i> ${timeString}
+                                </span>
+                                <span style="color: ${statusColors[transaction.status] || '#666'}; font-weight: 600;">
+                                    <i class="fas fa-circle" style="font-size: 8px;"></i>
+                                    ${transaction.status || 'completed'}
+                                </span>
+                                ${transaction.paymentMethod ? `
+                                <span style="color: #666;">
+                                    <i class="fas fa-credit-card"></i> ${transaction.paymentMethod}
+                                </span>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        ${transaction.reference ? `
+                        <div style="font-size: 12px; color: #999; margin-bottom: 5px;">
+                            <i class="fas fa-hashtag"></i> ${transaction.reference}
+                        </div>
+                        ` : ''}
+                        
+                        ${transaction.phoneNumber ? `
+                        <div style="font-size: 12px; color: #666;">
+                            <i class="fas fa-phone"></i> ${transaction.phoneNumber}
+                        </div>
+                        ` : ''}
+                        
+                        ${transaction.balanceAfter !== undefined ? `
+                        <div style="font-size: 11px; color: #999; margin-top: 5px; border-top: 1px solid #f0f0f0; padding-top: 5px;">
+                            Balance: ZMW ${transaction.balanceAfter.toFixed(2)}
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    // Add total summary
+    const totalDeposits = transactions
+        .filter(t => t.type === 'deposit' && t.status === 'completed')
+        .reduce((sum, t) => sum + t.amount, 0);
+    
+    const totalWithdrawals = transactions
+        .filter(t => t.type === 'withdrawal' && t.status === 'completed')
+        .reduce((sum, t) => sum + t.amount, 0);
+    
+    html += `
+        <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px;">
+            <div style="font-weight: 600; margin-bottom: 10px; color: #333;">Summary</div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #666;">Total Deposits:</span>
+                <span style="color: #4CAF50; font-weight: 600;">ZMW ${totalDeposits.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #666;">Total Withdrawals:</span>
+                <span style="color: #F44336; font-weight: 600;">ZMW ${totalWithdrawals.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 10px; margin-top: 10px;">
+                <span style="font-weight: 600; color: #333;">Current Balance:</span>
+                <span style="font-weight: 700; color: #FF6B35;">ZMW ${AppState.walletBalance.toFixed(2)}</span>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+    
+    // Add click handlers for transaction details
+    container.querySelectorAll('.transaction-item').forEach((item, index) => {
+        item.addEventListener('click', () => {
+            const transaction = transactions[index];
+            this.showTransactionDetails(transaction);
+        });
+    });
+},
+
+showTransactionDetails: function(transaction) {
+    const modal = document.createElement('div');
+    modal.className = 'transaction-details-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        width: 90%;
+        max-width: 500px;
+        z-index: 10000;
+        padding: 20px;
+    `;
+    
+    const time = new Date(transaction.timestamp);
+    const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    const isDeposit = transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral';
+    
+    let icon = 'fa-exchange-alt';
+    let iconColor = '#2196F3';
+    let sign = '';
+    
+    if (isDeposit) {
+        icon = 'fa-arrow-down';
+        iconColor = '#4CAF50';
+        sign = '+';
+    } else {
+        icon = 'fa-arrow-up';
+        iconColor = '#F44336';
+        sign = '-';
+    }
+    
+    if (transaction.type === 'referral') {
+        icon = 'fa-gift';
+        iconColor = '#FF6B35';
+    }
+    
+    const statusColors = {
+        completed: '#4CAF50',
+        pending: '#FFC107',
+        failed: '#F44336',
+        processing: '#2196F3'
+    };
+    
+    modal.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: ${iconColor};">
+                <i class="fas ${icon}"></i> Transaction Details
+            </h3>
+            <button id="closeTransactionDetails" style="
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #999;
+            ">×</button>
+        </div>
+        
+        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 36px; color: ${iconColor}; margin-bottom: 10px;">
+                    <i class="fas ${icon}"></i>
+                </div>
+                <div style="font-size: 28px; font-weight: 700; color: ${isDeposit ? '#4CAF50' : '#F44336'}; margin-bottom: 5px;">
+                    ${sign}ZMW ${transaction.amount.toFixed(2)}
+                </div>
+                <div style="font-size: 14px; color: #666;">${transaction.description || transaction.type}</div>
+            </div>
+            
+            <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #666;">Status:</span>
+                    <span style="
+                        padding: 3px 8px;
+                        background: ${statusColors[transaction.status] || '#666'};
+                        color: white;
+                        border-radius: 12px;
+                        font-size: 12px;
+                        font-weight: 600;
+                    ">${transaction.status || 'completed'}</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #666;">Date & Time:</span>
+                    <span style="font-weight: 600;">${timeString}</span>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #666;">Transaction ID:</span>
+                    <span style="font-size: 12px; color: #999;">${transaction.id.substring(0, 8)}...</span>
+                </div>
+                
+                ${transaction.reference ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #666;">Reference:</span>
+                    <span style="font-weight: 600;">${transaction.reference}</span>
+                </div>
+                ` : ''}
+                
+                ${transaction.paymentMethod ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #666;">Payment Method:</span>
+                    <span style="font-weight: 600; text-transform: uppercase;">${transaction.paymentMethod}</span>
+                </div>
+                ` : ''}
+                
+                ${transaction.phoneNumber ? `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                    <span style="color: #666;">Phone Number:</span>
+                    <span style="font-weight: 600;">${transaction.phoneNumber}</span>
+                </div>
+                ` : ''}
+            </div>
+            
+            <div style="background: #e8f5e9; padding: 15px; border-radius: 6px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #666;">Balance Before:</span>
+                    <span style="font-weight: 600;">ZMW ${(transaction.balanceBefore || 0).toFixed(2)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #666;">Transaction Amount:</span>
+                    <span style="font-weight: 600; color: ${isDeposit ? '#4CAF50' : '#F44336'}">
+                        ${sign}ZMW ${transaction.amount.toFixed(2)}
+                    </span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-weight: 700; border-top: 1px solid #ddd; padding-top: 10px;">
+                    <span style="color: #333;">Balance After:</span>
+                    <span style="color: #FF6B35;">ZMW ${(transaction.balanceAfter || 0).toFixed(2)}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div style="text-align: center;">
+            <button id="closeTransactionDetailsBtn" style="
+                padding: 12px 30px;
+                background: #FF6B35;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+            ">
+                Close
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Add overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(overlay);
+    
+    // Event listeners
+    modal.querySelector('#closeTransactionDetails').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+    
+    modal.querySelector('#closeTransactionDetailsBtn').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+    
+    overlay.addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+}
     
     showPulsingRideIcon: function() {
         this.removePulsingRideIcon();
@@ -11001,123 +11643,171 @@ const EnhancedUIUpdater = {
     },
     
     updateNotifications: function(notifications) {
-        const container = document.getElementById('notificationsList');
-        if (!container) return;
-        
-        // Sort by timestamp (newest first)
-        const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
-        
-        if (sortedNotifications.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: #999;">
-                    <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
-                    <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
-                    <div>You're all caught up!</div>
-                </div>
-            `;
-            return;
-        }
-        
-        let html = '';
-        
-        sortedNotifications.forEach(notification => {
-            const time = new Date(notification.timestamp);
-            const timeString = this.formatTimeAgo(notification.timestamp);
-            
-            let icon = 'fa-info-circle';
-            let iconColor = '#2196F3';
-            let bgColor = '#E3F2FD';
-            
-            switch(notification.type) {
-                case 'success':
-                    icon = 'fa-check-circle';
-                    iconColor = '#4CAF50';
-                    bgColor = '#E8F5E9';
-                    break;
-                case 'error':
-                    icon = 'fa-exclamation-circle';
-                    iconColor = '#F44336';
-                    bgColor = '#FFEBEE';
-                    break;
-                case 'warning':
-                    icon = 'fa-exclamation-triangle';
-                    iconColor = '#FFC107';
-                    bgColor = '#FFF8E1';
-                    break;
-                case 'ride':
-                    icon = 'fa-car';
-                    iconColor = '#FF6B35';
-                    bgColor = '#FFF3E0';
-                    break;
-                case 'payment':
-                    icon = 'fa-money-bill-wave';
-                    iconColor = '#4CAF50';
-                    bgColor = '#E8F5E9';
-                    break;
-                case 'referral':
-                    icon = 'fa-gift';
-                    iconColor = '#FF6B35';
-                    bgColor = '#FFF3E0';
-                    break;
-                case 'split':
-                    icon = 'fa-user-friends';
-                    iconColor = '#2196F3';
-                    bgColor = '#E3F2FD';
-                    break;
-                case 'broadcast':
-                    icon = 'fa-broadcast-tower';
-                    iconColor = '#FFC107';
-                    bgColor = '#FFF8E1';
-                    break;
-            }
-            
-            html += `
-                <div class="notification-item ${notification.read ? '' : 'unread'}" style="
-                    padding: 15px;
-                    border-bottom: 1px solid #eee;
-                    background: ${notification.read ? 'white' : bgColor};
+    const container = document.getElementById('notificationsList');
+    if (!container) return;
+    
+    // Sort by timestamp (newest first)
+    const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
+    
+    if (sortedNotifications.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #999;">
+                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
+                <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
+                <div>You're all caught up!</div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div style="margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: 600; color: #333;">Recent Notifications</div>
+                <button id="clearAllNotificationsBtn" style="
+                    padding: 5px 10px;
+                    background: #f5f5f5;
+                    border: none;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    color: #666;
                     cursor: pointer;
                 ">
-                    <div style="display: flex; gap: 12px;">
-                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                            <i class="fas ${icon}"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                                <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
+                    <i class="fas fa-trash-alt"></i> Clear All
+                </button>
+            </div>
+        </div>
+    `;
+    
+    sortedNotifications.forEach(notification => {
+        const time = new Date(notification.timestamp);
+        const timeString = this.formatTimeAgo(notification.timestamp);
+        
+        let icon = 'fa-info-circle';
+        let iconColor = '#2196F3';
+        let bgColor = '#E3F2FD';
+        
+        switch(notification.type) {
+            case 'success':
+                icon = 'fa-check-circle';
+                iconColor = '#4CAF50';
+                bgColor = '#E8F5E9';
+                break;
+            case 'error':
+                icon = 'fa-exclamation-circle';
+                iconColor = '#F44336';
+                bgColor = '#FFEBEE';
+                break;
+            case 'warning':
+                icon = 'fa-exclamation-triangle';
+                iconColor = '#FFC107';
+                bgColor = '#FFF8E1';
+                break;
+            case 'ride':
+                icon = 'fa-car';
+                iconColor = '#FF6B35';
+                bgColor = '#FFF3E0';
+                break;
+            case 'payment':
+                icon = 'fa-money-bill-wave';
+                iconColor = '#4CAF50';
+                bgColor = '#E8F5E9';
+                break;
+            case 'referral':
+                icon = 'fa-gift';
+                iconColor = '#FF6B35';
+                bgColor = '#FFF3E0';
+                break;
+            case 'wallet':
+                icon = 'fa-wallet';
+                iconColor = '#9C27B0';
+                bgColor = '#F3E5F5';
+                break;
+            case 'split':
+                icon = 'fa-user-friends';
+                iconColor = '#2196F3';
+                bgColor = '#E3F2FD';
+                break;
+            case 'broadcast':
+                icon = 'fa-broadcast-tower';
+                iconColor = '#FFC107';
+                bgColor = '#FFF8E1';
+                break;
+        }
+        
+        html += `
+            <div class="notification-item ${notification.read ? '' : 'unread'}" style="
+                padding: 15px;
+                border-bottom: 1px solid #eee;
+                background: ${notification.read ? 'white' : bgColor};
+                cursor: pointer;
+            ">
+                <div style="display: flex; gap: 12px;">
+                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                            <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
                                 <div style="font-size: 12px; color: #999;">${timeString}</div>
+                                ${!notification.read ? `
+                                <div style="
+                                    width: 8px;
+                                    height: 8px;
+                                    background: ${iconColor};
+                                    border-radius: 50%;
+                                "></div>
+                                ` : ''}
                             </div>
-                            <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
-                            ${notification.data ? `
-                            <div style="font-size: 12px; color: #999;">
-                                ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
-                            </div>
-                            ` : ''}
                         </div>
+                        <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
+                        ${notification.data ? `
+                        <div style="font-size: 12px; color: #999;">
+                            ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
+                            ${notification.data.transactionId ? `Transaction: ${notification.data.transactionId.substring(0, 8)}...` : ''}
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
-            `;
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // Add clear all button listener
+    const clearAllBtn = container.querySelector('#clearAllNotificationsBtn');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', () => {
+            EnhancedFirebaseManager.clearAllNotifications();
         });
-        
-        container.innerHTML = html;
-        
-        // Add click handlers
-        container.querySelectorAll('.notification-item').forEach((item, index) => {
-            item.addEventListener('click', () => {
-                const notification = sortedNotifications[index];
-                
-                // Mark as read
-                if (!notification.read) {
-                    EnhancedFirebaseManager.markNotificationAsRead(notification.id);
+    }
+    
+    // Add click handlers
+    container.querySelectorAll('.notification-item').forEach((item, index) => {
+        item.addEventListener('click', () => {
+            const notification = sortedNotifications[index];
+            
+            // Mark as read
+            if (!notification.read) {
+                EnhancedFirebaseManager.markNotificationAsRead(notification.id);
+            }
+            
+            // Handle notification action
+            if (notification.action) {
+                this.handleNotificationAction(notification.action, notification.data);
+            } else if (notification.data?.transactionId) {
+                // Show transaction details
+                const transaction = AppState.walletTransactions?.find(t => t.id === notification.data.transactionId);
+                if (transaction) {
+                    this.showTransactionDetails(transaction);
                 }
-                
-                // Handle notification action
-                if (notification.action) {
-                    this.handleNotificationAction(notification.action, notification.data);
-                }
-            });
+            }
         });
-    },
+    });
+},
+
     
     handleNotificationAction: function(action, data) {
         switch(action) {
@@ -11899,69 +12589,115 @@ const EnhancedUIUpdater = {
 // ENHANCED FIREBASE MANAGER
 // ============================================
 const EnhancedFirebaseManager = {
-    async loadUserData(uid) {
-        try {
-            console.log(`Loading user data for UID: ${uid}`);
-            EnhancedUIUpdater.showLoading('Loading your profile...');
+   async loadUserData(uid) {
+    try {
+        console.log(`Loading user data for UID: ${uid}`);
+        EnhancedUIUpdater.showLoading('Loading your profile...');
+        
+        const snapshot = await database.ref(`users/${uid}`).once('value');
+        AppState.userData = snapshot.val();
+        
+        if (AppState.userData) {
+            console.log('User data loaded successfully:', AppState.userData);
             
-            const snapshot = await database.ref(`users/${uid}`).once('value');
-            AppState.userData = snapshot.val();
-            
-            if (AppState.userData) {
-                console.log('User data loaded successfully:', AppState.userData);
-                
-                // Initialize user data if needed
-                if (!AppState.userData.walletBalance) {
-                    AppState.userData.walletBalance = 0;
-                    await database.ref(`users/${uid}/walletBalance`).set(0);
-                }
-                
-                if (!AppState.userData.referralCode) {
-                    // Generate referral code
-                    const referralCode = 'JUBEL-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                    AppState.userData.referralCode = referralCode;
-                    await database.ref(`users/${uid}/referralCode`).set(referralCode);
-                }
-                
-                AppState.walletBalance = AppState.userData.walletBalance || 0;
-                EnhancedUIUpdater.updateWalletBalance(AppState.walletBalance);
-                EnhancedUIUpdater.updateUserInfo(AppState.userData);
-                
-                // Load additional data
-                await this.loadSOSConfig(uid);
-                await this.loadScheduledRides(uid);
-                await this.checkActiveRide(uid);
-                await this.loadRideHistory(uid);
-                await this.loadNotifications(uid);
-                await this.loadWalletTransactions(uid);
-                
-                // Initialize search engine
-                EnhancedSearchEngine.init();
-                
-                // Start real-time listeners
-                this.startRealtimeSync(uid);
-                
-                EnhancedUIUpdater.hideLoading();
-                EnhancedUIUpdater.showToast('Welcome back to Jubel!', 'success');
-                return true;
-            } else {
-                console.warn('No user data found');
-                EnhancedUIUpdater.hideLoading();
-                return false;
+            // Initialize user data if needed
+            if (!AppState.userData.walletBalance) {
+                AppState.userData.walletBalance = 0;
+                await database.ref(`users/${uid}/walletBalance`).set(0);
             }
-        } catch (error) {
-            console.error('Error loading user data:', error);
+            
+            if (!AppState.userData.referralCode) {
+                // Generate referral code
+                const referralCode = 'JUBEL-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+                AppState.userData.referralCode = referralCode;
+                await database.ref(`users/${uid}/referralCode`).set(referralCode);
+            }
+            
+            AppState.walletBalance = AppState.userData.walletBalance || 0;
+            EnhancedUIUpdater.updateWalletBalance(AppState.walletBalance);
+            EnhancedUIUpdater.updateUserInfo(AppState.userData);
+            
+            // Load additional data
+            await this.loadSOSConfig(uid);
+            await this.loadScheduledRides(uid);
+            await this.checkActiveRide(uid);
+            await this.loadRideHistory(uid);
+            await this.loadNotifications(uid);
+            await this.loadWalletTransactions(uid); // Add this line
+            
+            // Initialize search engine
+            EnhancedSearchEngine.init();
+            
+            // Start real-time listeners
+            this.startRealtimeSync(uid);
+            
             EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error loading user data', 'error');
+            EnhancedUIUpdater.showToast('Welcome back to Jubel!', 'success');
+            return true;
+        } else {
+            console.warn('No user data found');
+            EnhancedUIUpdater.hideLoading();
             return false;
         }
-    },
+    } catch (error) {
+        console.error('Error loading user data:', error);
+        EnhancedUIUpdater.hideLoading();
+        EnhancedUIUpdater.showToast('Error loading user data', 'error');
+        return false;
+    }
+}
     
     startRealtimeSync: function(uid) {
         this.stopRealtimeSync();
         
         console.log('Starting real-time sync for user:', uid);
-        
+
+    // Wallet transactions real-time updates
+const transactionsRef = database.ref(`walletTransactions/${uid}`)
+    .orderByChild('timestamp')
+    .limitToLast(50);
+
+AppState.realtimeListeners.push(
+    transactionsRef.on('value', (snapshot) => {
+        const transactions = snapshot.val();
+        if (transactions) {
+            const transactionsArray = Object.keys(transactions)
+                .map(id => ({ id, ...transactions[id] }))
+                .sort((a, b) => b.timestamp - a.timestamp);
+            
+            AppState.walletTransactions = transactionsArray;
+            
+            // Update transactions modal if open
+            const transactionsModal = document.getElementById('transactionsModal');
+            if (transactionsModal && transactionsModal.style.display === 'block') {
+                EnhancedUIUpdater.updateWalletTransactions(transactionsArray);
+            }
+            
+            // Check for new transactions to show notifications
+            if (AppState.walletTransactions) {
+                const newTransactions = transactionsArray.filter(t => 
+                    !AppState.walletTransactions.find(oldT => oldT.id === t.id)
+                );
+                
+                newTransactions.forEach(transaction => {
+                    if (transaction.status === 'completed' && !transaction.notified) {
+                        // Send notification for new completed transaction
+                        this.sendNotification(
+                            uid,
+                            transaction.type === 'deposit' ? 'Deposit Completed' : 'Withdrawal Processed',
+                            `ZMW ${transaction.amount.toFixed(2)} ${transaction.type === 'deposit' ? 'deposited to' : 'withdrawn from'} your wallet`,
+                            'payment',
+                            { transactionId: transaction.id }
+                        );
+                        
+                        // Mark as notified
+                        database.ref(`walletTransactions/${uid}/${transaction.id}/notified`).set(true);
+                    }
+                });
+            }
+        }
+    })
+);
         // User data updates
         const userRef = database.ref(`users/${uid}`);
         AppState.realtimeListeners.push(
@@ -12048,6 +12784,212 @@ const EnhancedFirebaseManager = {
                 }
             })
         );
+
+async processDeposit(amount, method, phoneNumber) {
+    try {
+        EnhancedUIUpdater.showLoading('Processing deposit...');
+        
+        // In a real app, this would integrate with a payment gateway
+        // For demo, we'll simulate successful deposit
+        
+        // Generate transaction ID
+        const transactionId = database.ref().child('walletTransactions').push().key;
+        
+        // Create transaction record
+        const transaction = {
+            id: transactionId,
+            userId: AppState.currentUser.uid,
+            type: 'deposit',
+            amount: amount,
+            description: `Deposit via ${method.toUpperCase()}`,
+            paymentMethod: method,
+            phoneNumber: phoneNumber,
+            reference: `DEP${Date.now()}`,
+            timestamp: Date.now(),
+            status: 'completed',
+            balanceBefore: AppState.walletBalance,
+            balanceAfter: AppState.walletBalance + amount
+        };
+        
+        // Update wallet balance
+        const newBalance = AppState.walletBalance + amount;
+        await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+        
+        // Save transaction
+        await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
+        
+        // Update local state
+        AppState.walletBalance = newBalance;
+        EnhancedUIUpdater.updateWalletBalance(newBalance);
+        
+        // Add to local transactions
+        if (!AppState.walletTransactions) {
+            AppState.walletTransactions = [];
+        }
+        AppState.walletTransactions.unshift(transaction);
+        
+        EnhancedUIUpdater.hideLoading();
+        EnhancedUIUpdater.showToast(`Successfully deposited ZMW ${amount.toFixed(2)}`, 'success');
+        
+        // Send notification
+        this.sendNotification(
+            AppState.currentUser.uid,
+            'Deposit Successful',
+            `ZMW ${amount.toFixed(2)} has been deposited to your wallet`,
+            'payment',
+            { transactionId: transactionId, amount: amount }
+        );
+        
+        return transactionId;
+        
+    } catch (error) {
+        EnhancedUIUpdater.hideLoading();
+        console.error('Error processing deposit:', error);
+        EnhancedUIUpdater.showToast('Error processing deposit', 'error');
+        throw error;
+    }
+},
+
+
+    // Add this method to EnhancedFirebaseManager:
+async clearAllNotifications() {
+    try {
+        const notificationsRef = database.ref(`notifications/${AppState.currentUser.uid}`);
+        await notificationsRef.remove();
+        
+        AppState.notifications = [];
+        AppState.unreadNotifications = 0;
+        
+        // Update notification badge
+        const badge = document.getElementById('notificationCount');
+        if (badge) {
+            badge.style.display = 'none';
+        }
+        
+        // Update notifications panel
+        EnhancedUIUpdater.updateNotifications([]);
+        
+        EnhancedUIUpdater.showToast('All notifications cleared', 'success');
+        
+    } catch (error) {
+        console.error('Error clearing notifications:', error);
+        EnhancedUIUpdater.showToast('Error clearing notifications', 'error');
+    }
+}
+    
+async processWithdrawal(amount, method, phoneNumber) {
+    try {
+        EnhancedUIUpdater.showLoading('Processing withdrawal...');
+        
+        // Check balance
+        if (amount > AppState.walletBalance) {
+            throw new Error('Insufficient balance');
+        }
+        
+        // Check minimum withdrawal
+        if (amount < 10) {
+            throw new Error('Minimum withdrawal is ZMW 10.00');
+        }
+        
+        // Generate transaction ID
+        const transactionId = database.ref().child('walletTransactions').push().key;
+        
+        // Create transaction record
+        const transaction = {
+            id: transactionId,
+            userId: AppState.currentUser.uid,
+            type: 'withdrawal',
+            amount: amount,
+            description: `Withdrawal to ${method.toUpperCase()}`,
+            paymentMethod: method,
+            phoneNumber: phoneNumber,
+            reference: `WTH${Date.now()}`,
+            timestamp: Date.now(),
+            status: 'pending', // Withdrawals need approval in real system
+            balanceBefore: AppState.walletBalance,
+            balanceAfter: AppState.walletBalance - amount
+        };
+        
+        // Update wallet balance
+        const newBalance = AppState.walletBalance - amount;
+        await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+        
+        // Save transaction
+        await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
+        
+        // Update local state
+        AppState.walletBalance = newBalance;
+        EnhancedUIUpdater.updateWalletBalance(newBalance);
+        
+        // Add to local transactions
+        if (!AppState.walletTransactions) {
+            AppState.walletTransactions = [];
+        }
+        AppState.walletTransactions.unshift(transaction);
+        
+        EnhancedUIUpdater.hideLoading();
+        EnhancedUIUpdater.showToast(`Withdrawal request for ZMW ${amount.toFixed(2)} submitted`, 'success');
+        
+        // Send notification
+        this.sendNotification(
+            AppState.currentUser.uid,
+            'Withdrawal Requested',
+            `Withdrawal of ZMW ${amount.toFixed(2)} has been submitted. It will be processed within 24 hours.`,
+            'payment',
+            { transactionId: transactionId, amount: amount }
+        );
+        
+        // In real app, this would trigger admin approval process
+        
+        return transactionId;
+        
+    } catch (error) {
+        EnhancedUIUpdater.hideLoading();
+        console.error('Error processing withdrawal:', error);
+        EnhancedUIUpdater.showToast(error.message, 'error');
+        throw error;
+    }
+},
+
+async getWalletTransactions(limit = 50) {
+    try {
+        const snapshot = await database.ref(`walletTransactions/${AppState.currentUser.uid}`)
+            .orderByChild('timestamp')
+            .limitToLast(limit)
+            .once('value');
+        
+        const transactions = snapshot.val();
+        if (transactions) {
+            return Object.keys(transactions)
+                .map(id => ({ id, ...transactions[id] }))
+                .sort((a, b) => b.timestamp - a.timestamp);
+        }
+        return [];
+        
+    } catch (error) {
+        console.error('Error getting wallet transactions:', error);
+        return [];
+    }
+},
+
+async loadWalletTransactions() {
+    try {
+        const transactions = await this.getWalletTransactions();
+        AppState.walletTransactions = transactions;
+        
+        // Update UI if transactions modal is open
+        const transactionsModal = document.getElementById('transactionsModal');
+        if (transactionsModal && transactionsModal.style.display === 'block') {
+            EnhancedUIUpdater.updateWalletTransactions(transactions);
+        }
+        
+        return transactions;
+        
+    } catch (error) {
+        console.error('Error loading wallet transactions:', error);
+        return [];
+    }
+}
         
         // Wallet transactions
         const transactionsRef = database.ref(`walletTransactions/${uid}`)
@@ -15417,6 +16359,138 @@ if (needHelpers) {
     });
 }
 
+// Deposit modal show
+if (depositBtn) {
+    depositBtn.addEventListener('click', function() {
+        // Update current balance display
+        const depositCurrentBalance = document.getElementById('depositCurrentBalance');
+        if (depositCurrentBalance) {
+            depositCurrentBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
+        }
+        
+        // Set user phone number
+        const depositPhone = document.getElementById('depositPhone');
+        if (depositPhone && AppState.userData?.phone) {
+            depositPhone.value = AppState.userData.phone;
+        }
+        
+        showModal('deposit');
+    });
+}
+
+// Confirm deposit
+const confirmDepositBtn = document.getElementById('confirmDepositBtn');
+if (confirmDepositBtn) {
+    confirmDepositBtn.addEventListener('click', function() {
+        const amountInput = document.getElementById('depositAmount');
+        const amount = parseFloat(amountInput.value);
+        const method = document.getElementById('depositMethod').value;
+        const phone = document.getElementById('depositPhone').value;
+        
+        if (!amount || amount <= 0) {
+            EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning');
+            return;
+        }
+        
+        if (amount < 5) {
+            EnhancedUIUpdater.showToast('Minimum deposit is ZMW 5.00', 'warning');
+            return;
+        }
+        
+        if (!phone.trim()) {
+            EnhancedUIUpdater.showToast('Please enter your phone number', 'warning');
+            return;
+        }
+        
+        EnhancedFirebaseManager.processDeposit(amount, method, phone)
+            .then(() => {
+                hideModal('deposit');
+                amountInput.value = '';
+                
+                // Reload transactions
+                EnhancedFirebaseManager.loadWalletTransactions();
+            })
+            .catch(error => {
+                console.error('Deposit error:', error);
+            });
+    });
+}
+
+// Withdraw modal show
+if (withdrawBtn) {
+    withdrawBtn.addEventListener('click', function() {
+        // Update current balance display
+        const withdrawCurrentBalance = document.getElementById('withdrawCurrentBalance');
+        if (withdrawCurrentBalance) {
+            withdrawCurrentBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
+        }
+        
+        // Set user phone number
+        const withdrawPhone = document.getElementById('withdrawPhone');
+        if (withdrawPhone && AppState.userData?.phone) {
+            withdrawPhone.value = AppState.userData.phone;
+        }
+        
+        showModal('withdraw');
+    });
+}
+
+// Confirm withdrawal
+const confirmWithdrawBtn = document.getElementById('confirmWithdrawBtn');
+if (confirmWithdrawBtn) {
+    confirmWithdrawBtn.addEventListener('click', function() {
+        const amountInput = document.getElementById('withdrawAmount');
+        const amount = parseFloat(amountInput.value);
+        const method = document.getElementById('withdrawMethod').value;
+        const phone = document.getElementById('withdrawPhone').value;
+        
+        if (!amount || amount <= 0) {
+            EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning');
+            return;
+        }
+        
+        if (amount < 10) {
+            EnhancedUIUpdater.showToast('Minimum withdrawal is ZMW 10.00', 'warning');
+            return;
+        }
+        
+        if (amount > AppState.walletBalance) {
+            EnhancedUIUpdater.showToast('Insufficient balance', 'error');
+            return;
+        }
+        
+        if (!phone.trim()) {
+            EnhancedUIUpdater.showToast('Please enter your phone number', 'warning');
+            return;
+        }
+        
+        EnhancedFirebaseManager.processWithdrawal(amount, method, phone)
+            .then(() => {
+                hideModal('withdraw');
+                amountInput.value = '';
+                
+                // Reload transactions
+                EnhancedFirebaseManager.loadWalletTransactions();
+            })
+            .catch(error => {
+                console.error('Withdrawal error:', error);
+            });
+    });
+}
+
+// Transactions modal show
+if (transactionsBtn) {
+    transactionsBtn.addEventListener('click', function() {
+        showModal('transactions');
+        
+        // Load and display transactions
+        EnhancedFirebaseManager.loadWalletTransactions()
+            .then(transactions => {
+                EnhancedUIUpdater.updateWalletTransactions(transactions);
+            });
+    });
+}
+    
 // Shopping budget input
 const shoppingBudget = document.getElementById('shoppingBudget');
 if (shoppingBudget) {
@@ -16728,11 +17802,4 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
 
