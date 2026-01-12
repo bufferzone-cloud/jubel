@@ -2057,6 +2057,8 @@
             background: var(--light-red);
             color: var(--error-red);
         }
+
+
         
         .toast.warning {
             border-left-color: var(--warning-yellow);
@@ -2066,6 +2068,28 @@
             background: #FFF3E0;
             color: var(--warning-yellow);
         }
+
+/* Vehicle Selection Modal Styles */
+.vehicle-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Shopping Items Display */
+.shopping-items-display {
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
         
         /* Responsive Design */
         @media (max-width: 768px) {
@@ -8410,6 +8434,53 @@ const EnhancedPriceCalculator = {
         };
     },
     
+// Add these functions to EnhancedPriceCalculator
+calculateShoppingFare: function(distanceKm, itemsCount = 1, budget = 0, vehicleType = 'car') {
+    let baseFare = vehicleType === 'car' ? 40 : 30; // Car is more expensive than bike
+    let fare = baseFare + (distanceKm * 2.5) + (itemsCount * 5);
+    
+    if (budget > 0) {
+        fare += budget * 0.05; // 5% service fee on budget
+    }
+    
+    return Math.round(fare * 100) / 100;
+},
+
+calculateDeliveryFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0, vehicleType = 'car') {
+    const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
+    
+    let baseFare = vehicleType === 'car' ? 35 : 25;
+    let fare = baseFare + (distanceKm * config.perKm);
+    fare *= config.multiplier;
+    
+    if (parcelValue > 500) {
+        fare += parcelValue * 0.01;
+    }
+    
+    return Math.round(fare * 100) / 100;
+},
+
+calculateShortDeliveryFare: function(distanceKm, vehicleType = 'bike') {
+    let fare = vehicleType === 'car' ? 30 : 20; // Base fare
+    fare += distanceKm * 2.0;
+    return Math.round(fare * 100) / 100;
+},
+
+calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false, vehicleType = null) {
+    // For truck, vehicleType is not used since truck type determines it
+    const config = AppState.truckTypes[truckType] || AppState.truckTypes.light;
+    
+    let fare = config.base + (distanceKm * config.perKm);
+    fare *= config.multiplier;
+    
+    if (helpers) {
+        fare += 50;
+    }
+    
+    return Math.round(fare * 100) / 100;
+},
+
+        
     calculateStopsFare: function(stopsCount) {
         return stopsCount * 5; // ZMW 5 per stop
     }
@@ -8992,6 +9063,32 @@ const EnhancedUIUpdater = {
         
         if (baseFareValue) baseFareValue.textContent = `ZMW ${(ride.fareDetails?.baseFare || 15).toFixed(2)}`;
         if (distanceFareValue) distanceFareValue.textContent = `ZMW ${(ride.fareDetails?.distanceFare || 5).toFixed(2)}`;
+
+        // Add service-specific information
+    if (ride.serviceType === 'shopping' && ride.shoppingItems) {
+        const shoppingItemsDiv = document.createElement('div');
+        shoppingItemsDiv.className = 'shopping-items-display';
+        shoppingItemsDiv.style.cssText = `
+            margin-top: 15px;
+            padding: 15px;
+            background: #FFF3E0;
+            border-radius: 8px;
+        `;
+        shoppingItemsDiv.innerHTML = `
+            <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
+                <i class="fas fa-shopping-bag"></i> Shopping Items
+            </div>
+            <div style="font-size: 14px;">
+                ${ride.shoppingItems.map(item => `<div>• ${item}</div>`).join('')}
+            </div>
+        `;
+        
+        // Insert after trip details
+        const tripDetails = document.querySelector('.trip-details');
+        if (tripDetails) {
+            tripDetails.parentNode.insertBefore(shoppingItemsDiv, tripDetails.nextSibling);
+        }
+    }
         
         if (rideTypeValue) {
             rideTypeValue.textContent = ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1) || 'Standard';
@@ -9043,39 +9140,484 @@ const EnhancedUIUpdater = {
                 break;
         }
     },
+
+
+// Add this function to EnhancedUIUpdater
+showVehicleSelectionPopup: function(serviceType, serviceData, fare, vehicleOptions) {
+    // Create vehicle selection modal
+    const modal = document.createElement('div');
+    modal.className = 'vehicle-selection-modal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        width: 90%;
+        max-width: 400px;
+        z-index: 10000;
+        padding: 20px;
+    `;
     
-    showPulsingRideIcon: function() {
-        this.removePulsingRideIcon();
+    const serviceNames = {
+        'shopping': 'Express Shopping',
+        'delivery': 'Package Delivery',
+        'short-delivery': 'Short Delivery',
+        'truck': 'Truck Delivery'
+    };
+    
+    const serviceIcons = {
+        'shopping': 'fa-shopping-bag',
+        'delivery': 'fa-shipping-fast',
+        'short-delivery': 'fa-bicycle',
+        'truck': 'fa-truck'
+    };
+    
+    let html = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #FF6B35;">
+                <i class="fas ${serviceIcons[serviceType]}"></i> ${serviceNames[serviceType]}
+            </h3>
+            <button id="closeVehicleModal" style="
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #999;
+            ">×</button>
+        </div>
         
-        const serviceType = AppState.activeService;
-        let iconClass = 'fa-car';
+        <div style="margin-bottom: 20px; text-align: center;">
+            <div style="font-size: 24px; font-weight: 700; color: #FF6B35; margin-bottom: 10px;">
+                ZMW ${fare.toFixed(2)}
+            </div>
+            <div style="font-size: 14px; color: #666;">
+                Select a vehicle type for your ${serviceNames[serviceType]}
+            </div>
+        </div>
         
-        if (serviceType === 'truck' || AppState.currentRide?.serviceType === 'truck') {
-            iconClass = 'fa-truck';
-        } else if (serviceType === 'delivery' || serviceType === 'short-delivery') {
-            iconClass = 'fa-motorcycle';
-        } else if (serviceType === 'express') {
-            iconClass = 'fa-shopping-bag';
-        }
+        <div id="vehicleOptions" style="
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        ">
+    `;
+    
+    vehicleOptions.forEach(option => {
+        const vehicleIcon = option === 'car' ? 'fa-car' : 
+                           option === 'bike' ? 'fa-motorcycle' : 
+                           option === 'truck' ? 'fa-truck' : 'fa-car';
         
-        pulsingIcon = L.divIcon({
-            className: 'pulsing-ride-icon',
-            html: `<i class="fas ${iconClass}" style="color: #FF6B35; font-size: 40px;"></i>`,
-            iconSize: [40, 40],
-            iconAnchor: [20, 40]
+        const vehicleName = option === 'car' ? 'Car' : 
+                           option === 'bike' ? 'Bike' : 
+                           option === 'truck' ? 'Truck' : 'Car';
+        
+        const vehicleColor = option === 'car' ? '#FF6B35' : 
+                            option === 'bike' ? '#4CAF50' : 
+                            option === 'truck' ? '#795548' : '#FF6B35';
+        
+        html += `
+            <div class="vehicle-option" data-vehicle="${option}" style="
+                padding: 20px;
+                border: 2px solid #e0e0e0;
+                border-radius: 8px;
+                cursor: pointer;
+                text-align: center;
+                transition: all 0.2s;
+            ">
+                <div style="color: ${vehicleColor}; font-size: 36px; margin-bottom: 10px;">
+                    <i class="fas ${vehicleIcon}"></i>
+                </div>
+                <div style="font-weight: 600; color: #333; margin-bottom: 5px;">
+                    ${vehicleName}
+                </div>
+                <div style="font-size: 12px; color: #666;">
+                    ${option === 'car' ? 'Larger capacity' : 
+                      option === 'bike' ? 'Faster in traffic' : 
+                      option === 'truck' ? 'Heavy loads' : 'Standard'}
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button id="confirmVehicleBtn" style="
+                flex: 1;
+                padding: 15px;
+                background: #FF6B35;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 16px;
+            ">
+                <i class="fas fa-check"></i> Continue to Payment
+            </button>
+            <button id="cancelVehicleBtn" style="
+                padding: 15px 20px;
+                background: #f5f5f5;
+                color: #666;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 600;
+            ">
+                Cancel
+            </button>
+        </div>
+    `;
+    
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    // Add overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+    `;
+    document.body.appendChild(overlay);
+    
+    // State
+    let selectedVehicle = vehicleOptions[0];
+    
+    // Event listeners
+    modal.querySelector('#closeVehicleModal').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+    
+    overlay.addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+    
+    modal.querySelector('#cancelVehicleBtn').addEventListener('click', () => {
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+    });
+    
+    // Vehicle selection
+    modal.querySelectorAll('.vehicle-option').forEach(option => {
+        option.addEventListener('click', function() {
+            // Remove selection from all options
+            modal.querySelectorAll('.vehicle-option').forEach(opt => {
+                opt.style.borderColor = '#e0e0e0';
+                opt.style.background = 'white';
+            });
+            
+            // Add selection to clicked option
+            this.style.borderColor = '#FF6B35';
+            this.style.background = '#FFF3E0';
+            
+            selectedVehicle = this.dataset.vehicle;
         });
+    });
+    
+    // Set first option as selected by default
+    const firstOption = modal.querySelector('.vehicle-option');
+    if (firstOption) {
+        firstOption.style.borderColor = '#FF6B35';
+        firstOption.style.background = '#FFF3E0';
+    }
+    
+    // Confirm button
+    modal.querySelector('#confirmVehicleBtn').addEventListener('click', () => {
+        // Update service data with selected vehicle
+        serviceData.vehicleType = selectedVehicle;
         
-        if (AppState.pickup) {
-            const marker = L.marker([AppState.pickup.lat, AppState.pickup.lng], {
-                icon: pulsingIcon
-            }).addTo(map);
-            
-            // Add pulsing animation
-            marker.getElement().style.animation = 'pulse 1.5s infinite';
-            
-            AppState.rideRequestPulsingIcons[serviceType] = marker;
+        // Recalculate fare with selected vehicle if needed
+        let finalFare = fare;
+        
+        if (serviceType === 'shopping') {
+            finalFare = EnhancedPriceCalculator.calculateShoppingFare(
+                serviceData.distance,
+                serviceData.itemsCount || 1,
+                serviceData.budget || 0,
+                selectedVehicle
+            );
+        } else if (serviceType === 'delivery') {
+            finalFare = EnhancedPriceCalculator.calculateDeliveryFare(
+                serviceData.distance,
+                serviceData.deliveryType || 'standard',
+                serviceData.parcelValue || 0,
+                selectedVehicle
+            );
+        } else if (serviceType === 'short-delivery') {
+            finalFare = EnhancedPriceCalculator.calculateShortDeliveryFare(
+                serviceData.distance,
+                selectedVehicle
+            );
         }
-    },
+        
+        // Close modal
+        document.body.removeChild(modal);
+        document.body.removeChild(overlay);
+        
+        // Show payment modal
+        this.showPaymentModal(finalFare, {
+            ...serviceData,
+            serviceType: serviceType,
+            vehicleType: selectedVehicle
+        });
+    });
+},
+
+// Add these functions to EnhancedUIUpdater
+updateShoppingFare: function() {
+    const shopLocationInput = document.getElementById('shopLocation');
+    const shoppingDestinationInput = document.getElementById('shoppingDestination');
+    const shoppingFareDisplay = document.getElementById('shoppingFareDisplay');
+    const shoppingFare = document.getElementById('shoppingFare');
+    const shoppingDistance = document.getElementById('shoppingDistance');
+    const shoppingTime = document.getElementById('shoppingTime');
+    
+    if (!shopLocationInput || !shoppingDestinationInput || !shoppingFareDisplay) return;
+    
+    // Get pickup coordinates from shop location
+    const pickupLat = shopLocationInput.dataset.lat;
+    const pickupLng = shopLocationInput.dataset.lng;
+    
+    // Get destination coordinates
+    const destLat = shoppingDestinationInput.dataset.lat;
+    const destLng = shoppingDestinationInput.dataset.lng;
+    
+    if (!pickupLat || !pickupLng || !destLat || !destLng) {
+        shoppingFareDisplay.style.display = 'none';
+        return;
+    }
+    
+    // Calculate distance
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        parseFloat(pickupLat), parseFloat(pickupLng),
+        parseFloat(destLat), parseFloat(destLng)
+    );
+    
+    // Get items count and budget
+    const itemsCount = document.querySelectorAll('#shoppingItems .item-entry').length;
+    const budgetInput = document.getElementById('shoppingBudget');
+    const budget = budgetInput ? parseFloat(budgetInput.value) || 0 : 0;
+    
+    // Calculate fare (default to car)
+    const fare = EnhancedPriceCalculator.calculateShoppingFare(distance, itemsCount, budget, 'car');
+    
+    // Calculate estimated time
+    const time = EnhancedPriceCalculator.estimateTime(distance, 'standard');
+    
+    // Update display
+    shoppingFare.textContent = `ZMW ${fare.toFixed(2)}`;
+    shoppingDistance.textContent = `${distance.toFixed(1)} km`;
+    shoppingTime.textContent = `ETA: ${time} min`;
+    shoppingFareDisplay.style.display = 'block';
+    
+    return { distance, fare, time };
+},
+
+updateDeliveryFare: function() {
+    const deliveryPickupInput = document.getElementById('deliveryPickup');
+    const deliveryDestinationInput = document.getElementById('deliveryDestination');
+    const deliveryFareDisplay = document.getElementById('deliveryFareDisplay');
+    const deliveryFare = document.getElementById('deliveryFare');
+    const deliveryDistance = document.getElementById('deliveryDistance');
+    const deliveryTime = document.getElementById('deliveryTime');
+    
+    if (!deliveryPickupInput || !deliveryDestinationInput || !deliveryFareDisplay) return;
+    
+    // Get pickup coordinates
+    const pickupLat = deliveryPickupInput.dataset.lat;
+    const pickupLng = deliveryPickupInput.dataset.lng;
+    
+    // Get destination coordinates
+    const destLat = deliveryDestinationInput.dataset.lat;
+    const destLng = deliveryDestinationInput.dataset.lng;
+    
+    if (!pickupLat || !pickupLng || !destLat || !destLng) {
+        deliveryFareDisplay.style.display = 'none';
+        return;
+    }
+    
+    // Calculate distance
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        parseFloat(pickupLat), parseFloat(pickupLng),
+        parseFloat(destLat), parseFloat(destLng)
+    );
+    
+    // Get delivery type
+    let deliveryType = 'standard';
+    if (document.getElementById('expressDelivery')?.classList.contains('active')) {
+        deliveryType = 'express';
+    } else if (document.getElementById('sameDayDelivery')?.classList.contains('active')) {
+        deliveryType = 'sameDay';
+    }
+    
+    // Get parcel value
+    const parcelValueInput = document.getElementById('parcelValue');
+    const parcelValue = parcelValueInput ? parseFloat(parcelValueInput.value) || 0 : 0;
+    
+    // Calculate fare (default to car)
+    const fare = EnhancedPriceCalculator.calculateDeliveryFare(distance, deliveryType, parcelValue, 'car');
+    
+    // Calculate estimated time
+    const time = EnhancedPriceCalculator.estimateTime(distance, 'standard');
+    
+    // Update display
+    deliveryFare.textContent = `ZMW ${fare.toFixed(2)}`;
+    deliveryDistance.textContent = `${distance.toFixed(1)} km`;
+    deliveryTime.textContent = `ETA: ${time} min`;
+    deliveryFareDisplay.style.display = 'block';
+    
+    return { distance, fare, time, deliveryType };
+},
+
+updateShortDeliveryFare: function() {
+    const shortDeliveryPickupInput = document.getElementById('shortDeliveryPickup');
+    const shortDeliveryDestinationInput = document.getElementById('shortDeliveryDestination');
+    const shortDeliveryFareDisplay = document.getElementById('shortDeliveryFareDisplay');
+    const shortDeliveryFare = document.getElementById('shortDeliveryFare');
+    const shortDeliveryDistance = document.getElementById('shortDeliveryDistance');
+    const shortDeliveryTime = document.getElementById('shortDeliveryTime');
+    
+    if (!shortDeliveryPickupInput || !shortDeliveryDestinationInput || !shortDeliveryFareDisplay) return;
+    
+    // Get pickup coordinates
+    const pickupLat = shortDeliveryPickupInput.dataset.lat;
+    const pickupLng = shortDeliveryPickupInput.dataset.lng;
+    
+    // Get destination coordinates
+    const destLat = shortDeliveryDestinationInput.dataset.lat;
+    const destLng = shortDeliveryDestinationInput.dataset.lng;
+    
+    if (!pickupLat || !pickupLng || !destLat || !destLng) {
+        shortDeliveryFareDisplay.style.display = 'none';
+        return;
+    }
+    
+    // Calculate distance
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        parseFloat(pickupLat), parseFloat(pickupLng),
+        parseFloat(destLat), parseFloat(destLng)
+    );
+    
+    // Calculate fare (default to bike for short delivery)
+    const fare = EnhancedPriceCalculator.calculateShortDeliveryFare(distance, 'bike');
+    
+    // Calculate estimated time
+    const time = EnhancedPriceCalculator.estimateTime(distance, 'standard');
+    
+    // Update display
+    shortDeliveryFare.textContent = `ZMW ${fare.toFixed(2)}`;
+    shortDeliveryDistance.textContent = `${distance.toFixed(1)} km`;
+    shortDeliveryTime.textContent = `ETA: ${time} min`;
+    shortDeliveryFareDisplay.style.display = 'block';
+    
+    return { distance, fare, time };
+},
+
+updateTruckFare: function() {
+    const truckPickupInput = document.getElementById('truckPickup');
+    const truckDestinationInput = document.getElementById('truckDestination');
+    const truckFareDisplay = document.getElementById('truckFareDisplay');
+    const truckFare = document.getElementById('truckFare');
+    const truckDistance = document.getElementById('truckDistance');
+    const truckTime = document.getElementById('truckTime');
+    
+    if (!truckPickupInput || !truckDestinationInput || !truckFareDisplay) return;
+    
+    // Get pickup coordinates
+    const pickupLat = truckPickupInput.dataset.lat;
+    const pickupLng = truckPickupInput.dataset.lng;
+    
+    // Get destination coordinates
+    const destLat = truckDestinationInput.dataset.lat;
+    const destLng = truckDestinationInput.dataset.lng;
+    
+    if (!pickupLat || !pickupLng || !destLat || !destLng) {
+        truckFareDisplay.style.display = 'none';
+        return;
+    }
+    
+    // Calculate distance
+    const distance = EnhancedPriceCalculator.calculateDistance(
+        parseFloat(pickupLat), parseFloat(pickupLng),
+        parseFloat(destLat), parseFloat(destLng)
+    );
+    
+    // Get truck type
+    let truckType = 'light';
+    const selectedTruck = document.querySelector('.truck-type.selected');
+    if (selectedTruck) {
+        truckType = selectedTruck.dataset.type;
+    }
+    
+    // Check if helpers are needed
+    const needHelpers = document.getElementById('needHelpers')?.checked || false;
+    
+    // Calculate fare
+    const fare = EnhancedPriceCalculator.calculateTruckFare(distance, truckType, needHelpers);
+    
+    // Calculate estimated time (trucks are slower)
+    const baseTime = (distance / 25) * 60; // 25 km/h average for trucks
+    const time = Math.ceil(baseTime * 1.3); // 30% slower than cars
+    
+    // Update display
+    truckFare.textContent = `ZMW ${fare.toFixed(2)}`;
+    truckDistance.textContent = `${distance.toFixed(1)} km`;
+    truckTime.textContent = `ETA: ${time} min`;
+    truckFareDisplay.style.display = 'block';
+    
+    return { distance, fare, time, truckType, needHelpers };
+},
+    
+    EnhancedUIUpdater.showPulsingRideIcon = function() {
+    this.removePulsingRideIcon();
+    
+    const serviceType = AppState.activeService || AppState.currentRide?.serviceType || 'car';
+    let iconClass = 'fa-car';
+    
+    if (serviceType === 'truck' || AppState.currentRide?.serviceType === 'truck') {
+        iconClass = 'fa-truck';
+    } else if (serviceType === 'delivery' || serviceType === 'short-delivery') {
+        // Check vehicle type for delivery
+        const vehicleType = AppState.currentRide?.vehicleType || 'car';
+        iconClass = vehicleType === 'bike' ? 'fa-motorcycle' : 'fa-car';
+    } else if (serviceType === 'shopping') {
+        // Check vehicle type for shopping
+        const vehicleType = AppState.currentRide?.vehicleType || 'car';
+        iconClass = vehicleType === 'bike' ? 'fa-motorcycle' : 'fa-car';
+    } else if (serviceType === 'express') {
+        iconClass = 'fa-shopping-bag';
+    }
+    
+    pulsingIcon = L.divIcon({
+        className: 'pulsing-ride-icon',
+        html: `<i class="fas ${iconClass}" style="color: #FF6B35; font-size: 40px;"></i>`,
+        iconSize: [40, 40],
+        iconAnchor: [20, 40]
+    });
+    
+    if (AppState.pickup) {
+        const marker = L.marker([AppState.pickup.lat, AppState.pickup.lng], {
+            icon: pulsingIcon
+        }).addTo(map);
+        
+        // Add pulsing animation
+        marker.getElement().style.animation = 'pulse 1.5s infinite';
+        
+        AppState.rideRequestPulsingIcons[serviceType] = marker;
+    }
+};
     
     removePulsingRideIcon: function() {
         Object.values(AppState.rideRequestPulsingIcons).forEach(marker => {
@@ -10240,6 +10782,239 @@ const EnhancedUIUpdater = {
             });
         }
     },
+
+// Request Shopping Button
+const requestShoppingBtn = document.getElementById('requestShoppingBtn');
+if (requestShoppingBtn) {
+    requestShoppingBtn.addEventListener('click', function() {
+        // Get shop location
+        const shopLocationInput = document.getElementById('shopLocation');
+        const shopNameInput = document.getElementById('shopName');
+        const shoppingDestinationInput = document.getElementById('shoppingDestination');
+        
+        if (!shopLocationInput.value || !shoppingDestinationInput.value) {
+            EnhancedUIUpdater.showToast('Please select a shop and destination', 'warning');
+            return;
+        }
+        
+        // Calculate fare
+        const fareData = EnhancedUIUpdater.updateShoppingFare();
+        if (!fareData) {
+            EnhancedUIUpdater.showToast('Please set valid locations', 'warning');
+            return;
+        }
+        
+        // Get shopping details
+        const shoppingInstructions = document.getElementById('shoppingInstructions').value;
+        const shoppingBudget = document.getElementById('shoppingBudget').value;
+        const items = [];
+        document.querySelectorAll('#shoppingItems .item-input').forEach(input => {
+            if (input.value.trim()) {
+                items.push(input.value.trim());
+            }
+        });
+        
+        // Create service data
+        const serviceData = {
+            pickup: {
+                lat: shopLocationInput.dataset.lat,
+                lng: shopLocationInput.dataset.lng,
+                address: shopLocationInput.value,
+                name: shopNameInput.value || 'Shop'
+            },
+            destination: {
+                lat: shoppingDestinationInput.dataset.lat,
+                lng: shoppingDestinationInput.dataset.lng,
+                address: shoppingDestinationInput.value
+            },
+            distance: fareData.distance,
+            fare: fareData.fare,
+            estimatedTime: fareData.time,
+            serviceType: 'shopping',
+            items: items,
+            instructions: shoppingInstructions,
+            budget: parseFloat(shoppingBudget) || 0,
+            itemsCount: items.length
+        };
+        
+        // Show vehicle selection popup
+        EnhancedUIUpdater.showVehicleSelectionPopup('shopping', serviceData, fareData.fare, ['car', 'bike']);
+    });
+}
+
+// Request Delivery Button
+const requestDeliveryBtn = document.getElementById('requestDeliveryBtn');
+if (requestDeliveryBtn) {
+    requestDeliveryBtn.addEventListener('click', function() {
+        // Get delivery details
+        const deliveryPickupInput = document.getElementById('deliveryPickup');
+        const deliveryDestinationInput = document.getElementById('deliveryDestination');
+        const parcelDescription = document.getElementById('parcelDescription');
+        const receiverName = document.getElementById('receiverName');
+        const receiverPhone = document.getElementById('receiverPhone');
+        const parcelValueInput = document.getElementById('parcelValue');
+        
+        if (!deliveryPickupInput.value || !deliveryDestinationInput.value) {
+            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+            return;
+        }
+        
+        if (!parcelDescription.value) {
+            EnhancedUIUpdater.showToast('Please describe the parcel', 'warning');
+            return;
+        }
+        
+        if (!receiverName.value || !receiverPhone.value) {
+            EnhancedUIUpdater.showToast('Please enter receiver details', 'warning');
+            return;
+        }
+        
+        // Calculate fare
+        const fareData = EnhancedUIUpdater.updateDeliveryFare();
+        if (!fareData) {
+            EnhancedUIUpdater.showToast('Please set valid locations', 'warning');
+            return;
+        }
+        
+        // Create service data
+        const serviceData = {
+            pickup: {
+                lat: deliveryPickupInput.dataset.lat,
+                lng: deliveryPickupInput.dataset.lng,
+                address: deliveryPickupInput.value
+            },
+            destination: {
+                lat: deliveryDestinationInput.dataset.lat,
+                lng: deliveryDestinationInput.dataset.lng,
+                address: deliveryDestinationInput.value
+            },
+            distance: fareData.distance,
+            fare: fareData.fare,
+            estimatedTime: fareData.time,
+            serviceType: 'delivery',
+            deliveryType: fareData.deliveryType,
+            parcelDescription: parcelDescription.value,
+            receiverName: receiverName.value,
+            receiverPhone: receiverPhone.value,
+            parcelValue: parseFloat(parcelValueInput.value) || 0
+        };
+        
+        // Show vehicle selection popup
+        EnhancedUIUpdater.showVehicleSelectionPopup('delivery', serviceData, fareData.fare, ['car', 'bike']);
+    });
+}
+
+// Request Short Delivery Button
+const requestShortDeliveryBtn = document.getElementById('requestShortDeliveryBtn');
+if (requestShortDeliveryBtn) {
+    requestShortDeliveryBtn.addEventListener('click', function() {
+        // Get short delivery details
+        const shortDeliveryPickupInput = document.getElementById('shortDeliveryPickup');
+        const shortDeliveryDestinationInput = document.getElementById('shortDeliveryDestination');
+        const shortParcelDescription = document.getElementById('shortParcelDescription');
+        const shortReceiverPhone = document.getElementById('shortReceiverPhone');
+        
+        if (!shortDeliveryPickupInput.value || !shortDeliveryDestinationInput.value) {
+            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+            return;
+        }
+        
+        if (!shortParcelDescription.value) {
+            EnhancedUIUpdater.showToast('Please describe the parcel', 'warning');
+            return;
+        }
+        
+        if (!shortReceiverPhone.value) {
+            EnhancedUIUpdater.showToast('Please enter receiver phone number', 'warning');
+            return;
+        }
+        
+        // Calculate fare
+        const fareData = EnhancedUIUpdater.updateShortDeliveryFare();
+        if (!fareData) {
+            EnhancedUIUpdater.showToast('Please set valid locations', 'warning');
+            return;
+        }
+        
+        // Create service data
+        const serviceData = {
+            pickup: {
+                lat: shortDeliveryPickupInput.dataset.lat,
+                lng: shortDeliveryPickupInput.dataset.lng,
+                address: shortDeliveryPickupInput.value
+            },
+            destination: {
+                lat: shortDeliveryDestinationInput.dataset.lat,
+                lng: shortDeliveryDestinationInput.dataset.lng,
+                address: shortDeliveryDestinationInput.value
+            },
+            distance: fareData.distance,
+            fare: fareData.fare,
+            estimatedTime: fareData.time,
+            serviceType: 'short-delivery',
+            parcelDescription: shortParcelDescription.value,
+            receiverPhone: shortReceiverPhone.value
+        };
+        
+        // Show vehicle selection popup
+        EnhancedUIUpdater.showVehicleSelectionPopup('short-delivery', serviceData, fareData.fare, ['bike', 'car']);
+    });
+}
+
+// Request Truck Button
+const requestTruckBtn = document.getElementById('requestTruckBtn');
+if (requestTruckBtn) {
+    requestTruckBtn.addEventListener('click', function() {
+        // Get truck details
+        const truckPickupInput = document.getElementById('truckPickup');
+        const truckDestinationInput = document.getElementById('truckDestination');
+        const truckItemDescription = document.getElementById('truckItemDescription');
+        const estimatedWeightInput = document.getElementById('estimatedWeight');
+        
+        if (!truckPickupInput.value || !truckDestinationInput.value) {
+            EnhancedUIUpdater.showToast('Please select pickup and destination locations', 'warning');
+            return;
+        }
+        
+        if (!truckItemDescription.value) {
+            EnhancedUIUpdater.showToast('Please describe what you are moving', 'warning');
+            return;
+        }
+        
+        // Calculate fare
+        const fareData = EnhancedUIUpdater.updateTruckFare();
+        if (!fareData) {
+            EnhancedUIUpdater.showToast('Please set valid locations', 'warning');
+            return;
+        }
+        
+        // Create service data
+        const serviceData = {
+            pickup: {
+                lat: truckPickupInput.dataset.lat,
+                lng: truckPickupInput.dataset.lng,
+                address: truckPickupInput.value
+            },
+            destination: {
+                lat: truckDestinationInput.dataset.lat,
+                lng: truckDestinationInput.dataset.lng,
+                address: truckDestinationInput.value
+            },
+            distance: fareData.distance,
+            fare: fareData.fare,
+            estimatedTime: fareData.time,
+            serviceType: 'truck',
+            truckType: fareData.truckType,
+            needHelpers: fareData.needHelpers,
+            itemDescription: truckItemDescription.value,
+            estimatedWeight: parseFloat(estimatedWeightInput.value) || 0
+        };
+        
+        // For truck, we don't need vehicle selection since truck type determines it
+        // Show payment modal directly
+        EnhancedUIUpdater.showPaymentModal(fareData.fare, serviceData);
+    });
+}
     
     showEmergencyStations: function(type) {
         if (!AppState.currentCity) {
@@ -12098,6 +12873,7 @@ const EnhancedFirebaseManager = {
                 destLng: rideData.destination.lng,
                 rideType: rideData.rideType || 'standard',
                 fare: finalFare,
+                ride.serviceType = rideData.serviceType || 'car';
                 originalFare: rideData.fare,
                 referralDiscount: referralDiscount,
                 referredBy: AppState.referralCodeUsed,
@@ -12108,7 +12884,32 @@ const EnhancedFirebaseManager = {
                 city: AppState.currentCity,
                 paymentMethod: rideData.paymentMethod || 'wallet'
             };
-            
+
+
+        // Add service-specific data
+if (rideData.serviceType === 'shopping') {
+    ride.shoppingItems = rideData.items || [];
+    ride.shoppingInstructions = rideData.instructions || '';
+    ride.shoppingBudget = rideData.budget || 0;
+    ride.vehicleType = rideData.vehicleType || 'car';
+} else if (rideData.serviceType === 'delivery') {
+    ride.deliveryType = rideData.deliveryType || 'standard';
+    ride.parcelDescription = rideData.parcelDescription || '';
+    ride.receiverName = rideData.receiverName || '';
+    ride.receiverPhone = rideData.receiverPhone || '';
+    ride.parcelValue = rideData.parcelValue || 0;
+    ride.vehicleType = rideData.vehicleType || 'car';
+} else if (rideData.serviceType === 'short-delivery') {
+    ride.parcelDescription = rideData.parcelDescription || '';
+    ride.receiverPhone = rideData.receiverPhone || '';
+    ride.vehicleType = rideData.vehicleType || 'bike';
+} else if (rideData.serviceType === 'truck') {
+    ride.truckType = rideData.truckType || 'light';
+    ride.needHelpers = rideData.needHelpers || false;
+    ride.itemDescription = rideData.itemDescription || '';
+    ride.estimatedWeight = rideData.estimatedWeight || 0;
+    // Truck doesn't have vehicleType since truck type determines it
+}
             // Add stops if any
             if (rideData.stops && rideData.stops.length > 0) {
                 ride.stops = rideData.stops.map(stop => ({
@@ -14439,7 +15240,7 @@ function switchScreen(screen) {
 // ============================================
 // SWITCH SERVICE
 // ============================================
-function switchService(service) {
+switchService: function(service) {
     console.log(`Switching to service: ${service}`);
     
     // Hide all forms
@@ -14465,12 +15266,18 @@ function switchService(service) {
             if (carForm) carForm.style.display = 'block';
             break;
             
-        case 'delivery':
+         case 'delivery':
             const deliveryTab = document.querySelector('.service-tab.delivery');
             const deliveryForm = document.getElementById('deliveryForm');
             
             if (deliveryTab) deliveryTab.classList.add('active');
-            if (deliveryForm) deliveryForm.style.display = 'block';
+            if (deliveryForm) {
+                deliveryForm.style.display = 'block';
+                // Update fare display if locations are set
+                setTimeout(() => {
+                    EnhancedUIUpdater.updateDeliveryFare();
+                }, 100);
+            }
             break;
             
         case 'short-delivery':
@@ -14478,7 +15285,13 @@ function switchService(service) {
             const shortDeliveryForm = document.getElementById('shortDeliveryForm');
             
             if (shortDeliveryTab) shortDeliveryTab.classList.add('active');
-            if (shortDeliveryForm) shortDeliveryForm.style.display = 'block';
+            if (shortDeliveryForm) {
+                shortDeliveryForm.style.display = 'block';
+                // Update fare display if locations are set
+                setTimeout(() => {
+                    EnhancedUIUpdater.updateShortDeliveryFare();
+                }, 100);
+            }
             break;
             
         case 'express':
@@ -14486,7 +15299,13 @@ function switchService(service) {
             const expressForm = document.getElementById('expressForm');
             
             if (expressTab) expressTab.classList.add('active');
-            if (expressForm) expressForm.style.display = 'block';
+            if (expressForm) {
+                expressForm.style.display = 'block';
+                // Update fare display if locations are set
+                setTimeout(() => {
+                    EnhancedUIUpdater.updateShoppingFare();
+                }, 100);
+            }
             break;
             
         case 'truck':
@@ -14494,7 +15313,13 @@ function switchService(service) {
             const truckForm = document.getElementById('truckForm');
             
             if (truckTab) truckTab.classList.add('active');
-            if (truckForm) truckForm.style.display = 'block';
+            if (truckForm) {
+                truckForm.style.display = 'block';
+                // Update fare display if locations are set
+                setTimeout(() => {
+                    EnhancedUIUpdater.updateTruckFare();
+                }, 100);
+            }
             break;
             
         case 'broadcast':
@@ -14502,7 +15327,7 @@ function switchService(service) {
             if (broadcastForm) broadcastForm.style.display = 'block';
             break;
     }
-}
+},
 
 // ============================================
 // INITIALIZE APP
@@ -15467,6 +16292,115 @@ function setupEventListeners() {
                 });
         });
     }
+
+// In the setupEventListeners function, add these listeners after the existing ones
+
+// Shopping destination input
+const shoppingDestinationInput = document.getElementById('shoppingDestination');
+if (shoppingDestinationInput) {
+    shoppingDestinationInput.addEventListener('input', function() {
+        setTimeout(() => {
+            EnhancedUIUpdater.updateShoppingFare();
+        }, 500);
+    });
+}
+
+// Shopping budget input
+const shoppingBudgetInput = document.getElementById('shoppingBudget');
+if (shoppingBudgetInput) {
+    shoppingBudgetInput.addEventListener('input', function() {
+        EnhancedUIUpdater.updateShoppingFare();
+    });
+}
+
+// Delivery destination input
+const deliveryDestinationInput = document.getElementById('deliveryDestination');
+if (deliveryDestinationInput) {
+    deliveryDestinationInput.addEventListener('input', function() {
+        setTimeout(() => {
+            EnhancedUIUpdater.updateDeliveryFare();
+        }, 500);
+    });
+}
+
+// Delivery type buttons
+const standardDeliveryBtn = document.getElementById('standardDelivery');
+const expressDeliveryBtn = document.getElementById('expressDelivery');
+const sameDayDeliveryBtn = document.getElementById('sameDayDelivery');
+
+if (standardDeliveryBtn) {
+    standardDeliveryBtn.addEventListener('click', function() {
+        standardDeliveryBtn.classList.add('active');
+        expressDeliveryBtn.classList.remove('active');
+        sameDayDeliveryBtn.classList.remove('active');
+        EnhancedUIUpdater.updateDeliveryFare();
+    });
+}
+
+if (expressDeliveryBtn) {
+    expressDeliveryBtn.addEventListener('click', function() {
+        expressDeliveryBtn.classList.add('active');
+        standardDeliveryBtn.classList.remove('active');
+        sameDayDeliveryBtn.classList.remove('active');
+        EnhancedUIUpdater.updateDeliveryFare();
+    });
+}
+
+if (sameDayDeliveryBtn) {
+    sameDayDeliveryBtn.addEventListener('click', function() {
+        sameDayDeliveryBtn.classList.add('active');
+        standardDeliveryBtn.classList.remove('active');
+        expressDeliveryBtn.classList.remove('active');
+        EnhancedUIUpdater.updateDeliveryFare();
+    });
+}
+
+// Parcel value input
+const parcelValueInput = document.getElementById('parcelValue');
+if (parcelValueInput) {
+    parcelValueInput.addEventListener('input', function() {
+        EnhancedUIUpdater.updateDeliveryFare();
+    });
+}
+
+// Short delivery destination input
+const shortDeliveryDestinationInput = document.getElementById('shortDeliveryDestination');
+if (shortDeliveryDestinationInput) {
+    shortDeliveryDestinationInput.addEventListener('input', function() {
+        setTimeout(() => {
+            EnhancedUIUpdater.updateShortDeliveryFare();
+        }, 500);
+    });
+}
+
+// Truck destination input
+const truckDestinationInput = document.getElementById('truckDestination');
+if (truckDestinationInput) {
+    truckDestinationInput.addEventListener('input', function() {
+        setTimeout(() => {
+            EnhancedUIUpdater.updateTruckFare();
+        }, 500);
+    });
+}
+
+// Truck type selection
+document.querySelectorAll('.truck-type').forEach(truck => {
+    truck.addEventListener('click', function() {
+        document.querySelectorAll('.truck-type').forEach(t => {
+            t.classList.remove('selected');
+        });
+        this.classList.add('selected');
+        EnhancedUIUpdater.updateTruckFare();
+    });
+});
+
+// Truck helpers checkbox
+const needHelpersCheckbox = document.getElementById('needHelpers');
+if (needHelpersCheckbox) {
+    needHelpersCheckbox.addEventListener('change', function() {
+        EnhancedUIUpdater.updateTruckFare();
+    });
+}
     
     // History filters
     document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -15562,6 +16496,7 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
+
 
 
 
