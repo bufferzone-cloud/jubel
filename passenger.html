@@ -9680,172 +9680,6 @@ const EnhancedUIUpdater = {
         
         this.showToast('Referral discount removed', 'info');
     },
-
-showSplitRideTracking: function(splitRideId, rideId) {
-    // Create tracking overlay
-    const trackingOverlay = document.createElement('div');
-    trackingOverlay.id = 'splitRideTrackingOverlay';
-    trackingOverlay.style.cssText = `
-        position: fixed;
-        top: 100px;
-        right: 20px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-        width: 300px;
-        max-height: 500px;
-        overflow-y: auto;
-        z-index: 1000;
-        padding: 20px;
-    `;
-    
-    trackingOverlay.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h4 style="margin: 0; color: #2196F3;">
-                <i class="fas fa-user-friends"></i> Split Ride Tracking
-            </h4>
-            <button id="closeSplitTracking" style="
-                background: none;
-                border: none;
-                color: #999;
-                cursor: pointer;
-                font-size: 18px;
-            ">×</button>
-        </div>
-        
-        <div id="splitRideStatus" style="
-            background: #e3f2fd;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            font-size: 14px;
-            text-align: center;
-        ">
-            <i class="fas fa-sync-alt fa-spin"></i> Loading split ride status...
-        </div>
-        
-        <div id="splitParticipantsList" style="margin-bottom: 15px;">
-            <div style="font-size: 12px; color: #666; margin-bottom: 10px;">Participants:</div>
-            <div style="font-size: 12px; color: #999; text-align: center;">Loading...</div>
-        </div>
-        
-        <div style="border-top: 1px solid #eee; padding-top: 15px;">
-            <div style="font-size: 12px; color: #666; margin-bottom: 5px;">Your Share:</div>
-            <div id="yourShareAmount" style="font-weight: 700; color: #FF6B35; font-size: 18px;">
-                Loading...
-            </div>
-            <div id="paymentStatus" style="font-size: 12px; color: #666; margin-top: 5px;"></div>
-        </div>
-    `;
-    
-    document.body.appendChild(trackingOverlay);
-    
-    // Close button
-    trackingOverlay.querySelector('#closeSplitTracking').addEventListener('click', function() {
-        document.body.removeChild(trackingOverlay);
-    });
-    
-    // Start listening to updates
-    EnhancedFirebaseManager.startSplitRideTracking(splitRideId, rideId, (rideData, splitRideData) => {
-        updateSplitRideTrackingUI(rideData, splitRideData);
-    });
-    
-    function updateSplitRideTrackingUI(rideData, splitRideData) {
-        // Update status
-        const statusElement = document.getElementById('splitRideStatus');
-        if (statusElement) {
-            let statusHtml = '';
-            let statusColor = '#2196F3';
-            
-            switch(rideData.status) {
-                case 'requested':
-                    statusHtml = `<i class="fas fa-search"></i> Searching for driver...`;
-                    statusColor = '#FFC107';
-                    break;
-                case 'accepted':
-                    statusHtml = `<i class="fas fa-car"></i> Driver on the way`;
-                    statusColor = '#2196F3';
-                    break;
-                case 'arrived':
-                    statusHtml = `<i class="fas fa-map-marker-alt"></i> Driver arrived`;
-                    statusColor = '#4CAF50';
-                    break;
-                case 'started':
-                    statusHtml = `<i class="fas fa-play"></i> Trip in progress`;
-                    statusColor = '#FF6B35';
-                    break;
-                case 'completed':
-                    statusHtml = `<i class="fas fa-flag-checkered"></i> Trip completed`;
-                    statusColor = '#4CAF50';
-                    break;
-                case 'cancelled':
-                    statusHtml = `<i class="fas fa-times"></i> Trip cancelled`;
-                    statusColor = '#F44336';
-                    break;
-            }
-            
-            statusElement.innerHTML = statusHtml;
-            statusElement.style.background = statusColor + '15';
-            statusElement.style.color = statusColor;
-        }
-        
-        // Update participants list
-        if (rideData.participants) {
-            const participantsList = document.getElementById('splitParticipantsList');
-            let participantsHtml = '<div style="font-size: 12px; color: #666; margin-bottom: 10px;">Participants:</div>';
-            
-            Object.values(rideData.participants).forEach(participant => {
-                const isYou = participant.userId === AppState.currentUser.uid;
-                participantsHtml += `
-                    <div style="
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        padding: 8px;
-                        border-bottom: 1px solid #eee;
-                        background: ${isYou ? '#FFF3E0' : 'white'};
-                    ">
-                        <div>
-                            <div style="font-weight: 600; color: #333;">
-                                ${participant.name} ${isYou ? '(You)' : ''}
-                            </div>
-                            <div style="font-size: 11px; color: #666;">
-                                Share: ZMW ${participant.share.toFixed(2)}
-                            </div>
-                        </div>
-                        <div style="
-                            padding: 3px 8px;
-                            background: ${participant.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0'};
-                            color: ${participant.paymentStatus === 'paid' ? '#4CAF50' : '#FFC107'};
-                            border-radius: 12px;
-                            font-size: 11px;
-                            font-weight: 600;
-                        ">
-                            ${participant.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
-                        </div>
-                    </div>
-                `;
-            });
-            
-            participantsList.innerHTML = participantsHtml;
-        }
-        
-        // Update your share and payment status
-        const yourShareElement = document.getElementById('yourShareAmount');
-        const paymentStatusElement = document.getElementById('paymentStatus');
-        
-        if (rideData.participants && rideData.participants[AppState.currentUser.uid]) {
-            const yourData = rideData.participants[AppState.currentUser.uid];
-            yourShareElement.textContent = `ZMW ${yourData.share.toFixed(2)}`;
-            
-            if (yourData.paymentStatus === 'paid') {
-                paymentStatusElement.innerHTML = '<span style="color: #4CAF50;"><i class="fas fa-check-circle"></i> Payment completed</span>';
-            } else {
-                paymentStatusElement.innerHTML = '<span style="color: #FFC107;"><i class="fas fa-clock"></i> Payment pending</span>';
-            }
-        }
-    }
-}
     
     showScheduleCountdown: function(scheduledTime, rideData) {
         const now = Date.now();
@@ -11286,192 +11120,24 @@ showSplitRideTracking: function(splitRideId, rideId) {
     },
     
     handleNotificationAction: function(action, data) {
-    switch(action) {
-        case 'view_ride':
-            if (data.rideId) {
-                EnhancedFirebaseManager.loadRideDetails(data.rideId);
-            }
-            break;
-        case 'accept_split_invite':
-            if (data.invitationId) {
-                this.showSplitRideInvitationModal(data.invitationId);
-            }
-            break;
-        case 'accept_broadcast_invite':
-            if (data.broadcastId) {
-                this.showBroadcastTrackingModal(data.broadcastId);
-            }
-            break;
-    }
-}
-        
-showSplitRideInvitationModal: function(invitationId) {
-    EnhancedFirebaseManager.getSplitRideInvitation(invitationId)
-        .then(invitation => {
-            if (!invitation) {
-                EnhancedUIUpdater.showToast('Invitation not found', 'error');
-                return;
-            }
-            
-            const modal = document.createElement('div');
-            modal.className = 'split-invitation-modal';
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0,0,0,0.8);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 10002;
-                padding: 20px;
-            `;
-            
-            modal.innerHTML = `
-                <div style="
-                    background: white;
-                    border-radius: 12px;
-                    width: 100%;
-                    max-width: 400px;
-                    overflow: hidden;
-                ">
-                    <div style="
-                        padding: 25px;
-                        background: linear-gradient(135deg, #2196F3 0%, #21CBF3 100%);
-                        color: white;
-                        text-align: center;
-                    ">
-                        <div style="font-size: 48px; margin-bottom: 15px;">
-                            <i class="fas fa-user-friends"></i>
-                        </div>
-                        <h3 style="margin: 0; font-size: 20px;">
-                            Split Ride Invitation
-                        </h3>
-                        <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">
-                            From: <strong>${invitation.hostName}</strong>
-                        </p>
-                    </div>
-                    
-                    <div style="padding: 25px;">
-                        <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                            <div style="margin-bottom: 10px;">
-                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div>
-                                <div style="font-weight: 600;">${invitation.pickupDisplay || invitation.pickup}</div>
-                            </div>
-                            <div style="margin-bottom: 10px;">
-                                <div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div>
-                                <div style="font-weight: 600;">${invitation.destinationDisplay || invitation.destination}</div>
-                            </div>
-                            <div style="display: flex; justify-content: space-between;">
-                                <div>
-                                    <div style="font-size: 12px; color: #666;">Your Share</div>
-                                    <div style="font-weight: 700; color: #FF6B35; font-size: 18px;">
-                                        ZMW ${invitation.eachShare.toFixed(2)}
-                                    </div>
-                                </div>
-                                <div>
-                                    <div style="font-size: 12px; color: #666;">Participants</div>
-                                    <div style="font-weight: 600; font-size: 16px;">${invitation.participants}</div>
-                                </div>
-                            </div>
-                            <div style="margin-top: 10px; font-size: 12px; color: #666;">
-                                <i class="fas fa-info-circle"></i> Total fare: ZMW ${invitation.totalFare.toFixed(2)}
-                            </div>
-                        </div>
-                        
-                        <div style="font-size: 14px; color: #666; margin-bottom: 20px; text-align: center;">
-                            You will be able to track this ride in real-time once all participants accept
-                        </div>
-                        
-                        <div style="display: flex; gap: 10px;">
-                            <button id="acceptInvitationBtn" style="
-                                flex: 1;
-                                padding: 15px;
-                                background: #4CAF50;
-                                color: white;
-                                border: none;
-                                border-radius: 8px;
-                                cursor: pointer;
-                                font-weight: 600;
-                                font-size: 16px;
-                            ">
-                                <i class="fas fa-check"></i> Accept
-                            </button>
-                            <button id="rejectInvitationBtn" style="
-                                flex: 1;
-                                padding: 15px;
-                                background: #f44336;
-                                color: white;
-                                border: none;
-                                border-radius: 8px;
-                                cursor: pointer;
-                                font-weight: 600;
-                                font-size: 16px;
-                            ">
-                                <i class="fas fa-times"></i> Reject
-                            </button>
-                        </div>
-                        
-                        <div style="margin-top: 15px; font-size: 12px; color: #999; text-align: center;">
-                            You have 24 hours to respond to this invitation
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(modal);
-            
-            // Event listeners
-            modal.querySelector('#acceptInvitationBtn').addEventListener('click', () => {
-                EnhancedFirebaseManager.acceptSplitRideInvitation(invitationId, AppState.currentUser.uid)
-                    .then(() => {
-                        document.body.removeChild(modal);
-                        EnhancedUIUpdater.showToast('Invitation accepted!', 'success');
-                    })
-                    .catch(error => {
-                        console.error('Error accepting invitation:', error);
-                        EnhancedUIUpdater.showToast('Error accepting invitation', 'error');
-                    });
-            });
-            
-            modal.querySelector('#rejectInvitationBtn').addEventListener('click', () => {
-                EnhancedFirebaseManager.rejectSplitRideInvitation(invitationId, AppState.currentUser.uid)
-                    .then(() => {
-                        document.body.removeChild(modal);
-                        EnhancedUIUpdater.showToast('Invitation rejected', 'info');
-                    })
-                    .catch(error => {
-                        console.error('Error rejecting invitation:', error);
-                        EnhancedUIUpdater.showToast('Error rejecting invitation', 'error');
-                    });
-            });
-            
-            // Close on background click
-            modal.addEventListener('click', function(e) {
-                if (e.target === this) {
-                    document.body.removeChild(modal);
+        switch(action) {
+            case 'view_ride':
+                if (data.rideId) {
+                    EnhancedFirebaseManager.loadRideDetails(data.rideId);
                 }
-            });
-        })
-        .catch(error => {
-            console.error('Error loading invitation:', error);
-            EnhancedUIUpdater.showToast('Error loading invitation', 'error');
-        });
-},
-
-getSplitRideInvitation: function(invitationId) {
-    const invitationRef = database.ref(`splitRideInvitations/${invitationId}`);
-    
-    return new Promise((resolve, reject) => {
-        invitationRef.once('value', snapshot => {
-            resolve(snapshot.val());
-        }, error => {
-            reject(error);
-        });
-    });
-}
+                break;
+            case 'accept_split_invite':
+                if (data.splitRideId) {
+                    this.showSplitRideAcceptanceModal(data.splitRideId);
+                }
+                break;
+            case 'accept_broadcast_invite':
+                if (data.broadcastId) {
+                    this.showBroadcastTrackingModal(data.broadcastId);
+                }
+                break;
+        }
+    },
     
     showSplitRideAcceptanceModal: function(splitRideId) {
         // Fetch split ride details
@@ -12497,42 +12163,6 @@ const EnhancedFirebaseManager = {
             console.error('Error loading SOS config:', error);
         }
     },
-
-    listenToSplitRideStatus: function(splitRideId, callback) {
-    const splitRideRef = database.ref(`splitRides/${splitRideId}`);
-    
-    const listener = splitRideRef.on('value', snapshot => {
-        const splitRide = snapshot.val();
-        if (splitRide) {
-            callback(splitRide.status);
-        }
-    });
-    
-    return listener;
-},
-
-startSplitRideTracking: function(splitRideId, rideId, callback) {
-    // Listen to both the split ride and the actual ride
-    const splitRideListener = this.listenToSplitRideStatus(splitRideId, (status) => {
-        // When split ride status changes, also get ride data
-        this.getRideDetails(rideId).then(rideData => {
-            callback(rideData, { status: status });
-        });
-    });
-    
-    const rideListener = this.listenToRideForSplitRide(rideId, splitRideId, (rideData) => {
-        // When ride updates, also get split ride data
-        this.getSplitRideDetails(splitRideId).then(splitRideData => {
-            callback(rideData, splitRideData);
-        });
-    });
-    
-    return () => {
-        // Return cleanup function
-        splitRideListener();
-        rideListener();
-    };
-}
     
     async loadScheduledRides(uid) {
         try {
@@ -12956,464 +12586,6 @@ if (rideData.vehicleType) {
                     ride.splitRideId = splitRideId;
                 }
             }
-
-// Add these functions to EnhancedFirebaseManager:
-
-createSplitRideInvitations: async function(splitRideData) {
-    try {
-        const splitRideId = database.ref().child('splitRides').push().key;
-        
-        const splitRide = {
-            id: splitRideId,
-            hostId: AppState.currentUser.uid,
-            hostName: AppState.userData.name,
-            pickup: splitRideData.pickup.address,
-            pickupDisplay: splitRideData.pickup.name || splitRideData.pickup.address,
-            pickupLat: splitRideData.pickup.lat,
-            pickupLng: splitRideData.pickup.lng,
-            destination: splitRideData.destination.address,
-            destinationDisplay: splitRideData.destination.name || splitRideData.destination.address,
-            destLat: splitRideData.destination.lat,
-            destLng: splitRideData.destination.lng,
-            participants: splitRideData.participants,
-            totalFare: splitRideData.totalFare,
-            eachShare: splitRideData.eachShare,
-            rideType: splitRideData.rideType,
-            distance: splitRideData.distance,
-            estimatedTime: splitRideData.estimatedTime,
-            status: 'pending',
-            acceptedCount: 0,
-            rejectedCount: 0,
-            timestamp: Date.now()
-        };
-        
-        await database.ref(`splitRides/${splitRideId}`).set(splitRide);
-        
-        // Create invitations for each friend
-        const invitations = [];
-        for (const friend of splitRideData.friends) {
-            const invitationId = database.ref().child('splitRideInvitations').push().key;
-            
-            const invitation = {
-                id: invitationId,
-                splitRideId: splitRideId,
-                hostId: AppState.currentUser.uid,
-                hostName: AppState.userData.name,
-                recipientId: friend.userId,
-                recipientName: friend.name,
-                pickup: splitRideData.pickup.address,
-                pickupDisplay: splitRideData.pickup.name || splitRideData.pickup.address,
-                destination: splitRideData.destination.address,
-                destinationDisplay: splitRideData.destination.name || splitRideData.destination.address,
-                totalFare: splitRideData.totalFare,
-                eachShare: splitRideData.eachShare,
-                participants: splitRideData.participants,
-                rideType: splitRideData.rideType,
-                distance: splitRideData.distance,
-                estimatedTime: splitRideData.estimatedTime,
-                status: 'pending',
-                timestamp: Date.now()
-            };
-            
-            await database.ref(`splitRideInvitations/${invitationId}`).set(invitation);
-            invitations.push(invitationId);
-            
-            // Send notification to friend
-            this.sendNotification(
-                friend.userId,
-                'Split Ride Invitation',
-                `${AppState.userData.name} invited you to split a ride`,
-                'split',
-                {
-                    splitRideId: splitRideId,
-                    invitationId: invitationId,
-                    action: 'accept_split_invite'
-                }
-            );
-        }
-        
-        return { splitRideId, invitations };
-    } catch (error) {
-        console.error('Error creating split ride invitations:', error);
-        throw error;
-    }
-},
-
-acceptSplitRideInvitation: async function(invitationId, userId) {
-    try {
-        const invitationRef = database.ref(`splitRideInvitations/${invitationId}`);
-        const invitationSnapshot = await invitationRef.once('value');
-        const invitation = invitationSnapshot.val();
-        
-        if (!invitation || invitation.recipientId !== userId) {
-            throw new Error('Invalid invitation');
-        }
-        
-        // Update invitation status
-        await invitationRef.update({
-            status: 'accepted',
-            acceptedAt: Date.now()
-        });
-        
-        // Update split ride accepted count
-        const splitRideRef = database.ref(`splitRides/${invitation.splitRideId}`);
-        await database.ref(`splitRideAccepted/${invitation.splitRideId}/${userId}`).set({
-            userId: userId,
-            userName: invitation.recipientName,
-            acceptedAt: Date.now(),
-            paymentStatus: 'pending'
-        });
-        
-        // Check if all participants have responded
-        await this.checkSplitRideStatus(invitation.splitRideId);
-        
-        // Send notification to host
-        this.sendNotification(
-            invitation.hostId,
-            'Split Ride Update',
-            `${invitation.recipientName} accepted your split ride invitation`,
-            'split',
-            { splitRideId: invitation.splitRideId }
-        );
-        
-        return true;
-    } catch (error) {
-        console.error('Error accepting split ride invitation:', error);
-        throw error;
-    }
-},
-
-rejectSplitRideInvitation: async function(invitationId, userId) {
-    try {
-        const invitationRef = database.ref(`splitRideInvitations/${invitationId}`);
-        const invitationSnapshot = await invitationRef.once('value');
-        const invitation = invitationSnapshot.val();
-        
-        if (!invitation || invitation.recipientId !== userId) {
-            throw new Error('Invalid invitation');
-        }
-        
-        // Update invitation status
-        await invitationRef.update({
-            status: 'rejected',
-            rejectedAt: Date.now()
-        });
-        
-        // Update split ride rejected count
-        await database.ref(`splitRideRejected/${invitation.splitRideId}/${userId}`).set({
-            userId: userId,
-            userName: invitation.recipientName,
-            rejectedAt: Date.now()
-        });
-        
-        // Check if all participants have responded
-        await this.checkSplitRideStatus(invitation.splitRideId);
-        
-        // Send notification to host
-        this.sendNotification(
-            invitation.hostId,
-            'Split Ride Update',
-            `${invitation.recipientName} declined your split ride invitation`,
-            'split',
-            { splitRideId: invitation.splitRideId }
-        );
-        
-        return true;
-    } catch (error) {
-        console.error('Error rejecting split ride invitation:', error);
-        throw error;
-    }
-},
-
-checkSplitRideStatus: async function(splitRideId) {
-    try {
-        const splitRideRef = database.ref(`splitRides/${splitRideId}`);
-        const splitRideSnapshot = await splitRideRef.once('value');
-        const splitRide = splitRideSnapshot.val();
-        
-        if (!splitRide) return;
-        
-        // Get all invitations for this split ride
-        const invitationsRef = database.ref('splitRideInvitations');
-        const invitationsSnapshot = await invitationsRef
-            .orderByChild('splitRideId')
-            .equalTo(splitRideId)
-            .once('value');
-        
-        const invitations = invitationsSnapshot.val();
-        if (!invitations) return;
-        
-        // Count responses
-        let acceptedCount = 0;
-        let rejectedCount = 0;
-        let pendingCount = 0;
-        
-        Object.values(invitations).forEach(invitation => {
-            if (invitation.status === 'accepted') acceptedCount++;
-            else if (invitation.status === 'rejected') rejectedCount++;
-            else pendingCount++;
-        });
-        
-        // Update split ride status
-        const updates = {
-            acceptedCount: acceptedCount,
-            rejectedCount: rejectedCount,
-            pendingCount: pendingCount
-        };
-        
-        if (pendingCount === 0) {
-            if (acceptedCount === splitRide.participants - 1) {
-                // All friends accepted, ready to request ride
-                updates.status = 'ready';
-                updates.readyAt = Date.now();
-                
-                // Notify host
-                this.sendNotification(
-                    splitRide.hostId,
-                    'Split Ride Ready!',
-                    'All participants have accepted. You can now request the ride.',
-                    'success',
-                    { splitRideId: splitRideId }
-                );
-            } else {
-                // Not enough acceptances
-                updates.status = 'incomplete';
-                this.sendNotification(
-                    splitRide.hostId,
-                    'Split Ride Incomplete',
-                    'Not enough participants accepted. Please modify your split ride.',
-                    'warning',
-                    { splitRideId: splitRideId }
-                );
-            }
-        }
-        
-        await splitRideRef.update(updates);
-        
-    } catch (error) {
-        console.error('Error checking split ride status:', error);
-    }
-},
-
-requestSplitRide: async function(splitRideId, paymentMethod) {
-    try {
-        const splitRideRef = database.ref(`splitRides/${splitRideId}`);
-        const splitRideSnapshot = await splitRideRef.once('value');
-        const splitRide = splitRideSnapshot.val();
-        
-        if (!splitRide || splitRide.status !== 'ready') {
-            throw new Error('Split ride is not ready for booking');
-        }
-        
-        // Get all accepted participants
-        const acceptedRef = database.ref(`splitRideAccepted/${splitRideId}`);
-        const acceptedSnapshot = await acceptedRef.once('value');
-        const acceptedParticipants = acceptedSnapshot.val() || {};
-        
-        const participantIds = Object.keys(acceptedParticipants);
-        if (participantIds.length !== splitRide.participants - 1) {
-            throw new Error('Not all participants have accepted');
-        }
-        
-        // Generate ride ID
-        const rideId = database.ref().child('rides').push().key;
-        
-        // Create the main ride
-        const ride = {
-            id: rideId,
-            passengerId: splitRide.hostId,
-            passengerName: splitRide.hostName,
-            pickup: splitRide.pickup,
-            pickupDisplay: splitRide.pickupDisplay,
-            pickupLat: splitRide.pickupLat,
-            pickupLng: splitRide.pickupLng,
-            destination: splitRide.destination,
-            destinationDisplay: splitRide.destinationDisplay,
-            destLat: splitRide.destLat,
-            destLng: splitRide.destLng,
-            rideType: splitRide.rideType,
-            fare: splitRide.totalFare,
-            eachShare: splitRide.eachShare,
-            distance: splitRide.distance,
-            estimatedTime: splitRide.estimatedTime,
-            status: 'requested',
-            timestamp: Date.now(),
-            paymentMethod: paymentMethod,
-            splitRide: true,
-            splitRideId: splitRideId,
-            participants: {
-                [splitRide.hostId]: {
-                    userId: splitRide.hostId,
-                    name: splitRide.hostName,
-                    share: splitRide.eachShare,
-                    paymentStatus: paymentMethod === 'wallet' ? 'paid' : 'pending'
-                }
-            }
-        };
-        
-        // Add other participants
-        Object.entries(acceptedParticipants).forEach(([userId, data]) => {
-            ride.participants[userId] = {
-                userId: userId,
-                name: data.userName,
-                share: splitRide.eachShare,
-                paymentStatus: 'pending'
-            };
-        });
-        
-        // Save ride to database
-        await database.ref(`rides/${rideId}`).set(ride);
-        
-        // Update split ride status
-        await splitRideRef.update({
-            status: 'active',
-            rideId: rideId,
-            requestedAt: Date.now()
-        });
-        
-        // Create tracking entries for all participants
-        const trackingPromises = [];
-        
-        // Host tracking
-        trackingPromises.push(
-            database.ref(`splitRideTracking/${splitRideId}/${splitRide.hostId}`).set({
-                userId: splitRide.hostId,
-                userName: splitRide.hostName,
-                rideId: rideId,
-                joinedAt: Date.now(),
-                isHost: true
-            })
-        );
-        
-        // Participants tracking
-        Object.entries(acceptedParticipants).forEach(([userId, data]) => {
-            trackingPromises.push(
-                database.ref(`splitRideTracking/${splitRideId}/${userId}`).set({
-                    userId: userId,
-                    userName: data.userName,
-                    rideId: rideId,
-                    joinedAt: Date.now(),
-                    isHost: false
-                })
-            );
-        });
-        
-        await Promise.all(trackingPromises);
-        
-        // Notify all participants
-        const notifications = [];
-        
-        // Notify host
-        notifications.push(
-            this.sendNotification(
-                splitRide.hostId,
-                'Split Ride Requested!',
-                'Your split ride has been requested. All participants will track this ride.',
-                'ride',
-                { rideId: rideId }
-            )
-        );
-        
-        // Notify participants
-        Object.entries(acceptedParticipants).forEach(([userId, data]) => {
-            notifications.push(
-                this.sendNotification(
-                    userId,
-                    'Split Ride Started!',
-                    `${splitRide.hostName}'s split ride has been requested. You can track it in real-time.`,
-                    'ride',
-                    { rideId: rideId, splitRideId: splitRideId }
-                )
-            );
-        });
-        
-        await Promise.all(notifications);
-        
-        return rideId;
-    } catch (error) {
-        console.error('Error requesting split ride:', error);
-        throw error;
-    }
-},
-
-getSplitRideTracking: function(splitRideId, userId) {
-    const trackingRef = database.ref(`splitRideTracking/${splitRideId}/${userId}`);
-    
-    return new Promise((resolve, reject) => {
-        trackingRef.once('value', snapshot => {
-            resolve(snapshot.val());
-        }, error => {
-            reject(error);
-        });
-    });
-},
-
-listenToSplitRideUpdates: function(splitRideId, callback) {
-    const splitRideRef = database.ref(`splitRides/${splitRideId}`);
-    
-    const listener = splitRideRef.on('value', snapshot => {
-        const splitRide = snapshot.val();
-        if (splitRide) {
-            callback(splitRide);
-        }
-    });
-    
-    return listener;
-},
-
-listenToRideForSplitRide: function(rideId, splitRideId, callback) {
-    const rideRef = database.ref(`rides/${rideId}`);
-    
-    const listener = rideRef.on('value', snapshot => {
-        const ride = snapshot.val();
-        if (ride) {
-            callback(ride);
-            
-            // Also update tracking for all participants
-            if (ride.status === 'completed' || ride.status === 'cancelled') {
-                this.updateSplitRideCompletion(splitRideId, ride);
-            }
-        }
-    });
-    
-    return listener;
-},
-
-updateSplitRideCompletion: async function(splitRideId, ride) {
-    try {
-        const splitRideRef = database.ref(`splitRides/${splitRideId}`);
-        await splitRideRef.update({
-            status: ride.status === 'completed' ? 'completed' : 'cancelled',
-            completedAt: Date.now(),
-            finalStatus: ride.status
-        });
-        
-        // Notify all participants
-        const splitRideSnapshot = await splitRideRef.once('value');
-        const splitRide = splitRideSnapshot.val();
-        
-        if (splitRide) {
-            // Get all tracking participants
-            const trackingRef = database.ref(`splitRideTracking/${splitRideId}`);
-            const trackingSnapshot = await trackingRef.once('value');
-            const tracking = trackingSnapshot.val();
-            
-            if (tracking) {
-                Object.keys(tracking).forEach(userId => {
-                    this.sendNotification(
-                        userId,
-                        `Split Ride ${ride.status === 'completed' ? 'Completed' : 'Cancelled'}`,
-                        `The split ride has been ${ride.status === 'completed' ? 'completed' : 'cancelled'}.`,
-                        ride.status === 'completed' ? 'success' : 'info',
-                        { splitRideId: splitRideId, rideId: ride.id }
-                    );
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Error updating split ride completion:', error);
-    }
-}
             
             // Add broadcast info if applicable
             if (rideData.isBroadcast && rideData.friends && rideData.friends.length > 0) {
@@ -16568,108 +15740,52 @@ if (shortParcelDesc) {
         });
     }
     
-   // Update the confirm payment button handler
-confirmPaymentBtn.addEventListener('click', async function() {
-    const selectedMethod = document.querySelector('.payment-method.selected');
-    if (!selectedMethod) {
-        EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
-        return;
+    // Confirm payment button
+    const confirmPaymentBtn = document.getElementById('confirmPaymentBtn');
+    if (confirmPaymentBtn) {
+        confirmPaymentBtn.addEventListener('click', function() {
+            const selectedMethod = document.querySelector('.payment-method.selected');
+            if (!selectedMethod) {
+                EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
+                return;
+            }
+            
+            const paymentMethod = selectedMethod.dataset.payment;
+            
+            // Get final fare amount
+            const finalFareElement = document.getElementById('finalFareAmount');
+            const finalFare = finalFareElement ? 
+                parseFloat(finalFareElement.textContent.replace('ZMW ', '')) : 
+                AppState.rideFare;
+            
+            // Check wallet balance if paying with wallet
+            if (paymentMethod === 'wallet' && finalFare > AppState.walletBalance) {
+                EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
+                return;
+            }
+            
+            // Update ride data with payment method
+            const rideData = AppState.pendingRideData;
+            if (!rideData) {
+                EnhancedUIUpdater.showToast('No ride data found', 'error');
+                return;
+            }
+            
+            rideData.paymentMethod = paymentMethod;
+            rideData.fare = finalFare;
+            
+            // Request the ride
+            EnhancedFirebaseManager.requestRide(rideData)
+                .then(() => {
+                    hideModal('payment');
+                    AppState.pendingRideData = null;
+                })
+                .catch(error => {
+                    console.error('Error requesting ride:', error);
+                    EnhancedUIUpdater.showToast('Error requesting ride', 'error');
+                });
+        });
     }
-    
-    const paymentMethod = selectedMethod.dataset.payment;
-    const rideData = AppState.pendingRideData;
-    
-    if (!rideData) {
-        EnhancedUIUpdater.showToast('No ride data found', 'error');
-        return;
-    }
-    
-    // Get final fare amount
-    const finalFareElement = document.getElementById('finalFareAmount');
-    const finalFare = finalFareElement ? 
-        parseFloat(finalFareElement.textContent.replace('ZMW ', '')) : 
-        AppState.rideFare;
-    
-    // Check wallet balance if paying with wallet
-    if (paymentMethod === 'wallet' && finalFare > AppState.walletBalance) {
-        EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
-        return;
-    }
-    
-    // Update ride data with payment method
-    rideData.paymentMethod = paymentMethod;
-    rideData.fare = finalFare;
-    
-    if (rideData.isSplitRide) {
-        // For split rides, create invitations first
-        EnhancedUIUpdater.showLoading('Creating split ride invitations...');
-        
-        try {
-            // Calculate each share
-            const eachShare = rideData.totalFare / rideData.participants;
-            
-            // Create split ride data
-            const splitRideData = {
-                pickup: rideData.pickup,
-                destination: rideData.destination,
-                participants: rideData.participants,
-                totalFare: rideData.totalFare,
-                eachShare: eachShare,
-                rideType: rideData.rideType,
-                distance: rideData.distance,
-                estimatedTime: rideData.estimatedTime,
-                friends: rideData.friends
-            };
-            
-            // Create split ride and invitations
-            const result = await EnhancedFirebaseManager.createSplitRideInvitations(splitRideData);
-            
-            // Store split ride ID for later use
-            rideData.splitRideId = result.splitRideId;
-            
-            // Only proceed with payment and ride request after all acceptances
-            EnhancedUIUpdater.hideLoading();
-            hideModal('payment');
-            
-            // Show status to user
-            EnhancedUIUpdater.showToast('Split ride invitations sent! Waiting for responses...', 'success');
-            
-            // Listen for split ride status changes
-            EnhancedFirebaseManager.listenToSplitRideStatus(result.splitRideId, async (status) => {
-                if (status === 'ready') {
-                    // All participants accepted, request the ride
-                    EnhancedUIUpdater.showLoading('Requesting split ride...');
-                    
-                    try {
-                        await EnhancedFirebaseManager.requestSplitRide(result.splitRideId, paymentMethod);
-                        EnhancedUIUpdater.hideLoading();
-                        EnhancedUIUpdater.showToast('Split ride requested successfully!', 'success');
-                    } catch (error) {
-                        EnhancedUIUpdater.hideLoading();
-                        EnhancedUIUpdater.showToast('Error requesting split ride: ' + error.message, 'error');
-                    }
-                } else if (status === 'incomplete') {
-                    EnhancedUIUpdater.showToast('Not enough participants accepted the split ride', 'warning');
-                }
-            });
-            
-        } catch (error) {
-            EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error creating split ride: ' + error.message, 'error');
-        }
-    } else {
-        // Regular ride - proceed immediately
-        EnhancedFirebaseManager.requestRide(rideData)
-            .then(() => {
-                hideModal('payment');
-                AppState.pendingRideData = null;
-            })
-            .catch(error => {
-                console.error('Error requesting ride:', error);
-                EnhancedUIUpdater.showToast('Error requesting ride', 'error');
-            });
-    }
-});
     
     // Modal close buttons
     document.querySelectorAll('.modal-close').forEach(btn => {
@@ -17612,7 +16728,6 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
-
 
 
 
