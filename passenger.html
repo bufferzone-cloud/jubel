@@ -194,7 +194,106 @@
             font-weight: 700;
             border: 2px solid var(--white);
         }
-        
+        /* Add these styles to the existing <style> section */
+.notifications-panel {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 350px;
+    height: 100vh;
+    background: white;
+    box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+    z-index: 10000;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.notifications-panel.active {
+    right: 0;
+}
+
+.notifications-header {
+    padding: 20px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f9f9f9;
+}
+
+.notifications-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.notifications-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.notifications-close:hover {
+    background: #f0f0f0;
+}
+
+.notifications-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.notification-item {
+    padding: 15px;
+    border-bottom: 1px solid #f5f5f5;
+    transition: background 0.2s;
+    cursor: pointer;
+}
+
+.notification-item:hover {
+    background: #f9f9f9;
+}
+
+.notification-item.unread {
+    background: #FFF3E0;
+}
+
+.notification-item.unread:hover {
+    background: #FFECB3;
+}
+
+/* Toast animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
         /* Ride Status Bar */
         .ride-status-bar {
             position: absolute;
@@ -11585,151 +11684,201 @@ const EnhancedUIUpdater = {
                 this.showToast('Error loading emergency stations', 'error');
             });
     },
-    
-    showNotificationsPanel: function() {
-        const panel = document.getElementById('notificationsPanel');
-        if (panel) {
-            panel.classList.add('active');
-            AppState.notificationsOpen = true;
-            
-            // Mark all as read
-            EnhancedFirebaseManager.markAllNotificationsAsRead();
-            
-            // Update notification badge
-            AppState.unreadNotifications = 0;
-            const badge = document.getElementById('notificationCount');
-            if (badge) {
-                badge.style.display = 'none';
-            }
+   // Find the showNotificationsPanel method in EnhancedUIUpdater and update it to:
+showNotificationsPanel: function() {
+    const panel = document.getElementById('notificationsPanel');
+    if (panel) {
+        panel.classList.add('active');
+        AppState.notificationsOpen = true;
+        
+        // Update notifications in the panel
+        this.updateNotifications(AppState.notifications);
+        
+        // Mark all as read
+        EnhancedFirebaseManager.markAllNotificationsAsRead();
+        
+        // Update notification badge
+        AppState.unreadNotifications = 0;
+        const badge = document.getElementById('notificationCount');
+        if (badge) {
+            badge.style.display = 'none';
         }
-    },
+    }
+},
+
+// Find the hideNotificationsPanel method and update it to:
+hideNotificationsPanel: function() {
+    const panel = document.getElementById('notificationsPanel');
+    if (panel) {
+        panel.classList.remove('active');
+        AppState.notificationsOpen = false;
+    }
+},
+
+// Find the updateNotifications method and update it to:
+updateNotifications: function(notifications) {
+    const container = document.getElementById('notificationsList');
+    if (!container) return;
     
-    hideNotificationsPanel: function() {
-        const panel = document.getElementById('notificationsPanel');
-        if (panel) {
-            panel.classList.remove('active');
-            AppState.notificationsOpen = false;
-        }
-    },
+    // Sort by timestamp (newest first)
+    const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
     
-    updateNotifications: function(notifications) {
-        const container = document.getElementById('notificationsList');
-        if (!container) return;
+    if (sortedNotifications.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #999;">
+                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
+                <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
+                <div>You're all caught up!</div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    sortedNotifications.forEach(notification => {
+        const time = new Date(notification.timestamp);
+        const timeString = this.formatTimeAgo(notification.timestamp);
         
-        // Sort by timestamp (newest first)
-        const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
+        let icon = 'fa-info-circle';
+        let iconColor = '#2196F3';
         
-        if (sortedNotifications.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: #999;">
-                    <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
-                    <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
-                    <div>You're all caught up!</div>
-                </div>
-            `;
-            return;
+        switch(notification.type) {
+            case 'success':
+                icon = 'fa-check-circle';
+                iconColor = '#4CAF50';
+                break;
+            case 'error':
+                icon = 'fa-exclamation-circle';
+                iconColor = '#F44336';
+                break;
+            case 'warning':
+                icon = 'fa-exclamation-triangle';
+                iconColor = '#FFC107';
+                break;
+            case 'ride':
+                icon = 'fa-car';
+                iconColor = '#FF6B35';
+                break;
+            case 'payment':
+                icon = 'fa-money-bill-wave';
+                iconColor = '#4CAF50';
+                break;
+            case 'referral':
+                icon = 'fa-gift';
+                iconColor = '#FF6B35';
+                break;
+            case 'split':
+                icon = 'fa-user-friends';
+                iconColor = '#2196F3';
+                break;
+            case 'broadcast':
+                icon = 'fa-broadcast-tower';
+                iconColor = '#FFC107';
+                break;
         }
         
-        let html = '';
-        
-        sortedNotifications.forEach(notification => {
-            const time = new Date(notification.timestamp);
-            const timeString = this.formatTimeAgo(notification.timestamp);
-            
-            let icon = 'fa-info-circle';
-            let iconColor = '#2196F3';
-            let bgColor = '#E3F2FD';
-            
-            switch(notification.type) {
-                case 'success':
-                    icon = 'fa-check-circle';
-                    iconColor = '#4CAF50';
-                    bgColor = '#E8F5E9';
-                    break;
-                case 'error':
-                    icon = 'fa-exclamation-circle';
-                    iconColor = '#F44336';
-                    bgColor = '#FFEBEE';
-                    break;
-                case 'warning':
-                    icon = 'fa-exclamation-triangle';
-                    iconColor = '#FFC107';
-                    bgColor = '#FFF8E1';
-                    break;
-                case 'ride':
-                    icon = 'fa-car';
-                    iconColor = '#FF6B35';
-                    bgColor = '#FFF3E0';
-                    break;
-                case 'payment':
-                    icon = 'fa-money-bill-wave';
-                    iconColor = '#4CAF50';
-                    bgColor = '#E8F5E9';
-                    break;
-                case 'referral':
-                    icon = 'fa-gift';
-                    iconColor = '#FF6B35';
-                    bgColor = '#FFF3E0';
-                    break;
-                case 'split':
-                    icon = 'fa-user-friends';
-                    iconColor = '#2196F3';
-                    bgColor = '#E3F2FD';
-                    break;
-                case 'broadcast':
-                    icon = 'fa-broadcast-tower';
-                    iconColor = '#FFC107';
-                    bgColor = '#FFF8E1';
-                    break;
-            }
-            
-            html += `
-                <div class="notification-item ${notification.read ? '' : 'unread'}" style="
-                    padding: 15px;
-                    border-bottom: 1px solid #eee;
-                    background: ${notification.read ? 'white' : bgColor};
-                    cursor: pointer;
-                ">
-                    <div style="display: flex; gap: 12px;">
-                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                            <i class="fas ${icon}"></i>
+        html += `
+            <div class="notification-item ${notification.read ? '' : 'unread'}" data-notification-id="${notification.id}">
+                <div style="display: flex; gap: 12px;">
+                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                            <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
+                            <div style="font-size: 12px; color: #999;">${timeString}</div>
                         </div>
-                        <div style="flex: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                                <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
-                                <div style="font-size: 12px; color: #999;">${timeString}</div>
-                            </div>
-                            <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
-                            ${notification.data ? `
-                            <div style="font-size: 12px; color: #999;">
-                                ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
-                            </div>
-                            ` : ''}
+                        <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
+                        ${notification.data ? `
+                        <div style="font-size: 12px; color: #999;">
+                            ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
                         </div>
+                        ` : ''}
                     </div>
                 </div>
-            `;
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+    
+    // Add click handlers for each notification
+    container.querySelectorAll('.notification-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const notificationId = item.dataset.notificationId;
+            const notification = sortedNotifications.find(n => n.id === notificationId);
+            
+            if (notification) {
+                this.handleNotificationClick(notification);
+            }
         });
-        
-        container.innerHTML = html;
-        
-        // Add click handlers
-        container.querySelectorAll('.notification-item').forEach((item, index) => {
-            item.addEventListener('click', () => {
-                const notification = sortedNotifications[index];
-                
-                // Mark as read
-                if (!notification.read) {
-                    EnhancedFirebaseManager.markNotificationAsRead(notification.id);
+    });
+},
+
+// Add this new method to EnhancedUIUpdater (place it after updateNotifications):
+handleNotificationClick: function(notification) {
+    console.log('Notification clicked:', notification);
+    
+    // Mark as read if not already read
+    if (!notification.read) {
+        EnhancedFirebaseManager.markNotificationAsRead(notification.id);
+    }
+    
+    // Handle different notification types
+    this.handleNotificationAction(notification);
+    
+    // Close notifications panel
+    this.hideNotificationsPanel();
+},
+
+// Update the handleNotificationAction method to:
+handleNotificationAction: function(notification) {
+    const action = notification.action;
+    const data = notification.data;
+    
+    switch(action) {
+        case 'view_ride':
+            if (data && data.rideId) {
+                // Load and show ride details
+                EnhancedFirebaseManager.loadRideDetails(data.rideId);
+                // Switch to home screen if needed
+                if (AppState.activeScreen !== 'home') {
+                    switchScreen('home');
                 }
-                
-                // Handle notification action
-                if (notification.action) {
-                    this.handleNotificationAction(notification.action, notification.data);
+            }
+            break;
+            
+        case 'open_chat':
+            if (data && data.rideId && AppState.currentRide && AppState.currentRide.id === data.rideId) {
+                // Open chat for current ride
+                const chatContainer = document.getElementById('chatContainer');
+                if (chatContainer) {
+                    chatContainer.classList.add('active');
+                    AppState.chatOpen = true;
                 }
-            });
-        });
-    },
+            }
+            break;
+            
+        case 'accept_split_invite':
+            if (data && data.splitRideId) {
+                this.showSplitRideAcceptanceModal(data.splitRideId);
+            }
+            break;
+            
+        case 'accept_broadcast_invite':
+            if (data && data.broadcastId) {
+                this.showBroadcastTrackingModal(data.broadcastId);
+            }
+            break;
+            
+        default:
+            // For notifications without specific actions, just show a toast
+            EnhancedUIUpdater.showToast(notification.message, notification.type || 'info');
+            break;
+    }
+},
     
     handleNotificationAction: function(action, data) {
         switch(action) {
@@ -12629,37 +12778,44 @@ const EnhancedFirebaseManager = {
         );
         
         // Notifications
-        const notificationsRef = database.ref(`notifications/${uid}`)
-            .orderByChild('timestamp')
-            .limitToLast(50);
-        
-        AppState.realtimeListeners.push(
-            notificationsRef.on('value', (snapshot) => {
-                const notifications = snapshot.val();
-                if (notifications) {
-                    const notificationsArray = Object.keys(notifications).map(id => ({
-                        id,
-                        ...notifications[id]
-                    }));
-                    
-                    AppState.notifications = notificationsArray;
-                    const unreadCount = notificationsArray.filter(n => !n.read).length;
-                    AppState.unreadNotifications = unreadCount;
-                    
-                    // Update notification badge
-                    const badge = document.getElementById('notificationCount');
-                    if (badge) {
-                        badge.textContent = unreadCount;
-                        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-                    }
-                    
-                    // Update notifications panel if open
-                    if (AppState.notificationsOpen) {
-                        EnhancedUIUpdater.updateNotifications(notificationsArray);
-                    }
+       const notificationsRef = database.ref(`notifications/${uid}`)
+    .orderByChild('timestamp')
+    .limitToLast(50);
+
+AppState.realtimeListeners.push(
+    notificationsRef.on('value', (snapshot) => {
+        const notifications = snapshot.val();
+        if (notifications) {
+            const notificationsArray = Object.keys(notifications).map(id => ({
+                id,
+                ...notifications[id]
+            }));
+            
+            // Update state
+            AppState.notifications = notificationsArray;
+            const unreadCount = notificationsArray.filter(n => !n.read).length;
+            AppState.unreadNotifications = unreadCount;
+            
+            // Update notification badge
+            this.updateNotificationBadge(unreadCount);
+            
+            // Update notifications panel if open
+            if (AppState.notificationsOpen) {
+                EnhancedUIUpdater.updateNotifications(notificationsArray);
+            }
+            
+            // Show toast for new unread notifications
+            notificationsArray.forEach(notification => {
+                if (!notification.read && notification.timestamp > Date.now() - 10000) {
+                    // Only show toast for very recent notifications (last 10 seconds)
+                    setTimeout(() => {
+                        EnhancedUIUpdater.showToast(notification.message, notification.type);
+                    }, 500);
                 }
-            })
-        );
+            });
+        }
+    })
+);
         
        // Wallet transactions
 const transactionsRef = database.ref(`walletTransactions/${uid}`)
@@ -12868,37 +13024,49 @@ AppState.realtimeListeners.push(
         }
     },
     
-    async loadNotifications(uid) {
-        try {
-            const snapshot = await database.ref(`notifications/${uid}`)
-                .orderByChild('timestamp')
-                .limitToLast(50)
-                .once('value');
+   // Find the loadNotifications method and update it to:
+async loadNotifications(uid) {
+    try {
+        const snapshot = await database.ref(`notifications/${uid}`)
+            .orderByChild('timestamp')
+            .limitToLast(50)
+            .once('value');
+        
+        const notifications = snapshot.val();
+        if (notifications) {
+            const notificationsArray = Object.keys(notifications).map(id => ({
+                id,
+                ...notifications[id]
+            }));
             
-            const notifications = snapshot.val();
-            if (notifications) {
-                const notificationsArray = Object.keys(notifications).map(id => ({
-                    id,
-                    ...notifications[id]
-                }));
-                
-                AppState.notifications = notificationsArray;
-                const unreadCount = notificationsArray.filter(n => !n.read).length;
-                AppState.unreadNotifications = unreadCount;
-                
-                // Update notification badge
-                const badge = document.getElementById('notificationCount');
-                if (badge) {
-                    badge.textContent = unreadCount;
-                    badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-                }
-                
-                console.log(`Loaded ${notificationsArray.length} notifications`);
+            AppState.notifications = notificationsArray;
+            const unreadCount = notificationsArray.filter(n => !n.read).length;
+            AppState.unreadNotifications = unreadCount;
+            
+            // Update notification badge
+            this.updateNotificationBadge(unreadCount);
+            
+            // Update notifications panel if open
+            if (AppState.notificationsOpen) {
+                EnhancedUIUpdater.updateNotifications(notificationsArray);
             }
-        } catch (error) {
-            console.error('Error loading notifications:', error);
+            
+            console.log(`Loaded ${notificationsArray.length} notifications (${unreadCount} unread)`);
         }
-    },
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+    }
+},
+
+// Add this helper method to EnhancedFirebaseManager (place after loadNotifications):
+updateNotificationBadge: function(count) {
+    const badge = document.getElementById('notificationCount');
+    if (badge) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+},
+
     
    loadWalletTransactions: async function(uid) {
     try {
@@ -13293,13 +13461,15 @@ if (rideData.vehicleType) {
             EnhancedUIUpdater.showToast('Ride requested successfully!', 'success');
             
             // Send notification
-            this.sendNotification(
-                AppState.currentUser.uid,
-                'Ride Requested',
-                'Your ride has been requested. Searching for a driver...',
-                'ride',
-                { rideId: rideId, action: 'view_ride' }
-            );
+           // Change it to:
+this.sendNotification(
+    AppState.currentUser.uid,
+    'Ride Requested',
+    'Your ride has been requested. Searching for a driver...',
+    'ride',
+    { rideId: rideId },
+    'view_ride'
+);
             
             return rideId;
         } catch (error) {
@@ -13309,7 +13479,24 @@ if (rideData.vehicleType) {
             throw error;
         }
     },
-    
+
+    // Add this method to EnhancedFirebaseManager (place it after the other methods):
+async loadRideDetails(rideId) {
+    try {
+        const snapshot = await database.ref(`rides/${rideId}`).once('value');
+        const ride = snapshot.val();
+        
+        if (ride) {
+            // Show ride details in the UI
+            EnhancedUIUpdater.showRideDetailsModal(ride);
+            return ride;
+        }
+        return null;
+    } catch (error) {
+        console.error('Error loading ride details:', error);
+        return null;
+    }
+},
     async requestScheduledRide(rideData) {
         try {
             // Create scheduled ride entry
@@ -13774,55 +13961,108 @@ withdrawMoney: async function(amount, description = 'Withdrawal', reference = nu
     }
 },
     
-    async sendNotification(userId, title, message, type = 'info', data = null) {
-        try {
-            const notificationId = database.ref().child('notifications').push().key;
+    // Find the sendNotification method and update it to:
+async sendNotification(userId, title, message, type = 'info', data = null, action = null) {
+    try {
+        const notificationId = database.ref().child('notifications').push().key;
+        
+        const notification = {
+            id: notificationId,
+            userId: userId,
+            title: title,
+            message: message,
+            type: type,
+            data: data,
+            action: action,
+            read: false,
+            timestamp: Date.now()
+        };
+        
+        await database.ref(`notifications/${userId}/${notificationId}`).set(notification);
+        
+        // Update local state if this is for current user
+        if (userId === AppState.currentUser?.uid) {
+            // Add to local notifications array
+            AppState.notifications.unshift(notification);
             
-            const notification = {
-                id: notificationId,
-                userId: userId,
-                title: title,
-                message: message,
-                type: type,
-                data: data,
-                read: false,
-                timestamp: Date.now()
-            };
+            // Update unread count
+            AppState.unreadNotifications++;
             
-            await database.ref(`notifications/${userId}/${notificationId}`).set(notification);
+            // Update badge
+            this.updateNotificationBadge(AppState.unreadNotifications);
             
-            return notificationId;
-        } catch (error) {
-            console.error('Error sending notification:', error);
-        }
-    },
-    
-    async markNotificationAsRead(notificationId) {
-        try {
-            await database.ref(`notifications/${AppState.currentUser.uid}/${notificationId}/read`).set(true);
-        } catch (error) {
-            console.error('Error marking notification as read:', error);
-        }
-    },
-    
-    async markAllNotificationsAsRead() {
-        try {
-            const notificationsRef = database.ref(`notifications/${AppState.currentUser.uid}`);
-            const snapshot = await notificationsRef.once('value');
-            const notifications = snapshot.val();
-            
-            if (notifications) {
-                const updates = {};
-                Object.keys(notifications).forEach(id => {
-                    updates[`${id}/read`] = true;
-                });
-                
-                await notificationsRef.update(updates);
+            // Update notifications panel if open
+            if (AppState.notificationsOpen) {
+                EnhancedUIUpdater.updateNotifications(AppState.notifications);
             }
-        } catch (error) {
-            console.error('Error marking all notifications as read:', error);
+            
+            // Show toast for important notifications
+            if (type === 'error' || type === 'warning' || type === 'success') {
+                setTimeout(() => {
+                    EnhancedUIUpdater.showToast(message, type);
+                }, 1000);
+            }
         }
-    },
+        
+        console.log(`Notification sent: ${title}`);
+        return notificationId;
+    } catch (error) {
+        console.error('Error sending notification:', error);
+    }
+},
+    
+   // Find the markNotificationAsRead method and update it to:
+async markNotificationAsRead(notificationId) {
+    try {
+        await database.ref(`notifications/${AppState.currentUser.uid}/${notificationId}/read`).set(true);
+        
+        // Update local state
+        const notification = AppState.notifications.find(n => n.id === notificationId);
+        if (notification && !notification.read) {
+            notification.read = true;
+            AppState.unreadNotifications = Math.max(0, AppState.unreadNotifications - 1);
+            
+            // Update badge
+            this.updateNotificationBadge(AppState.unreadNotifications);
+            
+            // Update notifications panel if open
+            if (AppState.notificationsOpen) {
+                EnhancedUIUpdater.updateNotifications(AppState.notifications);
+            }
+        }
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
+},
+
+// Find the markAllNotificationsAsRead method and update it to:
+async markAllNotificationsAsRead() {
+    try {
+        const notificationsRef = database.ref(`notifications/${AppState.currentUser.uid}`);
+        const snapshot = await notificationsRef.once('value');
+        const notifications = snapshot.val();
+        
+        if (notifications) {
+            const updates = {};
+            Object.keys(notifications).forEach(id => {
+                updates[`${id}/read`] = true;
+            });
+            
+            await notificationsRef.update(updates);
+            
+            // Update local state
+            AppState.notifications.forEach(n => n.read = true);
+            AppState.unreadNotifications = 0;
+            
+            // Update badge
+            this.updateNotificationBadge(0);
+            
+            console.log('All notifications marked as read');
+        }
+    } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+    }
+},
     
     async sendChatMessage(rideId, message, isDriver = false) {
         try {
@@ -17581,21 +17821,42 @@ if (shortParcelDesc) {
         });
     }
     
-    // Notification bell
-    const notificationBell = document.getElementById('notificationBell');
-    if (notificationBell) {
-        notificationBell.addEventListener('click', function() {
-            EnhancedUIUpdater.showNotificationsPanel();
-        });
-    }
-    
-    // Close notifications button
-    const notificationsClose = document.getElementById('notificationsClose');
-    if (notificationsClose) {
-        notificationsClose.addEventListener('click', function() {
+   // Find the notification bell event listener and update it to:
+// Notification bell
+const notificationBell = document.getElementById('notificationBell');
+if (notificationBell) {
+    notificationBell.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (AppState.notificationsOpen) {
             EnhancedUIUpdater.hideNotificationsPanel();
-        });
+        } else {
+            EnhancedUIUpdater.showNotificationsPanel();
+        }
+    });
+}
+
+// Find the notifications close button and update it to:
+// Close notifications button
+const notificationsClose = document.getElementById('notificationsClose');
+if (notificationsClose) {
+    notificationsClose.addEventListener('click', function(e) {
+        e.stopPropagation();
+        EnhancedUIUpdater.hideNotificationsPanel();
+    });
+}
+
+// Add this new event listener to close notifications when clicking outside:
+// Close notifications when clicking outside
+document.addEventListener('click', function(e) {
+    const panel = document.getElementById('notificationsPanel');
+    const bell = document.getElementById('notificationBell');
+    
+    if (panel && panel.classList.contains('active') && 
+        !panel.contains(e.target) && 
+        !bell.contains(e.target)) {
+        EnhancedUIUpdater.hideNotificationsPanel();
     }
+});
     
     // Emergency services
     document.querySelectorAll('.emergency-service').forEach(service => {
