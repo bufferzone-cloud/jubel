@@ -10068,57 +10068,7 @@ const EnhancedUIUpdater = {
             if (sosButton) sosButton.style.display = 'flex';
         }
     },
-
-requestScheduledRideNow: function(scheduledRide) {
-    EnhancedUIUpdater.showLoading('Requesting scheduled ride...');
     
-    // Convert scheduled ride to regular ride data
-    const rideData = {
-        pickup: {
-            lat: scheduledRide.pickupLat,
-            lng: scheduledRide.pickupLng,
-            address: scheduledRide.pickup,
-            name: scheduledRide.pickupDisplay
-        },
-        destination: {
-            lat: scheduledRide.destLat,
-            lng: scheduledRide.destLng,
-            address: scheduledRide.destination,
-            name: scheduledRide.destinationDisplay
-        },
-        rideType: scheduledRide.rideType,
-        fare: scheduledRide.fare,
-        distance: scheduledRide.distance,
-        paymentMethod: scheduledRide.paymentMethod,
-        serviceType: scheduledRide.serviceType || 'car'
-    };
-    
-    // Add recipient info if applicable
-    if (scheduledRide.recipientName) {
-        rideData.isForSomeone = true;
-        rideData.recipientName = scheduledRide.recipientName;
-        rideData.recipientPhone = scheduledRide.recipientPhone;
-        rideData.instructions = scheduledRide.instructions;
-    }
-    
-    // Request the ride
-    EnhancedFirebaseManager.requestRide(rideData)
-        .then(() => {
-            // Update scheduled ride status
-            database.ref(`scheduledRides/${scheduledRide.id}`).update({
-                status: 'activated',
-                activatedAt: Date.now()
-            });
-            
-            EnhancedUIUpdater.hideLoading();
-        })
-        .catch(error => {
-            console.error('Error requesting scheduled ride:', error);
-            EnhancedUIUpdater.hideLoading();
-            EnhancedUIUpdater.showToast('Error starting scheduled ride', 'error');
-        });
-}
-        
     updateRideDetails: function(ride) {
         const currentPickup = document.getElementById('currentPickup');
         const currentDestination = document.getElementById('currentDestination');
@@ -10265,10 +10215,10 @@ requestScheduledRideNow: function(scheduledRide) {
         });
     },
     
-   showPaymentModal: function(amount, rideData) {
-    // Store ride data
-    AppState.pendingRideData = rideData;
-    AppState.rideFare = amount;
+    showPaymentModal: function(amount, rideData) {
+        // Store ride data
+        AppState.pendingRideData = rideData;
+        AppState.rideFare = amount;
         
         // Update modal content
         const paymentAmount = document.getElementById('paymentAmount');
@@ -10443,14 +10393,13 @@ requestScheduledRideNow: function(scheduledRide) {
     },
     
     showScheduleCountdown: function(scheduledTime, rideData) {
-    const now = Date.now();
-    const timeUntilRide = scheduledTime - now;
-    
-    if (timeUntilRide <= 0) {
-        // Time's up! Request the ride immediately
-        this.requestScheduledRideNow(rideData);
-        return;
-    }
+        const now = Date.now();
+        const timeUntilRide = scheduledTime - now;
+        
+        if (timeUntilRide <= 0) {
+            EnhancedFirebaseManager.requestScheduledRide(rideData);
+            return;
+        }
         
         // Create or update countdown container
         let countdownContainer = document.getElementById('scheduleCountdown');
@@ -13469,69 +13418,6 @@ if (rideData.vehicleType) {
                 
                 ride.broadcastId = broadcastId;
             }
-
-
-             // Check if this is a scheduled ride
-        if (rideData.isScheduled && rideData.scheduledTime) {
-            // This is a scheduled ride, create scheduled entry instead of immediate ride
-            const scheduledRideId = database.ref().child('scheduledRides').push().key;
-            
-            const scheduledRide = {
-                id: scheduledRideId,
-                passengerId: AppState.currentUser.uid,
-                passengerName: AppState.userData.name,
-                passengerPhone: AppState.userData.phone,
-                pickup: rideData.pickup.address,
-                pickupDisplay: rideData.pickup.name || rideData.pickup.address,
-                pickupLat: rideData.pickup.lat,
-                pickupLng: rideData.pickup.lng,
-                destination: rideData.destination.address,
-                destinationDisplay: rideData.destination.name || rideData.destination.address,
-                destLat: rideData.destination.lat,
-                destLng: rideData.destination.lng,
-                rideType: rideData.rideType || 'standard',
-                fare: rideData.fare,
-                originalFare: rideData.originalFare || rideData.fare,
-                distance: rideData.distance,
-                estimatedTime: rideData.estimatedTime || EnhancedPriceCalculator.estimateTime(rideData.distance, rideData.rideType),
-                status: 'scheduled',
-                timestamp: Date.now(),
-                scheduledTime: rideData.scheduledTime,
-                city: AppState.currentCity,
-                paymentMethod: rideData.paymentMethod || 'wallet'
-            };
-            
-            // Add recipient info if booking for someone else
-            if (rideData.isForSomeone) {
-                scheduledRide.recipientName = rideData.recipientName;
-                scheduledRide.recipientPhone = rideData.recipientPhone;
-                scheduledRide.instructions = rideData.instructions;
-            }
-            
-            // Save scheduled ride to database
-            await database.ref(`scheduledRides/${scheduledRideId}`).set(scheduledRide);
-            
-            // Deduct fare from wallet if payment method is wallet
-            if (rideData.paymentMethod === 'wallet') {
-                await this.withdrawMoney(rideData.fare, 'Scheduled ride payment', scheduledRideId);
-            }
-            
-            EnhancedUIUpdater.hideLoading();
-            
-            // Show countdown timer
-            EnhancedUIUpdater.showScheduleCountdown(rideData.scheduledTime, scheduledRide);
-            
-            // Send notification
-            this.sendNotification(
-                AppState.currentUser.uid,
-                'Ride Scheduled',
-                `Your ride is scheduled for ${new Date(rideData.scheduledTime).toLocaleString()}`,
-                'success',
-                { scheduledRideId: scheduledRideId }
-            );
-            
-            return scheduledRideId;
-        }
             
             // Add emergency info if applicable
             if (rideData.isEmergency) {
@@ -17606,41 +17492,7 @@ function setupEventListeners() {
     }
 
 // Inside setupEventListeners function, add these event listeners:
-// Order for someone modal - open button
-const orderForSomeoneBtn = document.querySelector('[data-option="orderForSomeone"]');
-if (orderForSomeoneBtn) {
-    orderForSomeoneBtn.addEventListener('click', function() {
-        showModal('orderForSomeone');
-        
-        // Auto-fill pickup location if available
-        if (AppState.pickup) {
-            const pickupInput = document.getElementById('someonePickup');
-            if (pickupInput) {
-                pickupInput.value = AppState.pickup.address;
-                pickupInput.dataset.lat = AppState.pickup.lat;
-                pickupInput.dataset.lng = AppState.pickup.lng;
-            }
-        }
-    });
-}
 
-// Schedule ride modal - open button
-const scheduleRideBtn = document.querySelector('[data-option="schedule"]');
-if (scheduleRideBtn) {
-    scheduleRideBtn.addEventListener('click', function() {
-        showModal('schedule');
-        
-        // Auto-fill pickup location if available
-        if (AppState.pickup) {
-            const pickupInput = document.getElementById('schedulePickup');
-            if (pickupInput) {
-                pickupInput.value = AppState.pickup.address;
-                pickupInput.dataset.lat = AppState.pickup.lat;
-                pickupInput.dataset.lng = AppState.pickup.lng;
-            }
-        }
-    });
-}
 // Destination input for shopping service
 const shoppingDestination = document.getElementById('shoppingDestination');
 if (shoppingDestination) {
@@ -18134,126 +17986,67 @@ document.addEventListener('click', function(e) {
                 return;
             }
             
-             // Calculate distance and fare
-        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
-            AppState.pickup,
-            AppState.destination,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(
-            distance,
-            AppState.selectedRideType,
-            surge,
-            null,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-        
-        // Create scheduled ride data
-        const scheduledRideData = {
-            pickup: AppState.pickup,
-            destination: AppState.destination,
-            rideType: AppState.selectedRideType,
-            fare: fare,
-            distance: distance,
-            stops: AppState.rideStops.filter(stop => stop.location),
-            scheduledTime: scheduledTime,
-            forSomeone: forSomeone
-        };
-        
-        // Add recipient details if applicable
-        if (forSomeone) {
-            scheduledRideData.recipientName = document.getElementById('recipientName').value;
-            scheduledRideData.recipientPhone = document.getElementById('recipientPhone').value;
+            // Calculate distance and fare
+            const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
+                AppState.pickup,
+                AppState.destination,
+                AppState.rideStops.filter(stop => stop.location)
+            );
             
-            if (!scheduledRideData.recipientName || !scheduledRideData.recipientPhone) {
-                EnhancedUIUpdater.showToast('Please enter recipient details', 'warning');
-                return;
+            const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+            const fare = EnhancedPriceCalculator.calculateRideFare(
+                distance,
+                AppState.selectedRideType,
+                surge,
+                null,
+                AppState.rideStops.filter(stop => stop.location)
+            );
+            
+            // Create scheduled ride data
+            const scheduledRideData = {
+                pickup: AppState.pickup,
+                destination: AppState.destination,
+                rideType: AppState.selectedRideType,
+                fare: fare,
+                distance: distance,
+                stops: AppState.rideStops.filter(stop => stop.location),
+                scheduledTime: scheduledTime,
+                forSomeone: forSomeone
+            };
+            
+            // Add recipient details if applicable
+            if (forSomeone) {
+                scheduledRideData.recipientName = document.getElementById('recipientName').value;
+                scheduledRideData.recipientPhone = document.getElementById('recipientPhone').value;
+                
+                if (!scheduledRideData.recipientName || !scheduledRideData.recipientPhone) {
+                    EnhancedUIUpdater.showToast('Please enter recipient details', 'warning');
+                    return;
+                }
             }
-        }
-        
-        // Show payment modal instead of directly scheduling
-        EnhancedUIUpdater.showPaymentModal(fare, {
-            ...scheduledRideData,
-            isScheduled: true,
-            scheduledTime: scheduledTime
+            
+            // Schedule the ride
+            EnhancedFirebaseManager.requestScheduledRide(scheduledRideData)
+                .then(() => {
+                    hideModal('schedule');
+                    
+                    // Reset form
+                    document.getElementById('scheduleForSomeone').checked = false;
+                    document.getElementById('recipientName').value = '';
+                    document.getElementById('recipientPhone').value = '';
+                    
+                    const someoneElseDetails = document.getElementById('someoneElseDetails');
+                    if (someoneElseDetails) {
+                        someoneElseDetails.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error scheduling ride:', error);
+                    EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
+                });
         });
-        
-        hideModal('schedule');
-        
-        // Reset form
-        document.getElementById('scheduleForSomeone').checked = false;
-        document.getElementById('recipientName').value = '';
-        document.getElementById('recipientPhone').value = '';
-        
-        const someoneElseDetails = document.getElementById('someoneElseDetails');
-        if (someoneElseDetails) {
-            someoneElseDetails.style.display = 'none';
-        }
-    });
-}
-
-        // In setupEventListeners(), find or add this code:
-const confirmSomeoneRideBtn = document.getElementById('confirmSomeoneRideBtn');
-if (confirmSomeoneRideBtn) {
-    confirmSomeoneRideBtn.addEventListener('click', function() {
-        // Validate inputs
-        const recipientName = document.getElementById('someoneName').value;
-        const recipientPhone = document.getElementById('someonePhone').value;
-        
-        if (!recipientName || !recipientPhone) {
-            EnhancedUIUpdater.showToast('Please enter recipient details', 'warning');
-            return;
-        }
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
-            return;
-        }
-        
-        // Get selected ride type
-        const selectedRideTypeCard = document.querySelector('#someoneRideTypeGrid .ride-type-card.selected');
-        const rideType = selectedRideTypeCard ? selectedRideTypeCard.dataset.type : 'standard';
-        
-        // Calculate distance and fare
-        const distance = EnhancedPriceCalculator.calculateDistance(
-            AppState.pickup.lat, AppState.pickup.lng,
-            AppState.destination.lat, AppState.destination.lng
-        );
-        
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(
-            distance,
-            rideType,
-            surge,
-            null,
-            []
-        );
-        
-        // Get instructions
-        const instructions = document.getElementById('someoneInstructions').value;
-        
-        // Create ride data for someone else
-        const rideData = {
-            pickup: AppState.pickup,
-            destination: AppState.destination,
-            rideType: rideType,
-            fare: fare,
-            distance: distance,
-            isForSomeone: true,
-            recipientName: recipientName,
-            recipientPhone: recipientPhone,
-            instructions: instructions
-        };
-        
-        // Show payment modal
-        EnhancedUIUpdater.showPaymentModal(fare, rideData);
-        
-        // Close modal
-        hideModal('orderForSomeone');
-    });
-}
+    }
+    
     // Schedule for someone checkbox
     const scheduleForSomeone = document.getElementById('scheduleForSomeone');
     if (scheduleForSomeone) {
