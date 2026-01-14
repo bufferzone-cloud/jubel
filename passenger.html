@@ -269,6 +269,112 @@
             font-size: 12px;
             font-weight: 500;
         }
+        /* Enhanced Notifications Panel Styles */
+.notifications-panel {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 350px;
+    height: 100vh;
+    background: white;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+    z-index: 10002;
+    transition: right 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.notifications-panel.active {
+    right: 0;
+}
+
+.notifications-header {
+    padding: 20px;
+    background: linear-gradient(135deg, #FF6B35 0%, #FF8B35 100%);
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.notifications-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.notifications-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.notifications-close:hover {
+    background: rgba(255,255,255,0.2);
+}
+
+.notifications-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.notification-item {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.notification-item:hover {
+    background: #f9f9f9;
+}
+
+.notification-item.unread {
+    background: #f0f7ff;
+}
+
+.notification-item.unread:hover {
+    background: #e6f0ff;
+}
+
+/* Notification badge animation */
+.notification-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #FF6B35;
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 107, 53, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 6px rgba(255, 107, 53, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 107, 53, 0);
+    }
+}
         
         /* Emergency Status */
         .emergency-status {
@@ -4678,10 +4784,10 @@
                 <i class="fas fa-wallet"></i>
                 <span>Balance: <span class="balance-amount" id="walletBalance">ZMW 0.00</span></span>
             </div>
-            <div class="notification-bell" id="notificationBell">
-                <i class="fas fa-bell"></i>
-                <span class="notification-badge" id="notificationCount">0</span>
-            </div>
+           <div class="notification-bell" id="notificationBell">
+    <i class="fas fa-bell"></i>
+    <span class="notification-badge" id="notificationCount">0</span>
+</div>
         </div>
     </div>
     
@@ -11481,169 +11587,190 @@ const EnhancedUIUpdater = {
     },
     
     showNotificationsPanel: function() {
-        const panel = document.getElementById('notificationsPanel');
-        if (panel) {
-            panel.classList.add('active');
-            AppState.notificationsOpen = true;
-            
-            // Mark all as read
-            EnhancedFirebaseManager.markAllNotificationsAsRead();
-            
-            // Update notification badge
-            AppState.unreadNotifications = 0;
-            const badge = document.getElementById('notificationCount');
-            if (badge) {
-                badge.style.display = 'none';
-            }
+    const panel = document.getElementById('notificationsPanel');
+    if (panel) {
+        panel.classList.add('active');
+        AppState.notificationsOpen = true;
+        
+        // Mark all as read
+        EnhancedFirebaseManager.markAllNotificationsAsRead();
+        
+        // Update notification badge
+        AppState.unreadNotifications = 0;
+        const badge = document.getElementById('notificationCount');
+        if (badge) {
+            badge.style.display = 'none';
         }
-    },
+        
+        // Load notifications
+        this.updateNotifications(AppState.notifications);
+    }
+},
+
+hideNotificationsPanel: function() {
+    const panel = document.getElementById('notificationsPanel');
+    if (panel) {
+        panel.classList.remove('active');
+        AppState.notificationsOpen = false;
+    }
+},
     
-    hideNotificationsPanel: function() {
-        const panel = document.getElementById('notificationsPanel');
-        if (panel) {
-            panel.classList.remove('active');
-            AppState.notificationsOpen = false;
-        }
-    },
+   updateNotifications: function(notifications) {
+    const container = document.getElementById('notificationsList');
+    if (!container) return;
     
-    updateNotifications: function(notifications) {
-        const container = document.getElementById('notificationsList');
-        if (!container) return;
+    // Sort by timestamp (newest first)
+    const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
+    
+    if (sortedNotifications.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: #999;">
+                <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
+                <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
+                <div>You're all caught up!</div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    
+    sortedNotifications.forEach(notification => {
+        const time = new Date(notification.timestamp);
+        const timeString = this.formatTimeAgo(notification.timestamp);
         
-        // Sort by timestamp (newest first)
-        const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
+        let icon = 'fa-info-circle';
+        let iconColor = '#2196F3';
+        let bgColor = notification.read ? 'white' : '#E3F2FD';
         
-        if (sortedNotifications.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: #999;">
-                    <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
-                    <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
-                    <div>You're all caught up!</div>
-                </div>
-            `;
-            return;
+        switch(notification.type) {
+            case 'success':
+                icon = 'fa-check-circle';
+                iconColor = '#4CAF50';
+                bgColor = notification.read ? 'white' : '#E8F5E9';
+                break;
+            case 'error':
+                icon = 'fa-exclamation-circle';
+                iconColor = '#F44336';
+                bgColor = notification.read ? 'white' : '#FFEBEE';
+                break;
+            case 'warning':
+                icon = 'fa-exclamation-triangle';
+                iconColor = '#FFC107';
+                bgColor = notification.read ? 'white' : '#FFF8E1';
+                break;
+            case 'ride':
+                icon = 'fa-car';
+                iconColor = '#FF6B35';
+                bgColor = notification.read ? 'white' : '#FFF3E0';
+                break;
+            case 'payment':
+                icon = 'fa-money-bill-wave';
+                iconColor = '#4CAF50';
+                bgColor = notification.read ? 'white' : '#E8F5E9';
+                break;
+            case 'referral':
+                icon = 'fa-gift';
+                iconColor = '#FF6B35';
+                bgColor = notification.read ? 'white' : '#FFF3E0';
+                break;
+            case 'split':
+                icon = 'fa-user-friends';
+                iconColor = '#2196F3';
+                bgColor = notification.read ? 'white' : '#E3F2FD';
+                break;
+            case 'broadcast':
+                icon = 'fa-broadcast-tower';
+                iconColor = '#FFC107';
+                bgColor = notification.read ? 'white' : '#FFF8E1';
+                break;
         }
         
-        let html = '';
-        
-        sortedNotifications.forEach(notification => {
-            const time = new Date(notification.timestamp);
-            const timeString = this.formatTimeAgo(notification.timestamp);
-            
-            let icon = 'fa-info-circle';
-            let iconColor = '#2196F3';
-            let bgColor = '#E3F2FD';
-            
-            switch(notification.type) {
-                case 'success':
-                    icon = 'fa-check-circle';
-                    iconColor = '#4CAF50';
-                    bgColor = '#E8F5E9';
-                    break;
-                case 'error':
-                    icon = 'fa-exclamation-circle';
-                    iconColor = '#F44336';
-                    bgColor = '#FFEBEE';
-                    break;
-                case 'warning':
-                    icon = 'fa-exclamation-triangle';
-                    iconColor = '#FFC107';
-                    bgColor = '#FFF8E1';
-                    break;
-                case 'ride':
-                    icon = 'fa-car';
-                    iconColor = '#FF6B35';
-                    bgColor = '#FFF3E0';
-                    break;
-                case 'payment':
-                    icon = 'fa-money-bill-wave';
-                    iconColor = '#4CAF50';
-                    bgColor = '#E8F5E9';
-                    break;
-                case 'referral':
-                    icon = 'fa-gift';
-                    iconColor = '#FF6B35';
-                    bgColor = '#FFF3E0';
-                    break;
-                case 'split':
-                    icon = 'fa-user-friends';
-                    iconColor = '#2196F3';
-                    bgColor = '#E3F2FD';
-                    break;
-                case 'broadcast':
-                    icon = 'fa-broadcast-tower';
-                    iconColor = '#FFC107';
-                    bgColor = '#FFF8E1';
-                    break;
-            }
-            
-            html += `
-                <div class="notification-item ${notification.read ? '' : 'unread'}" style="
-                    padding: 15px;
-                    border-bottom: 1px solid #eee;
-                    background: ${notification.read ? 'white' : bgColor};
-                    cursor: pointer;
-                ">
-                    <div style="display: flex; gap: 12px;">
-                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                            <i class="fas ${icon}"></i>
+        html += `
+            <div class="notification-item ${notification.read ? '' : 'unread'}" 
+                 data-notification-id="${notification.id}"
+                 style="background: ${bgColor};">
+                <div style="display: flex; gap: 12px;">
+                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                            <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
+                            <div style="font-size: 12px; color: #999;">${timeString}</div>
                         </div>
-                        <div style="flex: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                                <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
-                                <div style="font-size: 12px; color: #999;">${timeString}</div>
-                            </div>
-                            <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
-                            ${notification.data ? `
-                            <div style="font-size: 12px; color: #999;">
-                                ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
-                            </div>
-                            ` : ''}
+                        <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
+                        ${notification.data ? `
+                        <div style="font-size: 12px; color: #999;">
+                            ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
                         </div>
+                        ` : ''}
                     </div>
                 </div>
-            `;
-        });
-        
-        container.innerHTML = html;
-        
-        // Add click handlers
-        container.querySelectorAll('.notification-item').forEach((item, index) => {
-            item.addEventListener('click', () => {
-                const notification = sortedNotifications[index];
-                
-                // Mark as read
-                if (!notification.read) {
-                    EnhancedFirebaseManager.markNotificationAsRead(notification.id);
-                }
-                
-                // Handle notification action
-                if (notification.action) {
-                    this.handleNotificationAction(notification.action, notification.data);
-                }
-            });
-        });
-    },
+            </div>
+        `;
+    });
     
-    handleNotificationAction: function(action, data) {
-        switch(action) {
-            case 'view_ride':
-                if (data.rideId) {
-                    EnhancedFirebaseManager.loadRideDetails(data.rideId);
+    container.innerHTML = html;
+    
+    // Add click handlers to notification items
+    container.querySelectorAll('.notification-item').forEach((item, index) => {
+        item.addEventListener('click', () => {
+            const notification = sortedNotifications[index];
+            const notificationId = item.dataset.notificationId;
+            
+            // Mark as read
+            if (!notification.read) {
+                EnhancedFirebaseManager.markNotificationAsRead(notificationId);
+                item.classList.remove('unread');
+                item.style.background = 'white';
+            }
+            
+            // Handle notification action
+            if (notification.action) {
+                this.handleNotificationAction(notification.action, notification.data);
+            }
+            
+            // Hide panel after clicking
+            setTimeout(() => {
+                this.hideNotificationsPanel();
+            }, 300);
+        });
+    });
+},
+    
+   handleNotificationAction: function(action, data) {
+    switch(action) {
+        case 'view_ride':
+            if (data.rideId) {
+                // Load and show ride details
+                EnhancedFirebaseManager.loadRideDetails(data.rideId);
+            }
+            break;
+        case 'accept_split_invite':
+            if (data.splitRideId) {
+                this.showSplitRideAcceptanceModal(data.splitRideId);
+            }
+            break;
+        case 'accept_broadcast_invite':
+            if (data.broadcastId) {
+                this.showBroadcastTrackingModal(data.broadcastId);
+            }
+            break;
+        case 'open_chat':
+            if (data.rideId) {
+                // Open chat for the ride
+                const chatContainer = document.getElementById('chatContainer');
+                if (chatContainer) {
+                    chatContainer.classList.add('active');
+                    AppState.chatOpen = true;
                 }
-                break;
-            case 'accept_split_invite':
-                if (data.splitRideId) {
-                    this.showSplitRideAcceptanceModal(data.splitRideId);
-                }
-                break;
-            case 'accept_broadcast_invite':
-                if (data.broadcastId) {
-                    this.showBroadcastTrackingModal(data.broadcastId);
-                }
-                break;
-        }
-    },
+            }
+            break;
+        default:
+            console.log('Notification action:', action, data);
+    }
+},
     
     showSplitRideAcceptanceModal: function(splitRideId) {
         // Fetch split ride details
@@ -12521,39 +12648,127 @@ const EnhancedFirebaseManager = {
                 }
             })
         );
+
+// In EnhancedFirebaseManager object
+markNotificationAsRead: async function(notificationId) {
+    try {
+        await database.ref(`notifications/${AppState.currentUser.uid}/${notificationId}/read`).set(true);
+        
+        // Update local state
+        const notification = AppState.notifications.find(n => n.id === notificationId);
+        if (notification) {
+            notification.read = true;
+        }
+        
+        // Update unread count
+        AppState.unreadNotifications = Math.max(0, AppState.unreadNotifications - 1);
+        
+        // Update badge
+        const badge = document.getElementById('notificationCount');
+        if (badge) {
+            if (AppState.unreadNotifications > 0) {
+                badge.textContent = AppState.unreadNotifications;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
+},
+
+markAllNotificationsAsRead: async function() {
+    try {
+        const notificationsRef = database.ref(`notifications/${AppState.currentUser.uid}`);
+        const snapshot = await notificationsRef.once('value');
+        const notifications = snapshot.val();
+        
+        if (notifications) {
+            const updates = {};
+            Object.keys(notifications).forEach(id => {
+                updates[`${id}/read`] = true;
+            });
+            
+            await notificationsRef.update(updates);
+            
+            // Update local state
+            AppState.notifications.forEach(notification => {
+                notification.read = true;
+            });
+            
+            AppState.unreadNotifications = 0;
+            
+            // Update badge
+            const badge = document.getElementById('notificationCount');
+            if (badge) {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.error('Error marking all notifications as read:', error);
+    }
+},
+
+// Add this function to load ride details
+loadRideDetails: async function(rideId) {
+    try {
+        const snapshot = await database.ref(`rides/${rideId}`).once('value');
+        const ride = snapshot.val();
+        
+        if (ride) {
+            // Show ride info panel
+            EnhancedUIUpdater.showRideInfo({ id: rideId, ...ride });
+            
+            // Switch to home screen if not already there
+            switchScreen('home');
+        }
+    } catch (error) {
+        console.error('Error loading ride details:', error);
+        EnhancedUIUpdater.showToast('Error loading ride details', 'error');
+    }
+},
         
         // Notifications
-        const notificationsRef = database.ref(`notifications/${uid}`)
-            .orderByChild('timestamp')
-            .limitToLast(50);
-        
-        AppState.realtimeListeners.push(
-            notificationsRef.on('value', (snapshot) => {
-                const notifications = snapshot.val();
-                if (notifications) {
-                    const notificationsArray = Object.keys(notifications).map(id => ({
-                        id,
-                        ...notifications[id]
-                    }));
-                    
-                    AppState.notifications = notificationsArray;
-                    const unreadCount = notificationsArray.filter(n => !n.read).length;
-                    AppState.unreadNotifications = unreadCount;
-                    
-                    // Update notification badge
-                    const badge = document.getElementById('notificationCount');
-                    if (badge) {
-                        badge.textContent = unreadCount;
-                        badge.style.display = unreadCount > 0 ? 'flex' : 'none';
-                    }
-                    
-                    // Update notifications panel if open
-                    if (AppState.notificationsOpen) {
-                        EnhancedUIUpdater.updateNotifications(notificationsArray);
-                    }
+       // Notifications listener
+const notificationsRef = database.ref(`notifications/${uid}`)
+    .orderByChild('timestamp')
+    .limitToLast(50);
+
+AppState.realtimeListeners.push(
+    notificationsRef.on('value', (snapshot) => {
+        const notifications = snapshot.val();
+        if (notifications) {
+            const notificationsArray = Object.keys(notifications).map(id => ({
+                id,
+                ...notifications[id]
+            }));
+            
+            AppState.notifications = notificationsArray;
+            const unreadCount = notificationsArray.filter(n => !n.read).length;
+            AppState.unreadNotifications = unreadCount;
+            
+            // Update notification badge
+            const badge = document.getElementById('notificationCount');
+            if (badge) {
+                badge.textContent = unreadCount;
+                badge.style.display = unreadCount > 0 ? 'flex' : 'none';
+                
+                // Add animation for new notifications
+                if (unreadCount > 0) {
+                    badge.style.animation = 'pulse 2s infinite';
+                } else {
+                    badge.style.animation = 'none';
                 }
-            })
-        );
+            }
+            
+            // Update notifications panel if open
+            if (AppState.notificationsOpen) {
+                EnhancedUIUpdater.updateNotifications(notificationsArray);
+            }
+        }
+    })
+);
         
        // Wallet transactions
 const transactionsRef = database.ref(`walletTransactions/${uid}`)
@@ -17146,7 +17361,20 @@ function setupEventListeners() {
     }
 
 // Inside setupEventListeners function, add these event listeners:
-
+// Keyboard shortcuts for notifications
+document.addEventListener('keydown', function(event) {
+    // Escape key closes notifications panel
+    if (event.key === 'Escape' && AppState.notificationsOpen) {
+        EnhancedUIUpdater.hideNotificationsPanel();
+    }
+    
+    // Ctrl/Cmd + N opens notifications (optional)
+    if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+        event.preventDefault();
+        EnhancedUIUpdater.showNotificationsPanel();
+    }
+});
+    
 // Destination input for shopping service
 const shoppingDestination = document.getElementById('shoppingDestination');
 if (shoppingDestination) {
@@ -17475,21 +17703,33 @@ if (shortParcelDesc) {
         });
     }
     
-    // Notification bell
-    const notificationBell = document.getElementById('notificationBell');
-    if (notificationBell) {
-        notificationBell.addEventListener('click', function() {
-            EnhancedUIUpdater.showNotificationsPanel();
-        });
-    }
+  // Notification bell - ADD THIS IF NOT PRESENT
+const notificationBell = document.getElementById('notificationBell');
+if (notificationBell) {
+    notificationBell.addEventListener('click', function() {
+        EnhancedUIUpdater.showNotificationsPanel();
+    });
+}
+
+// Close notifications button - ADD THIS IF NOT PRESENT
+const notificationsClose = document.getElementById('notificationsClose');
+if (notificationsClose) {
+    notificationsClose.addEventListener('click', function() {
+        EnhancedUIUpdater.hideNotificationsPanel();
+    });
+}
+
+// Close notifications panel when clicking outside - ADD THIS
+document.addEventListener('click', function(event) {
+    const panel = document.getElementById('notificationsPanel');
+    const bell = document.getElementById('notificationBell');
     
-    // Close notifications button
-    const notificationsClose = document.getElementById('notificationsClose');
-    if (notificationsClose) {
-        notificationsClose.addEventListener('click', function() {
-            EnhancedUIUpdater.hideNotificationsPanel();
-        });
+    if (panel && panel.classList.contains('active') && 
+        !panel.contains(event.target) && 
+        !bell.contains(event.target)) {
+        EnhancedUIUpdater.hideNotificationsPanel();
     }
+});
     
     // Emergency services
     document.querySelectorAll('.emergency-service').forEach(service => {
