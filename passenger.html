@@ -10392,221 +10392,84 @@ const EnhancedUIUpdater = {
         this.showToast('Referral discount removed', 'info');
     },
     
-    // Update this function in EnhancedUIUpdater
-showScheduleCountdown: function(scheduledTime, rideData) {
-    console.log('Setting up schedule countdown...');
-    
-    // Calculate time until ride
-    const timeUntilRide = scheduledTime - Date.now();
-    
-    if (timeUntilRide <= 0) {
-        // Schedule time has passed, request ride immediately
-        this.requestScheduledRide(rideData);
-        return;
-    }
-    
-    // Create or update countdown display
-    let countdownContainer = document.getElementById('scheduleCountdown');
-    if (!countdownContainer) {
-        countdownContainer = document.createElement('div');
-        countdownContainer.id = 'scheduleCountdown';
-        countdownContainer.style.cssText = `
-            position: fixed;
-            bottom: 100px;
-            right: 20px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            padding: 20px;
-            z-index: 1000;
-            min-width: 250px;
-            max-width: 300px;
-        `;
-        
-        document.body.appendChild(countdownContainer);
-    }
-    
-    // Update countdown content
-    countdownContainer.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <div style="font-weight: 600; color: #FF6B35;">
-                <i class="fas fa-clock"></i> Scheduled Ride
-            </div>
-            <button id="cancelScheduleBtn" style="
-                background: #f44336;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 5px 10px;
-                cursor: pointer;
-                font-size: 12px;
-            ">
-                <i class="fas fa-times"></i> Cancel
-            </button>
-        </div>
-        <div style="text-align: center; margin-bottom: 15px;">
-            <div style="font-size: 24px; font-weight: 700; color: #333;" id="countdownTimer">
-                00:00:00
-            </div>
-            <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                Ride will auto-request when timer ends
-            </div>
-        </div>
-        <div style="font-size: 13px; color: #333;">
-            <div><strong>From:</strong> ${rideData.pickupDisplay || rideData.pickup}</div>
-            <div><strong>To:</strong> ${rideData.destinationDisplay || rideData.destination}</div>
-            <div><strong>Fare:</strong> ZMW ${rideData.fare?.toFixed(2) || '0.00'}</div>
-        </div>
-    `;
-    
-    // Add cancel button listener
-    const cancelBtn = countdownContainer.querySelector('#cancelScheduleBtn');
-    if (cancelBtn) {
-        cancelBtn.addEventListener('click', () => {
-            if (confirm('Are you sure you want to cancel this scheduled ride?')) {
-                EnhancedFirebaseManager.cancelScheduledRide(rideData.id);
-                countdownContainer.remove();
-                
-                if (AppState.scheduledCountdowns.has(rideData.id)) {
-                    clearInterval(AppState.scheduledCountdowns.get(rideData.id));
-                    AppState.scheduledCountdowns.delete(rideData.id);
-                }
-                
-                this.showToast('Scheduled ride cancelled', 'success');
-            }
-        });
-    }
-    
-    // Start countdown timer
-    const updateCountdown = () => {
+    showScheduleCountdown: function(scheduledTime, rideData) {
         const now = Date.now();
-        const timeLeft = scheduledTime - now;
+        const timeUntilRide = scheduledTime - now;
         
-        if (timeLeft <= 0) {
-            clearInterval(intervalId);
-            this.requestScheduledRide(rideData);
-            countdownContainer.remove();
-            AppState.scheduledCountdowns.delete(rideData.id);
+        if (timeUntilRide <= 0) {
+            EnhancedFirebaseManager.requestScheduledRide(rideData);
             return;
         }
         
-        const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-        const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
-        
-        const timerElement = countdownContainer.querySelector('#countdownTimer');
-        if (timerElement) {
-            timerElement.textContent = 
-                `${hours.toString().padStart(2, '0')}:` +
-                `${minutes.toString().padStart(2, '0')}:` +
-                `${seconds.toString().padStart(2, '0')}`;
+        // Create or update countdown container
+        let countdownContainer = document.getElementById('scheduleCountdown');
+        if (!countdownContainer) {
+            countdownContainer = document.createElement('div');
+            countdownContainer.id = 'scheduleCountdown';
+            countdownContainer.style.cssText = `
+                position: fixed;
+                bottom: 100px;
+                right: 20px;
+                background: white;
+                border-radius: 12px;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+                padding: 20px;
+                z-index: 1000;
+                min-width: 250px;
+            `;
+            
+            countdownContainer.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="font-weight: 600; color: #FF6B35;">
+                        <i class="fas fa-clock"></i> Scheduled Ride
+                    </div>
+                    <button id="cancelScheduleBtn" style="
+                        background: #f44336;
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 5px 10px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <div style="font-size: 24px; font-weight: 700; color: #333;" id="countdownTimer">
+                        00:00:00
+                    </div>
+                    <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                        Ride will auto-request when timer ends
+                    </div>
+                </div>
+                <div style="font-size: 13px; color: #333;">
+                    <div><strong>From:</strong> ${rideData.pickupDisplay || rideData.pickup}</div>
+                    <div><strong>To:</strong> ${rideData.destinationDisplay || rideData.destination}</div>
+                    <div><strong>Fare:</strong> ZMW ${rideData.fare?.toFixed(2) || '0.00'}</div>
+                </div>
+            `;
+            
+            document.body.appendChild(countdownContainer);
+            
+            // Add cancel button listener
+            const cancelBtn = countdownContainer.querySelector('#cancelScheduleBtn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    if (confirm('Are you sure you want to cancel this scheduled ride?')) {
+                        EnhancedFirebaseManager.cancelScheduledRide(rideData.id);
+                        countdownContainer.remove();
+                        
+                        if (AppState.scheduledCountdowns.has(rideData.id)) {
+                            clearInterval(AppState.scheduledCountdowns.get(rideData.id));
+                            AppState.scheduledCountdowns.delete(rideData.id);
+                        }
+                        
+                        this.showToast('Scheduled ride cancelled', 'success');
+                    }
+                });
+            }
         }
-    };
-    
-    // Clear existing interval for this ride
-    if (AppState.scheduledCountdowns.has(rideData.id)) {
-        clearInterval(AppState.scheduledCountdowns.get(rideData.id));
-    }
-    
-    // Start new interval
-    const intervalId = setInterval(updateCountdown, 1000);
-    AppState.scheduledCountdowns.set(rideData.id, intervalId);
-    
-    // Initial update
-    updateCountdown();
-},
-
-    // Add this function to EnhancedUIUpdater
-requestScheduledRide: async function(rideData) {
-    try {
-        console.log('Requesting scheduled ride:', rideData.id);
-        
-        EnhancedUIUpdater.showLoading('Requesting your scheduled ride...');
-        
-        // Convert scheduled ride to regular ride
-        const rideId = database.ref().child('rides').push().key;
-        
-        const ride = {
-            id: rideId,
-            passengerId: rideData.passengerId,
-            passengerName: rideData.passengerName,
-            passengerPhone: rideData.passengerPhone,
-            pickup: rideData.pickup,
-            pickupDisplay: rideData.pickupDisplay,
-            pickupLat: rideData.pickupLat,
-            pickupLng: rideData.pickupLng,
-            destination: rideData.destination,
-            destinationDisplay: rideData.destinationDisplay,
-            destLat: rideData.destLat,
-            destLng: rideData.destLng,
-            rideType: rideData.rideType,
-            fare: rideData.fare,
-            distance: rideData.distance,
-            estimatedTime: rideData.estimatedTime,
-            status: 'requested',
-            timestamp: Date.now(),
-            city: rideData.city,
-            paymentMethod: rideData.paymentMethod,
-            paymentStatus: 'paid',
-            isScheduled: true,
-            scheduledRideId: rideData.id
-        };
-        
-        // Add recipient details if applicable
-        if (rideData.forSomeone) {
-            ride.forSomeone = true;
-            ride.recipientName = rideData.recipientName;
-            ride.recipientPhone = rideData.recipientPhone;
-            ride.instructions = rideData.instructions;
-        }
-        
-        // Add stops if any
-        if (rideData.stops) {
-            ride.stops = rideData.stops;
-        }
-        
-        // Save ride to database
-        await database.ref(`rides/${rideId}`).set(ride);
-        
-        // Update scheduled ride status
-        await database.ref(`scheduledRides/${rideData.id}`).update({
-            status: 'requested',
-            requestedAt: Date.now(),
-            rideId: rideId
-        });
-        
-        // Set current ride
-        AppState.currentRide = ride;
-        
-        // Update UI
-        this.showRideInfo(ride);
-        this.updateRideStatus('requested');
-        this.updateTimeline('requested');
-        this.showPulsingRideIcon();
-        
-        // Start listening to ride updates
-        EnhancedFirebaseManager.listenToRideUpdates(rideId);
-        
-        EnhancedUIUpdater.hideLoading();
-        EnhancedUIUpdater.showToast('Scheduled ride requested! Searching for driver...', 'success');
-        
-        // Send notification
-        EnhancedFirebaseManager.sendNotification(
-            AppState.currentUser.uid,
-            'Scheduled Ride Started',
-            'Your scheduled ride has been requested and is now searching for a driver',
-            'ride',
-            { rideId: rideId }
-        );
-        
-        return rideId;
-        
-    } catch (error) {
-        console.error('Error requesting scheduled ride:', error);
-        EnhancedUIUpdater.hideLoading();
-        EnhancedUIUpdater.showToast('Error requesting scheduled ride', 'error');
-    }
-}
         
         // Update countdown
         const updateCountdown = () => {
@@ -13355,17 +13218,12 @@ updateNotificationBadge: function(count) {
     },
     
     async requestRide(rideData) {
-    try {
-        EnhancedUIUpdater.showLoading('Requesting ride...');
-        
-        if (!rideData.pickup || !rideData.destination) {
-            throw new Error('Pickup and destination locations are required');
-        }
-        
-        // Check if this is a scheduled ride
-        if (rideData.isScheduled) {
-            return await this.scheduleRide(rideData);
-        }
+        try {
+            EnhancedUIUpdater.showLoading('Requesting ride...');
+            
+            if (!rideData.pickup || !rideData.destination) {
+                throw new Error('Pickup and destination locations are required');
+            }
             
             // Generate ride ID
             const rideId = database.ref().child('rides').push().key;
@@ -13621,108 +13479,7 @@ this.sendNotification(
             throw error;
         }
     },
-async scheduleRide(rideData) {
-    try {
-        console.log('Scheduling ride...');
-        
-        // Generate schedule ID
-        const scheduleId = database.ref().child('scheduledRides').push().key;
-        
-        // Calculate estimated time
-        const estimatedTime = EnhancedPriceCalculator.estimateTime(
-            rideData.distance,
-            rideData.rideType || 'standard',
-            null,
-            rideData.stops || []
-        );
-        
-        // Apply referral discount if applicable
-        let finalFare = rideData.fare;
-        let referralDiscount = 0;
-        
-        if (AppState.referralDiscountApplied && AppState.referralCodeUsed) {
-            referralDiscount = finalFare * 0.5;
-            finalFare = finalFare - referralDiscount;
-        }
-        
-        const scheduledRide = {
-            id: scheduleId,
-            passengerId: AppState.currentUser.uid,
-            passengerName: AppState.userData.name,
-            passengerPhone: AppState.userData.phone,
-            pickup: rideData.pickup.address,
-            pickupDisplay: rideData.pickup.name || rideData.pickup.address,
-            pickupLat: rideData.pickup.lat,
-            pickupLng: rideData.pickup.lng,
-            destination: rideData.destination.address,
-            destinationDisplay: rideData.destination.name || rideData.destination.address,
-            destLat: rideData.destination.lat,
-            destLng: rideData.destination.lng,
-            rideType: rideData.rideType || 'standard',
-            fare: finalFare,
-            originalFare: rideData.fare,
-            referralDiscount: referralDiscount,
-            referredBy: AppState.referralCodeUsed,
-            distance: rideData.distance,
-            estimatedTime: estimatedTime,
-            status: 'scheduled',
-            scheduledTime: rideData.scheduledTime,
-            timestamp: Date.now(),
-            city: AppState.currentCity,
-            paymentMethod: rideData.paymentMethod || 'wallet',
-            paymentStatus: 'paid'
-        };
-        
-        // Add recipient details if applicable
-        if (rideData.forSomeone) {
-            scheduledRide.forSomeone = true;
-            scheduledRide.recipientName = rideData.recipientName;
-            scheduledRide.recipientPhone = rideData.recipientPhone;
-            scheduledRide.instructions = rideData.instructions;
-        }
-        
-        // Add stops if any
-        if (rideData.stops && rideData.stops.length > 0) {
-            scheduledRide.stops = rideData.stops.map(stop => ({
-                name: stop.location.name,
-                address: stop.location.address,
-                lat: stop.location.lat,
-                lng: stop.location.lng
-            }));
-        }
-        
-        // Save to Firebase
-        await database.ref(`scheduledRides/${scheduleId}`).set(scheduledRide);
-        
-        // Deduct fare from wallet if payment method is wallet
-        if (rideData.paymentMethod === 'wallet') {
-            await this.withdrawMoney(finalFare, 'Scheduled ride payment', scheduleId);
-        }
-        
-        // Show countdown timer
-        EnhancedUIUpdater.showScheduleCountdown(rideData.scheduledTime, scheduledRide);
-        
-        // Hide modal
-        hideModal('schedule');
-        
-        // Reset form
-        if (document.getElementById('scheduleForSomeone')) {
-            document.getElementById('scheduleForSomeone').checked = false;
-            const someoneElseDetails = document.getElementById('someoneElseDetails');
-            if (someoneElseDetails) {
-                someoneElseDetails.style.display = 'none';
-            }
-        }
-        
-        EnhancedUIUpdater.showToast('Ride scheduled successfully!', 'success');
-        
-        return scheduleId;
-        
-    } catch (error) {
-        console.error('Error scheduling ride:', error);
-        throw error;
-    }
-}
+
     // Add this method to EnhancedFirebaseManager (place it after the other methods):
 async loadRideDetails(rideId) {
     try {
@@ -13767,35 +13524,22 @@ async loadRideDetails(rideId) {
         }
     },
     
-   // In EnhancedFirebaseManager
-async cancelScheduledRide(scheduledRideId) {
-    try {
-        await database.ref(`scheduledRides/${scheduledRideId}`).update({
-            status: 'cancelled',
-            cancelledAt: Date.now()
-        });
-        
-        // Refund payment if paid
-        const rideRef = database.ref(`scheduledRides/${scheduledRideId}`);
-        const snapshot = await rideRef.once('value');
-        const ride = snapshot.val();
-        
-        if (ride && ride.paymentMethod === 'wallet') {
-            await this.depositMoney(ride.fare, 'Scheduled ride cancellation refund', scheduledRideId);
+    async cancelScheduledRide(scheduledRideId) {
+        try {
+            await database.ref(`scheduledRides/${scheduledRideId}`).remove();
+            
+            // Clear countdown if exists
+            if (AppState.scheduledCountdowns.has(scheduledRideId)) {
+                clearInterval(AppState.scheduledCountdowns.get(scheduledRideId));
+                AppState.scheduledCountdowns.delete(scheduledRideId);
+            }
+            
+            EnhancedUIUpdater.showToast('Scheduled ride cancelled', 'success');
+        } catch (error) {
+            console.error('Error cancelling scheduled ride:', error);
+            EnhancedUIUpdater.showToast('Error cancelling scheduled ride', 'error');
         }
-        
-        // Clear countdown if exists
-        if (AppState.scheduledCountdowns.has(scheduledRideId)) {
-            clearInterval(AppState.scheduledCountdowns.get(scheduledRideId));
-            AppState.scheduledCountdowns.delete(scheduledRideId);
-        }
-        
-        EnhancedUIUpdater.showToast('Scheduled ride cancelled', 'success');
-    } catch (error) {
-        console.error('Error cancelling scheduled ride:', error);
-        EnhancedUIUpdater.showToast('Error cancelling scheduled ride', 'error');
-    }
-}
+    },
     
     async cancelRide(rideId, reason) {
         try {
@@ -17449,39 +17193,20 @@ async function initializeApp() {
 EnhancedWalletManager.init();
         
         // Set up schedule inputs
-    const scheduleDateInput = document.getElementById('scheduleDate');
-    if (scheduleDateInput) {
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        scheduleDateInput.min = tomorrow.toISOString().split('T')[0];
+        const scheduleDateInput = document.getElementById('scheduleDate');
+        if (scheduleDateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            scheduleDateInput.min = today;
+            scheduleDateInput.value = today;
+        }
         
-        // Set default to tomorrow
-        const defaultDate = new Date();
-        defaultDate.setDate(defaultDate.getDate() + 1);
-        scheduleDateInput.value = defaultDate.toISOString().split('T')[0];
-    }
-    
-    const scheduleTimeInput = document.getElementById('scheduleTime');
-    if (scheduleTimeInput) {
-        const now = new Date();
-        // Set default time to next hour
-        const nextHour = new Date(now.getTime() + 60 * 60 * 1000);
-        const hours = nextHour.getHours().toString().padStart(2, '0');
-        const minutes = '00';
-        scheduleTimeInput.value = `${hours}:${minutes}`;
-    }
-    
-    // Set up "for someone" checkbox
-    const scheduleForSomeone = document.getElementById('scheduleForSomeone');
-    if (scheduleForSomeone) {
-        scheduleForSomeone.addEventListener('change', function() {
-            const someoneElseDetails = document.getElementById('someoneElseDetails');
-            if (someoneElseDetails) {
-                someoneElseDetails.style.display = this.checked ? 'block' : 'none';
-            }
-        });
-    }
+        const scheduleTimeInput = document.getElementById('scheduleTime');
+        if (scheduleTimeInput) {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = (now.getMinutes() + 10).toString().padStart(2, '0');
+            scheduleTimeInput.value = `${hours}:${minutes}`;
+        }
         
         // Set up periodic location updates (only if we have permission)
         if (AppState.userLocation && !AppState.locationUpdateInterval) {
@@ -17768,22 +17493,6 @@ function setupEventListeners() {
 
 // Inside setupEventListeners function, add these event listeners:
 
- // Schedule ride confirm button
-    const confirmScheduleBtn = document.getElementById('confirmScheduleBtn');
-    if (confirmScheduleBtn) {
-        confirmScheduleBtn.addEventListener('click', async function() {
-            await handleScheduleRide();
-        });
-    }
-    
-    // Order for someone confirm button
-    const confirmSomeoneRideBtn = document.getElementById('confirmSomeoneRideBtn');
-    if (confirmSomeoneRideBtn) {
-        confirmSomeoneRideBtn.addEventListener('click', async function() {
-            await handleOrderForSomeone();
-        });
-    }
-    
 // Destination input for shopping service
 const shoppingDestination = document.getElementById('shoppingDestination');
 if (shoppingDestination) {
@@ -19080,159 +18789,6 @@ async function requestTruckService() {
     } catch (error) {
         console.error('Error requesting truck service:', error);
         EnhancedUIUpdater.showToast('Error processing truck request', 'error');
-    }
-}
-
-        // ============================================
-// ADD THESE HANDLER FUNCTIONS
-// ============================================
-
-async function handleScheduleRide() {
-    try {
-        console.log('Processing scheduled ride...');
-        
-        // Get form values
-        const scheduleDate = document.getElementById('scheduleDate').value;
-        const scheduleTime = document.getElementById('scheduleTime').value;
-        const forSomeone = document.getElementById('scheduleForSomeone').checked;
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
-            return;
-        }
-        
-        if (!scheduleDate || !scheduleTime) {
-            EnhancedUIUpdater.showToast('Please select date and time', 'warning');
-            return;
-        }
-        
-        // Combine date and time
-        const scheduledDateTime = new Date(`${scheduleDate}T${scheduleTime}`);
-        const scheduledTime = scheduledDateTime.getTime();
-        
-        if (scheduledTime <= Date.now()) {
-            EnhancedUIUpdater.showToast('Please select a future time', 'warning');
-            return;
-        }
-        
-        // Get recipient details if applicable
-        let recipientDetails = null;
-        if (forSomeone) {
-            const recipientName = document.getElementById('recipientName').value;
-            const recipientPhone = document.getElementById('recipientPhone').value;
-            
-            if (!recipientName || !recipientPhone) {
-                EnhancedUIUpdater.showToast('Please enter recipient details', 'warning');
-                return;
-            }
-            
-            recipientDetails = {
-                name: recipientName,
-                phone: recipientPhone
-            };
-        }
-        
-        // Calculate distance
-        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
-            AppState.pickup,
-            AppState.destination,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-        
-        // Calculate fare
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(
-            distance,
-            AppState.selectedRideType,
-            surge,
-            null,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-        
-        // Create scheduled ride data
-        const scheduledRideData = {
-            pickup: AppState.pickup,
-            destination: AppState.destination,
-            rideType: AppState.selectedRideType,
-            fare: fare,
-            distance: distance,
-            stops: AppState.rideStops.filter(stop => stop.location),
-            scheduledTime: scheduledTime,
-            forSomeone: forSomeone,
-            isScheduled: true
-        };
-        
-        // Add recipient details if applicable
-        if (recipientDetails) {
-            scheduledRideData.recipientName = recipientDetails.name;
-            scheduledRideData.recipientPhone = recipientDetails.phone;
-        }
-        
-        // Show payment modal first
-        EnhancedUIUpdater.showPaymentModal(fare, scheduledRideData);
-        
-    } catch (error) {
-        console.error('Error in handleScheduleRide:', error);
-        EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
-    }
-}
-
-async function handleOrderForSomeone() {
-    try {
-        console.log('Processing order for someone...');
-        
-        // Get form values
-        const someoneName = document.getElementById('someoneName').value;
-        const someonePhone = document.getElementById('someonePhone').value;
-        const someoneInstructions = document.getElementById('someoneInstructions').value;
-        
-        if (!AppState.pickup || !AppState.destination) {
-            EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
-            return;
-        }
-        
-        if (!someoneName || !someonePhone) {
-            EnhancedUIUpdater.showToast('Please enter recipient details', 'warning');
-            return;
-        }
-        
-        // Calculate distance
-        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
-            AppState.pickup,
-            AppState.destination,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-        
-        // Calculate fare
-        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-        const fare = EnhancedPriceCalculator.calculateRideFare(
-            distance,
-            AppState.selectedRideType,
-            surge,
-            null,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-        
-        // Create ride data for someone else
-        const someoneRideData = {
-            pickup: AppState.pickup,
-            destination: AppState.destination,
-            rideType: AppState.selectedRideType,
-            fare: fare,
-            distance: distance,
-            stops: AppState.rideStops.filter(stop => stop.location),
-            forSomeone: true,
-            recipientName: someoneName,
-            recipientPhone: someonePhone,
-            instructions: someoneInstructions
-        };
-        
-        // Show payment modal
-        EnhancedUIUpdater.showPaymentModal(fare, someoneRideData);
-        
-    } catch (error) {
-        console.error('Error in handleOrderForSomeone:', error);
-        EnhancedUIUpdater.showToast('Error processing order for someone', 'error');
     }
 }
         
