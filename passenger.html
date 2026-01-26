@@ -10342,6 +10342,10 @@ const EnhancedUIUpdater = {
         if (referralCodeInput) {
             referralCodeInput.value = '';
         }
+         // Setup payment button listeners after modal is shown
+    setTimeout(() => {
+        setupPaymentButtonListeners();
+    }, 100);
     },
     
     applyReferralDiscount: function() {
@@ -17384,7 +17388,8 @@ async function initializeApp() {
         
         // Initialize search engine
         EnhancedSearchEngine.init();
-        
+        // Setup payment button listeners
+setupPaymentButtonListeners();
         // Get current location - THIS IS CRITICAL
         console.log('📍 Getting initial location...');
         const locationResult = await getCurrentLocation();
@@ -17423,7 +17428,17 @@ EnhancedWalletManager.init();
             const minutes = (now.getMinutes() + 10).toString().padStart(2, '0');
             scheduleTimeInput.value = `${hours}:${minutes}`;
         }
-        
+
+        // Also setup payment button listeners when switching services
+const originalSwitchService = window.switchService;
+window.switchService = function(service) {
+    originalSwitchService(service);
+    
+    // Re-setup payment button listeners after service switch
+    setTimeout(() => {
+        setupPaymentButtonListeners();
+    }, 300);
+};
         // Set up periodic location updates (only if we have permission)
         if (AppState.userLocation && !AppState.locationUpdateInterval) {
             AppState.locationUpdateInterval = setInterval(() => {
@@ -17644,13 +17659,13 @@ function setupEventListeners() {
     }
     
     // Request ride button
-    const requestRideBtn = document.getElementById('requestRideBtn');
-    if (requestRideBtn) {
-        requestRideBtn.addEventListener('click', function() {
-            if (!AppState.pickup || !AppState.destination) {
-                EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
-                return;
-            }
+    
+const requestRideBtn = document.getElementById('requestRideBtn');
+if (requestRideBtn) {
+    requestRideBtn.addEventListener('click', function() {
+        requestRegularRideService();
+    });
+}
             
             // Validate distance within city
             const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
@@ -18110,76 +18125,132 @@ document.addEventListener('click', function(e) {
         });
     }
     
-    // Confirm payment button
+   // Confirm payment button - Multiple forms support
+function setupPaymentButtonListeners() {
+    // Ride service payment button
     const confirmPaymentBtn = document.getElementById('confirmPaymentBtn');
     if (confirmPaymentBtn) {
-        confirmPaymentBtn.addEventListener('click', function() {
-            const selectedMethod = document.querySelector('.payment-method.selected');
-            if (!selectedMethod) {
-                EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
-                return;
-            }
-            
-            const paymentMethod = selectedMethod.dataset.payment;
-            
-            // Get final fare amount
-            const finalFareElement = document.getElementById('finalFareAmount');
-            const finalFare = finalFareElement ? 
-                parseFloat(finalFareElement.textContent.replace('ZMW ', '')) : 
-                AppState.rideFare;
-            
-            // Check wallet balance if paying with wallet
-            if (paymentMethod === 'wallet' && finalFare > AppState.walletBalance) {
-                EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
-                return;
-            }
-
-            // Check if this is a scheduled ride
-if (rideData.isScheduled) {
-    // Store payment method in scheduled ride data
-    rideData.paymentMethod = paymentMethod;
-    
-    // Schedule the ride
-    EnhancedFirebaseManager.requestScheduledRide(rideData)
-        .then((scheduledRideId) => {
-            hideModal('payment');
-            AppState.pendingRideData = null;
-            AppState.pendingScheduledRideData = null;
-            
-            // Show success message with timer
-            EnhancedUIUpdater.showScheduleCountdown(rideData.scheduledTime, {
-                ...rideData,
-                id: scheduledRideId
-            });
-        })
-        .catch(error => {
-            console.error('Error scheduling ride:', error);
-            EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
-        });
-    return;
-}
-            // Update ride data with payment method
-            const rideData = AppState.pendingRideData;
-            if (!rideData) {
-                EnhancedUIUpdater.showToast('No ride data found', 'error');
-                return;
-            }
-            
-            rideData.paymentMethod = paymentMethod;
-            rideData.fare = finalFare;
-            
-            // Request the ride
-            EnhancedFirebaseManager.requestRide(rideData)
-                .then(() => {
-                    hideModal('payment');
-                    AppState.pendingRideData = null;
-                })
-                .catch(error => {
-                    console.error('Error requesting ride:', error);
-                    EnhancedUIUpdater.showToast('Error requesting ride', 'error');
-                });
+        // Remove existing listener to prevent duplicates
+        confirmPaymentBtn.replaceWith(confirmPaymentBtn.cloneNode(true));
+        
+        // Re-attach listener
+        document.getElementById('confirmPaymentBtn').addEventListener('click', function() {
+            handlePaymentConfirmation();
         });
     }
+    
+    // Shopping service payment button
+    const confirmShoppingPaymentBtn = document.getElementById('confirmShoppingPaymentBtn');
+    if (confirmShoppingPaymentBtn) {
+        confirmShoppingPaymentBtn.addEventListener('click', function() {
+            handlePaymentConfirmation();
+        });
+    }
+    
+    // Delivery service payment button
+    const confirmDeliveryPaymentBtn = document.getElementById('confirmDeliveryPaymentBtn');
+    if (confirmDeliveryPaymentBtn) {
+        confirmDeliveryPaymentBtn.addEventListener('click', function() {
+            handlePaymentConfirmation();
+        });
+    }
+    
+    // Short delivery payment button
+    const confirmShortDeliveryPaymentBtn = document.getElementById('confirmShortDeliveryPaymentBtn');
+    if (confirmShortDeliveryPaymentBtn) {
+        confirmShortDeliveryPaymentBtn.addEventListener('click', function() {
+            handlePaymentConfirmation();
+        });
+    }
+    
+    // Truck service payment button
+    const confirmTruckPaymentBtn = document.getElementById('confirmTruckPaymentBtn');
+    if (confirmTruckPaymentBtn) {
+        confirmTruckPaymentBtn.addEventListener('click', function() {
+            handlePaymentConfirmation();
+        });
+    }
+    
+    // Emergency service payment button
+    const confirmEmergencyPaymentBtn = document.getElementById('confirmEmergencyPaymentBtn');
+    if (confirmEmergencyPaymentBtn) {
+        confirmEmergencyPaymentBtn.addEventListener('click', function() {
+            handlePaymentConfirmation();
+        });
+    }
+}
+
+    // Unified payment confirmation handler
+function handlePaymentConfirmation() {
+    const selectedMethod = document.querySelector('.payment-method.selected');
+    if (!selectedMethod) {
+        EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
+        return;
+    }
+    
+    const paymentMethod = selectedMethod.dataset.payment;
+    
+    // Get final fare amount from the active payment modal
+    const finalFareElement = document.getElementById('finalFareAmount');
+    const finalFare = finalFareElement ? 
+        parseFloat(finalFareElement.textContent.replace('ZMW ', '').replace(',', '')) : 
+        AppState.rideFare;
+    
+    if (isNaN(finalFare) || finalFare <= 0) {
+        EnhancedUIUpdater.showToast('Invalid fare amount', 'error');
+        return;
+    }
+    
+    // Check wallet balance if paying with wallet
+    if (paymentMethod === 'wallet' && finalFare > AppState.walletBalance) {
+        EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
+        return;
+    }
+    
+    // Get ride data from the pending state
+    const rideData = AppState.pendingRideData;
+    if (!rideData) {
+        EnhancedUIUpdater.showToast('No ride data found', 'error');
+        return;
+    }
+    
+    // Update ride data with payment method and final fare
+    rideData.paymentMethod = paymentMethod;
+    rideData.fare = finalFare;
+    
+    // Check if this is a scheduled ride
+    if (rideData.isScheduled) {
+        // Schedule the ride
+        EnhancedFirebaseManager.requestScheduledRide(rideData)
+            .then((scheduledRideId) => {
+                hideModal('payment');
+                AppState.pendingRideData = null;
+                
+                // Show success message with timer
+                EnhancedUIUpdater.showScheduleCountdown(rideData.scheduledTime, {
+                    ...rideData,
+                    id: scheduledRideId
+                });
+            })
+            .catch(error => {
+                console.error('Error scheduling ride:', error);
+                EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
+            });
+        return;
+    }
+    
+    // Request the ride/service
+    EnhancedFirebaseManager.requestRide(rideData)
+        .then(() => {
+            hideModal('payment');
+            AppState.pendingRideData = null;
+            EnhancedUIUpdater.showToast('Service requested successfully!', 'success');
+        })
+        .catch(error => {
+            console.error('Error requesting service:', error);
+            EnhancedUIUpdater.showToast(`Error: ${error.message}`, 'error');
+        });
+}
     
     // Modal close buttons
     document.querySelectorAll('.modal-close').forEach(btn => {
@@ -18694,6 +18765,8 @@ function showVehicleSelectionModal(serviceType, fareData) {
 // Shopping Service Request Function
 async function requestShoppingService() {
     try {
+        console.log('🛍️ Processing shopping service request...');
+        
         // Validate inputs
         if (!AppState.pickup || !AppState.destination) {
             EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
@@ -18746,19 +18819,25 @@ async function requestShoppingService() {
         
         if (!vehicleSelection) return;
         
-        // Create service data
+        // Create complete service data
         const serviceData = {
             pickup: AppState.pickup,
             destination: AppState.destination,
             serviceType: 'shopping',
-            shopName: shopName,
+            shopName: shopName.trim(),
             itemsCount: itemsCount,
             budget: budget,
-            instructions: instructions,
+            instructions: instructions.trim(),
             vehicleType: vehicleSelection.vehicleType,
             fare: vehicleSelection.fare,
             distance: distance,
-            shoppingList: []
+            shoppingList: [],
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment'
         };
         
         // Collect shopping items
@@ -18771,18 +18850,27 @@ async function requestShoppingService() {
             }
         });
         
-        // Show payment modal
+        console.log('🛍️ Shopping service data prepared:', serviceData);
+        
+        // Store in pending state
+        AppState.pendingRideData = serviceData;
+        AppState.rideFare = vehicleSelection.fare;
+        
+        // Show payment modal with all data
         EnhancedUIUpdater.showPaymentModal(vehicleSelection.fare, serviceData);
         
     } catch (error) {
-        console.error('Error requesting shopping service:', error);
+        console.error('❌ Error requesting shopping service:', error);
         EnhancedUIUpdater.showToast('Error processing shopping request', 'error');
     }
 }
 
 // Delivery Service Request Function
+// Delivery Service Request Function - COMPLETE UPDATED VERSION
 async function requestDeliveryService() {
     try {
+        console.log('📦 Processing delivery service request...');
+        
         // Validate inputs
         if (!AppState.pickup || !AppState.destination) {
             EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
@@ -18799,6 +18887,12 @@ async function requestDeliveryService() {
         const receiverPhone = document.getElementById('receiverPhone').value;
         if (!receiverName.trim() || !receiverPhone.trim()) {
             EnhancedUIUpdater.showToast('Please enter receiver details', 'warning');
+            return;
+        }
+        
+        // Validate phone number
+        if (!/^[0-9]{10,}$/.test(receiverPhone.replace(/\D/g, ''))) {
+            EnhancedUIUpdater.showToast('Please enter a valid phone number', 'warning');
             return;
         }
         
@@ -18848,26 +18942,38 @@ async function requestDeliveryService() {
         
         if (!vehicleSelection) return;
         
-        // Create service data
+        // Create complete service data
         const serviceData = {
             pickup: AppState.pickup,
             destination: AppState.destination,
             serviceType: 'delivery',
             deliveryType: deliveryType,
-            parcelDescription: parcelDescription,
+            parcelDescription: parcelDescription.trim(),
             parcelValue: parcelValue,
-            receiverName: receiverName,
-            receiverPhone: receiverPhone,
+            receiverName: receiverName.trim(),
+            receiverPhone: receiverPhone.trim(),
             vehicleType: vehicleSelection.vehicleType,
             fare: vehicleSelection.fare,
-            distance: distance
+            distance: distance,
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment'
         };
         
-        // Show payment modal
+        console.log('📦 Delivery service data prepared:', serviceData);
+        
+        // Store in pending state
+        AppState.pendingRideData = serviceData;
+        AppState.rideFare = vehicleSelection.fare;
+        
+        // Show payment modal with all data
         EnhancedUIUpdater.showPaymentModal(vehicleSelection.fare, serviceData);
         
     } catch (error) {
-        console.error('Error requesting delivery service:', error);
+        console.error('❌ Error requesting delivery service:', error);
         EnhancedUIUpdater.showToast('Error processing delivery request', 'error');
     }
 }
@@ -18875,6 +18981,8 @@ async function requestDeliveryService() {
 // Short Delivery Service Request Function
 async function requestShortDeliveryService() {
     try {
+        console.log('🚚 Processing short delivery service request...');
+        
         // Validate inputs
         if (!AppState.pickup || !AppState.destination) {
             EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
@@ -18890,6 +18998,12 @@ async function requestShortDeliveryService() {
         const receiverPhone = document.getElementById('shortReceiverPhone').value;
         if (!receiverPhone.trim()) {
             EnhancedUIUpdater.showToast('Please enter receiver phone number', 'warning');
+            return;
+        }
+        
+        // Validate phone number
+        if (!/^[0-9]{10,}$/.test(receiverPhone.replace(/\D/g, ''))) {
+            EnhancedUIUpdater.showToast('Please enter a valid phone number', 'warning');
             return;
         }
         
@@ -18927,23 +19041,35 @@ async function requestShortDeliveryService() {
         
         if (!vehicleSelection) return;
         
-        // Create service data
+        // Create complete service data
         const serviceData = {
             pickup: AppState.pickup,
             destination: AppState.destination,
             serviceType: 'short-delivery',
-            parcelDescription: parcelDescription,
-            receiverPhone: receiverPhone,
+            parcelDescription: parcelDescription.trim(),
+            receiverPhone: receiverPhone.trim(),
             vehicleType: vehicleSelection.vehicleType,
             fare: vehicleSelection.fare,
-            distance: distance
+            distance: distance,
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment'
         };
         
-        // Show payment modal
+        console.log('🚚 Short delivery service data prepared:', serviceData);
+        
+        // Store in pending state
+        AppState.pendingRideData = serviceData;
+        AppState.rideFare = vehicleSelection.fare;
+        
+        // Show payment modal with all data
         EnhancedUIUpdater.showPaymentModal(vehicleSelection.fare, serviceData);
         
     } catch (error) {
-        console.error('Error requesting short delivery service:', error);
+        console.error('❌ Error requesting short delivery service:', error);
         EnhancedUIUpdater.showToast('Error processing delivery request', 'error');
     }
 }
@@ -18951,6 +19077,8 @@ async function requestShortDeliveryService() {
 // Truck Service Request Function
 async function requestTruckService() {
     try {
+        console.log('🚛 Processing truck service request...');
+        
         // Validate inputs
         if (!AppState.pickup || !AppState.destination) {
             EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
@@ -18999,27 +19127,262 @@ async function requestTruckService() {
         // Calculate fare
         const fare = EnhancedPriceCalculator.calculateTruckFare(distance, truckType, needHelpers);
         
-        // Create service data
+        // Create complete service data
         const serviceData = {
             pickup: AppState.pickup,
             destination: AppState.destination,
             serviceType: 'truck',
             truckType: truckType,
-            itemDescription: itemDescription,
+            itemDescription: itemDescription.trim(),
             estimatedWeight: estimatedWeight,
             needHelpers: needHelpers,
             fare: fare,
-            distance: distance
+            distance: distance,
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment'
         };
         
-        // Show payment modal
+        console.log('🚛 Truck service data prepared:', serviceData);
+        
+        // Store in pending state
+        AppState.pendingRideData = serviceData;
+        AppState.rideFare = fare;
+        
+        // Show payment modal with all data
         EnhancedUIUpdater.showPaymentModal(fare, serviceData);
         
     } catch (error) {
-        console.error('Error requesting truck service:', error);
+        console.error('❌ Error requesting truck service:', error);
         EnhancedUIUpdater.showToast('Error processing truck request', 'error');
     }
 }
+
+// Emergency Service Request Function - NEW FUNCTION
+async function requestEmergencyService(emergencyData) {
+    try {
+        console.log('🚨 Processing emergency service request...');
+        
+        // Create complete emergency service data
+        const serviceData = {
+            pickup: emergencyData.pickup,
+            destination: emergencyData.destination,
+            serviceType: 'emergency',
+            emergencyType: emergencyData.emergencyType,
+            station: emergencyData.station,
+            reason: emergencyData.reason,
+            fare: emergencyData.fare,
+            distance: emergencyData.distance,
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment',
+            isEmergency: true
+        };
+        
+        console.log('🚨 Emergency service data prepared:', serviceData);
+        
+        // Store in pending state
+        AppState.pendingRideData = serviceData;
+        AppState.rideFare = emergencyData.fare;
+        
+        // Show payment modal with all data
+        EnhancedUIUpdater.showPaymentModal(emergencyData.fare, serviceData);
+        
+    } catch (error) {
+        console.error('❌ Error requesting emergency service:', error);
+        EnhancedUIUpdater.showToast('Error processing emergency request', 'error');
+    }
+}
+
+// Regular Ride Service Request Function - COMPLETE UPDATED VERSION
+async function requestRegularRideService() {
+    try {
+        console.log('🚗 Processing regular ride service request...');
+        
+        if (!AppState.pickup || !AppState.destination) {
+            EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
+            return;
+        }
+        
+        // Validate distance within city
+        const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
+            AppState.pickup.lat, AppState.pickup.lng,
+            AppState.destination.lat, AppState.destination.lng,
+            AppState.currentCity
+        );
+        
+        if (!validation.valid) {
+            EnhancedUIUpdater.showToast(validation.message, 'warning');
+            return;
+        }
+        
+        // Calculate distance
+        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
+            AppState.pickup,
+            AppState.destination,
+            AppState.rideStops.filter(stop => stop.location)
+        );
+        
+        // Calculate fare
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const fare = EnhancedPriceCalculator.calculateRideFare(
+            distance,
+            AppState.selectedRideType,
+            surge,
+            null,
+            AppState.rideStops.filter(stop => stop.location)
+        );
+        
+        // Create complete ride data
+        const rideData = {
+            pickup: AppState.pickup,
+            destination: AppState.destination,
+            rideType: AppState.selectedRideType,
+            serviceType: 'car',
+            fare: fare,
+            distance: distance,
+            stops: AppState.rideStops.filter(stop => stop.location),
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment'
+        };
+        
+        console.log('🚗 Regular ride data prepared:', rideData);
+        
+        // Store in pending state
+        AppState.pendingRideData = rideData;
+        AppState.rideFare = fare;
+        
+        // Show payment modal
+        EnhancedUIUpdater.showPaymentModal(fare, rideData);
+        
+    } catch (error) {
+        console.error('❌ Error requesting regular ride:', error);
+        EnhancedUIUpdater.showToast('Error processing ride request', 'error');
+    }
+}
+
+// Split Ride Service Request Function - COMPLETE UPDATED VERSION
+async function requestSplitRideService(splitRideData) {
+    try {
+        console.log('👥 Processing split ride service request...');
+        
+        if (!AppState.pickup || !AppState.destination) {
+            EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
+            return;
+        }
+        
+        // Calculate distance
+        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
+            AppState.pickup,
+            AppState.destination,
+            AppState.rideStops.filter(stop => stop.location)
+        );
+        
+        // Create complete split ride data
+        const serviceData = {
+            pickup: AppState.pickup,
+            destination: AppState.destination,
+            rideType: AppState.selectedRideType || 'standard',
+            serviceType: 'car',
+            fare: splitRideData.yourShare,
+            distance: distance,
+            stops: AppState.rideStops.filter(stop => stop.location),
+            splitRide: true,
+            participants: splitRideData.participants,
+            totalFare: splitRideData.totalFare,
+            yourShare: splitRideData.yourShare,
+            friends: splitRideData.friends || [],
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment',
+            isSplitRide: true
+        };
+        
+        // Add split ride ID if provided
+        if (splitRideData.splitRideId) {
+            serviceData.splitRideId = splitRideData.splitRideId;
+        }
+        
+        console.log('👥 Split ride data prepared:', serviceData);
+        
+        // Store in pending state
+        AppState.pendingRideData = serviceData;
+        AppState.rideFare = splitRideData.yourShare;
+        
+        // Show payment modal
+        EnhancedUIUpdater.showPaymentModal(splitRideData.yourShare, serviceData);
+        
+    } catch (error) {
+        console.error('❌ Error requesting split ride:', error);
+        EnhancedUIUpdater.showToast('Error processing split ride request', 'error');
+    }
+}
+
+// Broadcast Ride Service Request Function - COMPLETE UPDATED VERSION
+async function requestBroadcastRideService(broadcastRideData) {
+    try {
+        console.log('📡 Processing broadcast ride service request...');
+        
+        if (!AppState.pickup || !AppState.destination) {
+            EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
+            return;
+        }
+        
+        // Calculate distance
+        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
+            AppState.pickup,
+            AppState.destination,
+            AppState.rideStops.filter(stop => stop.location)
+        );
+        
+        // Create complete broadcast ride data
+        const serviceData = {
+            pickup: AppState.pickup,
+            destination: AppState.destination,
+            rideType: AppState.selectedRideType || 'standard',
+            serviceType: 'car',
+            fare: broadcastRideData.totalFare,
+            distance: distance,
+            stops: AppState.rideStops.filter(stop => stop.location),
+            broadcast: true,
+            friends: broadcastRideData.friends || [],
+            city: AppState.currentCity,
+            passengerId: AppState.currentUser?.uid,
+            passengerName: AppState.userData?.name,
+            passengerPhone: AppState.userData?.phone,
+            timestamp: Date.now(),
+            status: 'pending_payment',
+            isBroadcast: true
+        };
+        
+        console.log('📡 Broadcast ride data prepared:', serviceData);
+        
+        // Store in pending state
+        AppState.pendingRideData = serviceData;
+        AppState.rideFare = broadcastRideData.totalFare;
+        
+        // Show payment modal
+        EnhancedUIUpdater.showPaymentModal(broadcastRideData.totalFare, serviceData);
+        
+    } catch (error) {
+        console.error('❌ Error requesting broadcast ride:', error);
+        EnhancedUIUpdater.showToast('Error processing broadcast request', 'error');
+    }
+}
+
 
 async function checkAndProcessScheduledRides() {
     try {
