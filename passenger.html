@@ -10105,32 +10105,81 @@ const EnhancedUIUpdater = {
         }
     },
     
-    updateRideDetails: function(ride) {
-        const currentPickup = document.getElementById('currentPickup');
-        const currentDestination = document.getElementById('currentDestination');
-        const rideDistance = document.getElementById('rideDistance');
-        const rideTime = document.getElementById('rideTime');
+   // ENHANCED: Update ride details including driver info and images
+updateRideDetails: function(ride) {
+    const currentPickup = document.getElementById('currentPickup');
+    const currentDestination = document.getElementById('currentDestination');
+    const rideDistance = document.getElementById('rideDistance');
+    const rideTime = document.getElementById('rideTime');
+    
+    if (currentPickup) currentPickup.textContent = ride.pickupDisplay || ride.pickup || 'Loading...';
+    if (currentDestination) currentDestination.textContent = ride.destinationDisplay || ride.destination || 'Loading...';
+    if (rideDistance) rideDistance.textContent = ride.distance ? `${ride.distance.toFixed(1)} km` : '0 km';
+    if (rideTime) rideTime.textContent = ride.estimatedTime ? `${ride.estimatedTime} min` : '0 min';
+    
+    // Update fare breakdown
+    const baseFareValue = document.getElementById('baseFareValue');
+    const distanceFareValue = document.getElementById('distanceFareValue');
+    const rideTypeValue = document.getElementById('rideTypeValue');
+    const totalFareValue = document.getElementById('totalFareValue');
+    
+    if (baseFareValue) baseFareValue.textContent = `ZMW ${(ride.fareDetails?.baseFare || 15).toFixed(2)}`;
+    if (distanceFareValue) distanceFareValue.textContent = `ZMW ${(ride.fareDetails?.distanceFare || 5).toFixed(2)}`;
+    
+    if (rideTypeValue) {
+        rideTypeValue.textContent = ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1) || 'Standard';
+    }
+    
+    if (totalFareValue) totalFareValue.textContent = `ZMW ${ride.fare?.toFixed(2) || '0.00'}`;
+    
+    // --- NEW: Update driver info if present ---
+    if (ride.driverId) {
+        // Driver name
+        const driverNameEl = document.getElementById('driverName');
+        if (driverNameEl) driverNameEl.textContent = ride.driverName || 'Driver';
         
-        if (currentPickup) currentPickup.textContent = ride.pickupDisplay || ride.pickup || 'Loading...';
-        if (currentDestination) currentDestination.textContent = ride.destinationDisplay || ride.destination || 'Loading...';
-        if (rideDistance) rideDistance.textContent = ride.distance ? `${ride.distance.toFixed(1)} km` : '0 km';
-        if (rideTime) rideTime.textContent = ride.estimatedTime ? `${ride.estimatedTime} min` : '0 min';
+        // Driver rating (default to 4.8 if not provided)
+        const driverRatingEl = document.getElementById('driverRating');
+        if (driverRatingEl) driverRatingEl.textContent = ride.driverRating ? ride.driverRating.toFixed(1) : '4.8';
         
-        // Update fare breakdown
-        const baseFareValue = document.getElementById('baseFareValue');
-        const distanceFareValue = document.getElementById('distanceFareValue');
-        const rideTypeValue = document.getElementById('rideTypeValue');
-        const totalFareValue = document.getElementById('totalFareValue');
-        
-        if (baseFareValue) baseFareValue.textContent = `ZMW ${(ride.fareDetails?.baseFare || 15).toFixed(2)}`;
-        if (distanceFareValue) distanceFareValue.textContent = `ZMW ${(ride.fareDetails?.distanceFare || 5).toFixed(2)}`;
-        
-        if (rideTypeValue) {
-            rideTypeValue.textContent = ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1) || 'Standard';
+        // Vehicle details (combine model and plate if available)
+        const vehicleDetailsEl = document.getElementById('vehicleDetails');
+        if (vehicleDetailsEl && ride.driverVehicle) {
+            const vehicle = ride.driverVehicle;
+            vehicleDetailsEl.textContent = `${vehicle.model || 'Car'} - ${vehicle.licensePlate || 'ABC123'}`;
         }
         
-        if (totalFareValue) totalFareValue.textContent = `ZMW ${ride.fare?.toFixed(2) || '0.00'}`;
-    },
+        // Driver profile image
+        const driverImage = document.getElementById('driverImage');
+        const driverImagePlaceholder = document.getElementById('driverImagePlaceholder');
+        if (ride.driverProfileImage) {
+            driverImage.src = ride.driverProfileImage;
+            driverImage.style.display = 'block';
+            if (driverImagePlaceholder) driverImagePlaceholder.style.display = 'none';
+        } else {
+            if (driverImage) driverImage.style.display = 'none';
+            if (driverImagePlaceholder) driverImagePlaceholder.style.display = 'flex';
+        }
+        
+        // Vehicle image
+        const vehicleImage = document.getElementById('vehicleImage');
+        const vehicleImagePlaceholder = document.getElementById('vehicleImagePlaceholder');
+        if (ride.vehicleImage) {
+            vehicleImage.src = ride.vehicleImage;
+            vehicleImage.style.display = 'block';
+            if (vehicleImagePlaceholder) vehicleImagePlaceholder.style.display = 'none';
+        } else {
+            if (vehicleImage) vehicleImage.style.display = 'none';
+            if (vehicleImagePlaceholder) vehicleImagePlaceholder.style.display = 'flex';
+        }
+        
+        // Also update driver avatar in the top section (optional)
+        const driverAvatar = document.getElementById('driverAvatar');
+        if (driverAvatar && ride.driverProfileImage) {
+            driverAvatar.innerHTML = `<img src="${ride.driverProfileImage}" style="width:100%; height:100%; object-fit:cover;">`;
+        }
+    }
+},
     
     updateRideStatus: function(status) {
         const statusBar = document.getElementById('rideStatusBar');
@@ -12835,44 +12884,49 @@ const EnhancedFirebaseManager = {
         );
         
         // Active ride updates
-        const activeRideRef = database.ref('rides')
-            .orderByChild('passengerId')
-            .equalTo(uid)
-            .orderByChild('status')
-            .startAt('requested')
-            .endAt('started');
-        
-        AppState.realtimeListeners.push(
-            activeRideRef.on('value', (snapshot) => {
-                const rides = snapshot.val();
-                if (rides) {
-                    const rideId = Object.keys(rides)[0];
-                    const ride = { id: rideId, ...rides[rideId] };
-                    
-                    if (!AppState.currentRide || AppState.currentRide.id !== rideId) {
-                        AppState.currentRide = ride;
-                        EnhancedUIUpdater.showRideInfo(ride);
-                        
-                        if (ride.driverId) {
-                            this.listenToDriverLocation(ride.driverId);
-                            this.loadDriverInfo(ride.driverId);
-                        }
-                        
-                        this.listenToChatMessages(rideId);
-                    } else {
-                        AppState.currentRide = ride;
-                        EnhancedUIUpdater.updateRideStatus(ride.status);
-                        EnhancedUIUpdater.updateTimeline(ride.status);
-                        
-                        if (ride.status === 'completed') {
-                            this.handleRideCompletion(ride);
-                        }
-                    }
-                } else if (AppState.currentRide) {
-                    this.resetActiveRide();
+       // Inside startRealtimeSync, locate this section:
+const activeRideRef = database.ref('rides')
+    .orderByChild('passengerId')
+    .equalTo(uid)
+    .orderByChild('status')
+    .startAt('requested')
+    .endAt('started');
+
+AppState.realtimeListeners.push(
+    activeRideRef.on('value', (snapshot) => {
+        const rides = snapshot.val();
+        if (rides) {
+            const rideId = Object.keys(rides)[0];
+            const ride = { id: rideId, ...rides[rideId] };
+            
+            if (!AppState.currentRide || AppState.currentRide.id !== rideId) {
+                AppState.currentRide = ride;
+                EnhancedUIUpdater.showRideInfo(ride);
+                
+                if (ride.driverId) {
+                    this.listenToDriverLocation(ride.driverId);
+                    this.loadDriverInfo(ride.driverId);
                 }
-            })
-        );
+                
+                this.listenToChatMessages(rideId);
+            } else {
+                // Update existing ride
+                AppState.currentRide = ride;
+                
+                // --- MODIFIED: Update full ride details AND status/timeline ---
+                EnhancedUIUpdater.updateRideDetails(ride);          // <-- ADD THIS LINE
+                EnhancedUIUpdater.updateRideStatus(ride.status);
+                EnhancedUIUpdater.updateTimeline(ride.status);
+                
+                if (ride.status === 'completed') {
+                    this.handleRideCompletion(ride);
+                }
+            }
+        } else if (AppState.currentRide) {
+            this.resetActiveRide();
+        }
+    })
+);
         
         // Notifications
        const notificationsRef = database.ref(`notifications/${uid}`)
