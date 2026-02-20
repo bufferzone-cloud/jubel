@@ -12885,42 +12885,51 @@ const EnhancedFirebaseManager = {
         
         // Active ride updates
        // Inside startRealtimeSync, locate this section:
+// ✅ CORRECTED: Listens to all rides for this passenger and filters for active status
 const activeRideRef = database.ref('rides')
     .orderByChild('passengerId')
-    .equalTo(uid)
-    .orderByChild('status')
-    .startAt('requested')
-    .endAt('started');
+    .equalTo(uid);
 
 AppState.realtimeListeners.push(
     activeRideRef.on('value', (snapshot) => {
         const rides = snapshot.val();
         if (rides) {
-            const rideId = Object.keys(rides)[0];
-            const ride = { id: rideId, ...rides[rideId] };
+            // Find the ride with a status in: requested, accepted, arrived, started
+            let activeRide = null;
+            for (const rideId in rides) {
+                const ride = rides[rideId];
+                if (ride.status && ['requested', 'accepted', 'arrived', 'started'].includes(ride.status)) {
+                    activeRide = { id: rideId, ...ride };
+                    break;
+                }
+            }
             
-            if (!AppState.currentRide || AppState.currentRide.id !== rideId) {
-                AppState.currentRide = ride;
-                EnhancedUIUpdater.showRideInfo(ride);
-                
-                if (ride.driverId) {
-                    this.listenToDriverLocation(ride.driverId);
-                    this.loadDriverInfo(ride.driverId);
+            if (activeRide) {
+                if (!AppState.currentRide || AppState.currentRide.id !== activeRide.id) {
+                    // New active ride
+                    AppState.currentRide = activeRide;
+                    EnhancedUIUpdater.showRideInfo(activeRide);
+                    
+                    if (activeRide.driverId) {
+                        this.listenToDriverLocation(activeRide.driverId);
+                        // No need to call loadDriverInfo – all driver details are in the ride object
+                    }
+                    
+                    this.listenToChatMessages(activeRide.id);
+                } else {
+                    // Update existing ride
+                    AppState.currentRide = activeRide;
+                    EnhancedUIUpdater.updateRideDetails(activeRide);   // <-- Updates driver info
+                    EnhancedUIUpdater.updateRideStatus(activeRide.status);
+                    EnhancedUIUpdater.updateTimeline(activeRide.status);
+                    
+                    if (activeRide.status === 'completed') {
+                        this.handleRideCompletion(activeRide);
+                    }
                 }
-                
-                this.listenToChatMessages(rideId);
-            } else {
-                // Update existing ride
-                AppState.currentRide = ride;
-                
-                // --- MODIFIED: Update full ride details AND status/timeline ---
-                EnhancedUIUpdater.updateRideDetails(ride);          // <-- ADD THIS LINE
-                EnhancedUIUpdater.updateRideStatus(ride.status);
-                EnhancedUIUpdater.updateTimeline(ride.status);
-                
-                if (ride.status === 'completed') {
-                    this.handleRideCompletion(ride);
-                }
+            } else if (AppState.currentRide) {
+                // No active ride found – reset
+                this.resetActiveRide();
             }
         } else if (AppState.currentRide) {
             this.resetActiveRide();
