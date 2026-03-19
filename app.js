@@ -12,21 +12,20 @@ const firebaseConfig = {
     measurementId: "G-J5JPKL6B5F"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const auth = firebase.auth();
 const storage = firebase.storage();
 
 // ============================================
-// GLOBAL STATE MANAGEMENT
+// GLOBAL STATE (same as original)
 // ============================================
 const AppState = {
     currentUser: null,
     userData: null,
     currentRide: null,
     activeScreen: 'home',
-    activeService: 'car', // default service
+    activeService: 'car',
     walletBalance: 0,
     userLocation: null,
     currentCity: null,
@@ -47,11 +46,7 @@ const AppState = {
     unreadNotifications: 0,
     searchHistory: [],
     broadcastRecipients: [],
-    emergencyStations: {
-        police: [],
-        fire: [],
-        medical: []
-    },
+    emergencyStations: { police: [], fire: [], medical: [] },
     realtimeListeners: [],
     rideTypes: {
         economy: { base: 15, perKm: 2.5, multiplier: 0.8, min: 10, icon: 'fa-car-side' },
@@ -74,9 +69,6 @@ const AppState = {
         medium: { base: 200, perKm: 8.0, multiplier: 1.5, capacity: '7 tons' },
         heavy: { base: 350, perKm: 12.0, multiplier: 2.0, capacity: '15 tons' }
     },
-    bicycleTypes: {
-        standard: { base: 10, perKm: 1.5, multiplier: 1.0, min: 8 }
-    },
     lastPriceUpdate: 0,
     cityDetectionAttempts: 0,
     maxCityDetectionAttempts: 5,
@@ -96,11 +88,7 @@ const AppState = {
         userDetectedAddress: null
     },
     activeScheduledTimer: null,
-    rideRequestPulsingIcons: {
-        car: null,
-        bike: null,
-        truck: null
-    },
+    rideRequestPulsingIcons: { car: null, bike: null, truck: null },
     shareRideFriends: [],
     maxShareFriends: 4,
     routeDirections: null,
@@ -136,18 +124,11 @@ const AppState = {
         referralEarnings: true,
         splitRideInvites: true,
         broadcastInvites: true
-    },
-    // For the new service icons
-    serviceIcons: {
-        car: { name: 'Car', basePrice: 15, perKm: 3 },
-        'delivery-bike': { name: 'Delivery Bike', basePrice: 10, perKm: 2 },
-        bicycle: { name: 'Bicycle', basePrice: 5, perKm: 1 },
-        truck: { name: 'Truck', basePrice: 80, perKm: 5 }
     }
 };
 
 // ============================================
-// MAP MANAGEMENT
+// MAP VARIABLES
 // ============================================
 let map = null;
 let currentLocationMarker = null;
@@ -162,7 +143,7 @@ let routePolyline = null;
 let pulsingIcon = null;
 
 // ============================================
-// ENHANCED SEARCH ENGINE (unchanged logic, updated IDs)
+// ENHANCED SEARCH ENGINE (adapted to new HTML)
 // ============================================
 const EnhancedSearchEngine = {
     cache: new Map(),
@@ -176,18 +157,14 @@ const EnhancedSearchEngine = {
     init: function() {
         this.loadSearchHistory();
         this.loadRecentLocations();
-        console.log('Enhanced Search Engine initialized');
     },
 
     loadSearchHistory: function() {
         try {
             const history = localStorage.getItem('jubel_search_history');
-            if (history) {
-                this.searchHistory = JSON.parse(history);
-            }
+            if (history) this.searchHistory = JSON.parse(history);
         } catch (error) {
             console.error('Error loading search history:', error);
-            this.searchHistory = [];
         }
     },
 
@@ -202,12 +179,9 @@ const EnhancedSearchEngine = {
     loadRecentLocations: function() {
         try {
             const recent = localStorage.getItem('jubel_recent_locations');
-            if (recent) {
-                this.recentLocations = JSON.parse(recent);
-            }
+            if (recent) this.recentLocations = JSON.parse(recent);
         } catch (error) {
             console.error('Error loading recent locations:', error);
-            this.recentLocations = [];
         }
     },
 
@@ -229,21 +203,10 @@ const EnhancedSearchEngine = {
             city: AppState.currentCity,
             coordinates: { lat: location.lat, lng: location.lng }
         };
-
-        this.searchHistory = this.searchHistory.filter(item =>
-            !(item.query === query && item.type === type &&
-                Math.abs(item.coordinates.lat - location.lat) < 0.001 &&
-                Math.abs(item.coordinates.lng - location.lng) < 0.001)
-        );
-
+        this.searchHistory = this.searchHistory.filter(item => !(item.query === query && item.type === type && Math.abs(item.coordinates.lat - location.lat) < 0.001 && Math.abs(item.coordinates.lng - location.lng) < 0.001));
         this.searchHistory.unshift(historyItem);
-
-        if (this.searchHistory.length > this.maxHistoryItems) {
-            this.searchHistory = this.searchHistory.slice(0, this.maxHistoryItems);
-        }
-
+        if (this.searchHistory.length > this.maxHistoryItems) this.searchHistory = this.searchHistory.slice(0, this.maxHistoryItems);
         this.saveSearchHistory();
-        return historyItem;
     },
 
     addToRecentLocations: function(location) {
@@ -256,93 +219,50 @@ const EnhancedSearchEngine = {
             city: AppState.currentCity,
             type: location.category || 'general'
         };
-
-        this.recentLocations = this.recentLocations.filter(item =>
-            !(Math.abs(item.coordinates.lat - location.lat) < 0.001 &&
-                Math.abs(item.coordinates.lng - location.lng) < 0.001)
-        );
-
+        this.recentLocations = this.recentLocations.filter(item => !(Math.abs(item.coordinates.lat - location.lat) < 0.001 && Math.abs(item.coordinates.lng - location.lng) < 0.001));
         this.recentLocations.unshift(recentItem);
-
-        if (this.recentLocations.length > 15) {
-            this.recentLocations = this.recentLocations.slice(0, 15);
-        }
-
+        if (this.recentLocations.length > 15) this.recentLocations = this.recentLocations.slice(0, 15);
         this.saveRecentLocations();
-        return recentItem;
     },
 
     search: async function(query, type = 'destination', location = null, forceCity = null) {
         const searchId = `${Date.now()}-${Math.random()}`;
         this.activeSearches.add(searchId);
-
         try {
             const city = forceCity || AppState.currentCity;
             if (!city) {
-                console.warn('No city detected for search');
                 EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
                 return [];
             }
-
             const cacheKey = `${query.toLowerCase()}-${type}-${city}`;
-
             if (this.cache.has(cacheKey)) {
                 const cached = this.cache.get(cacheKey);
-                if (Date.now() - cached.timestamp < 300000) {
-                    console.log('Returning cached search results');
-                    return this.filterByCityBounds(cached.results, city);
-                }
+                if (Date.now() - cached.timestamp < 300000) return this.filterByCityBounds(cached.results, city);
             }
-
-            console.log(`Searching for "${query}" in ${city}, type: ${type}`);
-
             const bounds = this.getCityBounds(city);
             let searchUrl;
-
             if (bounds) {
                 const [west, south, east, north] = bounds;
                 searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=20&bounded=1&viewbox=${west},${south},${east},${north}&countrycodes=zm&addressdetails=1&namedetails=0&extratags=0`;
             } else {
                 searchUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}+${encodeURIComponent(city)}+Zambia&format=json&limit=20&countrycodes=zm&addressdetails=1`;
             }
-
             const response = await fetch(searchUrl, {
                 headers: {
                     'User-Agent': 'JubelRideApp/2.0',
                     'Accept': 'application/json'
                 }
             });
-
-            if (!response.ok) {
-                throw new Error(`Search failed: ${response.status} ${response.statusText}`);
-            }
-
+            if (!response.ok) throw new Error(`Search failed: ${response.status}`);
             const data = await response.json();
-            console.log(`Received ${data.length} results for "${query}"`);
-
             const results = this.processAndFilterResults(data, location, city, type);
-
-            this.cache.set(cacheKey, {
-                results: results,
-                timestamp: Date.now(),
-                query: query,
-                city: city
-            });
-
-            if (type === 'destination' && results.length > 0) {
-                this.addToHistory(query, results[0], type);
-            }
-
+            this.cache.set(cacheKey, { results: results, timestamp: Date.now(), query: query, city: city });
+            if (type === 'destination' && results.length > 0) this.addToHistory(query, results[0], type);
             this.lastSearch = Date.now();
-
             return results;
         } catch (error) {
             console.error('Search error:', error);
-
-            if (AppState.currentCity) {
-                return await this.alternativeSearch(query, AppState.currentCity);
-            }
-
+            if (AppState.currentCity) return await this.alternativeSearch(query, AppState.currentCity);
             EnhancedUIUpdater.showToast('Search service temporarily unavailable', 'warning');
             return [];
         } finally {
@@ -353,10 +273,8 @@ const EnhancedSearchEngine = {
     alternativeSearch: async function(query, city) {
         try {
             const alternativeUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}+${encodeURIComponent(city)}+Zambia&format=json&limit=10&countrycodes=zm`;
-
             const response = await fetch(alternativeUrl);
             const data = await response.json();
-
             return data.map(place => ({
                 id: place.place_id,
                 name: place.display_name.split(',')[0],
@@ -376,20 +294,14 @@ const EnhancedSearchEngine = {
 
     processAndFilterResults: function(data, location, city, type) {
         if (!data || data.length === 0) return [];
-
         const cityLower = city.toLowerCase();
         const processedResults = [];
-
         data.forEach(place => {
             try {
                 const address = place.address || {};
                 const placeCity = address.city || address.town || address.village || address.municipality;
-
                 let cityMatchScore = 0;
-                if (placeCity && placeCity.toLowerCase().includes(cityLower)) {
-                    cityMatchScore = 1;
-                }
-
+                if (placeCity && placeCity.toLowerCase().includes(cityLower)) cityMatchScore = 1;
                 let distance = 0;
                 if (location) {
                     distance = this.calculateDistance(
@@ -397,7 +309,6 @@ const EnhancedSearchEngine = {
                         parseFloat(place.lat), parseFloat(place.lon)
                     );
                 }
-
                 const result = {
                     id: place.place_id || `${place.lat}-${place.lon}`,
                     name: place.display_name.split(',')[0] || place.name || 'Location',
@@ -415,129 +326,70 @@ const EnhancedSearchEngine = {
                     cityMatchScore: cityMatchScore,
                     isVerified: this.isVerifiedLocation(place)
                 };
-
                 processedResults.push(result);
             } catch (error) {
                 console.error('Error processing search result:', error);
             }
         });
-
-        return processedResults
-            .sort((a, b) => {
-                if (a.cityMatchScore !== b.cityMatchScore) {
-                    return b.cityMatchScore - a.cityMatchScore;
-                }
-                if (location && a.distance !== b.distance) {
-                    return a.distance - b.distance;
-                }
-                if (a.relevance !== b.relevance) {
-                    return b.relevance - a.relevance;
-                }
-                return b.importance - a.importance;
-            })
-            .slice(0, 10);
+        return processedResults.sort((a, b) => {
+            if (a.cityMatchScore !== b.cityMatchScore) return b.cityMatchScore - a.cityMatchScore;
+            if (location && a.distance !== b.distance) return a.distance - b.distance;
+            if (a.relevance !== b.relevance) return b.relevance - a.relevance;
+            return b.importance - a.importance;
+        }).slice(0, 10);
     },
 
     filterByCityBounds: function(results, city) {
         const bounds = this.getCityBounds(city);
         if (!bounds) return results;
-
         const [west, south, east, north] = bounds;
-
-        return results.filter(result => {
-            return result.lng >= west && result.lng <= east &&
-                result.lat >= south && result.lat <= north;
-        });
+        return results.filter(result => result.lng >= west && result.lng <= east && result.lat >= south && result.lat <= north);
     },
 
     calculateRelevance: function(place, location, city, type) {
         let score = (place.importance || 0) * 0.5;
-
         if (city) {
             const address = place.address || {};
             const placeCity = address.city || address.town || address.village;
-            if (placeCity && placeCity.toLowerCase().includes(city.toLowerCase())) {
-                score += 0.4;
-            }
+            if (placeCity && placeCity.toLowerCase().includes(city.toLowerCase())) score += 0.4;
         }
-
         if (location) {
-            const distance = this.calculateDistance(
-                location.lat, location.lng,
-                parseFloat(place.lat), parseFloat(place.lon)
-            );
-
+            const distance = this.calculateDistance(location.lat, location.lng, parseFloat(place.lat), parseFloat(place.lon));
             if (distance < 1) score += 0.3;
             else if (distance < 3) score += 0.2;
             else if (distance < 5) score += 0.1;
         }
-
         if (type === 'destination') {
-            if (place.type === 'restaurant' || place.type === 'hotel' ||
-                place.type === 'mall' || place.type === 'supermarket') {
-                score += 0.2;
-            }
+            if (place.type === 'restaurant' || place.type === 'hotel' || place.type === 'mall' || place.type === 'supermarket') score += 0.2;
         }
-
         return Math.min(score, 1.0);
     },
 
     formatAddress: function(place, currentCity) {
         const address = place.address || {};
         const parts = [];
-
-        if (address.house_number || address.housenumber) {
-            parts.push(address.house_number || address.housenumber);
-        }
-
-        if (address.road) {
-            parts.push(address.road);
-        }
-
-        if (address.suburb || address.neighbourhood) {
-            parts.push(address.suburb || address.neighbourhood);
-        }
-
-        if (address.city || address.town) {
-            parts.push(address.city || address.town);
-        }
-
-        if (parts.length === 0) {
-            return place.display_name.split(',').slice(0, 3).join(',').trim();
-        }
-
+        if (address.house_number || address.housenumber) parts.push(address.house_number || address.housenumber);
+        if (address.road) parts.push(address.road);
+        if (address.suburb || address.neighbourhood) parts.push(address.suburb || address.neighbourhood);
+        if (address.city || address.town) parts.push(address.city || address.town);
+        if (parts.length === 0) return place.display_name.split(',').slice(0, 3).join(',').trim();
         return parts.join(', ');
     },
 
     categorizePlace: function(place) {
         const type = (place.type || place.class || '').toLowerCase();
         const name = (place.display_name || '').toLowerCase();
-
-        if (type.includes('restaurant') || type.includes('cafe') || type.includes('fast_food') ||
-            name.includes('pizza') || name.includes('nando') || name.includes('hungry lion')) {
-            return 'restaurant';
-        } else if (type.includes('pharmacy') || type.includes('chemist')) {
-            return 'pharmacy';
-        } else if (type.includes('supermarket') || name.includes('shoprite') ||
-            name.includes('pick n pay') || name.includes('spar')) {
-            return 'supermarket';
-        } else if (type.includes('mall') || type.includes('shopping_centre')) {
-            return 'mall';
-        } else if (type.includes('hospital') || type.includes('clinic')) {
-            return 'medical';
-        } else if (type.includes('bank') || type.includes('atm')) {
-            return 'bank';
-        } else {
-            return 'general';
-        }
+        if (type.includes('restaurant') || type.includes('cafe') || type.includes('fast_food') || name.includes('pizza') || name.includes('nando') || name.includes('hungry lion')) return 'restaurant';
+        else if (type.includes('pharmacy') || type.includes('chemist')) return 'pharmacy';
+        else if (type.includes('supermarket') || name.includes('shoprite') || name.includes('pick n pay') || name.includes('spar')) return 'supermarket';
+        else if (type.includes('mall') || type.includes('shopping_centre')) return 'mall';
+        else if (type.includes('hospital') || type.includes('clinic')) return 'medical';
+        else if (type.includes('bank') || type.includes('atm')) return 'bank';
+        else return 'general';
     },
 
     isVerifiedLocation: function(place) {
-        const verifiedTypes = [
-            'restaurant', 'hotel', 'mall', 'supermarket', 'bank', 'hospital',
-            'clinic', 'pharmacy', 'police', 'fire_station'
-        ];
-
+        const verifiedTypes = ['restaurant', 'hotel', 'mall', 'supermarket', 'bank', 'hospital', 'clinic', 'pharmacy', 'police', 'fire_station'];
         const type = (place.type || place.class || '').toLowerCase();
         return verifiedTypes.some(verifiedType => type.includes(verifiedType));
     },
@@ -546,10 +398,7 @@ const EnhancedSearchEngine = {
         const R = 6371;
         const dLat = this.toRad(lat2 - lat1);
         const dLon = this.toRad(lon2 - lon1);
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
     },
@@ -571,131 +420,78 @@ const EnhancedSearchEngine = {
             'Luanshya': [28.3, -13.2, 28.5, -13.0],
             'Kasama': [31.1, -10.3, 31.3, -10.1],
             'Solwezi': [26.3, -12.3, 26.5, -12.1],
-            'Mazabuka': [27.7, -15.9, 27.9, -15.7],
-            'Choma': [26.8, -16.9, 27.1, -16.7],
-            'Mongu': [23.0, -15.3, 23.3, -15.2],
-            'Kafue': [28.1, -15.8, 28.3, -15.7],
-            'Monze': [27.4, -16.3, 27.5, -16.2],
-            'Mumbwa': [27.0, -15.0, 27.1, -14.9],
-            'Kapiri Mposhi': [28.6, -14.0, 28.7, -13.9],
-            'Mpika': [31.4, -11.9, 31.5, -11.8],
-            'Nchelenge': [28.7, -9.4, 28.8, -9.3]
+            'Mazabuka': [27.7, -15.9, 27.9, -15.7]
         };
-
         return cityBounds[cityName] || null;
     },
 
     searchShoppingLocations: async function(category, city) {
         let queries = [];
-
-        switch (category) {
-            case 'restaurant':
-                queries = ['Pizza', 'Nandos', 'Hungry Lion', 'restaurant'];
-                break;
-            case 'pharmacy':
-                queries = ['pharmacy', 'chemist', 'drugstore'];
-                break;
-            case 'supermarket':
-                queries = ['supermarket', 'Shoprite', 'Pick n Pay', 'SPAR'];
-                break;
-            case 'mall':
-                queries = ['shopping mall', 'mall', 'shopping centre'];
-                break;
+        switch(category) {
+            case 'restaurant': queries = ['Pizza', 'Nandos', 'Hungry Lion', 'restaurant']; break;
+            case 'pharmacy': queries = ['pharmacy', 'chemist', 'drugstore']; break;
+            case 'supermarket': queries = ['supermarket', 'Shoprite', 'Pick n Pay', 'SPAR']; break;
+            case 'mall': queries = ['shopping mall', 'mall', 'shopping centre']; break;
         }
-
         const allResults = [];
-
         for (const query of queries) {
             try {
                 const results = await this.search(query, 'shopping', AppState.userLocation, city);
                 allResults.push(...results.filter(r => r.category === category));
-            } catch (error) {
-                console.error(`Error searching ${query}:`, error);
-            }
+            } catch (error) { console.error(`Error searching ${query}:`, error); }
         }
-
         const uniqueResults = [];
         const seenIds = new Set();
-
         allResults.forEach(result => {
-            if (!seenIds.has(result.id)) {
-                seenIds.add(result.id);
-                uniqueResults.push(result);
-            }
+            if (!seenIds.has(result.id)) { seenIds.add(result.id); uniqueResults.push(result); }
         });
-
         return uniqueResults.sort((a, b) => a.distance - b.distance);
     },
 
     searchEmergencyStations: async function(type, city) {
         let queries = [];
-
-        switch (type) {
-            case 'police':
-                queries = ['police station', 'police'];
-                break;
-            case 'fire':
-                queries = ['fire station', 'fire brigade'];
-                break;
-            case 'medical':
-                queries = ['hospital', 'clinic', 'medical centre'];
-                break;
+        switch(type) {
+            case 'police': queries = ['police station', 'police']; break;
+            case 'fire': queries = ['fire station', 'fire brigade']; break;
+            case 'medical': queries = ['hospital', 'clinic', 'medical centre']; break;
         }
-
         const allResults = [];
-
         for (const query of queries) {
             try {
                 const results = await this.search(query, 'emergency', AppState.userLocation, city);
                 allResults.push(...results);
-            } catch (error) {
-                console.error(`Error searching ${query}:`, error);
-            }
+            } catch (error) { console.error(`Error searching ${query}:`, error); }
         }
-
         const uniqueResults = [];
         const seenIds = new Set();
-
         allResults.forEach(result => {
-            if (!seenIds.has(result.id)) {
-                seenIds.add(result.id);
-                result.emergencyType = type;
-                uniqueResults.push(result);
-            }
+            if (!seenIds.has(result.id)) { seenIds.add(result.id); result.emergencyType = type; uniqueResults.push(result); }
         });
-
         return uniqueResults.sort((a, b) => a.distance - b.distance);
     },
 
-    clearCache: function() {
-        this.cache.clear();
-        console.log('Search cache cleared');
-    },
+    clearCache: function() { this.cache.clear(); },
 
     getRecentDestinations: function(limit = 10) {
-        return this.searchHistory
-            .filter(item => item.type === 'destination')
-            .slice(0, limit);
+        return this.searchHistory.filter(item => item.type === 'destination').slice(0, limit);
     },
 
     validateCoordinatesInCity: function(lat, lng, city) {
         const bounds = this.getCityBounds(city);
         if (!bounds) return true;
-
         const [west, south, east, north] = bounds;
         return lng >= west && lng <= east && lat >= south && lat <= north;
     }
 };
 
 // ============================================
-// ENHANCED LOCATION MANAGER (updated for new HTML)
+// ENHANCED LOCATION MANAGER (adapted to new HTML)
 // ============================================
 const EnhancedLocationManager = {
     searchTimeout: null,
     activeSearchInput: null,
 
     init: function() {
-        console.log('Enhanced Location Manager initialized');
         this.setupLocationInputs();
         this.setupSearchSuggestions();
         this.setupEditablePickup();
@@ -729,11 +525,7 @@ const EnhancedLocationManager = {
                 font-size: 16px;
                 z-index: 10;
             `;
-
-            currentLocationBtn.addEventListener('click', () => {
-                getCurrentLocation();
-            });
-
+            currentLocationBtn.addEventListener('click', () => { getCurrentLocation(); });
             parent.style.position = 'relative';
             parent.appendChild(currentLocationBtn);
         }
@@ -757,73 +549,26 @@ const EnhancedLocationManager = {
                 display: none;
                 z-index: 10;
             `;
-
             const parent = input.parentNode;
             parent.style.position = 'relative';
             parent.appendChild(clearBtn);
-
             clearBtn.addEventListener('click', () => {
                 input.value = '';
                 clearBtn.style.display = 'none';
-
                 if (input.id === 'pickupLocation') {
                     AppState.pickup = null;
-                    if (pickupMarker) {
-                        map.removeLayer(pickupMarker);
-                        pickupMarker = null;
-                    }
-                } else if (input.id === 'destinationLocation') {
-                    AppState.destination = null;
-                    if (destinationMarker) {
-                        map.removeLayer(destinationMarker);
-                        destinationMarker = null;
-                    }
-                    if (routeLayer) {
-                        map.removeLayer(routeLayer);
-                        routeLayer = null;
-                    }
+                    if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; }
                 }
             });
-
-            input.addEventListener('input', () => {
-                clearBtn.style.display = input.value ? 'block' : 'none';
-            });
+            input.addEventListener('input', () => { clearBtn.style.display = input.value ? 'block' : 'none'; });
         }
     },
 
     setupLocationInputs: function() {
-        // Main pickup input
-        const pickupInput = document.getElementById('pickupLocation');
-        if (pickupInput) {
-            this.setupPickupInput(pickupInput);
-        }
-
-        // Main destination input
-        const destinationInput = document.getElementById('destinationLocation');
-        if (destinationInput) {
-            this.setupDestinationInput(destinationInput);
-        }
-
-        // Also setup inputs in modals (schedule, someone, share, broadcast)
-        const modalPickups = [
-            'schedulePickup', 'someonePickup', 'sharePickup', 'broadcastPickup', 'emergencyPickup'
-        ];
-        modalPickups.forEach(id => {
-            const input = document.getElementById(id);
-            if (input) {
-                this.setupPickupInput(input);
-            }
-        });
-
-        const modalDestinations = [
-            'scheduleDestination', 'someoneDestination', 'shareDestination', 'broadcastDestination', 'emergencyDestination'
-        ];
-        modalDestinations.forEach(id => {
-            const input = document.getElementById(id);
-            if (input) {
-                this.setupDestinationInput(input);
-            }
-        });
+        const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
+        pickupInputs.forEach(input => this.setupPickupInput(input));
+        const destinationInputs = document.querySelectorAll('input[id*="destination"], input[id*="Destination"]');
+        destinationInputs.forEach(input => this.setupDestinationInput(input));
     },
 
     setupSearchSuggestions: function() {
@@ -849,43 +594,16 @@ const EnhancedLocationManager = {
 
     setupPickupInput: function(inputElement) {
         const inputId = inputElement.id;
-
-        inputElement.addEventListener('focus', () => {
-            this.handlePickupInputFocus(inputId);
-        });
-
-        inputElement.addEventListener('input', (e) => {
-            this.handlePickupInputChange(inputId, e.target.value);
-        });
-
-        inputElement.addEventListener('blur', () => {
-            setTimeout(() => {
-                this.handlePickupInputBlur(inputId);
-            }, 200);
-        });
-
-        // Ensure clear button exists
-        this.addClearButton(inputElement);
+        inputElement.addEventListener('focus', () => this.handlePickupInputFocus(inputId));
+        inputElement.addEventListener('input', (e) => this.handlePickupInputChange(inputId, e.target.value));
+        inputElement.addEventListener('blur', () => setTimeout(() => this.handlePickupInputBlur(inputId), 200));
     },
 
     setupDestinationInput: function(inputElement) {
         const inputId = inputElement.id;
-
-        inputElement.addEventListener('focus', () => {
-            this.handleDestinationInputFocus(inputId);
-        });
-
-        inputElement.addEventListener('input', (e) => {
-            this.handleDestinationInputChange(inputId, e.target.value);
-        });
-
-        inputElement.addEventListener('blur', () => {
-            setTimeout(() => {
-                this.handleDestinationInputBlur(inputId);
-            }, 200);
-        });
-
-        this.addClearButton(inputElement);
+        inputElement.addEventListener('focus', () => this.handleDestinationInputFocus(inputId));
+        inputElement.addEventListener('input', (e) => this.handleDestinationInputChange(inputId, e.target.value));
+        inputElement.addEventListener('blur', () => setTimeout(() => this.handleDestinationInputBlur(inputId), 200));
     },
 
     handlePickupInputFocus: function(inputId) {
@@ -897,26 +615,15 @@ const EnhancedLocationManager = {
     },
 
     handlePickupInputChange: async function(inputId, value) {
-        if (!value.trim() || value.length < 2) {
-            this.hideSuggestions();
-            return;
-        }
-
+        if (!value.trim() || value.length < 2) { this.hideSuggestions(); return; }
         clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(async () => {
-            await this.searchLocations(inputId, value, 'pickup');
-        }, 300);
+        this.searchTimeout = setTimeout(async () => { await this.searchLocations(inputId, value, 'pickup'); }, 300);
     },
 
     handlePickupInputBlur: function(inputId) {
         const input = document.getElementById(inputId);
-        if (input) {
-            input.parentElement.classList.remove('active');
-        }
-
-        setTimeout(() => {
-            this.hideSuggestions();
-        }, 200);
+        if (input) input.parentElement.classList.remove('active');
+        setTimeout(() => this.hideSuggestions(), 200);
     },
 
     handleDestinationInputFocus: function(inputId) {
@@ -928,26 +635,15 @@ const EnhancedLocationManager = {
     },
 
     handleDestinationInputChange: async function(inputId, value) {
-        if (!value.trim() || value.length < 2) {
-            this.hideSuggestions();
-            return;
-        }
-
+        if (!value.trim() || value.length < 2) { this.hideSuggestions(); return; }
         clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(async () => {
-            await this.searchLocations(inputId, value, 'destination');
-        }, 300);
+        this.searchTimeout = setTimeout(async () => { await this.searchLocations(inputId, value, 'destination'); }, 300);
     },
 
     handleDestinationInputBlur: function(inputId) {
         const input = document.getElementById(inputId);
-        if (input) {
-            input.parentElement.classList.remove('active');
-        }
-
-        setTimeout(() => {
-            this.hideSuggestions();
-        }, 200);
+        if (input) input.parentElement.classList.remove('active');
+        setTimeout(() => this.hideSuggestions(), 200);
     },
 
     async searchLocations(inputId, query, type) {
@@ -955,24 +651,13 @@ const EnhancedLocationManager = {
             EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
             return;
         }
-
         this.activeSearchInput = inputId;
         const input = document.getElementById(inputId);
-
         if (!input) return;
-
         input.parentElement.classList.add('searching');
-
         try {
-            const results = await EnhancedSearchEngine.search(
-                query,
-                type,
-                AppState.userLocation,
-                AppState.currentCity
-            );
-
+            const results = await EnhancedSearchEngine.search(query, type, AppState.userLocation, AppState.currentCity);
             this.showSearchSuggestions(input, results, type);
-
         } catch (error) {
             console.error('Search error:', error);
             EnhancedUIUpdater.showToast('Search failed. Please try again.', 'error');
@@ -984,95 +669,50 @@ const EnhancedLocationManager = {
     showSearchSuggestions: function(input, results, type) {
         const container = document.getElementById('globalSuggestionsContainer');
         if (!container) return;
-
         const rect = input.getBoundingClientRect();
         container.style.top = `${rect.bottom + window.scrollY + 5}px`;
         container.style.left = `${rect.left + window.scrollX}px`;
         container.style.width = `${rect.width}px`;
 
         let html = '';
-
         if (results.length === 0) {
-            html = `
-                <div style="padding: 20px; text-align: center; color: #666;">
-                    <i class="fas fa-search" style="font-size: 24px; margin-bottom: 10px; color: #ccc;"></i>
-                    <div>No results found in ${AppState.currentCity}</div>
-                </div>
-            `;
+            html = `<div style="padding: 20px; text-align: center; color: #666;"><i class="fas fa-search" style="font-size: 24px; margin-bottom: 10px; color: #ccc;"></i><div>No results found in ${AppState.currentCity}</div></div>`;
         } else {
             results.forEach((result, index) => {
                 let icon = 'fa-map-marker-alt';
                 let iconColor = '#FF6B35';
-
-                if (result.category === 'restaurant') {
-                    icon = 'fa-utensils';
-                    iconColor = '#FFC107';
-                } else if (result.category === 'pharmacy') {
-                    icon = 'fa-prescription-bottle-medical';
-                    iconColor = '#2196F3';
-                } else if (result.category === 'supermarket') {
-                    icon = 'fa-shopping-cart';
-                    iconColor = '#9C27B0';
-                } else if (result.category === 'mall') {
-                    icon = 'fa-store';
-                    iconColor = '#4CAF50';
-                } else if (result.category === 'medical') {
-                    icon = 'fa-hospital';
-                    iconColor = '#F44336';
-                }
-
+                if (result.category === 'restaurant') { icon = 'fa-utensils'; iconColor = '#FFC107'; }
+                else if (result.category === 'pharmacy') { icon = 'fa-prescription-bottle-medical'; iconColor = '#2196F3'; }
+                else if (result.category === 'supermarket') { icon = 'fa-shopping-cart'; iconColor = '#9C27B0'; }
+                else if (result.category === 'mall') { icon = 'fa-store'; iconColor = '#4CAF50'; }
+                else if (result.category === 'medical') { icon = 'fa-hospital'; iconColor = '#F44336'; }
                 html += `
-                    <div class="suggestion-item" data-index="${index}" style="
-                        padding: 12px 15px;
-                        border-bottom: 1px solid #f5f5f5;
-                        cursor: pointer;
-                        transition: background 0.2s;
-                    ">
+                    <div class="suggestion-item" data-index="${index}" style="padding: 12px 15px; border-bottom: 1px solid #f5f5f5; cursor: pointer; transition: background 0.2s;">
                         <div style="display: flex; align-items: flex-start; gap: 12px;">
-                            <div style="color: ${iconColor}; font-size: 18px; margin-top: 2px;">
-                                <i class="fas ${icon}"></i>
-                            </div>
+                            <div style="color: ${iconColor}; font-size: 18px; margin-top: 2px;"><i class="fas ${icon}"></i></div>
                             <div style="flex: 1;">
                                 <div style="font-weight: 600; margin-bottom: 4px;">${result.name}</div>
                                 <div style="font-size: 13px; color: #666; margin-bottom: 4px;">${result.address}</div>
-                                ${result.distance ? `
-                                <div style="font-size: 12px; color: #FF6B35;">
-                                    <i class="fas fa-location-arrow"></i> ${result.distance.toFixed(1)} km away
-                                </div>
-                                ` : ''}
+                                ${result.distance ? `<div style="font-size: 12px; color: #FF6B35;"><i class="fas fa-location-arrow"></i> ${result.distance.toFixed(1)} km away</div>` : ''}
                             </div>
                         </div>
                     </div>
                 `;
             });
-
             const recentSearches = EnhancedSearchEngine.getRecentDestinations(5);
             if (recentSearches.length > 0) {
-                html += `
-                    <div style="padding: 12px 15px; background: #f9f9f9; border-top: 1px solid #e0e0e0;">
-                        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
-                            <i class="fas fa-history"></i> Recent searches
-                        </div>
-                `;
-
+                html += `<div style="padding: 12px 15px; background: #f9f9f9; border-top: 1px solid #e0e0e0;"><div style="font-size: 12px; color: #666; margin-bottom: 8px;"><i class="fas fa-history"></i> Recent searches</div>`;
                 recentSearches.forEach((item, index) => {
                     html += `
-                        <div class="recent-item" data-recent-index="${index}" style="
-                            padding: 8px 0;
-                            border-bottom: 1px solid #eee;
-                            cursor: pointer;
-                            font-size: 14px;
-                        ">
+                        <div class="recent-item" data-recent-index="${index}" style="padding: 8px 0; border-bottom: 1px solid #eee; cursor: pointer; font-size: 14px;">
                             <div>${item.location.name}</div>
                             <div style="font-size: 12px; color: #999;">${item.location.address}</div>
                         </div>
                     `;
                 });
-
                 html += `</div>`;
             }
         }
-
         container.innerHTML = html;
         container.style.display = 'block';
 
@@ -1080,189 +720,123 @@ const EnhancedLocationManager = {
             item.addEventListener('click', () => {
                 const index = parseInt(item.dataset.index);
                 const result = results[index];
-
-                if (type === 'pickup') {
-                    this.selectPickupLocation(this.activeSearchInput, result);
-                } else {
-                    this.selectDestinationLocation(this.activeSearchInput, result);
-                }
-
+                if (type === 'pickup') this.selectPickupLocation(this.activeSearchInput, result);
+                else this.selectDestinationLocation(this.activeSearchInput, result);
                 this.hideSuggestions();
             });
         });
-
         container.querySelectorAll('.recent-item').forEach(item => {
             item.addEventListener('click', () => {
                 const index = parseInt(item.dataset.recentIndex);
                 const recentItem = recentSearches[index];
-
-                const result = {
-                    lat: recentItem.coordinates.lat,
-                    lng: recentItem.coordinates.lng,
-                    name: recentItem.location.name,
-                    address: recentItem.location.address
-                };
-
-                if (type === 'pickup') {
-                    this.selectPickupLocation(this.activeSearchInput, result);
-                } else {
-                    this.selectDestinationLocation(this.activeSearchInput, result);
-                }
-
+                const result = { lat: recentItem.coordinates.lat, lng: recentItem.coordinates.lng, name: recentItem.location.name, address: recentItem.location.address };
+                if (type === 'pickup') this.selectPickupLocation(this.activeSearchInput, result);
+                else this.selectDestinationLocation(this.activeSearchInput, result);
                 this.hideSuggestions();
             });
         });
-
         document.addEventListener('click', this.handleClickOutsideSuggestions);
     },
 
     showRecentLocations: function(inputId, type) {
         const input = document.getElementById(inputId);
         if (!input) return;
-
         const container = document.getElementById('globalSuggestionsContainer');
         if (!container) return;
-
         const recentSearches = EnhancedSearchEngine.getRecentDestinations(10);
-
-        if (recentSearches.length === 0) {
-            return;
-        }
-
+        if (recentSearches.length === 0) return;
         const rect = input.getBoundingClientRect();
         container.style.top = `${rect.bottom + window.scrollY + 5}px`;
         container.style.left = `${rect.left + window.scrollX}px`;
         container.style.width = `${rect.width}px`;
-
-        let html = `
-            <div style="padding: 15px;">
-                <div style="font-size: 14px; color: #666; margin-bottom: 10px;">
-                    <i class="fas fa-history"></i> Recent destinations
-                </div>
-        `;
-
+        let html = `<div style="padding: 15px;"><div style="font-size: 14px; color: #666; margin-bottom: 10px;"><i class="fas fa-history"></i> Recent destinations</div>`;
         recentSearches.forEach((item, index) => {
             const timeAgo = EnhancedUIUpdater.formatTimeAgo(item.timestamp);
-
             html += `
-                <div class="recent-item" data-recent-index="${index}" style="
-                    padding: 10px 0;
-                    border-bottom: 1px solid #eee;
-                    cursor: pointer;
-                ">
+                <div class="recent-item" data-recent-index="${index}" style="padding: 10px 0; border-bottom: 1px solid #eee; cursor: pointer;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; margin-bottom: 4px;">${item.location.name}</div>
-                            <div style="font-size: 13px; color: #666;">${item.location.address}</div>
-                        </div>
-                        <div style="font-size: 12px; color: #999; margin-left: 10px;">
-                            ${timeAgo}
-                        </div>
+                        <div style="flex: 1;"><div style="font-weight: 600; margin-bottom: 4px;">${item.location.name}</div><div style="font-size: 13px; color: #666;">${item.location.address}</div></div>
+                        <div style="font-size: 12px; color: #999; margin-left: 10px;">${timeAgo}</div>
                     </div>
                 </div>
             `;
         });
-
         html += `</div>`;
-
         container.innerHTML = html;
         container.style.display = 'block';
-
         container.querySelectorAll('.recent-item').forEach(item => {
             item.addEventListener('click', () => {
                 const index = parseInt(item.dataset.recentIndex);
                 const recentItem = recentSearches[index];
-
-                const result = {
-                    lat: recentItem.coordinates.lat,
-                    lng: recentItem.coordinates.lng,
-                    name: recentItem.location.name,
-                    address: recentItem.location.address
-                };
-
-                if (type === 'pickup') {
-                    this.selectPickupLocation(inputId, result);
-                } else {
-                    this.selectDestinationLocation(inputId, result);
-                }
-
+                const result = { lat: recentItem.coordinates.lat, lng: recentItem.coordinates.lng, name: recentItem.location.name, address: recentItem.location.address };
+                if (type === 'pickup') this.selectPickupLocation(inputId, result);
+                else this.selectDestinationLocation(inputId, result);
                 this.hideSuggestions();
             });
         });
-
         document.addEventListener('click', this.handleClickOutsideSuggestions);
     },
 
     selectPickupLocation: function(inputId, location) {
         const input = document.getElementById(inputId);
         if (!input) return;
-
         input.value = location.address || location.name;
         input.dataset.lat = location.lat;
         input.dataset.lng = location.lng;
-
-        AppState.pickup = {
-            lat: location.lat,
-            lng: location.lng,
-            address: location.address || location.name,
-            name: location.name,
-            fullAddress: location.fullAddress || location.address
-        };
-
+        AppState.pickup = { lat: location.lat, lng: location.lng, address: location.address || location.name, name: location.name, fullAddress: location.fullAddress || location.address };
         EnhancedSearchEngine.addToRecentLocations(location);
-
         EnhancedUIUpdater.updatePickupMarker(location);
-
-        if (AppState.destination) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-        }
-
+        if (AppState.destination) { EnhancedUIUpdater.calculateAndUpdatePrices(); EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination); }
         const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-        if (clearBtn) {
-            clearBtn.style.display = 'block';
-        }
-
+        if (clearBtn) clearBtn.style.display = 'block';
         EnhancedUIUpdater.showToast('Pickup location set', 'success');
     },
 
     selectDestinationLocation: function(inputId, location) {
         const input = document.getElementById(inputId);
         if (!input) return;
-
         input.value = location.address || location.name;
         input.dataset.lat = location.lat;
         input.dataset.lng = location.lng;
-
-        AppState.destination = {
-            lat: location.lat,
-            lng: location.lng,
-            address: location.address || location.name,
-            name: location.name,
-            fullAddress: location.fullAddress || location.address
-        };
-
+        AppState.destination = { lat: location.lat, lng: location.lng, address: location.address || location.name, name: location.name, fullAddress: location.fullAddress || location.address };
         EnhancedSearchEngine.addToRecentLocations(location);
-
         EnhancedUIUpdater.updateDestinationMarker(location);
-
-        if (AppState.pickup) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-        }
-
+        if (AppState.pickup) { EnhancedUIUpdater.calculateAndUpdatePrices(); EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination); }
         const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-        if (clearBtn) {
-            clearBtn.style.display = 'block';
-        }
-
+        if (clearBtn) clearBtn.style.display = 'block';
         EnhancedUIUpdater.showToast('Destination set', 'success');
+    },
+
+    clearPickupLocation: function(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.value = '';
+            delete input.dataset.lat; delete input.dataset.lng;
+            AppState.pickup = null;
+            if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; }
+            const clearBtn = input.parentNode.querySelector('.clear-input-btn');
+            if (clearBtn) clearBtn.style.display = 'none';
+            EnhancedUIUpdater.showToast('Pickup location cleared', 'info');
+        }
+    },
+
+    clearDestinationLocation: function(inputId) {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.value = '';
+            delete input.dataset.lat; delete input.dataset.lng;
+            AppState.destination = null;
+            if (destinationMarker) { map.removeLayer(destinationMarker); destinationMarker = null; }
+            if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+            const clearBtn = input.parentNode.querySelector('.clear-input-btn');
+            if (clearBtn) clearBtn.style.display = 'none';
+            EnhancedUIUpdater.showToast('Destination cleared', 'info');
+        }
     },
 
     handleClickOutsideSuggestions: function(event) {
         const container = document.getElementById('globalSuggestionsContainer');
         if (!container) return;
-
         if (!container.contains(event.target)) {
             const activeInput = document.querySelector('.location-input.active input');
             if (!activeInput || !activeInput.contains(event.target)) {
@@ -1274,87 +848,43 @@ const EnhancedLocationManager = {
 
     hideSuggestions: function() {
         const container = document.getElementById('globalSuggestionsContainer');
-        if (container) {
-            container.style.display = 'none';
-        }
+        if (container) container.style.display = 'none';
     },
 
     addStop: function() {
         const stopsContainer = document.getElementById('stopsContainer');
         if (!stopsContainer) return;
-
         const stopIndex = AppState.rideStops.length + 1;
         const stopId = `stop-${stopIndex}`;
-
         const stopElement = document.createElement('div');
         stopElement.className = 'ride-stop';
         stopElement.dataset.stopId = stopId;
         stopElement.innerHTML = `
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <div style="color: #FF6B35;">
-                    <i class="fas fa-map-pin"></i>
-                </div>
-                <input type="text" class="stop-input" placeholder="Stop ${stopIndex}" 
-                       style="flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px;">
-                <button type="button" class="remove-stop-btn" style="
-                    background: #f44336;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 5px 10px;
-                    cursor: pointer;
-                ">
-                    <i class="fas fa-times"></i>
-                </button>
+                <div style="color: #FF6B35;"><i class="fas fa-map-pin"></i></div>
+                <input type="text" class="stop-input" placeholder="Stop ${stopIndex}" style="flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px;">
+                <button type="button" class="remove-stop-btn" style="background: #f44336; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;"><i class="fas fa-times"></i></button>
             </div>
         `;
-
         stopsContainer.appendChild(stopElement);
-
-        AppState.rideStops.push({
-            id: stopId,
-            name: `Stop ${stopIndex}`,
-            location: null,
-            index: stopIndex
-        });
-
+        AppState.rideStops.push({ id: stopId, name: `Stop ${stopIndex}`, location: null, index: stopIndex });
         const stopInput = stopElement.querySelector('.stop-input');
-        stopInput.addEventListener('focus', () => {
-            this.handleStopInputFocus(stopId, stopInput);
-        });
-
-        stopInput.addEventListener('input', (e) => {
-            this.handleStopInputChange(stopId, e.target.value);
-        });
-
-        const removeBtn = stopElement.querySelector('.remove-stop-btn');
-        removeBtn.addEventListener('click', () => {
-            this.removeStop(stopId);
-        });
-
+        stopInput.addEventListener('focus', () => this.handleStopInputFocus(stopId, stopInput));
+        stopInput.addEventListener('input', (e) => this.handleStopInputChange(stopId, e.target.value));
+        stopElement.querySelector('.remove-stop-btn').addEventListener('click', () => this.removeStop(stopId));
         EnhancedUIUpdater.showToast(`Stop ${stopIndex} added`, 'info');
     },
 
     removeStop: function(stopId) {
         const stopElement = document.querySelector(`[data-stop-id="${stopId}"]`);
-        if (stopElement) {
-            stopElement.remove();
-        }
-
+        if (stopElement) stopElement.remove();
         AppState.rideStops = AppState.rideStops.filter(stop => stop.id !== stopId);
-
         AppState.rideStops.forEach((stop, index) => {
             stop.index = index + 1;
             const input = document.querySelector(`[data-stop-id="${stop.id}"] .stop-input`);
-            if (input) {
-                input.placeholder = `Stop ${stop.index}`;
-            }
+            if (input) input.placeholder = `Stop ${stop.index}`;
         });
-
-        if (AppState.pickup && AppState.destination) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-        }
-
+        if (AppState.pickup && AppState.destination) EnhancedUIUpdater.calculateAndUpdatePrices();
         EnhancedUIUpdater.showToast('Stop removed', 'info');
     },
 
@@ -1364,85 +894,47 @@ const EnhancedLocationManager = {
     },
 
     handleStopInputChange: async function(stopId, value) {
-        if (!value.trim() || value.length < 2) {
-            return;
-        }
-
+        if (!value.trim() || value.length < 2) return;
         clearTimeout(this.searchTimeout);
-        this.searchTimeout = setTimeout(async () => {
-            await this.searchStopLocation(stopId, value);
-        }, 300);
+        this.searchTimeout = setTimeout(async () => { await this.searchStopLocation(stopId, value); }, 300);
     },
 
     showRecentLocationsForStop: function(input) {
         const container = document.getElementById('globalSuggestionsContainer');
         if (!container) return;
-
         const recentSearches = EnhancedSearchEngine.getRecentDestinations(8);
-
-        if (recentSearches.length === 0) {
-            return;
-        }
-
+        if (recentSearches.length === 0) return;
         const rect = input.getBoundingClientRect();
         container.style.top = `${rect.bottom + window.scrollY + 5}px`;
         container.style.left = `${rect.left + window.scrollX}px`;
         container.style.width = `${rect.width}px`;
-
-        let html = `
-            <div style="padding: 15px;">
-                <div style="font-size: 14px; color: #666; margin-bottom: 10px;">
-                    <i class="fas fa-history"></i> Select a stop location
-                </div>
-        `;
-
+        let html = `<div style="padding: 15px;"><div style="font-size: 14px; color: #666; margin-bottom: 10px;"><i class="fas fa-history"></i> Select a stop location</div>`;
         recentSearches.forEach((item, index) => {
             html += `
-                <div class="recent-item" data-recent-index="${index}" style="
-                    padding: 10px 0;
-                    border-bottom: 1px solid #eee;
-                    cursor: pointer;
-                ">
+                <div class="recent-item" data-recent-index="${index}" style="padding: 10px 0; border-bottom: 1px solid #eee; cursor: pointer;">
                     <div style="font-weight: 600; margin-bottom: 4px;">${item.location.name}</div>
                     <div style="font-size: 13px; color: #666;">${item.location.address}</div>
                 </div>
             `;
         });
-
         html += `</div>`;
-
         container.innerHTML = html;
         container.style.display = 'block';
         container.dataset.targetInput = 'stop';
         container.dataset.stopId = this.activeSearchInput;
-
         container.querySelectorAll('.recent-item').forEach((item, index) => {
             item.addEventListener('click', () => {
                 const recentItem = recentSearches[index];
                 const stop = AppState.rideStops.find(s => s.id === this.activeSearchInput);
-
                 if (stop) {
-                    stop.location = {
-                        lat: recentItem.coordinates.lat,
-                        lng: recentItem.coordinates.lng,
-                        name: recentItem.location.name,
-                        address: recentItem.location.address
-                    };
-
+                    stop.location = { lat: recentItem.coordinates.lat, lng: recentItem.coordinates.lng, name: recentItem.location.name, address: recentItem.location.address };
                     const input = document.querySelector(`[data-stop-id="${stop.id}"] .stop-input`);
-                    if (input) {
-                        input.value = recentItem.location.address;
-                    }
-
-                    if (AppState.pickup && AppState.destination) {
-                        EnhancedUIUpdater.calculateAndUpdatePrices();
-                    }
+                    if (input) input.value = recentItem.location.address;
+                    if (AppState.pickup && AppState.destination) EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
-
                 this.hideSuggestions();
             });
         });
-
         document.addEventListener('click', this.handleClickOutsideSuggestions);
     },
 
@@ -1451,180 +943,102 @@ const EnhancedLocationManager = {
             EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
             return;
         }
-
         const stop = AppState.rideStops.find(s => s.id === stopId);
         if (!stop) return;
-
         const input = document.querySelector(`[data-stop-id="${stopId}"] .stop-input`);
         if (!input) return;
-
         try {
-            const results = await EnhancedSearchEngine.search(
-                query,
-                'stop',
-                AppState.userLocation,
-                AppState.currentCity
-            );
-
-            if (results.length > 0) {
-                this.showStopSuggestions(input, results, stopId);
-            }
-        } catch (error) {
-            console.error('Stop search error:', error);
-        }
+            const results = await EnhancedSearchEngine.search(query, 'stop', AppState.userLocation, AppState.currentCity);
+            if (results.length > 0) this.showStopSuggestions(input, results, stopId);
+        } catch (error) { console.error('Stop search error:', error); }
     },
 
     showStopSuggestions: function(input, results, stopId) {
         const container = document.getElementById('globalSuggestionsContainer');
         if (!container) return;
-
         const rect = input.getBoundingClientRect();
         container.style.top = `${rect.bottom + window.scrollY + 5}px`;
         container.style.left = `${rect.left + window.scrollX}px`;
         container.style.width = `${rect.width}px`;
-
         let html = '';
-
-        if (results.length === 0) {
-            html = '<div style="padding: 20px; text-align: center; color: #666;">No results found</div>';
-        } else {
+        if (results.length === 0) html = '<div style="padding: 20px; text-align: center; color: #666;">No results found</div>';
+        else {
             results.forEach((result, index) => {
                 html += `
-                    <div class="suggestion-item" data-index="${index}" style="
-                        padding: 12px 15px;
-                        border-bottom: 1px solid #f5f5f5;
-                        cursor: pointer;
-                    ">
+                    <div class="suggestion-item" data-index="${index}" style="padding: 12px 15px; border-bottom: 1px solid #f5f5f5; cursor: pointer;">
                         <div style="font-weight: 600; margin-bottom: 4px;">${result.name}</div>
                         <div style="font-size: 13px; color: #666;">${result.address}</div>
-                        ${result.distance ? `
-                        <div style="font-size: 12px; color: #FF6B35; margin-top: 4px;">
-                            <i class="fas fa-location-arrow"></i> ${result.distance.toFixed(1)} km away
-                        </div>
-                        ` : ''}
+                        ${result.distance ? `<div style="font-size: 12px; color: #FF6B35; margin-top: 4px;"><i class="fas fa-location-arrow"></i> ${result.distance.toFixed(1)} km away</div>` : ''}
                     </div>
                 `;
             });
         }
-
         container.innerHTML = html;
         container.style.display = 'block';
         container.dataset.targetInput = 'stop';
         container.dataset.stopId = stopId;
-
         container.querySelectorAll('.suggestion-item').forEach((item, index) => {
             item.addEventListener('click', () => {
                 const result = results[index];
                 const stop = AppState.rideStops.find(s => s.id === stopId);
-
                 if (stop) {
-                    stop.location = {
-                        lat: result.lat,
-                        lng: result.lng,
-                        name: result.name,
-                        address: result.address
-                    };
-
+                    stop.location = { lat: result.lat, lng: result.lng, name: result.name, address: result.address };
                     input.value = result.address;
-
-                    if (AppState.pickup && AppState.destination) {
-                        EnhancedUIUpdater.calculateAndUpdatePrices();
-                    }
+                    if (AppState.pickup && AppState.destination) EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
-
                 this.hideSuggestions();
             });
         });
-
         document.addEventListener('click', this.handleClickOutsideSuggestions);
     }
 };
 
 // ============================================
-// ENHANCED PRICE CALCULATOR (unchanged, but we add service-specific methods)
+// ENHANCED PRICE CALCULATOR (same as original)
 // ============================================
 const EnhancedPriceCalculator = {
     calculateRideFare: function(distanceKm, rideType = 'standard', surge = 1.0, timeOfDay = null, stops = []) {
         const config = AppState.rideTypes[rideType] || AppState.rideTypes.standard;
-
         let fare = config.base + (distanceKm * config.perKm);
-
         fare *= config.multiplier;
-
         fare *= surge;
-
-        if (!timeOfDay) {
-            timeOfDay = new Date().getHours();
-        }
-
-        if (timeOfDay >= 22 || timeOfDay <= 5) {
-            fare *= 1.2;
-        } else if (timeOfDay >= 7 && timeOfDay <= 9) {
-            fare *= 1.3;
-        } else if (timeOfDay >= 16 && timeOfDay <= 19) {
-            fare *= 1.4;
-        }
-
-        if (stops.length > 0) {
-            fare += stops.length * 5;
-        }
-
+        if (!timeOfDay) timeOfDay = new Date().getHours();
+        if (timeOfDay >= 22 || timeOfDay <= 5) fare *= 1.2;
+        else if (timeOfDay >= 7 && timeOfDay <= 9) fare *= 1.3;
+        else if (timeOfDay >= 16 && timeOfDay <= 19) fare *= 1.4;
+        if (stops.length > 0) fare += stops.length * 5;
         fare = Math.max(fare, config.min);
-
-        return Math.round(fare * 100) / 100;
-    },
-
-    calculateDeliveryBikeFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0) {
-        const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
-
-        let fare = config.base + (distanceKm * config.perKm);
-        fare *= config.multiplier;
-
-        if (parcelValue > 500) {
-            fare += parcelValue * 0.01;
-        }
-
-        return Math.round(fare * 100) / 100;
-    },
-
-    calculateBicycleFare: function(distanceKm) {
-        const config = AppState.bicycleTypes.standard;
-        let fare = config.base + (distanceKm * config.perKm);
-        fare = Math.max(fare, config.min);
-        return Math.round(fare * 100) / 100;
-    },
-
-    calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
-        const config = AppState.truckTypes[truckType] || AppState.truckTypes.light;
-
-        let fare = config.base + (distanceKm * config.perKm);
-        fare *= config.multiplier;
-
-        if (helpers) {
-            fare += 50;
-        }
-
         return Math.round(fare * 100) / 100;
     },
 
     calculateEmergencyFare: function(distanceKm, serviceType, surge = 1.0) {
         const config = AppState.emergencyServices[serviceType] || AppState.emergencyServices.police;
-
         let fare = config.base + (distanceKm * config.perKm);
         fare *= config.multiplier;
         fare *= surge;
         fare = Math.max(fare, config.min);
+        return Math.round(fare * 100) / 100;
+    },
 
+    calculateDeliveryFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0) {
+        const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
+        let fare = config.base + (distanceKm * config.perKm);
+        fare *= config.multiplier;
+        if (parcelValue > 500) fare += parcelValue * 0.01;
+        return Math.round(fare * 100) / 100;
+    },
+
+    calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
+        const config = AppState.truckTypes[truckType] || AppState.truckTypes.light;
+        let fare = config.base + (distanceKm * config.perKm);
+        fare *= config.multiplier;
+        if (helpers) fare += 50;
         return Math.round(fare * 100) / 100;
     },
 
     calculateShoppingFare: function(distanceKm, itemsCount = 1, budget = 0) {
         let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
-
-        if (budget > 0) {
-            fare += budget * 0.05;
-        }
-
+        if (budget > 0) fare += budget * 0.05;
         return Math.round(fare * 100) / 100;
     },
 
@@ -1634,89 +1048,52 @@ const EnhancedPriceCalculator = {
 
     calculateRouteDistance: function(points) {
         if (points.length < 2) return 0;
-
         let totalDistance = 0;
-        for (let i = 0; i < points.length - 1; i++) {
-            totalDistance += this.calculateDistance(
-                points[i].lat, points[i].lng,
-                points[i + 1].lat, points[i + 1].lng
-            );
-        }
-
+        for (let i = 0; i < points.length - 1; i++) totalDistance += this.calculateDistance(points[i].lat, points[i].lng, points[i + 1].lat, points[i + 1].lng);
         return totalDistance;
     },
 
     calculateRideDistanceWithStops: function(pickup, destination, stops = []) {
         const points = [pickup];
-
-        stops.forEach(stop => {
-            if (stop.location) {
-                points.push(stop.location);
-            }
-        });
-
+        stops.forEach(stop => { if (stop.location) points.push(stop.location); });
         points.push(destination);
-
         return this.calculateRouteDistance(points);
     },
 
     estimateTime: function(distanceKm, rideType = 'standard', traffic = null, stops = []) {
         const baseSpeed = rideType === 'premium' ? 45 : 35;
         let baseTime = (distanceKm / baseSpeed) * 60;
-
-        if (!traffic) {
-            traffic = this.getTrafficFactor();
-        }
-
+        if (!traffic) traffic = this.getTrafficFactor();
         baseTime *= traffic;
-
-        if (stops.length > 0) {
-            baseTime += stops.length * 3;
-        }
-
-        if (rideType === 'premium') {
-            baseTime += 2;
-        } else {
-            baseTime += 5;
-        }
-
+        if (stops.length > 0) baseTime += stops.length * 3;
+        if (rideType === 'premium') baseTime += 2;
+        else baseTime += 5;
         return Math.ceil(baseTime);
     },
 
     getTrafficFactor: function() {
         const hour = new Date().getHours();
         const day = new Date().getDay();
-
         if (day >= 1 && day <= 5) {
-            if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) {
-                return 1.5;
-            }
+            if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) return 1.5;
         }
-
         if (day === 6 || day === 0) {
-            if (hour >= 12 && hour <= 16) {
-                return 1.3;
-            }
+            if (hour >= 12 && hour <= 16) return 1.3;
         }
-
         return 1.0;
     },
 
     getSurgeMultiplier: function() {
         const hour = new Date().getHours();
         const day = new Date().getDay();
-
         if (day >= 1 && day <= 5) {
             if (hour >= 7 && hour <= 9) return 1.5;
             if (hour >= 16 && hour <= 19) return 1.8;
         }
-
         if (day === 5 || day === 6) {
             if (hour >= 20 && hour <= 23) return 2.0;
         }
-
         if (hour >= 22 || hour <= 5) return 1.8;
-
         return 1.0;
     },
 
@@ -1728,23 +1105,13 @@ const EnhancedPriceCalculator = {
         const surgeMultiplier = surge;
         const timeMultiplier = this.getTimeMultiplier();
         const stopsCharge = stops.length * 5;
-
         const subtotal = (baseFare + distanceFare) * rideTypeMultiplier + stopsCharge;
         const surgeAmount = subtotal * (surgeMultiplier - 1);
         const timeAmount = subtotal * (timeMultiplier - 1);
         const total = subtotal * surgeMultiplier * timeMultiplier;
-
         return {
-            baseFare: baseFare,
-            distanceFare: distanceFare,
-            stopsCharge: stopsCharge,
-            rideTypeMultiplier: rideTypeMultiplier,
-            surgeMultiplier: surgeMultiplier,
-            timeMultiplier: timeMultiplier,
-            surgeAmount: surgeAmount,
-            timeAmount: timeAmount,
-            subtotal: subtotal,
-            total: Math.max(total, config.min)
+            baseFare, distanceFare, stopsCharge, rideTypeMultiplier, surgeMultiplier, timeMultiplier,
+            surgeAmount, timeAmount, subtotal, total: Math.max(total, config.min)
         };
     },
 
@@ -1755,89 +1122,39 @@ const EnhancedPriceCalculator = {
     },
 
     calculateSplitRideFare: function(totalFare, splitType = 'equal', participants = 2) {
-        let yourShare = totalFare;
-        let othersShare = 0;
-
-        switch (splitType) {
-            case 'equal':
-                yourShare = totalFare / participants;
-                othersShare = totalFare / participants;
-                break;
-            case 'you_pay_more':
-                yourShare = totalFare * 0.7;
-                othersShare = totalFare * 0.3;
-                break;
-            case 'you_pay_all':
-                yourShare = totalFare;
-                othersShare = 0;
-                break;
+        let yourShare = totalFare, othersShare = 0;
+        switch(splitType) {
+            case 'equal': yourShare = totalFare / participants; othersShare = totalFare / participants; break;
+            case 'you_pay_more': yourShare = totalFare * 0.7; othersShare = totalFare * 0.3; break;
+            case 'you_pay_all': yourShare = totalFare; othersShare = 0; break;
         }
-
-        return {
-            total: totalFare,
-            yourShare: yourShare,
-            othersShare: othersShare,
-            splitType: splitType,
-            participants: participants
-        };
+        return { total: totalFare, yourShare, othersShare, splitType, participants };
     },
 
     validateDistanceWithinCity: function(startLat, startLng, endLat, endLng, city) {
         const distance = this.calculateDistance(startLat, startLng, endLat, endLng);
-
-        const maxCityDistance = {
-            'Lusaka': 50,
-            'Ndola': 30,
-            'Kitwe': 25,
-            'Livingstone': 20,
-            'Kabwe': 20,
-            'Chipata': 15,
-            'default': 25
-        };
-
+        const maxCityDistance = { 'Lusaka': 50, 'Ndola': 30, 'Kitwe': 25, 'Livingstone': 20, 'Kabwe': 20, 'Chipata': 15, 'default': 25 };
         const maxDistance = maxCityDistance[city] || maxCityDistance.default;
-
         if (distance > maxDistance) {
-            return {
-                valid: false,
-                distance: distance,
-                maxAllowed: maxDistance,
-                message: `Distance exceeds maximum allowed for ${city} (${maxDistance}km)`
-            };
+            return { valid: false, distance, maxAllowed: maxDistance, message: `Distance exceeds maximum allowed for ${city} (${maxDistance}km)` };
         }
-
-        return {
-            valid: true,
-            distance: distance
-        };
+        return { valid: true, distance };
     },
 
     applyReferralDiscount: function(fare) {
         if (AppState.referralDiscountApplied) {
             const discount = fare * 0.5;
             const discountedFare = fare - discount;
-            return {
-                originalFare: fare,
-                discount: discount,
-                finalFare: discountedFare,
-                discountApplied: true
-            };
+            return { originalFare: fare, discount, finalFare: discountedFare, discountApplied: true };
         }
-        return {
-            originalFare: fare,
-            discount: 0,
-            finalFare: fare,
-            discountApplied: false
-        };
+        return { originalFare: fare, discount: 0, finalFare: fare, discountApplied: false };
     },
 
-    calculateStopsFare: function(stopsCount) {
-        return stopsCount * 5;
-    }
+    calculateStopsFare: function(stopsCount) { return stopsCount * 5; }
 };
 
 // ============================================
-// ENHANCED UI UPDATER (updated for new HTML)
+// ENHANCED UI UPDATER (adapted to new HTML)
 // ============================================
 const EnhancedUIUpdater = {
     updateWalletBalance: function(balance) {
@@ -1846,16 +1163,10 @@ const EnhancedUIUpdater = {
         const accountBalance = document.getElementById('accountBalance');
         const paymentBalance = document.getElementById('paymentBalance');
         const transferBalance = document.getElementById('transferBalance');
-        const depositCurrentBalance = document.getElementById('depositCurrentBalance');
-        const withdrawCurrentBalance = document.getElementById('withdrawCurrentBalance');
-
         if (walletBalance) walletBalance.textContent = formatted;
         if (accountBalance) accountBalance.textContent = formatted;
         if (paymentBalance) paymentBalance.textContent = formatted;
         if (transferBalance) transferBalance.textContent = formatted;
-        if (depositCurrentBalance) depositCurrentBalance.textContent = formatted;
-        if (withdrawCurrentBalance) withdrawCurrentBalance.textContent = formatted;
-
         AppState.walletBalance = balance;
     },
 
@@ -1866,17 +1177,14 @@ const EnhancedUIUpdater = {
             if (userFullName) userFullName.textContent = userData.name;
             if (accountName) accountName.textContent = userData.name;
         }
-
         if (userData.phone) {
             const accountPhone = document.getElementById('accountPhone');
             if (accountPhone) accountPhone.textContent = userData.phone;
         }
-
         if (userData.email) {
             const updateEmail = document.getElementById('updateEmail');
             if (updateEmail) updateEmail.value = userData.email;
         }
-
         if (userData.referralCode) {
             const referralCode = document.getElementById('referralCode');
             if (referralCode) referralCode.textContent = userData.referralCode;
@@ -1889,76 +1197,24 @@ const EnhancedUIUpdater = {
             const container = document.createElement('div');
             container.id = 'toastContainer';
             container.className = 'toast-container';
-            container.style.cssText = `
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                z-index: 10000;
-                display: flex;
-                flex-direction: column;
-                gap: 10px;
-            `;
+            container.style.cssText = `position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px;`;
             document.body.appendChild(container);
             toastContainer = container;
         }
-
         const toastId = 'toast-' + Date.now();
-
-        const icons = {
-            success: 'fa-check-circle',
-            error: 'fa-exclamation-circle',
-            warning: 'fa-exclamation-triangle',
-            info: 'fa-info-circle'
-        };
-
-        const colors = {
-            success: '#4CAF50',
-            error: '#F44336',
-            warning: '#FFC107',
-            info: '#2196F3'
-        };
-
+        const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+        const colors = { success: '#4CAF50', error: '#F44336', warning: '#FFC107', info: '#2196F3' };
         const toast = document.createElement('div');
         toast.className = 'toast';
         toast.id = toastId;
-        toast.style.cssText = `
-            background: white;
-            border-left: 4px solid ${colors[type] || colors.info};
-            border-radius: 4px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            padding: 15px 20px;
-            min-width: 300px;
-            max-width: 400px;
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            animation: slideIn 0.3s ease;
-        `;
-
+        toast.style.cssText = `background: white; border-left: 4px solid ${colors[type] || colors.info}; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 15px 20px; min-width: 300px; max-width: 400px; display: flex; align-items: flex-start; gap: 12px; animation: slideIn 0.3s ease;`;
         toast.innerHTML = `
-            <div style="color: ${colors[type] || colors.info}; font-size: 20px;">
-                <i class="fas ${icons[type] || icons.info}"></i>
-            </div>
-            <div style="flex: 1;">
-                <div style="font-weight: 600; margin-bottom: 4px; text-transform: capitalize;">${type}</div>
-                <div style="font-size: 14px; color: #333;">${message}</div>
-            </div>
-            <button onclick="EnhancedUIUpdater.removeToast('${toastId}')" style="
-                background: none;
-                border: none;
-                color: #999;
-                cursor: pointer;
-                font-size: 18px;
-                padding: 0;
-            ">×</button>
+            <div style="color: ${colors[type] || colors.info}; font-size: 20px;"><i class="fas ${icons[type] || icons.info}"></i></div>
+            <div style="flex: 1;"><div style="font-weight: 600; margin-bottom: 4px; text-transform: capitalize;">${type}</div><div style="font-size: 14px; color: #333;">${message}</div></div>
+            <button onclick="EnhancedUIUpdater.removeToast('${toastId}')" style="background: none; border: none; color: #999; cursor: pointer; font-size: 18px; padding: 0;">×</button>
         `;
-
         toastContainer.appendChild(toast);
-
-        setTimeout(() => {
-            this.removeToast(toastId);
-        }, duration);
-
+        setTimeout(() => { this.removeToast(toastId); }, duration);
         return toastId;
     },
 
@@ -1966,55 +1222,24 @@ const EnhancedUIUpdater = {
         const toast = document.getElementById(toastId);
         if (toast) {
             toast.style.animation = 'slideOut 0.3s ease';
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.parentNode.removeChild(toast);
-                }
-            }, 300);
+            setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
         }
     },
 
     showLoading: function(message = 'Loading...') {
-        const overlay = document.getElementById('loadingOverlay');
+        let overlay = document.getElementById('loadingOverlay');
         if (!overlay) {
             const loadingOverlay = document.createElement('div');
             loadingOverlay.id = 'loadingOverlay';
-            loadingOverlay.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(255,255,255,0.9);
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                z-index: 99999;
-            `;
-
+            loadingOverlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 99999;`;
             const spinner = document.createElement('div');
             spinner.className = 'loading-spinner';
-            spinner.style.cssText = `
-                width: 50px;
-                height: 50px;
-                border: 4px solid #f3f3f3;
-                border-top: 4px solid #FF6B35;
-                border-radius: 50%;
-                animation: spin 1s linear infinite;
-                margin-bottom: 20px;
-            `;
-
+            spinner.style.cssText = `width: 50px; height: 50px; border: 4px solid #f3f3f3; border-top: 4px solid #FF6B35; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;`;
             const text = document.createElement('div');
             text.id = 'loadingText';
             text.className = 'loading-text';
             text.textContent = message;
-            text.style.cssText = `
-                font-size: 16px;
-                color: #333;
-                font-weight: 500;
-            `;
-
+            text.style.cssText = `font-size: 16px; color: #333; font-weight: 500;`;
             loadingOverlay.appendChild(spinner);
             loadingOverlay.appendChild(text);
             document.body.appendChild(loadingOverlay);
@@ -2027,23 +1252,17 @@ const EnhancedUIUpdater = {
 
     hideLoading: function() {
         const overlay = document.getElementById('loadingOverlay');
-        if (overlay) {
-            overlay.style.display = 'none';
-        }
+        if (overlay) overlay.style.display = 'none';
     },
 
     showMapLoading: function() {
         const mapLoadingOverlay = document.getElementById('mapLoadingOverlay');
-        if (mapLoadingOverlay) {
-            mapLoadingOverlay.style.display = 'flex';
-        }
+        if (mapLoadingOverlay) mapLoadingOverlay.style.display = 'flex';
     },
 
     hideMapLoading: function() {
         const mapLoadingOverlay = document.getElementById('mapLoadingOverlay');
-        if (mapLoadingOverlay) {
-            mapLoadingOverlay.style.display = 'none';
-        }
+        if (mapLoadingOverlay) mapLoadingOverlay.style.display = 'none';
     },
 
     updateCityDisplay: function(city) {
@@ -2051,479 +1270,126 @@ const EnhancedUIUpdater = {
         if (display && city) {
             display.textContent = `City: ${city}`;
             display.parentElement.style.display = 'flex';
-
-            setTimeout(() => {
-                if (display.parentElement) {
-                    display.parentElement.style.display = 'none';
-                }
-            }, 5000);
+            setTimeout(() => { if (display.parentElement) display.parentElement.style.display = 'none'; }, 5000);
         }
     },
 
-    // Update prices on service icons based on active service
-    updateServicePrices: function() {
-        if (!AppState.pickup || !AppState.destination) {
-            // If no destination, hide prices or set to 0
-            document.getElementById('carPrice').textContent = 'ZMW 0.00';
-            document.getElementById('deliveryBikePrice').textContent = 'ZMW 0.00';
-            document.getElementById('bicyclePrice').textContent = 'ZMW 0.00';
-            document.getElementById('truckPrice').textContent = 'ZMW 0.00';
-            return;
-        }
-
-        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
-            AppState.pickup,
-            AppState.destination,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-
+    updateRidePrices: function() {
+        if (!AppState.pickup || !AppState.destination) return;
+        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(AppState.pickup, AppState.destination, AppState.rideStops.filter(stop => stop.location));
         const surge = EnhancedPriceCalculator.getSurgeMultiplier();
         const stopsCount = AppState.rideStops.filter(stop => stop.location).length;
+        Object.keys(AppState.rideTypes).forEach(type => {
+            const price = EnhancedPriceCalculator.calculateRideFare(distance, type, surge, null, AppState.rideStops.filter(stop => stop.location));
+            const element = document.getElementById(`${type}Price`);
+            if (element) element.textContent = `ZMW ${price.toFixed(2)}`;
+        });
+        const selectedPrice = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge, null, AppState.rideStops.filter(stop => stop.location));
+        const estimatedFare = document.getElementById('estimatedFare');
+        if (estimatedFare) estimatedFare.textContent = `ZMW ${selectedPrice.toFixed(2)}`;
+        const time = EnhancedPriceCalculator.estimateTime(distance, AppState.selectedRideType, null, AppState.rideStops.filter(stop => stop.location));
+        const distanceDetail = document.getElementById('distanceDetail');
+        const timeDetail = document.getElementById('timeDetail');
+        if (distanceDetail) distanceDetail.textContent = `${distance.toFixed(1)} km`;
+        if (timeDetail) timeDetail.textContent = `ETA: ${time} min`;
+        AppState.rideFare = selectedPrice;
+        const fareDisplay = document.getElementById('fareDisplay');
+        if (fareDisplay) { fareDisplay.classList.add('active'); fareDisplay.style.display = 'block'; }
+        this.updatePriceCalculator(distance, AppState.selectedRideType, surge, stopsCount);
+    },
 
-        // Car (using rideTypes)
-        const carPrice = EnhancedPriceCalculator.calculateRideFare(
-            distance, 'standard', surge, null,
-            AppState.rideStops.filter(stop => stop.location)
-        );
-        document.getElementById('carPrice').textContent = `ZMW ${carPrice.toFixed(2)}`;
-
-        // Delivery Bike (using deliveryTypes)
-        const deliveryBikePrice = EnhancedPriceCalculator.calculateDeliveryBikeFare(distance, 'standard');
-        document.getElementById('deliveryBikePrice').textContent = `ZMW ${deliveryBikePrice.toFixed(2)}`;
-
-        // Bicycle
-        const bicyclePrice = EnhancedPriceCalculator.calculateBicycleFare(distance);
-        document.getElementById('bicyclePrice').textContent = `ZMW ${bicyclePrice.toFixed(2)}`;
-
-        // Truck (using light truck as default)
-        const truckPrice = EnhancedPriceCalculator.calculateTruckFare(distance, 'light');
-        document.getElementById('truckPrice').textContent = `ZMW ${truckPrice.toFixed(2)}`;
+    updatePriceCalculator: function(distanceKm, rideType = 'standard', surge = 1.0, stopsCount = 0) {
+        const calculator = document.getElementById('priceCalculator');
+        const fareElement = document.getElementById('calculatedFare');
+        const breakdownElement = document.getElementById('priceBreakdown');
+        if (!calculator || !fareElement || !breakdownElement) return;
+        calculator.style.display = 'block';
+        const breakdown = EnhancedPriceCalculator.getFareBreakdown(distanceKm, rideType, surge, AppState.rideStops.filter(stop => stop.location));
+        fareElement.textContent = `ZMW ${breakdown.total.toFixed(2)}`;
+        let breakdownHTML = `
+            <div class="price-breakdown-row"><span>Base Fare:</span><span>ZMW ${breakdown.baseFare.toFixed(2)}</span></div>
+            <div class="price-breakdown-row"><span>Distance (${distanceKm.toFixed(1)}km):</span><span>ZMW ${breakdown.distanceFare.toFixed(2)}</span></div>
+        `;
+        if (stopsCount > 0) breakdownHTML += `<div class="price-breakdown-row"><span>Stops (${stopsCount} × ZMW 5):</span><span>ZMW ${breakdown.stopsCharge.toFixed(2)}</span></div>`;
+        if (breakdown.rideTypeMultiplier !== 1) breakdownHTML += `<div class="price-breakdown-row"><span>${rideType.charAt(0).toUpperCase() + rideType.slice(1)} Multiplier:</span><span>${breakdown.rideTypeMultiplier.toFixed(1)}x</span></div>`;
+        if (breakdown.surgeMultiplier !== 1) breakdownHTML += `<div class="price-breakdown-row"><span>Surge Pricing:</span><span>+ZMW ${breakdown.surgeAmount.toFixed(2)}</span></div>`;
+        if (breakdown.timeMultiplier !== 1) breakdownHTML += `<div class="price-breakdown-row"><span>Time of Day:</span><span>+ZMW ${breakdown.timeAmount.toFixed(2)}</span></div>`;
+        breakdownHTML += `<div class="price-breakdown-row total"><span>Total:</span><span>ZMW ${breakdown.total.toFixed(2)}</span></div>`;
+        breakdownElement.innerHTML = breakdownHTML;
     },
 
     updatePickupMarker: function(location) {
-        if (!map) {
-            console.error('Map not initialized');
-            return;
-        }
-
-        if (pickupMarker) {
-            pickupMarker.setLatLng([location.lat, location.lng]);
-        } else {
+        if (!map) { console.error('Map not initialized'); return; }
+        if (pickupMarker) pickupMarker.setLatLng([location.lat, location.lng]);
+        else {
             pickupMarker = L.marker([location.lat, location.lng], {
-                icon: L.divIcon({
-                    className: 'pickup-marker',
-                    html: '<i class="fas fa-map-marker-alt" style="color: #FF6B35; font-size: 24px;"></i>',
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 24]
-                })
+                icon: L.divIcon({ className: 'pickup-marker', html: '<i class="fas fa-map-marker-alt" style="color: #FF6B35; font-size: 24px;"></i>', iconSize: [24, 24], iconAnchor: [12, 24] })
             }).addTo(map).bindPopup('Pickup Location');
         }
-
-        if (AppState.destination) {
-            this.drawRouteWithStops();
-        }
+        if (AppState.destination) this.drawRouteWithStops();
     },
 
     updateDestinationMarker: function(location) {
-        if (!map) {
-            console.error('Map not initialized');
-            return;
-        }
-
-        if (destinationMarker) {
-            destinationMarker.setLatLng([location.lat, location.lng]);
-        } else {
+        if (!map) { console.error('Map not initialized'); return; }
+        if (destinationMarker) destinationMarker.setLatLng([location.lat, location.lng]);
+        else {
             destinationMarker = L.marker([location.lat, location.lng], {
-                icon: L.divIcon({
-                    className: 'destination-marker',
-                    html: '<i class="fas fa-flag" style="color: #4CAF50; font-size: 24px;"></i>',
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 24]
-                })
+                icon: L.divIcon({ className: 'destination-marker', html: '<i class="fas fa-flag" style="color: #4CAF50; font-size: 24px;"></i>', iconSize: [24, 24], iconAnchor: [12, 24] })
             }).addTo(map).bindPopup('Destination');
         }
-
-        if (AppState.pickup) {
-            this.drawRouteWithStops();
-        }
+        if (AppState.pickup) this.drawRouteWithStops();
     },
 
     drawRouteWithStops: async function() {
-        if (!map || !AppState.pickup || !AppState.destination) {
-            return;
-        }
-
-        if (routeLayer) {
-            map.removeLayer(routeLayer);
-            routeLayer = null;
-        }
-
+        if (!map || !AppState.pickup || !AppState.destination) return;
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
         const waypoints = [];
-
         waypoints.push(L.latLng(AppState.pickup.lat, AppState.pickup.lng));
-
-        AppState.rideStops.forEach(stop => {
-            if (stop.location) {
-                waypoints.push(L.latLng(stop.location.lat, stop.location.lng));
-            }
-        });
-
+        AppState.rideStops.forEach(stop => { if (stop.location) waypoints.push(L.latLng(stop.location.lat, stop.location.lng)); });
         waypoints.push(L.latLng(AppState.destination.lat, AppState.destination.lng));
-
         try {
             const waypointString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
             const url = `https://router.project-osrm.org/route/v1/driving/${waypointString}?overview=full&geometries=geojson`;
-
             const response = await fetch(url);
             const data = await response.json();
-
             if (data.routes && data.routes.length > 0) {
                 const route = data.routes[0];
                 const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-
-                routeLayer = L.polyline(routeCoordinates, {
-                    color: '#FF6B35',
-                    weight: 4,
-                    opacity: 0.7,
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                }).addTo(map);
-
+                routeLayer = L.polyline(routeCoordinates, { color: '#FF6B35', weight: 4, opacity: 0.7, lineJoin: 'round', lineCap: 'round' }).addTo(map);
                 const bounds = L.latLngBounds(routeCoordinates);
                 map.fitBounds(bounds, { padding: [50, 50] });
-
                 const distance = route.distance / 1000;
                 const duration = route.duration / 60;
-
-                console.log(`Route distance: ${distance.toFixed(2)} km, Duration: ${duration.toFixed(0)} min`);
-
-                AppState.activeRoute = {
-                    distance: distance,
-                    duration: duration,
-                    coordinates: routeCoordinates
-                };
-
-                this.updateServicePrices();
+                AppState.activeRoute = { distance, duration, coordinates: routeCoordinates };
+                this.updateRidePrices();
+                return { distance, duration };
             }
         } catch (error) {
             console.error('Routing error:', error);
-
-            routeLayer = L.polyline(waypoints, {
-                color: '#FF6B35',
-                weight: 3,
-                opacity: 0.7,
-                dashArray: '10, 10'
-            }).addTo(map);
-
+            routeLayer = L.polyline(waypoints, { color: '#FF6B35', weight: 3, opacity: 0.7, dashArray: '10, 10' }).addTo(map);
             const bounds = L.latLngBounds(waypoints);
             map.fitBounds(bounds, { padding: [50, 50] });
-
-            let totalDistance = 0;
-            for (let i = 0; i < waypoints.length - 1; i++) {
-                totalDistance += EnhancedPriceCalculator.calculateDistance(
-                    waypoints[i].lat, waypoints[i].lng,
-                    waypoints[i + 1].lat, waypoints[i + 1].lng
-                );
-            }
-
-            if (AppState.pickup && AppState.destination) {
-                this.updateServicePrices();
-            }
+            if (AppState.pickup && AppState.destination) this.updateRidePrices();
         }
     },
 
-    drawRoute: function(start, end) {
-        return this.drawRouteWithStops();
-    },
+    drawRoute: function(start, end) { return this.drawRouteWithStops(); },
 
     calculateAndUpdatePrices: function() {
         if (AppState.pickup && AppState.destination) {
-            const validation = EnhancedPriceCalculator.validateDistanceWithinCity(
-                AppState.pickup.lat, AppState.pickup.lng,
-                AppState.destination.lat, AppState.destination.lng,
-                AppState.currentCity
-            );
-
-            if (!validation.valid) {
-                this.showToast(validation.message, 'warning');
-                return;
-            }
-
-            this.updateServicePrices();
+            const validation = EnhancedPriceCalculator.validateDistanceWithinCity(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng, AppState.currentCity);
+            if (!validation.valid) { this.showToast(validation.message, 'warning'); return; }
+            this.updateRidePrices();
         }
     },
 
-    // Show ride type popup after service icon click
-    showRideTypePopup: function(service) {
-        const popup = document.getElementById('rideTypePopup');
-        const popupTitle = document.getElementById('popupTitle');
-        const rideTypeOptions = document.getElementById('rideTypeOptions');
-        const extraDetailsForm = document.getElementById('extraDetailsForm');
-
-        if (!popup) return;
-
-        // Set title based on service
-        let title = '';
-        let optionsHtml = '';
-
-        switch (service) {
-            case 'car':
-                title = 'Select Car Type';
-                optionsHtml = `
-                    <div class="ride-type-option" data-ride-type="economy" data-fare-multiplier="0.8">
-                        <div class="option-left">
-                            <i class="fas fa-car-side"></i>
-                            <div>
-                                <div class="name">Economy</div>
-                                <div class="desc">Affordable rides</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="economyPrice">ZMW 0.00</div>
-                    </div>
-                    <div class="ride-type-option" data-ride-type="standard" data-fare-multiplier="1.0">
-                        <div class="option-left">
-                            <i class="fas fa-car"></i>
-                            <div>
-                                <div class="name">Standard</div>
-                                <div class="desc">Comfortable rides</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="standardPrice">ZMW 0.00</div>
-                    </div>
-                    <div class="ride-type-option" data-ride-type="premium" data-fare-multiplier="1.5">
-                        <div class="option-left">
-                            <i class="fas fa-crown"></i>
-                            <div>
-                                <div class="name">Premium</div>
-                                <div class="desc">Luxury rides</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="premiumPrice">ZMW 0.00</div>
-                    </div>
-                `;
-                break;
-            case 'delivery-bike':
-                title = 'Select Delivery Type';
-                optionsHtml = `
-                    <div class="ride-type-option" data-ride-type="standard" data-fare-multiplier="1.0">
-                        <div class="option-left">
-                            <i class="fas fa-motorcycle"></i>
-                            <div>
-                                <div class="name">Standard Delivery</div>
-                                <div class="desc">2-3 hours</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="deliveryStandardPrice">ZMW 0.00</div>
-                    </div>
-                    <div class="ride-type-option" data-ride-type="express" data-fare-multiplier="1.5">
-                        <div class="option-left">
-                            <i class="fas fa-bolt"></i>
-                            <div>
-                                <div class="name">Express Delivery</div>
-                                <div class="desc">1 hour or less</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="deliveryExpressPrice">ZMW 0.00</div>
-                    </div>
-                    <div class="ride-type-option" data-ride-type="sameDay" data-fare-multiplier="2.0">
-                        <div class="option-left">
-                            <i class="fas fa-calendar-day"></i>
-                            <div>
-                                <div class="name">Same Day</div>
-                                <div class="desc">By end of day</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="deliverySameDayPrice">ZMW 0.00</div>
-                    </div>
-                `;
-                // Extra details form for delivery (parcel value, etc.)
-                extraDetailsForm.innerHTML = `
-                    <div class="form-group">
-                        <label class="form-label">Parcel Value (ZMW) - optional</label>
-                        <input type="number" class="form-control" id="deliveryParcelValue" placeholder="Enter value if insuring">
-                    </div>
-                `;
-                extraDetailsForm.style.display = 'block';
-                break;
-            case 'bicycle':
-                title = 'Bicycle Ride';
-                optionsHtml = `
-                    <div class="ride-type-option" data-ride-type="standard" data-fare-multiplier="1.0">
-                        <div class="option-left">
-                            <i class="fas fa-bicycle"></i>
-                            <div>
-                                <div class="name">Bicycle</div>
-                                <div class="desc">Eco-friendly rides</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="bicyclePrice">ZMW 0.00</div>
-                    </div>
-                `;
-                extraDetailsForm.style.display = 'none';
-                break;
-            case 'truck':
-                title = 'Select Truck Type';
-                optionsHtml = `
-                    <div class="ride-type-option" data-ride-type="pickup" data-fare-multiplier="1.0">
-                        <div class="option-left">
-                            <i class="fas fa-truck-pickup"></i>
-                            <div>
-                                <div class="name">Pickup Truck</div>
-                                <div class="desc">Up to 1.5 tons</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="truckPickupPrice">ZMW 0.00</div>
-                    </div>
-                    <div class="ride-type-option" data-ride-type="light" data-fare-multiplier="1.2">
-                        <div class="option-left">
-                            <i class="fas fa-truck-moving"></i>
-                            <div>
-                                <div class="name">Light Truck</div>
-                                <div class="desc">Up to 3 tons</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="truckLightPrice">ZMW 0.00</div>
-                    </div>
-                    <div class="ride-type-option" data-ride-type="medium" data-fare-multiplier="1.5">
-                        <div class="option-left">
-                            <i class="fas fa-truck"></i>
-                            <div>
-                                <div class="name">Medium Truck</div>
-                                <div class="desc">Up to 7 tons</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="truckMediumPrice">ZMW 0.00</div>
-                    </div>
-                    <div class="ride-type-option" data-ride-type="heavy" data-fare-multiplier="2.0">
-                        <div class="option-left">
-                            <i class="fas fa-truck-loading"></i>
-                            <div>
-                                <div class="name">Heavy Truck</div>
-                                <div class="desc">Up to 15 tons</div>
-                            </div>
-                        </div>
-                        <div class="option-right" id="truckHeavyPrice">ZMW 0.00</div>
-                    </div>
-                `;
-                extraDetailsForm.innerHTML = `
-                    <div class="form-group">
-                        <label class="form-label">Estimated Weight (kg) - optional</label>
-                        <input type="number" class="form-control" id="truckWeight" placeholder="Enter estimated weight">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">
-                            <input type="checkbox" id="needHelpers"> Need loading/unloading helpers (+ZMW 50)
-                        </label>
-                    </div>
-                `;
-                extraDetailsForm.style.display = 'block';
-                break;
-        }
-
-        popupTitle.innerHTML = `<i class="fas fa-${service === 'car' ? 'car' : service === 'delivery-bike' ? 'motorcycle' : service === 'bicycle' ? 'bicycle' : 'truck'}"></i> ${title}`;
-        rideTypeOptions.innerHTML = optionsHtml;
-
-        // Update prices in popup based on current distance
-        if (AppState.pickup && AppState.destination) {
-            const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
-                AppState.pickup,
-                AppState.destination,
-                AppState.rideStops.filter(stop => stop.location)
-            );
-            const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-            const stops = AppState.rideStops.filter(stop => stop.location);
-
-            if (service === 'car') {
-                const economy = EnhancedPriceCalculator.calculateRideFare(distance, 'economy', surge, null, stops);
-                const standard = EnhancedPriceCalculator.calculateRideFare(distance, 'standard', surge, null, stops);
-                const premium = EnhancedPriceCalculator.calculateRideFare(distance, 'premium', surge, null, stops);
-                document.getElementById('economyPrice').textContent = `ZMW ${economy.toFixed(2)}`;
-                document.getElementById('standardPrice').textContent = `ZMW ${standard.toFixed(2)}`;
-                document.getElementById('premiumPrice').textContent = `ZMW ${premium.toFixed(2)}`;
-            } else if (service === 'delivery-bike') {
-                const standard = EnhancedPriceCalculator.calculateDeliveryBikeFare(distance, 'standard');
-                const express = EnhancedPriceCalculator.calculateDeliveryBikeFare(distance, 'express');
-                const sameDay = EnhancedPriceCalculator.calculateDeliveryBikeFare(distance, 'sameDay');
-                document.getElementById('deliveryStandardPrice').textContent = `ZMW ${standard.toFixed(2)}`;
-                document.getElementById('deliveryExpressPrice').textContent = `ZMW ${express.toFixed(2)}`;
-                document.getElementById('deliverySameDayPrice').textContent = `ZMW ${sameDay.toFixed(2)}`;
-            } else if (service === 'bicycle') {
-                const bicycle = EnhancedPriceCalculator.calculateBicycleFare(distance);
-                document.getElementById('bicyclePrice').textContent = `ZMW ${bicycle.toFixed(2)}`;
-            } else if (service === 'truck') {
-                const pickup = EnhancedPriceCalculator.calculateTruckFare(distance, 'pickup');
-                const light = EnhancedPriceCalculator.calculateTruckFare(distance, 'light');
-                const medium = EnhancedPriceCalculator.calculateTruckFare(distance, 'medium');
-                const heavy = EnhancedPriceCalculator.calculateTruckFare(distance, 'heavy');
-                document.getElementById('truckPickupPrice').textContent = `ZMW ${pickup.toFixed(2)}`;
-                document.getElementById('truckLightPrice').textContent = `ZMW ${light.toFixed(2)}`;
-                document.getElementById('truckMediumPrice').textContent = `ZMW ${medium.toFixed(2)}`;
-                document.getElementById('truckHeavyPrice').textContent = `ZMW ${heavy.toFixed(2)}`;
-            }
-        }
-
-        popup.classList.add('active');
-    },
-
-    hideRideTypePopup: function() {
-        const popup = document.getElementById('rideTypePopup');
-        if (popup) {
-            popup.classList.remove('active');
-        }
-    },
-
-    // Show payment modal with amount
-    showPaymentModal: function(amount, rideData) {
-        AppState.pendingRideData = rideData;
-        AppState.rideFare = amount;
-
-        const paymentAmount = document.getElementById('paymentAmount');
-        if (paymentAmount) {
-            paymentAmount.textContent = `ZMW ${amount.toFixed(2)}`;
-        }
-
-        const originalFareAmount = document.getElementById('originalFareAmount');
-        if (originalFareAmount) {
-            originalFareAmount.textContent = `ZMW ${amount.toFixed(2)}`;
-        }
-
-        const finalFareAmount = document.getElementById('finalFareAmount');
-        if (finalFareAmount) {
-            finalFareAmount.textContent = `ZMW ${amount.toFixed(2)}`;
-        }
-
-        const modal = document.getElementById('paymentModal');
-        if (modal) {
-            modal.style.display = 'block';
-            modal.style.zIndex = '10001';
-        }
-
-        AppState.referralDiscountApplied = false;
-        AppState.referralCodeUsed = null;
-        AppState.referralOwnerName = null;
-
-        const referralInputSection = document.getElementById('referralDiscountSection');
-        if (referralInputSection) {
-            referralInputSection.style.display = 'block';
-        }
-
-        const referralCodeInput = document.getElementById('referralCodeInput');
-        if (referralCodeInput) {
-            referralCodeInput.value = '';
-        }
-    },
-
-    // Show ride info after request
     showRideInfo: function(ride) {
-        // Hide main content, show driver panel
-        document.getElementById('homeContent').style.display = 'none';
-        const driverPanel = document.getElementById('driverPanel');
-        driverPanel.classList.add('active');
-
+        document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => { form.style.display = 'none'; });
+        const rideInfoPanel = document.getElementById('rideInfoPanel');
+        if (rideInfoPanel) { rideInfoPanel.style.display = 'block'; rideInfoPanel.classList.add('active'); }
         this.updateRideDetails(ride);
         this.updateRideStatus(ride.status);
         this.updateTimeline(ride.status);
-
         if (ride.status === 'accepted' && AppState.sosConfig) {
             const sosButton = document.getElementById('sosButton');
             if (sosButton) sosButton.style.display = 'flex';
@@ -2531,16 +1397,57 @@ const EnhancedUIUpdater = {
     },
 
     updateRideDetails: function(ride) {
-        // Update driver panel elements
-        const driverName = document.getElementById('driverName');
-        const driverRating = document.getElementById('driverRating');
-        const vehiclePlate = document.getElementById('vehiclePlate');
-        const driverAvatar = document.getElementById('driverAvatar');
-
-        if (driverName) driverName.textContent = ride.driverName || 'Driver';
-        if (driverRating) driverRating.textContent = ride.driverRating?.toFixed(1) || '4.8';
-        if (vehiclePlate) vehiclePlate.textContent = ride.vehiclePlate || 'ABC 123';
-        // Avatar image could be set if available
+        const currentPickup = document.getElementById('currentPickup');
+        const currentDestination = document.getElementById('currentDestination');
+        const rideDistance = document.getElementById('rideDistance');
+        const rideTime = document.getElementById('rideTime');
+        if (currentPickup) currentPickup.textContent = ride.pickupDisplay || ride.pickup || 'Loading...';
+        if (currentDestination) currentDestination.textContent = ride.destinationDisplay || ride.destination || 'Loading...';
+        if (rideDistance) rideDistance.textContent = ride.distance ? `${ride.distance.toFixed(1)} km` : '0 km';
+        if (rideTime) rideTime.textContent = ride.estimatedTime ? `${ride.estimatedTime} min` : '0 min';
+        const baseFareValue = document.getElementById('baseFareValue');
+        const distanceFareValue = document.getElementById('distanceFareValue');
+        const rideTypeValue = document.getElementById('rideTypeValue');
+        const totalFareValue = document.getElementById('totalFareValue');
+        if (baseFareValue) baseFareValue.textContent = `ZMW ${(ride.fareDetails?.baseFare || 15).toFixed(2)}`;
+        if (distanceFareValue) distanceFareValue.textContent = `ZMW ${(ride.fareDetails?.distanceFare || 5).toFixed(2)}`;
+        if (rideTypeValue) rideTypeValue.textContent = ride.rideType?.charAt(0).toUpperCase() + ride.rideType?.slice(1) || 'Standard';
+        if (totalFareValue) totalFareValue.textContent = `ZMW ${ride.fare?.toFixed(2) || '0.00'}`;
+        if (ride.driverId) {
+            const driverNameEl = document.getElementById('driverName');
+            if (driverNameEl) driverNameEl.textContent = ride.driverName || 'Driver';
+            const driverRatingEl = document.getElementById('driverRating');
+            if (driverRatingEl) driverRatingEl.textContent = ride.driverRating ? ride.driverRating.toFixed(1) : '4.8';
+            const vehicleDetailsEl = document.getElementById('vehicleDetails');
+            if (vehicleDetailsEl && ride.driverVehicle) {
+                const vehicle = ride.driverVehicle;
+                vehicleDetailsEl.textContent = `${vehicle.model || 'Car'} - ${vehicle.licensePlate || 'ABC123'}`;
+            }
+            const driverImage = document.getElementById('driverImage');
+            const driverImagePlaceholder = document.getElementById('driverImagePlaceholder');
+            if (ride.driverProfileImage) {
+                driverImage.src = ride.driverProfileImage;
+                driverImage.style.display = 'block';
+                if (driverImagePlaceholder) driverImagePlaceholder.style.display = 'none';
+            } else {
+                if (driverImage) driverImage.style.display = 'none';
+                if (driverImagePlaceholder) driverImagePlaceholder.style.display = 'flex';
+            }
+            const vehicleImage = document.getElementById('vehicleImage');
+            const vehicleImagePlaceholder = document.getElementById('vehicleImagePlaceholder');
+            if (ride.vehicleImage) {
+                vehicleImage.src = ride.vehicleImage;
+                vehicleImage.style.display = 'block';
+                if (vehicleImagePlaceholder) vehicleImagePlaceholder.style.display = 'none';
+            } else {
+                if (vehicleImage) vehicleImage.style.display = 'none';
+                if (vehicleImagePlaceholder) vehicleImagePlaceholder.style.display = 'flex';
+            }
+            const driverAvatar = document.getElementById('driverAvatar');
+            if (driverAvatar && ride.driverProfileImage) {
+                driverAvatar.innerHTML = `<img src="${ride.driverProfileImage}" style="width:100%; height:100%; object-fit:cover;">`;
+            }
+        }
     },
 
     updateRideStatus: function(status) {
@@ -2548,384 +1455,47 @@ const EnhancedUIUpdater = {
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
         const etaText = document.getElementById('etaText');
-
         if (!statusBar || !statusDot || !statusText || !etaText) return;
-
         statusBar.classList.add('active');
-
-        switch (status) {
-            case 'requested':
-                statusDot.className = 'status-dot searching';
-                statusText.textContent = 'Searching for driver';
-                etaText.textContent = '5-10 min';
-                this.showPulsingRideIcon();
-                break;
-            case 'accepted':
-                statusDot.className = 'status-dot arriving';
-                statusText.textContent = 'Driver on the way';
-                etaText.textContent = '5 min';
-                break;
-            case 'arrived':
-                statusDot.className = 'status-dot riding';
-                statusText.textContent = 'Driver arrived';
-                etaText.textContent = '0 min';
-                break;
-            case 'started':
-                statusDot.className = 'status-dot riding';
-                statusText.textContent = 'Trip in progress';
-                etaText.textContent = 'En route';
-                break;
-            case 'completed':
-                statusBar.classList.remove('active');
-                this.removePulsingRideIcon();
-                break;
-            case 'cancelled':
-                statusBar.classList.remove('active');
-                this.removePulsingRideIcon();
-                break;
+        switch(status) {
+            case 'requested': statusDot.className = 'status-dot searching'; statusText.textContent = 'Searching for driver'; etaText.textContent = '5-10 min'; this.showPulsingRideIcon(); break;
+            case 'accepted': statusDot.className = 'status-dot arriving'; statusText.textContent = 'Driver on the way'; etaText.textContent = '5 min'; break;
+            case 'arrived': statusDot.className = 'status-dot riding'; statusText.textContent = 'Driver arrived'; etaText.textContent = '0 min'; break;
+            case 'started': statusDot.className = 'status-dot riding'; statusText.textContent = 'Trip in progress'; etaText.textContent = 'En route'; break;
+            case 'completed': statusBar.classList.remove('active'); this.removePulsingRideIcon(); break;
+            case 'cancelled': statusBar.classList.remove('active'); this.removePulsingRideIcon(); break;
         }
     },
 
     showPulsingRideIcon: function() {
         this.removePulsingRideIcon();
-
         const serviceType = AppState.activeService;
         let iconClass = 'fa-car';
-
-        if (serviceType === 'truck') {
-            iconClass = 'fa-truck';
-        } else if (serviceType === 'delivery-bike') {
-            iconClass = 'fa-motorcycle';
-        } else if (serviceType === 'bicycle') {
-            iconClass = 'fa-bicycle';
-        }
-
-        pulsingIcon = L.divIcon({
-            className: 'pulsing-ride-icon',
-            html: `<i class="fas ${iconClass}" style="color: #FF6B35; font-size: 40px;"></i>`,
-            iconSize: [40, 40],
-            iconAnchor: [20, 40]
-        });
-
+        if (serviceType === 'truck' || AppState.currentRide?.serviceType === 'truck') iconClass = 'fa-truck';
+        else if (serviceType === 'delivery' || serviceType === 'short-delivery') iconClass = 'fa-motorcycle';
+        else if (serviceType === 'express') iconClass = 'fa-shopping-bag';
+        pulsingIcon = L.divIcon({ className: 'pulsing-ride-icon', html: `<i class="fas ${iconClass}" style="color: #FF6B35; font-size: 40px;"></i>`, iconSize: [40, 40], iconAnchor: [20, 40] });
         if (AppState.pickup) {
-            const marker = L.marker([AppState.pickup.lat, AppState.pickup.lng], {
-                icon: pulsingIcon
-            }).addTo(map);
-
+            const marker = L.marker([AppState.pickup.lat, AppState.pickup.lng], { icon: pulsingIcon }).addTo(map);
             marker.getElement().style.animation = 'pulse 1.5s infinite';
-
             AppState.rideRequestPulsingIcons[serviceType] = marker;
         }
     },
 
     removePulsingRideIcon: function() {
-        Object.values(AppState.rideRequestPulsingIcons).forEach(marker => {
-            if (marker && map.hasLayer(marker)) {
-                map.removeLayer(marker);
-            }
-        });
-
-        AppState.rideRequestPulsingIcons = {
-            car: null,
-            bike: null,
-            truck: null
-        };
-    },
-
-    updateTimeline: function(status) {
-        const steps = ['stepRequested', 'stepAccepted', 'stepArrived', 'stepStarted', 'stepCompleted'];
-        const stepLabels = ['Requested', 'Accepted', 'Arrived', 'Started', 'Completed'];
-        let currentIndex = stepLabels.indexOf(status);
-
-        if (currentIndex === -1) {
-            currentIndex = 0;
-        }
-
-        steps.forEach((stepId, index) => {
-            const step = document.getElementById(stepId);
-            const label = step?.parentNode.querySelector('.step-label');
-
-            if (step && label) {
-                if (index < currentIndex) {
-                    step.className = 'step-dot completed';
-                    label.className = 'step-label completed';
-                } else if (index === currentIndex) {
-                    step.className = 'step-dot active';
-                    label.className = 'step-label active';
-                } else {
-                    step.className = 'step-dot';
-                    label.className = 'step-label';
-                }
-            }
-        });
-    },
-
-    applyReferralDiscount: function() {
-        const referralCodeInput = document.getElementById('referralCodeInput');
-        if (!referralCodeInput) return;
-
-        const referralCode = referralCodeInput.value.trim();
-
-        if (!referralCode) {
-            this.showToast('Please enter a referral code', 'warning');
-            return;
-        }
-
-        if (referralCode === AppState.userData?.referralCode) {
-            this.showToast('Cannot use your own referral code', 'warning');
-            return;
-        }
-
-        EnhancedFirebaseManager.validateReferralCode(referralCode)
-            .then(result => {
-                if (result.valid) {
-                    AppState.referralDiscountApplied = true;
-                    AppState.referralCodeUsed = referralCode;
-                    AppState.referralOwnerName = result.ownerName;
-
-                    const discountAmount = AppState.rideFare * 0.5;
-                    const newFare = AppState.rideFare - discountAmount;
-
-                    const discountAmountElement = document.getElementById('discountAmount');
-                    const finalFareAmount = document.getElementById('finalFareAmount');
-                    const paymentAmount = document.getElementById('paymentAmount');
-
-                    if (discountAmountElement) discountAmountElement.textContent = `-ZMW ${discountAmount.toFixed(2)}`;
-                    if (finalFareAmount) finalFareAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
-                    if (paymentAmount) paymentAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
-
-                    const referralInputSection = document.getElementById('referralDiscountSection');
-                    if (referralInputSection) {
-                        referralInputSection.innerHTML = `
-                            <div style="background: #E8F5E9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                                <div style="color: #4CAF50; font-weight: 600; margin-bottom: 5px;">
-                                    <i class="fas fa-gift"></i> 50% Discount Applied!
-                                </div>
-                                <div style="font-size: 14px; color: #333;">
-                                    Referral from: <strong>${result.ownerName}</strong>
-                                </div>
-                                <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                                    The referral owner will receive K25 after you complete this ride
-                                </div>
-                                <button onclick="EnhancedUIUpdater.removeReferralDiscount()" style="
-                                    margin-top: 10px;
-                                    background: none;
-                                    border: 1px solid #4CAF50;
-                                    color: #4CAF50;
-                                    padding: 5px 10px;
-                                    border-radius: 4px;
-                                    cursor: pointer;
-                                    font-size: 12px;
-                                ">
-                                    Remove Discount
-                                </button>
-                            </div>
-                        `;
-                    }
-
-                    this.showToast(`50% discount applied! Referral from ${result.ownerName}`, 'success');
-                } else {
-                    this.showToast('Invalid referral code', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error validating referral:', error);
-                this.showToast('Error validating referral code', 'error');
-            });
-    },
-
-    removeReferralDiscount: function() {
-        AppState.referralDiscountApplied = false;
-        AppState.referralCodeUsed = null;
-        AppState.referralOwnerName = null;
-
-        const newFare = AppState.rideFare;
-
-        const finalFareAmount = document.getElementById('finalFareAmount');
-        const paymentAmount = document.getElementById('paymentAmount');
-
-        if (finalFareAmount) finalFareAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
-        if (paymentAmount) paymentAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
-
-        const referralInputSection = document.getElementById('referralDiscountSection');
-        if (referralInputSection) {
-            referralInputSection.innerHTML = `
-                <div class="section-header">
-                    <i class="fas fa-gift"></i>
-                    <span>Referral Discount (50% off)</span>
-                </div>
-                <div class="referral-input-group">
-                    <input type="text" id="referralCodeInput" placeholder="Enter referral code">
-                    <button id="applyReferralBtn" class="btn btn-orange">
-                        <i class="fas fa-check"></i> Apply
-                    </button>
-                </div>
-                <div class="discount-breakdown" style="margin-top: 10px;">
-                    <div class="price-row">
-                        <span>Original Fare:</span>
-                        <span id="originalFareAmount">ZMW ${newFare.toFixed(2)}</span>
-                    </div>
-                    <div class="price-row">
-                        <span>Discount:</span>
-                        <span id="discountAmount" style="color: var(--success-green);">-ZMW 0.00</span>
-                    </div>
-                    <div class="price-row total">
-                        <span>Final Fare:</span>
-                        <span id="finalFareAmount" style="font-weight: bold;">ZMW ${newFare.toFixed(2)}</span>
-                    </div>
-                </div>
-            `;
-
-            const applyBtn = referralInputSection.querySelector('#applyReferralBtn');
-            if (applyBtn) {
-                applyBtn.addEventListener('click', () => {
-                    EnhancedUIUpdater.applyReferralDiscount();
-                });
-            }
-        }
-
-        this.showToast('Referral discount removed', 'info');
-    },
-
-    showScheduleCountdown: function(scheduledTime, rideData) {
-        const now = Date.now();
-        const timeUntilRide = scheduledTime - now;
-
-        if (timeUntilRide <= 0) {
-            this.requestScheduledRideNow(rideData);
-            return;
-        }
-
-        if (AppState.scheduledCountdowns.has(rideData.id)) {
-            clearInterval(AppState.scheduledCountdowns.get(rideData.id));
-            AppState.scheduledCountdowns.delete(rideData.id);
-        }
-
-        let countdownContainer = document.getElementById('scheduleCountdown');
-        if (!countdownContainer) {
-            countdownContainer = document.createElement('div');
-            countdownContainer.id = 'scheduleCountdown';
-            countdownContainer.style.cssText = `
-                position: fixed;
-                bottom: 100px;
-                right: 20px;
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-                padding: 20px;
-                z-index: 1000;
-                min-width: 300px;
-                max-width: 350px;
-                border: 2px solid #FF6B35;
-            `;
-
-            document.body.appendChild(countdownContainer);
-        }
-
-        const formatTime = (milliseconds) => {
-            const hours = Math.floor(milliseconds / (1000 * 60 * 60));
-            const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
-
-            return {
-                hours: hours.toString().padStart(2, '0'),
-                minutes: minutes.toString().padStart(2, '0'),
-                seconds: seconds.toString().padStart(2, '0')
-            };
-        };
-
-        const updateCountdown = () => {
-            const now = Date.now();
-            const timeLeft = scheduledTime - now;
-
-            if (timeLeft <= 0) {
-                clearInterval(intervalId);
-                this.requestScheduledRideNow(rideData);
-                return;
-            }
-
-            const time = formatTime(timeLeft);
-
-            countdownContainer.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                    <div style="font-weight: 700; color: #FF6B35; font-size: 16px;">
-                        <i class="fas fa-clock"></i> Scheduled Ride
-                    </div>
-                    <button id="cancelScheduleBtn" style="
-                        background: #f44336;
-                        color: white;
-                        border: none;
-                        border-radius: 4px;
-                        padding: 5px 10px;
-                        cursor: pointer;
-                        font-size: 12px;
-                        font-weight: 600;
-                    ">
-                        <i class="fas fa-times"></i> Cancel
-                    </button>
-                </div>
-
-                <div style="text-align: center; margin-bottom: 15px;">
-                    <div style="font-size: 28px; font-weight: 700; color: #333; margin-bottom: 5px;" id="countdownTimer">
-                        ${time.hours}:${time.minutes}:${time.seconds}
-                    </div>
-                    <div style="font-size: 12px; color: #666;">
-                        Ride will auto-request when timer ends
-                    </div>
-                </div>
-
-                <div style="font-size: 13px; color: #333; margin-bottom: 15px;">
-                    <div style="margin-bottom: 5px;"><strong>From:</strong> ${rideData.pickupDisplay || rideData.pickup}</div>
-                    <div style="margin-bottom: 5px;"><strong>To:</strong> ${rideData.destinationDisplay || rideData.destination}</div>
-                    <div><strong>Fare:</strong> ZMW ${rideData.fare?.toFixed(2) || '0.00'}</div>
-                </div>
-
-                <div style="background: #FFF3E0; padding: 10px; border-radius: 6px; font-size: 12px; color: #E65100;">
-                    <i class="fas fa-info-circle"></i> 
-                    Driver search will start automatically when timer reaches zero
-                </div>
-            `;
-
-            const cancelBtn = countdownContainer.querySelector('#cancelScheduleBtn');
-            if (cancelBtn) {
-                cancelBtn.addEventListener('click', () => {
-                    if (confirm('Are you sure you want to cancel this scheduled ride?')) {
-                        EnhancedFirebaseManager.cancelScheduledRide(rideData.id);
-                        countdownContainer.remove();
-
-                        if (AppState.scheduledCountdowns.has(rideData.id)) {
-                            clearInterval(AppState.scheduledCountdowns.get(rideData.id));
-                            AppState.scheduledCountdowns.delete(rideData.id);
-                        }
-
-                        this.showToast('Scheduled ride cancelled', 'success');
-                    }
-                });
-            }
-        };
-
-        const intervalId = setInterval(updateCountdown, 1000);
-        AppState.scheduledCountdowns.set(rideData.id, intervalId);
-
-        updateCountdown();
-
-        this.showToast('Ride scheduled successfully! Timer started.', 'success');
+        Object.values(AppState.rideRequestPulsingIcons).forEach(marker => { if (marker && map.hasLayer(marker)) map.removeLayer(marker); });
+        AppState.rideRequestPulsingIcons = { car: null, bike: null, truck: null };
     },
 
     requestScheduledRideNow: async function(rideData) {
         try {
             this.showLoading('Requesting your scheduled ride...');
-
             const countdownContainer = document.getElementById('scheduleCountdown');
-            if (countdownContainer) {
-                countdownContainer.remove();
-            }
-
+            if (countdownContainer) countdownContainer.remove();
             if (AppState.scheduledCountdowns.has(rideData.id)) {
                 clearInterval(AppState.scheduledCountdowns.get(rideData.id));
                 AppState.scheduledCountdowns.delete(rideData.id);
             }
-
             const rideRequestData = {
                 pickup: rideData.pickup,
                 destination: rideData.destination,
@@ -2934,22 +1504,14 @@ const EnhancedUIUpdater = {
                 distance: rideData.distance,
                 stops: rideData.stops || [],
                 paymentMethod: rideData.paymentMethod || 'wallet',
-                serviceType: rideData.serviceType || 'car',
+                serviceType: 'car',
                 isScheduledRide: true,
                 originalScheduledTime: rideData.scheduledTime
             };
-
             const rideId = await EnhancedFirebaseManager.requestRide(rideRequestData);
-
-            await database.ref(`scheduledRides/${rideData.id}`).update({
-                status: 'requested',
-                requestedAt: Date.now(),
-                rideId: rideId
-            });
-
+            await database.ref(`scheduledRides/${rideData.id}`).update({ status: 'requested', requestedAt: Date.now(), rideId: rideId });
             this.hideLoading();
             this.showToast('Scheduled ride requested! Searching for driver...', 'success');
-
         } catch (error) {
             this.hideLoading();
             console.error('Error requesting scheduled ride:', error);
@@ -2957,21 +1519,547 @@ const EnhancedUIUpdater = {
         }
     },
 
+    updateTimeline: function(status) {
+        const steps = ['stepRequested', 'stepAccepted', 'stepArrived', 'stepStarted', 'stepCompleted'];
+        const stepLabels = ['Requested', 'Accepted', 'Arrived', 'Started', 'Completed'];
+        let currentIndex = stepLabels.indexOf(status);
+        if (currentIndex === -1) currentIndex = 0;
+        steps.forEach((stepId, index) => {
+            const step = document.getElementById(stepId);
+            const label = step?.parentNode.querySelector('.step-label');
+            if (step && label) {
+                if (index < currentIndex) { step.className = 'step-dot completed'; label.className = 'step-label completed'; }
+                else if (index === currentIndex) { step.className = 'step-dot active'; label.className = 'step-label active'; }
+                else { step.className = 'step-dot'; label.className = 'step-label'; }
+            }
+        });
+    },
+
+    showPaymentModal: function(amount, rideData) {
+        AppState.pendingRideData = rideData;
+        AppState.rideFare = amount;
+        const paymentAmount = document.getElementById('paymentAmount');
+        if (paymentAmount) paymentAmount.textContent = `ZMW ${amount.toFixed(2)}`;
+        const originalFareAmount = document.getElementById('originalFareAmount');
+        if (originalFareAmount) originalFareAmount.textContent = `ZMW ${amount.toFixed(2)}`;
+        const finalFareAmount = document.getElementById('finalFareAmount');
+        if (finalFareAmount) finalFareAmount.textContent = `ZMW ${amount.toFixed(2)}`;
+        const modal = document.getElementById('paymentModal');
+        if (modal) { modal.style.display = 'block'; modal.style.zIndex = '10001'; }
+        AppState.referralDiscountApplied = false;
+        AppState.referralCodeUsed = null;
+        AppState.referralOwnerName = null;
+        const referralInputSection = document.getElementById('referralDiscountSection');
+        if (referralInputSection) referralInputSection.style.display = 'block';
+        const referralCodeInput = document.getElementById('referralCodeInput');
+        if (referralCodeInput) referralCodeInput.value = '';
+    },
+
+    applyReferralDiscount: function() {
+        const referralCodeInput = document.getElementById('referralCodeInput');
+        if (!referralCodeInput) return;
+        const referralCode = referralCodeInput.value.trim();
+        if (!referralCode) { this.showToast('Please enter a referral code', 'warning'); return; }
+        if (referralCode === AppState.userData?.referralCode) { this.showToast('Cannot use your own referral code', 'warning'); return; }
+        EnhancedFirebaseManager.validateReferralCode(referralCode).then(result => {
+            if (result.valid) {
+                AppState.referralDiscountApplied = true;
+                AppState.referralCodeUsed = referralCode;
+                AppState.referralOwnerName = result.ownerName;
+                const discountAmount = AppState.rideFare * 0.5;
+                const newFare = AppState.rideFare - discountAmount;
+                const discountAmountElement = document.getElementById('discountAmount');
+                const finalFareAmount = document.getElementById('finalFareAmount');
+                const paymentAmount = document.getElementById('paymentAmount');
+                if (discountAmountElement) discountAmountElement.textContent = `-ZMW ${discountAmount.toFixed(2)}`;
+                if (finalFareAmount) finalFareAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
+                if (paymentAmount) paymentAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
+                const referralInputSection = document.getElementById('referralDiscountSection');
+                if (referralInputSection) {
+                    referralInputSection.innerHTML = `
+                        <div style="background: #E8F5E9; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                            <div style="color: #4CAF50; font-weight: 600; margin-bottom: 5px;"><i class="fas fa-gift"></i> 50% Discount Applied!</div>
+                            <div style="font-size: 14px; color: #333;">Referral from: <strong>${result.ownerName}</strong></div>
+                            <div style="font-size: 12px; color: #666; margin-top: 5px;">The referral owner will receive K25 after you complete this ride</div>
+                            <button onclick="EnhancedUIUpdater.removeReferralDiscount()" style="margin-top: 10px; background: none; border: 1px solid #4CAF50; color: #4CAF50; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">Remove Discount</button>
+                        </div>
+                    `;
+                }
+                this.showToast(`50% discount applied! Referral from ${result.ownerName}`, 'success');
+            } else { this.showToast('Invalid referral code', 'error'); }
+        }).catch(error => { console.error('Error validating referral:', error); this.showToast('Error validating referral code', 'error'); });
+    },
+
+    removeReferralDiscount: function() {
+        AppState.referralDiscountApplied = false;
+        AppState.referralCodeUsed = null;
+        AppState.referralOwnerName = null;
+        const newFare = AppState.rideFare;
+        const finalFareAmount = document.getElementById('finalFareAmount');
+        const paymentAmount = document.getElementById('paymentAmount');
+        if (finalFareAmount) finalFareAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
+        if (paymentAmount) paymentAmount.textContent = `ZMW ${newFare.toFixed(2)}`;
+        const referralInputSection = document.getElementById('referralDiscountSection');
+        if (referralInputSection) {
+            referralInputSection.innerHTML = `
+                <div class="section-header"><i class="fas fa-gift"></i><span>Referral Discount (50% off)</span></div>
+                <div class="referral-input-group"><input type="text" id="referralCodeInput" placeholder="Enter referral code"><button id="applyReferralBtn" class="btn btn-orange"><i class="fas fa-check"></i> Apply</button></div>
+                <div class="discount-breakdown" style="margin-top: 10px;">
+                    <div class="price-row"><span>Original Fare:</span><span id="originalFareAmount">ZMW ${newFare.toFixed(2)}</span></div>
+                    <div class="price-row"><span>Discount:</span><span id="discountAmount" style="color: var(--success-green);">-ZMW 0.00</span></div>
+                    <div class="price-row total"><span>Final Fare:</span><span id="finalFareAmount" style="font-weight: bold;">ZMW ${newFare.toFixed(2)}</span></div>
+                </div>
+            `;
+            const applyBtn = referralInputSection.querySelector('#applyReferralBtn');
+            if (applyBtn) applyBtn.addEventListener('click', () => { EnhancedUIUpdater.applyReferralDiscount(); });
+        }
+        this.showToast('Referral discount removed', 'info');
+    },
+
+    showScheduleCountdown: function(scheduledTime, rideData) {
+        const now = Date.now();
+        const timeUntilRide = scheduledTime - now;
+        if (timeUntilRide <= 0) { this.requestScheduledRideNow(rideData); return; }
+        if (AppState.scheduledCountdowns.has(rideData.id)) {
+            clearInterval(AppState.scheduledCountdowns.get(rideData.id));
+            AppState.scheduledCountdowns.delete(rideData.id);
+        }
+        let countdownContainer = document.getElementById('scheduleCountdown');
+        if (!countdownContainer) {
+            countdownContainer = document.createElement('div');
+            countdownContainer.id = 'scheduleCountdown';
+            countdownContainer.style.cssText = `position: fixed; bottom: 100px; right: 20px; background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 20px; z-index: 1000; min-width: 300px; max-width: 350px; border: 2px solid #FF6B35;`;
+            document.body.appendChild(countdownContainer);
+        }
+        const formatTime = (milliseconds) => {
+            const hours = Math.floor(milliseconds / (1000 * 60 * 60));
+            const minutes = Math.floor((milliseconds % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((milliseconds % (1000 * 60)) / 1000);
+            return { hours: hours.toString().padStart(2, '0'), minutes: minutes.toString().padStart(2, '0'), seconds: seconds.toString().padStart(2, '0') };
+        };
+        const updateCountdown = () => {
+            const now = Date.now();
+            const timeLeft = scheduledTime - now;
+            if (timeLeft <= 0) {
+                clearInterval(intervalId);
+                this.requestScheduledRideNow(rideData);
+                return;
+            }
+            const time = formatTime(timeLeft);
+            countdownContainer.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="font-weight: 700; color: #FF6B35; font-size: 16px;"><i class="fas fa-clock"></i> Scheduled Ride</div>
+                    <button id="cancelScheduleBtn" style="background: #f44336; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 600;"><i class="fas fa-times"></i> Cancel</button>
+                </div>
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <div style="font-size: 28px; font-weight: 700; color: #333; margin-bottom: 5px;" id="countdownTimer">${time.hours}:${time.minutes}:${time.seconds}</div>
+                    <div style="font-size: 12px; color: #666;">Ride will auto-request when timer ends</div>
+                </div>
+                <div style="font-size: 13px; color: #333; margin-bottom: 15px;">
+                    <div style="margin-bottom: 5px;"><strong>From:</strong> ${rideData.pickupDisplay || rideData.pickup}</div>
+                    <div style="margin-bottom: 5px;"><strong>To:</strong> ${rideData.destinationDisplay || rideData.destination}</div>
+                    <div><strong>Fare:</strong> ZMW ${rideData.fare?.toFixed(2) || '0.00'}</div>
+                </div>
+                <div style="background: #FFF3E0; padding: 10px; border-radius: 6px; font-size: 12px; color: #E65100;"><i class="fas fa-info-circle"></i> Driver search will start automatically when timer reaches zero</div>
+            `;
+            const cancelBtn = countdownContainer.querySelector('#cancelScheduleBtn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    if (confirm('Are you sure you want to cancel this scheduled ride?')) {
+                        EnhancedFirebaseManager.cancelScheduledRide(rideData.id);
+                        countdownContainer.remove();
+                        if (AppState.scheduledCountdowns.has(rideData.id)) {
+                            clearInterval(AppState.scheduledCountdowns.get(rideData.id));
+                            AppState.scheduledCountdowns.delete(rideData.id);
+                        }
+                        this.showToast('Scheduled ride cancelled', 'success');
+                    }
+                });
+            }
+        };
+        const intervalId = setInterval(updateCountdown, 1000);
+        AppState.scheduledCountdowns.set(rideData.id, intervalId);
+        updateCountdown();
+        this.showToast('Ride scheduled successfully! Timer started.', 'success');
+    },
+
+    showSplitRidePopup: function() {
+        const modal = document.createElement('div');
+        modal.className = 'split-ride-modal';
+        modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; z-index: 10000; padding: 20px;`;
+        if (!AppState.pickup || !AppState.destination) {
+            modal.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px;"><div style="font-size: 48px; color: #FFC107; margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i></div>
+                <div style="font-weight: 600; margin-bottom: 10px;">Set Route First</div><div style="color: #666; margin-bottom: 20px;">Please set pickup and destination locations before splitting the ride</div>
+                <button id="closeSplitModal" style="padding: 10px 20px; background: #FF6B35; color: white; border: none; border-radius: 6px; cursor: pointer;">OK</button></div>`;
+            document.body.appendChild(modal);
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+            document.body.appendChild(overlay);
+            modal.querySelector('#closeSplitModal').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            return;
+        }
+        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(AppState.pickup, AppState.destination, AppState.rideStops.filter(stop => stop.location));
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const totalFare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge, null, AppState.rideStops.filter(stop => stop.location));
+        let html = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;"><h3 style="margin: 0; color: #333;"><i class="fas fa-user-friends"></i> Split Ride</h3><button id="closeSplitModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button></div>
+            <div style="margin-bottom: 20px; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 10px;"><span style="color: #666;">Total Fare:</span><span style="font-weight: 700; font-size: 18px; color: #FF6B35;">ZMW ${totalFare.toFixed(2)}</span></div>
+                <div style="font-size: 12px; color: #666;">Split equally between all participants</div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 10px; color: #333;">Split Options</div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button class="split-option-btn" data-participants="2" style="flex:1; padding:12px; background:#e3f2fd; border:2px solid #2196F3; border-radius:8px; cursor:pointer; font-weight:600; color:#2196F3;">Split with 1 Friend</button>
+                    <button class="split-option-btn" data-participants="3" style="flex:1; padding:12px; background:#f3e5f5; border:2px solid #9C27B0; border-radius:8px; cursor:pointer; font-weight:600; color:#9C27B0;">Split with 2 Friends</button>
+                    <button class="split-option-btn" data-participants="4" style="flex:1; padding:12px; background:#e8f5e9; border:2px solid #4CAF50; border-radius:8px; cursor:pointer; font-weight:600; color:#4CAF50;">Split with 3 Friends</button>
+                </div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 10px; color: #333;">Add Friends by Referral Code</div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="splitFriendCode" placeholder="Enter friend's referral code" style="flex:1; padding:10px; border:1px solid #e0e0e0; border-radius:6px; font-size:14px;">
+                    <button id="addSplitFriendBtn" style="padding:10px 20px; background:#FF6B35; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;"><i class="fas fa-plus"></i> Add</button>
+                </div>
+                <div id="splitFriendsList" style="max-height:200px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:6px; padding:10px;"><div style="text-align: center; padding: 20px; color: #999;">No friends added yet</div></div>
+            </div>
+            <div id="splitCalculations" style="display: none;">
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #333;">Split Calculation</div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span>Total Fare:</span><span>ZMW <span id="splitTotalFare">${totalFare.toFixed(2)}</span></span></div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span>Participants:</span><span id="splitParticipants">2</span></div>
+                    <div style="display: flex; justify-content: space-between; font-weight: 600; padding-top: 10px; border-top: 1px solid #ddd;"><span>Your Share:</span><span style="color: #FF6B35;">ZMW <span id="splitYourShare">${(totalFare / 2).toFixed(2)}</span></span></div>
+                    <div style="display: flex; justify-content: space-between; font-size: 13px; color: #666;"><span>Each Friend's Share:</span><span>ZMW <span id="splitFriendShare">${(totalFare / 2).toFixed(2)}</span></span></div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="confirmSplitRideBtn" style="flex:1; padding:15px; background:#FF6B35; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px;"><i class="fas fa-user-friends"></i> Request Split Ride</button>
+                <button id="cancelSplitBtn" style="padding:15px 30px; background:#f5f5f5; color:#666; border:none; border-radius:8px; cursor:pointer; font-weight:600;">Cancel</button>
+            </div>
+        `;
+        modal.innerHTML = html;
+        document.body.appendChild(modal);
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+        document.body.appendChild(overlay);
+        const splitRideState = { friends: [], selectedParticipants: 2, totalFare: totalFare };
+        modal.querySelector('#closeSplitModal').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        modal.querySelector('#cancelSplitBtn').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        modal.querySelectorAll('.split-option-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                modal.querySelectorAll('.split-option-btn').forEach(b => b.style.opacity = '0.7');
+                this.style.opacity = '1';
+                splitRideState.selectedParticipants = parseInt(this.dataset.participants);
+                updateSplitCalculations();
+            });
+        });
+        modal.querySelector('.split-option-btn[data-participants="2"]').style.opacity = '1';
+        modal.querySelector('#addSplitFriendBtn').addEventListener('click', () => {
+            const codeInput = modal.querySelector('#splitFriendCode');
+            const code = codeInput.value.trim();
+            if (!code) { EnhancedUIUpdater.showToast('Please enter a referral code', 'warning'); return; }
+            if (splitRideState.friends.length >= splitRideState.selectedParticipants - 1) { EnhancedUIUpdater.showToast(`Maximum ${splitRideState.selectedParticipants - 1} friends allowed for this split option`, 'warning'); return; }
+            if (splitRideState.friends.some(f => f.code === code)) { EnhancedUIUpdater.showToast('Friend already added', 'warning'); return; }
+            if (code === AppState.userData?.referralCode) { EnhancedUIUpdater.showToast('Cannot add your own referral code', 'warning'); return; }
+            EnhancedFirebaseManager.findUserByReferralCode(code).then(friendData => {
+                if (friendData) {
+                    splitRideState.friends.push({ code, name: friendData.name, userId: friendData.uid, status: 'pending' });
+                    updateFriendsList();
+                    updateSplitCalculations();
+                    codeInput.value = '';
+                    EnhancedUIUpdater.showToast(`${friendData.name} added to split ride`, 'success');
+                } else { EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error'); }
+            }).catch(error => { console.error('Error finding friend:', error); EnhancedUIUpdater.showToast('Error adding friend', 'error'); });
+        });
+        modal.querySelector('#confirmSplitRideBtn').addEventListener('click', () => {
+            if (splitRideState.friends.length === 0) { EnhancedUIUpdater.showToast('Please add at least one friend', 'warning'); return; }
+            if (splitRideState.friends.length !== splitRideState.selectedParticipants - 1) { EnhancedUIUpdater.showToast(`Please add exactly ${splitRideState.selectedParticipants - 1} friends for this split option`, 'warning'); return; }
+            const splitRideData = {
+                pickup: AppState.pickup,
+                destination: AppState.destination,
+                rideType: AppState.selectedRideType,
+                totalFare: splitRideState.totalFare,
+                participants: splitRideState.selectedParticipants,
+                friends: splitRideState.friends,
+                stops: AppState.rideStops.filter(stop => stop.location),
+                distance: distance
+            };
+            const eachShare = splitRideState.totalFare / splitRideState.selectedParticipants;
+            document.body.removeChild(modal); document.body.removeChild(overlay);
+            this.showPaymentModal(eachShare, { ...splitRideData, isSplitRide: true, yourShare: eachShare, splitType: 'equal' });
+        });
+        function updateFriendsList() {
+            const friendsList = modal.querySelector('#splitFriendsList');
+            if (splitRideState.friends.length === 0) { friendsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No friends added yet</div>'; return; }
+            let html = '';
+            splitRideState.friends.forEach((friend, index) => {
+                html += `
+                    <div class="split-friend-item" data-index="${index}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;">
+                        <div><div style="font-weight: 600; margin-bottom: 4px;">${friend.name}</div><div style="font-size: 12px; color: #666;">Code: ${friend.code}</div></div>
+                        <button class="remove-split-friend" data-index="${index}" style="background: #f44336; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px;"><i class="fas fa-times"></i></button>
+                    </div>
+                `;
+            });
+            friendsList.innerHTML = html;
+            friendsList.querySelectorAll('.remove-split-friend').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(btn.dataset.index);
+                    splitRideState.friends.splice(index, 1);
+                    updateFriendsList();
+                    updateSplitCalculations();
+                });
+            });
+        }
+        function updateSplitCalculations() {
+            const calculationsDiv = modal.querySelector('#splitCalculations');
+            const totalParticipants = splitRideState.selectedParticipants;
+            const actualParticipants = 1 + splitRideState.friends.length;
+            if (actualParticipants > 0) {
+                calculationsDiv.style.display = 'block';
+                const totalFare = splitRideState.totalFare;
+                const eachShare = totalFare / totalParticipants;
+                modal.querySelector('#splitTotalFare').textContent = totalFare.toFixed(2);
+                modal.querySelector('#splitParticipants').textContent = totalParticipants;
+                modal.querySelector('#splitYourShare').textContent = eachShare.toFixed(2);
+                modal.querySelector('#splitFriendShare').textContent = eachShare.toFixed(2);
+            } else { calculationsDiv.style.display = 'none'; }
+        }
+        updateSplitCalculations();
+    },
+
+    showBroadcastRidePopup: function() {
+        const modal = document.createElement('div');
+        modal.className = 'broadcast-ride-modal';
+        modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; z-index: 10000; padding: 20px;`;
+        if (!AppState.pickup || !AppState.destination) {
+            modal.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px;"><div style="font-size: 48px; color: #FFC107; margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i></div>
+                <div style="font-weight: 600; margin-bottom: 10px;">Set Route First</div><div style="color: #666; margin-bottom: 20px;">Please set pickup and destination locations before broadcasting the ride</div>
+                <button id="closeBroadcastModal" style="padding: 10px 20px; background: #FF6B35; color: white; border: none; border-radius: 6px; cursor: pointer;">OK</button></div>`;
+            document.body.appendChild(modal);
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+            document.body.appendChild(overlay);
+            modal.querySelector('#closeBroadcastModal').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            return;
+        }
+        const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(AppState.pickup, AppState.destination, AppState.rideStops.filter(stop => stop.location));
+        const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+        const totalFare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge, null, AppState.rideStops.filter(stop => stop.location));
+        let html = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;"><h3 style="margin: 0; color: #333;"><i class="fas fa-broadcast-tower"></i> Broadcast Ride</h3><button id="closeBroadcastModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button></div>
+            <div style="margin-bottom: 20px; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+                <div style="margin-bottom: 10px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div><div style="font-weight: 600;">${AppState.pickup.address}</div></div>
+                <div style="margin-bottom: 10px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div><div style="font-weight: 600;">${AppState.destination.address}</div></div>
+                <div style="display: flex; justify-content: space-between;"><div><div style="font-size: 12px; color: #666;">Distance</div><div style="font-weight: 600;">${distance.toFixed(1)} km</div></div><div><div style="font-size: 12px; color: #666;">Fare</div><div style="font-weight: 700; color: #FF6B35;">ZMW ${totalFare.toFixed(2)}</div></div></div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 10px; color: #333;">Add Referral Codes to Broadcast To</div>
+                <div style="font-size: 13px; color: #666; margin-bottom: 15px;">Friends will be able to track your ride in real-time</div>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <input type="text" id="broadcastFriendCode" placeholder="Enter referral code" style="flex:1; padding:10px; border:1px solid #e0e0e0; border-radius:6px; font-size:14px;">
+                    <button id="addBroadcastFriendBtn" style="padding:10px 20px; background:#FF6B35; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;"><i class="fas fa-plus"></i> Add</button>
+                </div>
+                <div id="broadcastFriendsList" style="max-height:200px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:6px; padding:10px;"><div style="text-align: center; padding: 20px; color: #999;">No friends added yet</div></div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="confirmBroadcastRideBtn" style="flex:1; padding:15px; background:#FF6B35; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px;"><i class="fas fa-broadcast-tower"></i> Start Broadcasting</button>
+                <button id="cancelBroadcastBtn" style="padding:15px 30px; background:#f5f5f5; color:#666; border:none; border-radius:8px; cursor:pointer; font-weight:600;">Cancel</button>
+            </div>
+        `;
+        modal.innerHTML = html;
+        document.body.appendChild(modal);
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+        document.body.appendChild(overlay);
+        const broadcastState = { friends: [] };
+        modal.querySelector('#closeBroadcastModal').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        modal.querySelector('#cancelBroadcastBtn').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        modal.querySelector('#addBroadcastFriendBtn').addEventListener('click', () => {
+            const codeInput = modal.querySelector('#broadcastFriendCode');
+            const code = codeInput.value.trim();
+            if (!code) { EnhancedUIUpdater.showToast('Please enter a referral code', 'warning'); return; }
+            if (code === AppState.userData?.referralCode) { EnhancedUIUpdater.showToast('Cannot add your own referral code', 'warning'); return; }
+            if (broadcastState.friends.some(f => f.code === code)) { EnhancedUIUpdater.showToast('Friend already added', 'warning'); return; }
+            EnhancedFirebaseManager.findUserByReferralCode(code).then(friendData => {
+                if (friendData) {
+                    broadcastState.friends.push({ code, name: friendData.name, userId: friendData.uid, status: 'invited' });
+                    updateFriendsList();
+                    codeInput.value = '';
+                    EnhancedUIUpdater.showToast(`${friendData.name} added to broadcast`, 'success');
+                } else { EnhancedUIUpdater.showToast('Friend not found. Please check the referral code.', 'error'); }
+            }).catch(error => { console.error('Error finding friend:', error); EnhancedUIUpdater.showToast('Error adding friend', 'error'); });
+        });
+        modal.querySelector('#confirmBroadcastRideBtn').addEventListener('click', () => {
+            if (broadcastState.friends.length === 0) { EnhancedUIUpdater.showToast('Please add at least one friend to broadcast to', 'warning'); return; }
+            const broadcastRideData = {
+                pickup: AppState.pickup,
+                destination: AppState.destination,
+                rideType: AppState.selectedRideType,
+                totalFare: totalFare,
+                friends: broadcastState.friends,
+                stops: AppState.rideStops.filter(stop => stop.location),
+                distance: distance,
+                isBroadcast: true
+            };
+            document.body.removeChild(modal); document.body.removeChild(overlay);
+            this.showPaymentModal(totalFare, broadcastRideData);
+        });
+        function updateFriendsList() {
+            const friendsList = modal.querySelector('#broadcastFriendsList');
+            if (broadcastState.friends.length === 0) { friendsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #999;">No friends added yet</div>'; return; }
+            let html = '';
+            broadcastState.friends.forEach((friend, index) => {
+                html += `
+                    <div class="broadcast-friend-item" data-index="${index}" style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee;">
+                        <div><div style="font-weight: 600; margin-bottom: 4px;">${friend.name}</div><div style="font-size: 12px; color: #666;">Code: ${friend.code}</div></div>
+                        <button class="remove-broadcast-friend" data-index="${index}" style="background: #f44336; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-size: 12px;"><i class="fas fa-times"></i></button>
+                    </div>
+                `;
+            });
+            friendsList.innerHTML = html;
+            friendsList.querySelectorAll('.remove-broadcast-friend').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const index = parseInt(btn.dataset.index);
+                    broadcastState.friends.splice(index, 1);
+                    updateFriendsList();
+                });
+            });
+        }
+    },
+
+    showEmergencyStations: function(type) {
+        if (!AppState.currentCity) { this.showToast('Please wait while we detect your city', 'warning'); return; }
+        this.showLoading(`Finding ${type} stations...`);
+        EnhancedSearchEngine.searchEmergencyStations(type, AppState.currentCity).then(stations => {
+            this.hideLoading();
+            if (stations.length === 0) { this.showToast(`No ${type} stations found in your city`, 'info'); return; }
+            const modal = document.createElement('div');
+            modal.className = 'emergency-stations-modal';
+            modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; z-index: 10000; padding: 20px;`;
+            const emergencyTypeNames = { police: 'Police Stations', fire: 'Fire Stations', medical: 'Medical Stations' };
+            const emergencyIcons = { police: 'fa-shield-alt', fire: 'fa-fire-extinguisher', medical: 'fa-ambulance' };
+            const emergencyColors = { police: '#2196F3', fire: '#F44336', medical: '#4CAF50' };
+            let html = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;"><h3 style="margin: 0; color: ${emergencyColors[type]};"><i class="fas ${emergencyIcons[type]}"></i> ${emergencyTypeNames[type]}</h3><button id="closeEmergencyModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button></div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 20px;">Select a station (closest first):</div>
+                <div id="emergencyStationsList" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
+            `;
+            stations.forEach((station, index) => {
+                const fare = EnhancedPriceCalculator.calculateEmergencyFare(station.distance, type);
+                html += `
+                    <div class="emergency-station-item" data-index="${index}" style="padding: 15px; border: 2px solid #e0e0e0; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;"><div style="color: ${emergencyColors[type]}; font-size: 20px;"><i class="fas ${emergencyIcons[type]}"></i></div><div style="font-weight: 600; font-size: 16px;">${station.name}</div></div>
+                                <div style="font-size: 13px; color: #666; margin-bottom: 8px;">${station.address}</div>
+                                <div style="display: flex; gap: 15px; font-size: 12px;"><div style="color: #FF6B35;"><i class="fas fa-location-arrow"></i> ${station.distance.toFixed(1)} km</div><div style="color: #4CAF50; font-weight: 600;"><i class="fas fa-money-bill-wave"></i> ZMW ${fare.toFixed(2)}</div></div>
+                            </div>
+                            <div style="color: #4CAF50; font-size: 24px; display: none;"><i class="fas fa-check-circle"></i></div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `
+                </div>
+                <div id="emergencyReasonSection" style="display: none; margin-bottom: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #333;">Reason for Emergency</div>
+                    <div id="emergencyReasons" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px;">
+            `;
+            const reasons = {
+                police: ['Accident', 'Crime/Assault', 'Theft', 'Disturbance', 'Suspicious Activity', 'Other'],
+                fire: ['Fire', 'Gas Leak', 'Rescue', 'Hazardous Materials', 'Other'],
+                medical: ['Accident', 'Medical Emergency', 'Injury', 'Illness', 'Other']
+            };
+            reasons[type].forEach(reason => {
+                html += `<button class="emergency-reason-btn" data-reason="${reason}" style="padding: 8px 12px; background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 20px; cursor: pointer; font-size: 13px;">${reason}</button>`;
+            });
+            html += `
+                    </div>
+                    <div id="otherReasonInput" style="display: none;"><textarea id="emergencyOtherReason" placeholder="Please describe the emergency..." style="width:100%; padding:10px; border:1px solid #e0e0e0; border-radius:6px; font-size:14px; resize:vertical; min-height:80px;"></textarea></div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="confirmEmergencyBtn" style="flex:1; padding:15px; background:${emergencyColors[type]}; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px; display: none;"><i class="fas fa-exclamation-triangle"></i> Request Emergency Ride</button>
+                    <button id="cancelEmergencyBtn" style="padding:15px 30px; background:#f5f5f5; color:#666; border:none; border-radius:8px; cursor:pointer; font-weight:600;">Cancel</button>
+                </div>
+            `;
+            modal.innerHTML = html;
+            document.body.appendChild(modal);
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+            document.body.appendChild(overlay);
+            let selectedStation = null, selectedReason = null, otherReasonText = '';
+            modal.querySelector('#closeEmergencyModal').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            modal.querySelector('#cancelEmergencyBtn').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            modal.querySelectorAll('.emergency-station-item').forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    modal.querySelectorAll('.emergency-station-item').forEach(i => {
+                        i.style.borderColor = '#e0e0e0';
+                        i.querySelector('.fa-check-circle').parentElement.style.display = 'none';
+                    });
+                    item.style.borderColor = emergencyColors[type];
+                    item.querySelector('.fa-check-circle').parentElement.style.display = 'block';
+                    selectedStation = stations[index];
+                    modal.querySelector('#emergencyReasonSection').style.display = 'block';
+                    modal.querySelector('#confirmEmergencyBtn').style.display = 'block';
+                });
+            });
+            modal.querySelectorAll('.emergency-reason-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modal.querySelectorAll('.emergency-reason-btn').forEach(b => { b.style.background = '#f5f5f5'; b.style.borderColor = '#e0e0e0'; b.style.color = '#333'; });
+                    btn.style.background = emergencyColors[type];
+                    btn.style.borderColor = emergencyColors[type];
+                    btn.style.color = 'white';
+                    selectedReason = btn.dataset.reason;
+                    const otherInput = modal.querySelector('#otherReasonInput');
+                    if (selectedReason === 'Other') otherInput.style.display = 'block';
+                    else otherInput.style.display = 'none';
+                });
+            });
+            const otherReasonInput = modal.querySelector('#emergencyOtherReason');
+            if (otherReasonInput) otherReasonInput.addEventListener('input', (e) => { otherReasonText = e.target.value; });
+            modal.querySelector('#confirmEmergencyBtn').addEventListener('click', () => {
+                if (!selectedStation) { EnhancedUIUpdater.showToast('Please select a station', 'warning'); return; }
+                if (!selectedReason) { EnhancedUIUpdater.showToast('Please select a reason', 'warning'); return; }
+                if (selectedReason === 'Other' && !otherReasonText.trim()) { EnhancedUIUpdater.showToast('Please describe the emergency', 'warning'); return; }
+                const finalReason = selectedReason === 'Other' ? otherReasonText : selectedReason;
+                const fare = EnhancedPriceCalculator.calculateEmergencyFare(selectedStation.distance, type);
+                const emergencyRideData = {
+                    pickup: AppState.userLocation ? { lat: AppState.userLocation.lat, lng: AppState.userLocation.lng, address: 'Current Location' } : AppState.pickup,
+                    destination: { lat: selectedStation.lat, lng: selectedStation.lng, address: selectedStation.address, name: selectedStation.name },
+                    emergencyType: type,
+                    station: selectedStation,
+                    reason: finalReason,
+                    fare: fare,
+                    distance: selectedStation.distance,
+                    isEmergency: true
+                };
+                document.body.removeChild(modal); document.body.removeChild(overlay);
+                this.showPaymentModal(fare, emergencyRideData);
+            });
+        }).catch(error => {
+            this.hideLoading();
+            console.error('Error loading emergency stations:', error);
+            this.showToast('Error loading emergency stations', 'error');
+        });
+    },
+
     showNotificationsPanel: function() {
         const panel = document.getElementById('notificationsPanel');
         if (panel) {
             panel.classList.add('active');
             AppState.notificationsOpen = true;
-
             this.updateNotifications(AppState.notifications);
-
             EnhancedFirebaseManager.markAllNotificationsAsRead();
-
             AppState.unreadNotifications = 0;
             const badge = document.getElementById('notificationCount');
-            if (badge) {
-                badge.style.display = 'none';
-            }
+            if (badge) badge.style.display = 'none';
         }
     },
 
@@ -2986,159 +2074,153 @@ const EnhancedUIUpdater = {
     updateNotifications: function(notifications) {
         const container = document.getElementById('notificationsList');
         if (!container) return;
-
         const sortedNotifications = notifications.sort((a, b) => b.timestamp - a.timestamp);
-
         if (sortedNotifications.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: #999;">
-                    <i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i>
-                    <div style="font-weight: 600; margin-bottom: 10px;">No notifications</div>
-                    <div>You're all caught up!</div>
-                </div>
-            `;
+            container.innerHTML = `<div style="text-align: center; padding: 40px 20px; color: #999;"><i class="fas fa-bell-slash" style="font-size: 48px; margin-bottom: 20px;"></i><div style="font-weight: 600; margin-bottom: 10px;">No notifications</div><div>You're all caught up!</div></div>`;
             return;
         }
-
         let html = '';
-
         sortedNotifications.forEach(notification => {
             const timeString = this.formatTimeAgo(notification.timestamp);
-
-            let icon = 'fa-info-circle';
-            let iconColor = '#2196F3';
-
-            switch (notification.type) {
-                case 'success':
-                    icon = 'fa-check-circle';
-                    iconColor = '#4CAF50';
-                    break;
-                case 'error':
-                    icon = 'fa-exclamation-circle';
-                    iconColor = '#F44336';
-                    break;
-                case 'warning':
-                    icon = 'fa-exclamation-triangle';
-                    iconColor = '#FFC107';
-                    break;
-                case 'ride':
-                    icon = 'fa-car';
-                    iconColor = '#FF6B35';
-                    break;
-                case 'payment':
-                    icon = 'fa-money-bill-wave';
-                    iconColor = '#4CAF50';
-                    break;
-                case 'referral':
-                    icon = 'fa-gift';
-                    iconColor = '#FF6B35';
-                    break;
-                case 'split':
-                    icon = 'fa-user-friends';
-                    iconColor = '#2196F3';
-                    break;
-                case 'broadcast':
-                    icon = 'fa-broadcast-tower';
-                    iconColor = '#FFC107';
-                    break;
+            let icon = 'fa-info-circle', iconColor = '#2196F3';
+            switch(notification.type) {
+                case 'success': icon = 'fa-check-circle'; iconColor = '#4CAF50'; break;
+                case 'error': icon = 'fa-exclamation-circle'; iconColor = '#F44336'; break;
+                case 'warning': icon = 'fa-exclamation-triangle'; iconColor = '#FFC107'; break;
+                case 'ride': icon = 'fa-car'; iconColor = '#FF6B35'; break;
+                case 'payment': icon = 'fa-money-bill-wave'; iconColor = '#4CAF50'; break;
+                case 'referral': icon = 'fa-gift'; iconColor = '#FF6B35'; break;
+                case 'split': icon = 'fa-user-friends'; iconColor = '#2196F3'; break;
+                case 'broadcast': icon = 'fa-broadcast-tower'; iconColor = '#FFC107'; break;
             }
-
             html += `
                 <div class="notification-item ${notification.read ? '' : 'unread'}" data-notification-id="${notification.id}">
                     <div style="display: flex; gap: 12px;">
-                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                            <i class="fas ${icon}"></i>
-                        </div>
+                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;"><i class="fas ${icon}"></i></div>
                         <div style="flex: 1;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                                <div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div>
-                                <div style="font-size: 12px; color: #999;">${timeString}</div>
-                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;"><div style="font-weight: 600; color: #333;">${notification.title || 'Notification'}</div><div style="font-size: 12px; color: #999;">${timeString}</div></div>
                             <div style="color: #666; font-size: 14px; margin-bottom: 8px;">${notification.message}</div>
-                            ${notification.data ? `
-                            <div style="font-size: 12px; color: #999;">
-                                ${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}
-                            </div>
-                            ` : ''}
+                            ${notification.data ? `<div style="font-size: 12px; color: #999;">${notification.data.rideId ? `Ride ID: ${notification.data.rideId.substring(0, 8)}...` : ''}</div>` : ''}
                         </div>
                     </div>
                 </div>
             `;
         });
-
         container.innerHTML = html;
-
         container.querySelectorAll('.notification-item').forEach(item => {
             item.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const notificationId = item.dataset.notificationId;
                 const notification = sortedNotifications.find(n => n.id === notificationId);
-
-                if (notification) {
-                    this.handleNotificationClick(notification);
-                }
+                if (notification) this.handleNotificationClick(notification);
             });
         });
     },
 
     handleNotificationClick: function(notification) {
         console.log('Notification clicked:', notification);
-
-        if (!notification.read) {
-            EnhancedFirebaseManager.markNotificationAsRead(notification.id);
-        }
-
+        if (!notification.read) EnhancedFirebaseManager.markNotificationAsRead(notification.id);
         this.handleNotificationAction(notification);
-
         this.hideNotificationsPanel();
     },
 
     handleNotificationAction: function(notification) {
         const action = notification.action;
         const data = notification.data;
-
-        switch (action) {
+        switch(action) {
             case 'view_ride':
                 if (data && data.rideId) {
                     EnhancedFirebaseManager.loadRideDetails(data.rideId);
-                    if (AppState.activeScreen !== 'home') {
-                        switchScreen('home');
-                    }
+                    if (AppState.activeScreen !== 'home') switchScreen('home');
                 }
                 break;
-
             case 'open_chat':
                 if (data && data.rideId && AppState.currentRide && AppState.currentRide.id === data.rideId) {
                     const chatContainer = document.getElementById('chatContainer');
-                    if (chatContainer) {
-                        chatContainer.classList.add('active');
-                        AppState.chatOpen = true;
-                    }
+                    if (chatContainer) { chatContainer.classList.add('active'); AppState.chatOpen = true; }
                 }
                 break;
-
             case 'accept_split_invite':
-                if (data && data.splitRideId) {
-                    this.showSplitRideAcceptanceModal(data.splitRideId);
-                }
+                if (data && data.splitRideId) this.showSplitRideAcceptanceModal(data.splitRideId);
                 break;
-
             case 'accept_broadcast_invite':
-                if (data && data.broadcastId) {
-                    this.showBroadcastTrackingModal(data.broadcastId);
-                }
+                if (data && data.broadcastId) this.showBroadcastTrackingModal(data.broadcastId);
                 break;
-
             default:
                 EnhancedUIUpdater.showToast(notification.message, notification.type || 'info');
                 break;
         }
     },
 
+    showSplitRideAcceptanceModal: function(splitRideId) {
+        EnhancedFirebaseManager.getSplitRideDetails(splitRideId).then(splitRide => {
+            if (!splitRide) { this.showToast('Split ride not found', 'error'); return; }
+            const modal = document.createElement('div');
+            modal.className = 'split-acceptance-modal';
+            modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 400px; z-index: 10000; padding: 20px;`;
+            const yourShare = splitRide.totalFare / splitRide.participants;
+            modal.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px;"><div style="font-size: 48px; color: #2196F3; margin-bottom: 15px;"><i class="fas fa-user-friends"></i></div><div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">Split Ride Invitation</div><div style="color: #666; margin-bottom: 5px;">From: <strong>${splitRide.hostName}</strong></div></div>
+                <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="margin-bottom: 10px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div><div style="font-weight: 600;">${splitRide.pickup}</div></div>
+                    <div style="margin-bottom: 10px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div><div style="font-weight: 600;">${splitRide.destination}</div></div>
+                    <div style="display: flex; justify-content: space-between;"><div><div style="font-size: 12px; color: #666;">Your Share</div><div style="font-weight: 700; color: #FF6B35; font-size: 18px;">ZMW ${yourShare.toFixed(2)}</div></div><div><div style="font-size: 12px; color: #666;">Participants</div><div style="font-weight: 600; font-size: 16px;">${splitRide.participants}</div></div></div>
+                </div>
+                <div style="display: flex; gap: 10px;"><button id="acceptSplitInviteBtn" style="flex:1; padding:15px; background:#4CAF50; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px;"><i class="fas fa-check"></i> Accept</button><button id="rejectSplitInviteBtn" style="flex:1; padding:15px; background:#f44336; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px;"><i class="fas fa-times"></i> Reject</button></div>
+            `;
+            document.body.appendChild(modal);
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+            document.body.appendChild(overlay);
+            modal.querySelector('#acceptSplitInviteBtn').addEventListener('click', () => {
+                EnhancedFirebaseManager.acceptSplitRideInvitation(splitRideId, AppState.currentUser.uid).then(() => {
+                    document.body.removeChild(modal); document.body.removeChild(overlay);
+                    this.showPaymentModal(yourShare, { ...splitRide, isSplitRide: true, yourShare: yourShare, splitRideId: splitRideId });
+                }).catch(error => { console.error('Error accepting split ride:', error); this.showToast('Error accepting invitation', 'error'); });
+            });
+            modal.querySelector('#rejectSplitInviteBtn').addEventListener('click', () => {
+                EnhancedFirebaseManager.rejectSplitRideInvitation(splitRideId, AppState.currentUser.uid).then(() => {
+                    document.body.removeChild(modal); document.body.removeChild(overlay);
+                    this.showToast('Invitation rejected', 'info');
+                }).catch(error => { console.error('Error rejecting split ride:', error); this.showToast('Error rejecting invitation', 'error'); });
+            });
+            overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        }).catch(error => { console.error('Error fetching split ride details:', error); this.showToast('Error loading invitation', 'error'); });
+    },
+
+    showBroadcastTrackingModal: function(broadcastId) {
+        EnhancedFirebaseManager.getBroadcastDetails(broadcastId).then(broadcast => {
+            if (!broadcast) { this.showToast('Broadcast not found', 'error'); return; }
+            const modal = document.createElement('div');
+            modal.className = 'broadcast-tracking-modal';
+            modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 400px; z-index: 10000; padding: 20px;`;
+            modal.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px;"><div style="font-size: 48px; color: #FFC107; margin-bottom: 15px;"><i class="fas fa-broadcast-tower"></i></div><div style="font-weight: 600; font-size: 18px; margin-bottom: 10px; color: #333;">Broadcast Ride</div><div style="color: #666; margin-bottom: 5px;">From: <strong>${broadcast.hostName}</strong></div></div>
+                <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="margin-bottom: 10px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">From:</div><div style="font-weight: 600;">${broadcast.pickup}</div></div>
+                    <div style="margin-bottom: 10px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">To:</div><div style="font-weight: 600;">${broadcast.destination}</div></div>
+                    <div style="display: flex; justify-content: space-between;"><div><div style="font-size: 12px; color: #666;">Distance</div><div style="font-weight: 600;">${broadcast.distance.toFixed(1)} km</div></div><div><div style="font-size: 12px; color: #666;">Fare</div><div style="font-weight: 700; color: #FF6B35;">ZMW ${broadcast.fare.toFixed(2)}</div></div></div>
+                </div>
+                <div style="font-size: 14px; color: #666; margin-bottom: 20px; text-align: center;">You can track this ride in real-time</div>
+                <div style="display: flex; gap: 10px;"><button id="trackBroadcastBtn" style="flex:1; padding:15px; background:#FF6B35; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px;"><i class="fas fa-map-marker-alt"></i> Track Ride</button><button id="closeBroadcastTrackingBtn" style="padding:15px 30px; background:#f5f5f5; color:#666; border:none; border-radius:8px; cursor:pointer; font-weight:600;">Close</button></div>
+            `;
+            document.body.appendChild(modal);
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+            document.body.appendChild(overlay);
+            modal.querySelector('#trackBroadcastBtn').addEventListener('click', () => {
+                EnhancedFirebaseManager.startTrackingBroadcast(broadcastId);
+                document.body.removeChild(modal); document.body.removeChild(overlay);
+                this.showToast('Now tracking broadcast ride', 'success');
+            });
+            modal.querySelector('#closeBroadcastTrackingBtn').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+            overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        }).catch(error => { console.error('Error fetching broadcast details:', error); this.showToast('Error loading broadcast', 'error'); });
+    },
+
     formatTimeAgo: function(timestamp) {
         const now = Date.now();
         const diff = now - timestamp;
-
         if (diff < 60000) return 'Just now';
         if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
         if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
@@ -3146,726 +2228,1153 @@ const EnhancedUIUpdater = {
         return new Date(timestamp).toLocaleDateString();
     },
 
-    // Additional methods for emergency, split, broadcast etc. can be added as needed
+    updateWalletTransactions: function(transactions) {
+        const container = document.getElementById('transactionsList');
+        if (!container) return;
+        if (transactions.length === 0) {
+            container.innerHTML = `<div style="text-align: center; padding: 40px 20px; color: #999;"><i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i><div style="font-weight: 600; margin-bottom: 10px;">No transactions</div><div>Your transaction history will appear here</div></div>`;
+            return;
+        }
+        const sortedTransactions = transactions.sort((a, b) => b.timestamp - a.timestamp);
+        let html = '';
+        sortedTransactions.forEach(transaction => {
+            const time = new Date(transaction.timestamp);
+            const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const isSent = transaction.type === 'sent' || transaction.type === 'withdrawal' || transaction.type === 'payment';
+            const isReceived = transaction.type === 'received' || transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral';
+            let icon = 'fa-exchange-alt', iconColor = '#2196F3', sign = '';
+            if (isSent) { icon = 'fa-arrow-up'; iconColor = '#F44336'; sign = '-'; }
+            else if (isReceived) { icon = 'fa-arrow-down'; iconColor = '#4CAF50'; sign = '+'; }
+            if (transaction.type === 'referral') { icon = 'fa-gift'; iconColor = '#FF6B35'; }
+            html += `
+                <div class="transaction-item" style="padding: 15px; border-bottom: 1px solid #eee;">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;"><i class="fas ${icon}"></i></div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;"><div style="font-weight: 600; color: #333;">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</div><div style="font-weight: 700; color: ${isSent ? '#F44336' : '#4CAF50'};">${sign}ZMW ${transaction.amount.toFixed(2)}</div></div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 5px;">${transaction.description || ''}</div>
+                            ${transaction.reference ? `<div style="font-size: 12px; color: #999; margin-bottom: 5px;">Ref: ${transaction.reference}</div>` : ''}
+                            ${transaction.fromName || transaction.toName ? `<div style="font-size: 12px; color: #999;">${transaction.fromName ? `From: ${transaction.fromName}` : ''}${transaction.toName ? `To: ${transaction.toName}` : ''}</div>` : ''}
+                            <div style="font-size: 11px; color: #999; margin-top: 5px;">${timeString}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    },
+
+    updateRideHistory: function(rides) {
+        const container = document.getElementById('historyList');
+        if (!container) return;
+        if (rides.length === 0) {
+            container.innerHTML = `<div style="text-align: center; padding: 40px 20px; color: #999;"><i class="fas fa-history" style="font-size: 48px; margin-bottom: 20px;"></i><div style="font-weight: 600; margin-bottom: 10px;">No ride history</div><div>Your completed rides will appear here</div></div>`;
+            return;
+        }
+        const sortedRides = rides.sort((a, b) => b.timestamp - a.timestamp);
+        let html = '';
+        sortedRides.forEach(ride => {
+            const time = new Date(ride.timestamp);
+            const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            let icon = 'fa-car', iconColor = '#FF6B35', typeLabel = 'Ride';
+            if (ride.serviceType === 'delivery') { icon = 'fa-shipping-fast'; iconColor = '#9C27B0'; typeLabel = 'Delivery'; }
+            else if (ride.serviceType === 'truck') { icon = 'fa-truck'; iconColor = '#795548'; typeLabel = 'Truck'; }
+            else if (ride.serviceType === 'shopping') { icon = 'fa-shopping-bag'; iconColor = '#4CAF50'; typeLabel = 'Shopping'; }
+            else if (ride.emergency) { icon = 'fa-ambulance'; iconColor = '#F44336'; typeLabel = 'Emergency'; }
+            else if (ride.splitRide) { icon = 'fa-user-friends'; iconColor = '#2196F3'; typeLabel = 'Split Ride'; }
+            else if (ride.broadcast) { icon = 'fa-broadcast-tower'; iconColor = '#FFC107'; typeLabel = 'Broadcast'; }
+            const statusColor = ride.status === 'completed' ? '#4CAF50' : ride.status === 'cancelled' ? '#F44336' : '#FFC107';
+            html += `
+                <div class="history-item" style="padding: 15px; border-bottom: 1px solid #eee; cursor: pointer;">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;"><i class="fas ${icon}"></i></div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;"><div style="font-weight: 600; color: #333;">${typeLabel}</div><div style="font-weight: 700; color: #FF6B35;">ZMW ${ride.fare?.toFixed(2) || '0.00'}</div></div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 5px;">${ride.pickupDisplay || ride.pickup}</div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 8px;"><i class="fas fa-arrow-right" style="font-size: 12px; margin: 0 5px;"></i> ${ride.destinationDisplay || ride.destination}</div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 12px; color: #999;">${timeString}</div><div style="padding: 3px 8px; background: ${statusColor}; color: white; border-radius: 12px; font-size: 11px; font-weight: 600;">${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}</div></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        container.querySelectorAll('.history-item').forEach((item, index) => {
+            item.addEventListener('click', () => { this.showRideDetailsModal(sortedRides[index]); });
+        });
+    },
+
+    showRideDetailsModal: function(ride) {
+        const modal = document.createElement('div');
+        modal.className = 'ride-details-modal';
+        modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; z-index: 10000; padding: 20px;`;
+        const time = new Date(ride.timestamp);
+        const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        let icon = 'fa-car', iconColor = '#FF6B35', typeLabel = 'Ride';
+        if (ride.serviceType === 'delivery') { icon = 'fa-shipping-fast'; iconColor = '#9C27B0'; typeLabel = 'Delivery'; }
+        else if (ride.serviceType === 'truck') { icon = 'fa-truck'; iconColor = '#795548'; typeLabel = 'Truck'; }
+        else if (ride.serviceType === 'shopping') { icon = 'fa-shopping-bag'; iconColor = '#4CAF50'; typeLabel = 'Shopping'; }
+        else if (ride.emergency) { icon = 'fa-ambulance'; iconColor = '#F44336'; typeLabel = 'Emergency Ride'; }
+        else if (ride.splitRide) { icon = 'fa-user-friends'; iconColor = '#2196F3'; typeLabel = 'Split Ride'; }
+        else if (ride.broadcast) { icon = 'fa-broadcast-tower'; iconColor = '#FFC107'; typeLabel = 'Broadcast Ride'; }
+        const statusColor = ride.status === 'completed' ? '#4CAF50' : ride.status === 'cancelled' ? '#F44336' : '#FFC107';
+        let html = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;"><h3 style="margin: 0; color: ${iconColor};"><i class="fas ${icon}"></i> ${typeLabel} Details</h3><button id="closeRideDetailsModal" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">×</button></div>
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;"><div><div style="font-size: 12px; color: #666;">Status</div><div style="padding: 3px 8px; background: ${statusColor}; color: white; border-radius: 12px; font-size: 12px; font-weight: 600; display: inline-block;">${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}</div></div><div style="text-align: right;"><div style="font-size: 12px; color: #666;">Fare</div><div style="font-weight: 700; color: #FF6B35; font-size: 24px;">ZMW ${ride.fare?.toFixed(2) || '0.00'}</div></div></div>
+                <div style="margin-bottom: 15px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">From</div><div style="font-weight: 600; font-size: 14px;">${ride.pickupDisplay || ride.pickup}</div></div>
+                <div style="margin-bottom: 15px;"><div style="font-size: 12px; color: #666; margin-bottom: 5px;">To</div><div style="font-weight: 600; font-size: 14px;">${ride.destinationDisplay || ride.destination}</div></div>
+                <div style="display: flex; justify-content: space-between;"><div><div style="font-size: 12px; color: #666;">Distance</div><div style="font-weight: 600;">${ride.distance?.toFixed(1) || '0'} km</div></div><div><div style="font-size: 12px; color: #666;">Time</div><div style="font-weight: 600;">${ride.estimatedTime || '0'} min</div></div><div><div style="font-size: 12px; color: #666;">Date</div><div style="font-weight: 600;">${timeString}</div></div></div>
+            </div>
+        `;
+        if (ride.driverName) {
+            html += `
+                <div style="background: #f0f7ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #2196F3;"><i class="fas fa-user"></i> Driver Info</div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div style="width:40px; height:40px; background:#2196F3; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:600;">${ride.driverName.charAt(0).toUpperCase()}</div>
+                        <div style="flex:1;"><div style="font-weight: 600;">${ride.driverName}</div><div style="font-size: 13px; color: #666;">${ride.vehicleDetails || 'Vehicle info not available'}</div></div>
+                        <div style="color: #FFC107; font-weight: 600;"><i class="fas fa-star"></i> ${ride.driverRating || '4.8'}</div>
+                    </div>
+                </div>
+            `;
+        }
+        html += `
+            <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="font-weight: 600; margin-bottom: 10px; color: #333;"><i class="fas fa-credit-card"></i> Payment Info</div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span style="color: #666;">Method:</span><span style="font-weight: 600;">${ride.paymentMethod?.charAt(0).toUpperCase() + ride.paymentMethod?.slice(1) || 'Wallet'}</span></div>
+                <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Transaction ID:</span><span style="font-size: 12px; color: #999;">${ride.id.substring(0, 8)}...</span></div>
+            </div>
+        `;
+        if (ride.splitRide) {
+            html += `
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #2196F3;"><i class="fas fa-user-friends"></i> Split Ride Info</div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span style="color: #666;">Participants:</span><span style="font-weight: 600;">${ride.participants || 2}</span></div>
+                    <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Your Share:</span><span style="font-weight: 600; color: #FF6B35;">ZMW ${(ride.fare / (ride.participants || 2)).toFixed(2)}</span></div>
+                </div>
+            `;
+        }
+        if (ride.emergency) {
+            html += `
+                <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="font-weight: 600; margin-bottom: 10px; color: #F44336;"><i class="fas fa-exclamation-triangle"></i> Emergency Info</div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;"><span style="color: #666;">Type:</span><span style="font-weight: 600;">${ride.emergencyType?.charAt(0).toUpperCase() + ride.emergencyType?.slice(1) || 'Emergency'}</span></div>
+                    <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Reason:</span><span style="font-weight: 600;">${ride.reason || 'Not specified'}</span></div>
+                </div>
+            `;
+        }
+        html += `<div style="text-align: center;"><button id="closeRideDetailsBtn" style="padding: 10px 30px; background: #FF6B35; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Close</button></div>`;
+        modal.innerHTML = html;
+        document.body.appendChild(modal);
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999;`;
+        document.body.appendChild(overlay);
+        modal.querySelector('#closeRideDetailsModal').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        modal.querySelector('#closeRideDetailsBtn').addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+        overlay.addEventListener('click', () => { document.body.removeChild(modal); document.body.removeChild(overlay); });
+    }
 };
 
 // ============================================
-// ENHANCED FIREBASE MANAGER (unchanged logic, but IDs are updated via UI updater)
+// ENHANCED FIREBASE MANAGER (adapted to new HTML)
 // ============================================
 const EnhancedFirebaseManager = {
-    // ... (keep all methods from original, but ensure they call EnhancedUIUpdater methods with correct IDs)
-    // Since the methods are mostly independent of UI, we can keep them as is.
-    // However, we need to update any direct DOM manipulations to use EnhancedUIUpdater.
-    // For brevity, I'll include only key methods that might need updates.
-    // In production, you would copy the entire original EnhancedFirebaseManager.
+    async loadUserData(uid) {
+        try {
+            console.log(`Loading user data for UID: ${uid}`);
+            EnhancedUIUpdater.showLoading('Loading your profile...');
+            const snapshot = await database.ref(`users/${uid}`).once('value');
+            AppState.userData = snapshot.val();
+            if (AppState.userData) {
+                if (!AppState.userData.walletBalance) { AppState.userData.walletBalance = 0; await database.ref(`users/${uid}/walletBalance`).set(0); }
+                if (!AppState.userData.referralCode) {
+                    const referralCode = 'JUBEL-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+                    AppState.userData.referralCode = referralCode;
+                    await database.ref(`users/${uid}/referralCode`).set(referralCode);
+                }
+                AppState.walletBalance = AppState.userData.walletBalance || 0;
+                EnhancedUIUpdater.updateWalletBalance(AppState.walletBalance);
+                EnhancedUIUpdater.updateUserInfo(AppState.userData);
+                await this.loadSOSConfig(uid);
+                await this.loadScheduledRides(uid);
+                await this.checkActiveRide(uid);
+                await this.loadRideHistory(uid);
+                await this.loadNotifications(uid);
+                await this.loadWalletTransactions(uid);
+                EnhancedSearchEngine.init();
+                this.startRealtimeSync(uid);
+                EnhancedUIUpdater.hideLoading();
+                EnhancedUIUpdater.showToast('Welcome back to Jubel!', 'success');
+                return true;
+            } else {
+                console.warn('No user data found');
+                EnhancedUIUpdater.hideLoading();
+                return false;
+            }
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Error loading user data', 'error');
+            return false;
+        }
+    },
+
+    startRealtimeSync: function(uid) {
+        this.stopRealtimeSync();
+        console.log('Starting real-time sync for user:', uid);
+        const userRef = database.ref(`users/${uid}`);
+        AppState.realtimeListeners.push(userRef.on('value', (snapshot) => {
+            const userData = snapshot.val();
+            if (userData) { AppState.userData = userData; AppState.walletBalance = userData.walletBalance || 0; EnhancedUIUpdater.updateWalletBalance(AppState.walletBalance); EnhancedUIUpdater.updateUserInfo(userData); }
+        }));
+        const activeRideRef = database.ref('rides').orderByChild('passengerId').equalTo(uid);
+        AppState.realtimeListeners.push(activeRideRef.on('value', (snapshot) => {
+            const rides = snapshot.val();
+            if (rides) {
+                let activeRide = null;
+                for (const rideId in rides) {
+                    const ride = rides[rideId];
+                    if (ride.status && ['requested', 'accepted', 'arrived', 'started'].includes(ride.status)) { activeRide = { id: rideId, ...ride }; break; }
+                }
+                if (activeRide) {
+                    if (!AppState.currentRide || AppState.currentRide.id !== activeRide.id) {
+                        AppState.currentRide = activeRide;
+                        EnhancedUIUpdater.showRideInfo(activeRide);
+                        if (activeRide.driverId) { this.listenToDriverLocation(activeRide.driverId); }
+                        this.listenToChatMessages(activeRide.id);
+                    } else {
+                        AppState.currentRide = activeRide;
+                        EnhancedUIUpdater.updateRideDetails(activeRide);
+                        EnhancedUIUpdater.updateRideStatus(activeRide.status);
+                        EnhancedUIUpdater.updateTimeline(activeRide.status);
+                        if (activeRide.status === 'completed') this.handleRideCompletion(activeRide);
+                    }
+                } else if (AppState.currentRide) { this.resetActiveRide(); }
+            } else if (AppState.currentRide) { this.resetActiveRide(); }
+        }));
+        const notificationsRef = database.ref(`notifications/${uid}`).orderByChild('timestamp').limitToLast(50);
+        AppState.realtimeListeners.push(notificationsRef.on('value', (snapshot) => {
+            const notifications = snapshot.val();
+            if (notifications) {
+                const notificationsArray = Object.keys(notifications).map(id => ({ id, ...notifications[id] }));
+                AppState.notifications = notificationsArray;
+                const unreadCount = notificationsArray.filter(n => !n.read).length;
+                AppState.unreadNotifications = unreadCount;
+                this.updateNotificationBadge(unreadCount);
+                if (AppState.notificationsOpen) EnhancedUIUpdater.updateNotifications(notificationsArray);
+                notificationsArray.forEach(notification => {
+                    if (!notification.read && notification.timestamp > Date.now() - 10000) {
+                        setTimeout(() => { EnhancedUIUpdater.showToast(notification.message, notification.type); }, 500);
+                    }
+                });
+            }
+        }));
+        const transactionsRef = database.ref(`walletTransactions/${uid}`).orderByChild('timestamp').limitToLast(100);
+        AppState.realtimeListeners.push(transactionsRef.on('value', (snapshot) => {
+            const transactions = snapshot.val();
+            if (transactions) {
+                const transactionsArray = Object.keys(transactions).map(id => ({ id, ...transactions[id] }));
+                AppState.walletTransactions = transactionsArray;
+                const transactionsModal = document.getElementById('transactionsModal');
+                if (transactionsModal && transactionsModal.style.display === 'block') EnhancedWalletManager.displayTransactions(transactionsArray);
+            }
+        }));
+        console.log('Real-time sync started successfully');
+    },
+
+    stopRealtimeSync: function() {
+        console.log('Stopping real-time sync');
+        AppState.realtimeListeners.forEach(listener => { if (listener && typeof listener === 'function') listener(); });
+        AppState.realtimeListeners = [];
+    },
+
+    async loadSOSConfig(uid) {
+        try {
+            const snapshot = await database.ref(`sosConfig/${uid}`).once('value');
+            AppState.sosConfig = snapshot.val();
+            if (AppState.sosConfig) console.log('SOS config loaded');
+        } catch (error) { console.error('Error loading SOS config:', error); }
+    },
+
+    async loadScheduledRides(uid) {
+        try {
+            const snapshot = await database.ref('scheduledRides').orderByChild('passengerId').equalTo(uid).orderByChild('status').equalTo('scheduled').once('value');
+            const rides = snapshot.val();
+            if (rides) {
+                const ridesArray = Object.keys(rides).map(id => ({ id, ...rides[id] }));
+                AppState.scheduledRides = ridesArray;
+                console.log(`Loaded ${AppState.scheduledRides.length} scheduled rides`);
+                AppState.scheduledRides.forEach(ride => {
+                    if (ride.scheduledTime > Date.now()) EnhancedUIUpdater.showScheduleCountdown(ride.scheduledTime, ride);
+                    else EnhancedUIUpdater.requestScheduledRideNow(ride);
+                });
+            }
+        } catch (error) { console.error('Error loading scheduled rides:', error); }
+    },
+
+    async checkActiveRide(uid) {
+        try {
+            const snapshot = await database.ref('rides').orderByChild('passengerId').equalTo(uid).orderByChild('status').startAt('requested').endAt('started').once('value');
+            const rides = snapshot.val();
+            if (rides) {
+                const rideId = Object.keys(rides)[0];
+                AppState.currentRide = { id: rideId, ...rides[rideId] };
+                console.log('Active ride found:', rideId);
+                EnhancedUIUpdater.showRideInfo(AppState.currentRide);
+                this.listenToRideUpdates(rideId);
+                if (AppState.currentRide.driverId) { this.listenToDriverLocation(AppState.currentRide.driverId); this.loadDriverInfo(AppState.currentRide.driverId); }
+                this.listenToChatMessages(rideId);
+                return true;
+            }
+            console.log('No active ride found');
+            return false;
+        } catch (error) { console.error('Error checking active ride:', error); return false; }
+    },
+
+    async loadRideHistory(uid) {
+        try {
+            const snapshot = await database.ref('rides').orderByChild('passengerId').equalTo(uid).once('value');
+            const rides = snapshot.val();
+            if (rides) {
+                const ridesArray = Object.keys(rides).map(id => ({ id, ...rides[id] })).sort((a, b) => b.timestamp - a.timestamp);
+                AppState.rideHistory = ridesArray;
+                EnhancedUIUpdater.updateRideHistory(ridesArray);
+                console.log(`Loaded ${ridesArray.length} ride history items`);
+            }
+        } catch (error) { console.error('Error loading ride history:', error); }
+    },
+
+    async loadNotifications(uid) {
+        try {
+            const snapshot = await database.ref(`notifications/${uid}`).orderByChild('timestamp').limitToLast(50).once('value');
+            const notifications = snapshot.val();
+            if (notifications) {
+                const notificationsArray = Object.keys(notifications).map(id => ({ id, ...notifications[id] }));
+                AppState.notifications = notificationsArray;
+                const unreadCount = notificationsArray.filter(n => !n.read).length;
+                AppState.unreadNotifications = unreadCount;
+                this.updateNotificationBadge(unreadCount);
+                if (AppState.notificationsOpen) EnhancedUIUpdater.updateNotifications(notificationsArray);
+                console.log(`Loaded ${notificationsArray.length} notifications (${unreadCount} unread)`);
+            }
+        } catch (error) { console.error('Error loading notifications:', error); }
+    },
+
+    updateNotificationBadge: function(count) {
+        const badge = document.getElementById('notificationCount');
+        if (badge) { badge.textContent = count > 99 ? '99+' : count; badge.style.display = count > 0 ? 'flex' : 'none'; }
+    },
+
+    async loadWalletTransactions(uid) {
+        try {
+            const snapshot = await database.ref(`walletTransactions/${uid}`).orderByChild('timestamp').limitToLast(100).once('value');
+            const transactions = snapshot.val();
+            if (transactions) {
+                const transactionsArray = Object.keys(transactions).map(id => ({ id, ...transactions[id] })).sort((a, b) => b.timestamp - a.timestamp);
+                AppState.walletTransactions = transactionsArray;
+                console.log(`Loaded ${transactionsArray.length} wallet transactions`);
+                const transactionsModal = document.getElementById('transactionsModal');
+                if (transactionsModal && transactionsModal.style.display === 'block') EnhancedWalletManager.displayTransactions(transactionsArray);
+            }
+        } catch (error) { console.error('Error loading wallet transactions:', error); }
+    },
+
+    listenToRideUpdates: function(rideId) {
+        const rideRef = database.ref(`rides/${rideId}`);
+        AppState.realtimeListeners.push(rideRef.on('value', (snapshot) => {
+            const ride = snapshot.val();
+            if (ride) {
+                AppState.currentRide = { id: rideId, ...ride };
+                EnhancedUIUpdater.updateRideStatus(ride.status);
+                EnhancedUIUpdater.updateTimeline(ride.status);
+                if (ride.status === 'completed') this.handleRideCompletion(ride);
+            }
+        }));
+    },
+
+    listenToDriverLocation: function(driverId) {
+        const locationRef = database.ref(`driverLocations/${driverId}`);
+        AppState.realtimeListeners.push(locationRef.on('value', (snapshot) => {
+            const location = snapshot.val();
+            if (location) {
+                AppState.driverLocation = { lat: location.latitude, lng: location.longitude };
+                if (driverMarker) driverMarker.setLatLng([AppState.driverLocation.lat, AppState.driverLocation.lng]);
+                else {
+                    driverMarker = L.marker([AppState.driverLocation.lat, AppState.driverLocation.lng], {
+                        icon: L.divIcon({ className: 'driver-marker', html: '<i class="fas fa-car" style="color: #2196F3; font-size: 24px;"></i>', iconSize: [24, 24], iconAnchor: [12, 24] })
+                    }).addTo(map).bindPopup('Your Driver');
+                }
+                if (AppState.currentRide && AppState.currentRide.pickupLat) {
+                    const pickupLocation = { lat: AppState.currentRide.pickupLat, lng: AppState.currentRide.pickupLng };
+                    const distance = EnhancedPriceCalculator.calculateDistance(AppState.driverLocation.lat, AppState.driverLocation.lng, pickupLocation.lat, pickupLocation.lng);
+                    const eta = Math.ceil((distance / 40) * 60);
+                    const driverDistance = document.getElementById('driverDistance');
+                    const etaToPickup = document.getElementById('etaToPickup');
+                    if (driverDistance) driverDistance.textContent = `${distance.toFixed(1)} km`;
+                    if (etaToPickup) etaToPickup.textContent = `ETA: ${eta} min`;
+                }
+            }
+        }));
+    },
+
+    listenToChatMessages: function(rideId) {
+        const chatRef = database.ref(`chats/${rideId}/messages`).orderByChild('timestamp').limitToLast(50);
+        AppState.realtimeListeners.push(chatRef.on('child_added', (snapshot) => {
+            const message = snapshot.val();
+            if (message) {
+                const chatContainer = document.getElementById('chatContainer');
+                if (chatContainer && chatContainer.classList.contains('active')) EnhancedUIUpdater.showChatMessage(message, message.senderId === AppState.currentUser.uid);
+                if (!chatContainer || !chatContainer.classList.contains('active')) {
+                    if (message.senderId !== AppState.currentUser.uid) {
+                        this.sendNotification(AppState.currentUser.uid, 'New Message', `Driver: ${message.text.substring(0, 50)}...`, 'info', { rideId: rideId, action: 'open_chat' });
+                    }
+                }
+            }
+        }));
+    },
+
+    async loadDriverInfo(driverId) {
+        try {
+            const snapshot = await database.ref(`drivers/${driverId}`).once('value');
+            const driver = snapshot.val();
+            if (driver) {
+                AppState.selectedVehicle = driver;
+                const driverName = document.getElementById('driverName');
+                const driverRating = document.getElementById('driverRating');
+                const vehicleDetails = document.getElementById('vehicleDetails');
+                if (driverName) driverName.textContent = driver.name || 'Driver';
+                if (driverRating) driverRating.textContent = driver.rating?.toFixed(1) || '4.8';
+                if (vehicleDetails) vehicleDetails.textContent = `${driver.vehicleModel || 'Car'} - ${driver.vehiclePlate || 'ABC123'}`;
+            }
+        } catch (error) { console.error('Error loading driver info:', error); }
+    },
+
+    async requestRide(rideData) {
+        try {
+            EnhancedUIUpdater.showLoading('Requesting ride...');
+            if (!rideData.pickup || !rideData.destination) throw new Error('Pickup and destination locations are required');
+            const rideId = database.ref().child('rides').push().key;
+            const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(rideData.pickup, rideData.destination, rideData.stops || []);
+            const estimatedTime = EnhancedPriceCalculator.estimateTime(distance, rideData.rideType || 'standard', null, rideData.stops || []);
+            let finalFare = rideData.fare, referralDiscount = 0;
+            if (AppState.referralDiscountApplied && AppState.referralCodeUsed) { referralDiscount = finalFare * 0.5; finalFare = finalFare - referralDiscount; }
+            const ride = {
+                id: rideId, passengerId: AppState.currentUser.uid, passengerName: AppState.userData.name, passengerPhone: AppState.userData.phone,
+                pickup: rideData.pickup.address, pickupDisplay: rideData.pickup.name || rideData.pickup.address, pickupLat: rideData.pickup.lat, pickupLng: rideData.pickup.lng,
+                destination: rideData.destination.address, destinationDisplay: rideData.destination.name || rideData.destination.address, destLat: rideData.destination.lat, destLng: rideData.destination.lng,
+                rideType: rideData.rideType || 'standard', serviceType: rideData.serviceType || 'car', fare: finalFare, originalFare: rideData.fare,
+                referralDiscount: referralDiscount, referredBy: AppState.referralCodeUsed, distance: distance, estimatedTime: estimatedTime,
+                status: 'requested', timestamp: Date.now(), city: AppState.currentCity, paymentMethod: rideData.paymentMethod || 'wallet'
+            };
+            if (rideData.serviceType === 'shopping') { ride.shopName = rideData.shopName; ride.shoppingList = rideData.shoppingList; ride.shoppingBudget = rideData.budget; ride.shoppingInstructions = rideData.instructions; ride.vehicleType = rideData.vehicleType; }
+            else if (rideData.serviceType === 'delivery') { ride.deliveryType = rideData.deliveryType; ride.parcelDescription = rideData.parcelDescription; ride.parcelValue = rideData.parcelValue; ride.receiverName = rideData.receiverName; ride.receiverPhone = rideData.receiverPhone; ride.vehicleType = rideData.vehicleType; }
+            else if (rideData.serviceType === 'short-delivery') { ride.parcelDescription = rideData.parcelDescription; ride.receiverPhone = rideData.receiverPhone; ride.vehicleType = rideData.vehicleType; }
+            else if (rideData.serviceType === 'truck') { ride.truckType = rideData.truckType; ride.itemDescription = rideData.itemDescription; ride.estimatedWeight = rideData.estimatedWeight; ride.needHelpers = rideData.needHelpers; }
+            if (rideData.vehicleType) ride.vehicleType = rideData.vehicleType;
+            if (rideData.stops && rideData.stops.length > 0) {
+                ride.stops = rideData.stops.map(stop => ({ name: stop.location.name, address: stop.location.address, lat: stop.location.lat, lng: stop.location.lng }));
+            }
+            if (rideData.isSplitRide) {
+                ride.splitRide = true; ride.participants = rideData.participants; ride.splitRideId = rideData.splitRideId;
+                if (rideData.friends && rideData.friends.length > 0) {
+                    const splitRideId = database.ref().child('splitRides').push().key;
+                    const splitRide = { id: splitRideId, hostId: AppState.currentUser.uid, hostName: AppState.userData.name, rideId: rideId, participants: rideData.participants, totalFare: rideData.totalFare, eachShare: rideData.yourShare, pickup: rideData.pickup.address, destination: rideData.destination.address, status: 'pending', timestamp: Date.now() };
+                    await database.ref(`splitRides/${splitRideId}`).set(splitRide);
+                    for (const friend of rideData.friends) {
+                        const invitationId = database.ref().child('splitRideInvitations').push().key;
+                        const invitation = { id: invitationId, splitRideId: splitRideId, hostId: AppState.currentUser.uid, hostName: AppState.userData.name, recipientId: friend.userId, recipientName: friend.name, rideId: rideId, pickup: rideData.pickup.address, destination: rideData.destination.address, totalFare: rideData.totalFare, eachShare: rideData.yourShare, status: 'pending', timestamp: Date.now() };
+                        await database.ref(`splitRideInvitations/${invitationId}`).set(invitation);
+                    }
+                    ride.splitRideId = splitRideId;
+                }
+            }
+            if (rideData.isBroadcast && rideData.friends && rideData.friends.length > 0) {
+                ride.broadcast = true;
+                const broadcastId = database.ref().child('broadcasts').push().key;
+                const broadcast = { id: broadcastId, hostId: AppState.currentUser.uid, hostName: AppState.userData.name, rideId: rideId, pickup: rideData.pickup.address, destination: rideData.destination.address, fare: rideData.totalFare, distance: distance, status: 'active', timestamp: Date.now() };
+                await database.ref(`broadcasts/${broadcastId}`).set(broadcast);
+                for (const friend of rideData.friends) {
+                    const invitationId = database.ref().child('broadcastInvitations').push().key;
+                    const invitation = { id: invitationId, broadcastId: broadcastId, hostId: AppState.currentUser.uid, hostName: AppState.userData.name, recipientId: friend.userId, recipientName: friend.name, rideId: rideId, pickup: rideData.pickup.address, destination: rideData.destination.address, fare: rideData.totalFare, distance: distance, status: 'pending', timestamp: Date.now() };
+                    await database.ref(`broadcastInvitations/${invitationId}`).set(invitation);
+                }
+                ride.broadcastId = broadcastId;
+            }
+            if (rideData.isEmergency) { ride.emergency = true; ride.emergencyType = rideData.emergencyType; ride.emergencyReason = rideData.reason; ride.emergencyStation = rideData.station; }
+            await database.ref(`rides/${rideId}`).set(ride);
+            const userRef = database.ref(`users/${AppState.currentUser.uid}`);
+            const userSnapshot = await userRef.once('value');
+            const userData = userSnapshot.val();
+            const totalRides = (userData.totalRides || 0) + 1;
+            await userRef.update({ totalRides });
+            if (rideData.paymentMethod === 'wallet') await this.withdrawMoney(finalFare, 'Ride payment', rideId);
+            AppState.currentRide = ride;
+            EnhancedUIUpdater.showRideInfo(ride);
+            EnhancedUIUpdater.updateRideStatus('requested');
+            EnhancedUIUpdater.updateTimeline('requested');
+            EnhancedUIUpdater.showPulsingRideIcon();
+            this.listenToRideUpdates(rideId);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Ride requested successfully!', 'success');
+            this.sendNotification(AppState.currentUser.uid, 'Ride Requested', 'Your ride has been requested. Searching for a driver...', 'ride', { rideId: rideId }, 'view_ride');
+            return rideId;
+        } catch (error) {
+            console.error('Error requesting ride:', error);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast(error.message, 'error');
+            throw error;
+        }
+    },
+
+    async loadRideDetails(rideId) {
+        try {
+            const snapshot = await database.ref(`rides/${rideId}`).once('value');
+            const ride = snapshot.val();
+            if (ride) { EnhancedUIUpdater.showRideDetailsModal(ride); return ride; }
+            return null;
+        } catch (error) { console.error('Error loading ride details:', error); return null; }
+    },
+
+    async requestScheduledRide(rideData) {
+        try {
+            EnhancedUIUpdater.showLoading('Scheduling your ride...');
+            const scheduledRideId = database.ref().child('scheduledRides').push().key;
+            const estimatedTime = EnhancedPriceCalculator.estimateTime(rideData.distance, rideData.rideType || 'standard', null, rideData.stops || []);
+            const scheduledRide = {
+                id: scheduledRideId, passengerId: AppState.currentUser.uid, passengerName: AppState.userData.name, passengerPhone: AppState.userData.phone,
+                pickup: rideData.pickup.address, pickupDisplay: rideData.pickup.name || rideData.pickup.address, pickupLat: rideData.pickup.lat, pickupLng: rideData.pickup.lng,
+                destination: rideData.destination.address, destinationDisplay: rideData.destination.name || rideData.destination.address, destLat: rideData.destination.lat, destLng: rideData.destination.lng,
+                rideType: rideData.rideType || 'standard', fare: rideData.fare, distance: rideData.distance, estimatedTime: estimatedTime,
+                status: 'scheduled', scheduledTime: rideData.scheduledTime, timestamp: Date.now(), city: AppState.currentCity, paymentMethod: rideData.paymentMethod || 'wallet',
+                forSomeone: rideData.forSomeone || false
+            };
+            if (rideData.forSomeone) { scheduledRide.recipientName = rideData.recipientName; scheduledRide.recipientPhone = rideData.recipientPhone; }
+            if (rideData.stops && rideData.stops.length > 0) {
+                scheduledRide.stops = rideData.stops.map(stop => ({ name: stop.location.name, address: stop.location.address, lat: stop.location.lat, lng: stop.location.lng }));
+            }
+            if (rideData.paymentMethod === 'wallet') await this.withdrawMoney(rideData.fare, 'Scheduled ride payment', scheduledRideId);
+            await database.ref(`scheduledRides/${scheduledRideId}`).set(scheduledRide);
+            const userRef = database.ref(`users/${AppState.currentUser.uid}`);
+            const userSnapshot = await userRef.once('value');
+            const userData = userSnapshot.val();
+            const scheduledRidesCount = (userData.scheduledRidesCount || 0) + 1;
+            await userRef.update({ scheduledRidesCount });
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Ride scheduled successfully!', 'success');
+            this.sendNotification(AppState.currentUser.uid, 'Ride Scheduled', `Your ride is scheduled for ${new Date(rideData.scheduledTime).toLocaleString()}`, 'info', { scheduledRideId: scheduledRideId });
+            if (!AppState.scheduledRides) AppState.scheduledRides = [];
+            AppState.scheduledRides.push(scheduledRide);
+            return scheduledRideId;
+        } catch (error) {
+            EnhancedUIUpdater.hideLoading();
+            console.error('Error scheduling ride:', error);
+            EnhancedUIUpdater.showToast('Error scheduling ride', 'error');
+            throw error;
+        }
+    },
+
+    async cancelScheduledRide(scheduledRideId) {
+        try {
+            const scheduledRideRef = database.ref(`scheduledRides/${scheduledRideId}`);
+            const snapshot = await scheduledRideRef.once('value');
+            const scheduledRide = snapshot.val();
+            if (!scheduledRide) throw new Error('Scheduled ride not found');
+            if (scheduledRide.paymentMethod === 'wallet' && scheduledRide.status === 'scheduled') await this.depositMoney(scheduledRide.fare, 'Scheduled ride cancellation refund', scheduledRideId);
+            await scheduledRideRef.update({ status: 'cancelled', cancelledAt: Date.now() });
+            if (AppState.scheduledCountdowns.has(scheduledRideId)) {
+                clearInterval(AppState.scheduledCountdowns.get(scheduledRideId));
+                AppState.scheduledCountdowns.delete(scheduledRideId);
+            }
+            const countdownContainer = document.getElementById('scheduleCountdown');
+            if (countdownContainer) countdownContainer.remove();
+            AppState.scheduledRides = AppState.scheduledRides.filter(ride => ride.id !== scheduledRideId);
+            EnhancedUIUpdater.showToast('Scheduled ride cancelled. Refund processed if applicable.', 'success');
+            this.sendNotification(AppState.currentUser.uid, 'Scheduled Ride Cancelled', `Your scheduled ride has been cancelled. ${scheduledRide.paymentMethod === 'wallet' ? 'Refund has been processed.' : ''}`, 'info', { scheduledRideId: scheduledRideId });
+        } catch (error) { console.error('Error cancelling scheduled ride:', error); EnhancedUIUpdater.showToast('Error cancelling scheduled ride', 'error'); }
+    },
+
+    async cancelRide(rideId, reason) {
+        try {
+            EnhancedUIUpdater.showLoading('Cancelling ride...');
+            const rideRef = database.ref(`rides/${rideId}`);
+            const rideSnapshot = await rideRef.once('value');
+            const ride = rideSnapshot.val();
+            if (!ride) throw new Error('Ride not found');
+            await rideRef.update({ status: 'cancelled', cancellationReason: reason, cancelledAt: Date.now() });
+            if (ride.paymentMethod === 'wallet') await this.depositMoney(ride.fare, 'Ride cancellation refund', rideId);
+            this.resetActiveRide();
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast('Ride cancelled successfully', 'success');
+            this.sendNotification(AppState.currentUser.uid, 'Ride Cancelled', 'Your ride has been cancelled. Refund processed if applicable.', 'info', { rideId: rideId });
+        } catch (error) { console.error('Error cancelling ride:', error); EnhancedUIUpdater.hideLoading(); EnhancedUIUpdater.showToast('Error cancelling ride', 'error'); }
+    },
+
+    resetActiveRide: function() {
+        AppState.currentRide = null;
+        EnhancedUIUpdater.removePulsingRideIcon();
+        const rideInfoPanel = document.getElementById('rideInfoPanel');
+        if (rideInfoPanel) rideInfoPanel.style.display = 'none';
+        const statusBar = document.getElementById('rideStatusBar');
+        if (statusBar) statusBar.classList.remove('active');
+        const sosButton = document.getElementById('sosButton');
+        if (sosButton) sosButton.style.display = 'none';
+    },
+
+    handleRideCompletion: function(ride) {
+        if (ride.referredBy) this.processReferralReward(ride.referredBy, ride);
+        this.sendNotification(AppState.currentUser.uid, 'Ride Completed', `Your ride has been completed. Fare: ZMW ${ride.fare.toFixed(2)}`, 'success', { rideId: ride.id, action: 'view_ride' });
+        setTimeout(() => { this.resetActiveRide(); }, 5000);
+    },
+
+    async processReferralReward(referralCode, ride) {
+        try {
+            const usersRef = database.ref('users');
+            const snapshot = await usersRef.orderByChild('referralCode').equalTo(referralCode).once('value');
+            const users = snapshot.val();
+            if (users) {
+                const userId = Object.keys(users)[0];
+                const user = users[userId];
+                const rewardAmount = 25;
+                await this.depositMoneyToUser(userId, rewardAmount, 'Referral reward', ride.id);
+                const totalReferralEarnings = (user.referralEarnings || 0) + rewardAmount;
+                await database.ref(`users/${userId}`).update({ referralEarnings: totalReferralEarnings });
+                this.sendNotification(userId, 'Referral Reward!', `${AppState.userData.name} used your referral code. You earned K${rewardAmount}!`, 'referral', { rideId: ride.id });
+                console.log(`Referral reward processed: K${rewardAmount} to ${user.name}`);
+            }
+        } catch (error) { console.error('Error processing referral reward:', error); }
+    },
+
+    async validateReferralCode(referralCode) {
+        try {
+            if (referralCode === AppState.userData?.referralCode) return { valid: false, message: 'Cannot use your own referral code' };
+            const usersRef = database.ref('users');
+            const snapshot = await usersRef.orderByChild('referralCode').equalTo(referralCode).once('value');
+            const users = snapshot.val();
+            if (users) {
+                const userId = Object.keys(users)[0];
+                const user = users[userId];
+                return { valid: true, ownerName: user.name, userId: userId };
+            } else return { valid: false, message: 'Invalid referral code' };
+        } catch (error) { console.error('Error validating referral code:', error); return { valid: false, message: 'Error validating code' }; }
+    },
+
+    async findUserByReferralCode(referralCode) {
+        try {
+            const usersRef = database.ref('users');
+            const snapshot = await usersRef.orderByChild('referralCode').equalTo(referralCode).once('value');
+            const users = snapshot.val();
+            if (users) {
+                const userId = Object.keys(users)[0];
+                const user = users[userId];
+                return { uid: userId, ...user };
+            } else return null;
+        } catch (error) { console.error('Error finding user by referral code:', error); throw error; }
+    },
+
+    depositMoney: async function(amount, description = 'Deposit', reference = null, method = 'unknown') {
+        try {
+            const transactionId = database.ref().child('walletTransactions').push().key;
+            const transaction = {
+                id: transactionId, userId: AppState.currentUser.uid, type: 'deposit', amount: amount, description: description, method: method, reference: reference,
+                timestamp: Date.now(), status: 'completed', balanceBefore: AppState.walletBalance, balanceAfter: AppState.walletBalance + amount
+            };
+            const newBalance = AppState.walletBalance + amount;
+            await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+            await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
+            AppState.walletBalance = newBalance;
+            EnhancedUIUpdater.updateWalletBalance(newBalance);
+            this.sendNotification(AppState.currentUser.uid, 'Deposit Successful', `ZMW ${amount.toFixed(2)} deposited to your wallet`, 'payment', { transactionId: transactionId, amount: amount });
+            this.loadWalletTransactions(AppState.currentUser.uid);
+            return transactionId;
+        } catch (error) { console.error('Error depositing money:', error); throw error; }
+    },
+
+    withdrawMoney: async function(amount, description = 'Withdrawal', reference = null, method = 'unknown') {
+        try {
+            if (amount > AppState.walletBalance) throw new Error('Insufficient balance');
+            const transactionId = database.ref().child('walletTransactions').push().key;
+            const transaction = {
+                id: transactionId, userId: AppState.currentUser.uid, type: 'withdrawal', amount: amount, description: description, method: method, reference: reference,
+                timestamp: Date.now(), status: 'completed', balanceBefore: AppState.walletBalance, balanceAfter: AppState.walletBalance - amount
+            };
+            const newBalance = AppState.walletBalance - amount;
+            await database.ref(`users/${AppState.currentUser.uid}/walletBalance`).set(newBalance);
+            await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
+            AppState.walletBalance = newBalance;
+            EnhancedUIUpdater.updateWalletBalance(newBalance);
+            this.loadWalletTransactions(AppState.currentUser.uid);
+            return transactionId;
+        } catch (error) { console.error('Error withdrawing money:', error); throw error; }
+    },
+
+    depositMoneyToUser: async function(userId, amount, description = 'Deposit', reference = null) {
+        try {
+            const userRef = database.ref(`users/${userId}`);
+            const userSnapshot = await userRef.once('value');
+            const user = userSnapshot.val();
+            const currentBalance = user.walletBalance || 0;
+            const newBalance = currentBalance + amount;
+            await userRef.update({ walletBalance: newBalance });
+            const transactionId = database.ref().child('walletTransactions').push().key;
+            const transaction = {
+                id: transactionId, userId: userId, type: 'deposit', amount: amount, description: description, reference: reference,
+                timestamp: Date.now(), status: 'completed', balanceBefore: currentBalance, balanceAfter: newBalance, fromName: AppState.userData?.name || 'System'
+            };
+            await database.ref(`walletTransactions/${userId}/${transactionId}`).set(transaction);
+            return transactionId;
+        } catch (error) { console.error('Error depositing money to user:', error); throw error; }
+    },
+
+    transferMoney: async function(recipientCode, amount, message = '', method = 'wallet') {
+        try {
+            if (amount > AppState.walletBalance) throw new Error('Insufficient balance');
+            if (amount <= 0) throw new Error('Invalid amount');
+            const recipient = await this.findUserByReferralCode(recipientCode);
+            if (!recipient) throw new Error('Recipient not found');
+            if (recipient.uid === AppState.currentUser.uid) throw new Error('Cannot transfer to yourself');
+            EnhancedUIUpdater.showLoading('Processing transfer...');
+            const senderTransactionId = database.ref().child('walletTransactions').push().key;
+            const senderTransaction = {
+                id: senderTransactionId, userId: AppState.currentUser.uid, type: 'transfer', amount: amount, description: message || `Transfer to ${recipient.name}`,
+                method: method, toUserId: recipient.uid, toName: recipient.name, timestamp: Date.now(), status: 'completed',
+                balanceBefore: AppState.walletBalance, balanceAfter: AppState.walletBalance - amount
+            };
+            await this.withdrawMoney(amount, `Transfer to ${recipient.name}`, senderTransactionId, method);
+            const recipientTransactionId = database.ref().child('walletTransactions').push().key;
+            const recipientTransaction = {
+                id: recipientTransactionId, userId: recipient.uid, type: 'transfer', amount: amount, description: message || `Transfer from ${AppState.userData.name}`,
+                method: method, fromUserId: AppState.currentUser.uid, fromName: AppState.userData.name, timestamp: Date.now(), status: 'completed',
+                balanceBefore: recipient.walletBalance || 0, balanceAfter: (recipient.walletBalance || 0) + amount
+            };
+            await this.depositMoneyToUser(recipient.uid, amount, `Transfer from ${AppState.userData.name}`, recipientTransactionId);
+            await database.ref(`walletTransactions/${recipient.uid}/${recipientTransactionId}`).set(recipientTransaction);
+            const transferId = database.ref().child('transfers').push().key;
+            const transfer = { id: transferId, senderId: AppState.currentUser.uid, senderName: AppState.userData.name, recipientId: recipient.uid, recipientName: recipient.name, amount: amount, message: message, timestamp: Date.now() };
+            await database.ref(`transfers/${transferId}`).set(transfer);
+            await database.ref(`walletTransactions/${AppState.currentUser.uid}/${senderTransactionId}`).set(senderTransaction);
+            EnhancedUIUpdater.hideLoading();
+            EnhancedUIUpdater.showToast(`ZMW ${amount.toFixed(2)} transferred to ${recipient.name}`, 'success');
+            this.sendNotification(recipient.uid, 'Money Received', `${AppState.userData.name} sent you ZMW ${amount.toFixed(2)}`, 'payment', { transferId: transferId });
+            return transferId;
+        } catch (error) {
+            EnhancedUIUpdater.hideLoading();
+            console.error('Error transferring money:', error);
+            EnhancedUIUpdater.showToast(error.message, 'error');
+            throw error;
+        }
+    },
+
+    async sendNotification(userId, title, message, type = 'info', data = null, action = null) {
+        try {
+            const notificationId = database.ref().child('notifications').push().key;
+            const notification = { id: notificationId, userId: userId, title: title, message: message, type: type, data: data, action: action, read: false, timestamp: Date.now() };
+            await database.ref(`notifications/${userId}/${notificationId}`).set(notification);
+            if (userId === AppState.currentUser?.uid) {
+                AppState.notifications.unshift(notification);
+                AppState.unreadNotifications++;
+                this.updateNotificationBadge(AppState.unreadNotifications);
+                if (AppState.notificationsOpen) EnhancedUIUpdater.updateNotifications(AppState.notifications);
+                if (type === 'error' || type === 'warning' || type === 'success') setTimeout(() => { EnhancedUIUpdater.showToast(message, type); }, 1000);
+            }
+            console.log(`Notification sent: ${title}`);
+            return notificationId;
+        } catch (error) { console.error('Error sending notification:', error); }
+    },
+
+    async markNotificationAsRead(notificationId) {
+        try {
+            await database.ref(`notifications/${AppState.currentUser.uid}/${notificationId}/read`).set(true);
+            const notification = AppState.notifications.find(n => n.id === notificationId);
+            if (notification && !notification.read) {
+                notification.read = true;
+                AppState.unreadNotifications = Math.max(0, AppState.unreadNotifications - 1);
+                this.updateNotificationBadge(AppState.unreadNotifications);
+                if (AppState.notificationsOpen) EnhancedUIUpdater.updateNotifications(AppState.notifications);
+            }
+        } catch (error) { console.error('Error marking notification as read:', error); }
+    },
+
+    async markAllNotificationsAsRead() {
+        try {
+            const notificationsRef = database.ref(`notifications/${AppState.currentUser.uid}`);
+            const snapshot = await notificationsRef.once('value');
+            const notifications = snapshot.val();
+            if (notifications) {
+                const updates = {};
+                Object.keys(notifications).forEach(id => { updates[`${id}/read`] = true; });
+                await notificationsRef.update(updates);
+                AppState.notifications.forEach(n => n.read = true);
+                AppState.unreadNotifications = 0;
+                this.updateNotificationBadge(0);
+                console.log('All notifications marked as read');
+            }
+        } catch (error) { console.error('Error marking all notifications as read:', error); }
+    },
+
+    async sendChatMessage(rideId, message, isDriver = false) {
+        try {
+            const messageId = database.ref().child('messages').push().key;
+            const chatMessage = { id: messageId, rideId: rideId, senderId: AppState.currentUser.uid, senderName: AppState.userData.name, text: message, timestamp: Date.now(), isDriver: isDriver };
+            await database.ref(`chats/${rideId}/messages/${messageId}`).set(chatMessage);
+            return messageId;
+        } catch (error) { console.error('Error sending chat message:', error); throw error; }
+    },
+
+    async getSplitRideDetails(splitRideId) {
+        try { const snapshot = await database.ref(`splitRides/${splitRideId}`).once('value'); return snapshot.val(); }
+        catch (error) { console.error('Error getting split ride details:', error); throw error; }
+    },
+
+    async acceptSplitRideInvitation(splitRideId, userId) {
+        try {
+            const invitationsRef = database.ref('splitRideInvitations');
+            const snapshot = await invitationsRef.orderByChild('splitRideId').equalTo(splitRideId).once('value');
+            const invitations = snapshot.val();
+            if (invitations) {
+                for (const [invitationId, invitation] of Object.entries(invitations)) {
+                    if (invitation.recipientId === userId) {
+                        await database.ref(`splitRideInvitations/${invitationId}`).update({ status: 'accepted', acceptedAt: Date.now() });
+                        const splitRideRef = database.ref(`splitRides/${splitRideId}`);
+                        const splitRideSnapshot = await splitRideRef.once('value');
+                        const splitRide = splitRideSnapshot.val();
+                        const acceptedCount = (splitRide.acceptedCount || 0) + 1;
+                        await splitRideRef.update({ acceptedCount });
+                        if (acceptedCount === splitRide.participants - 1) {
+                            await splitRideRef.update({ status: 'ready' });
+                            this.sendNotification(splitRide.hostId, 'Split Ride Ready', 'All participants have accepted. You can now request the ride.', 'split', { splitRideId: splitRideId });
+                        }
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (error) { console.error('Error accepting split ride invitation:', error); throw error; }
+    },
+
+    async rejectSplitRideInvitation(splitRideId, userId) {
+        try {
+            const invitationsRef = database.ref('splitRideInvitations');
+            const snapshot = await invitationsRef.orderByChild('splitRideId').equalTo(splitRideId).once('value');
+            const invitations = snapshot.val();
+            if (invitations) {
+                for (const [invitationId, invitation] of Object.entries(invitations)) {
+                    if (invitation.recipientId === userId) {
+                        await database.ref(`splitRideInvitations/${invitationId}`).update({ status: 'rejected', rejectedAt: Date.now() });
+                        const splitRideRef = database.ref(`splitRides/${splitRideId}`);
+                        await splitRideRef.update({ status: 'updated', updatedAt: Date.now() });
+                        const splitRideSnapshot = await splitRideRef.once('value');
+                        const splitRide = splitRideSnapshot.val();
+                        const newParticipants = splitRide.participants - 1;
+                        const newEachShare = splitRide.totalFare / newParticipants;
+                        await splitRideRef.update({ participants: newParticipants, eachShare: newEachShare });
+                        this.sendNotification(splitRide.hostId, 'Split Ride Updated', `A participant declined. New share: ZMW ${newEachShare.toFixed(2)} per person`, 'split', { splitRideId: splitRideId });
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (error) { console.error('Error rejecting split ride invitation:', error); throw error; }
+    },
+
+    async getBroadcastDetails(broadcastId) {
+        try { const snapshot = await database.ref(`broadcasts/${broadcastId}`).once('value'); return snapshot.val(); }
+        catch (error) { console.error('Error getting broadcast details:', error); throw error; }
+    },
+
+    async startTrackingBroadcast(broadcastId) {
+        try {
+            const broadcastRef = database.ref(`broadcasts/${broadcastId}`);
+            AppState.realtimeListeners.push(broadcastRef.on('value', (snapshot) => { const broadcast = snapshot.val(); if (broadcast) console.log('Broadcast updated:', broadcast); }));
+            const broadcastSnapshot = await broadcastRef.once('value');
+            const broadcast = broadcastSnapshot.val();
+            if (broadcast && broadcast.rideId) this.listenToRideUpdates(broadcast.rideId);
+            return true;
+        } catch (error) { console.error('Error starting broadcast tracking:', error); throw error; }
+    },
+
+    async saveSOSConfig(contact1Name, contact1Phone, contact2Name, contact2Phone, message) {
+        try {
+            const sosConfig = { contact1Name, contact1Phone, contact2Name, contact2Phone, message, updatedAt: Date.now() };
+            await database.ref(`sosConfig/${AppState.currentUser.uid}`).set(sosConfig);
+            AppState.sosConfig = sosConfig;
+            EnhancedUIUpdater.showToast('SOS configuration saved', 'success');
+            return true;
+        } catch (error) { console.error('Error saving SOS config:', error); EnhancedUIUpdater.showToast('Error saving SOS config', 'error'); return false; }
+    },
+
+    async sendSOSAlert(rideId, sosData) {
+        try {
+            const alertId = database.ref().child('sosAlerts').push().key;
+            const alert = {
+                id: alertId, rideId: rideId, userId: AppState.currentUser.uid, userName: AppState.userData.name,
+                contacts: [ { name: sosData.emergencyContact1Name, phone: sosData.emergencyContact1 }, { name: sosData.emergencyContact2Name, phone: sosData.emergencyContact2 } ],
+                message: sosData.message, location: sosData.location, rideDetails: sosData.rideDetails, timestamp: Date.now(), status: 'sent'
+            };
+            await database.ref(`sosAlerts/${alertId}`).set(alert);
+            EnhancedUIUpdater.showToast('SOS alert sent to emergency contacts', 'success');
+            return alertId;
+        } catch (error) { console.error('Error sending SOS alert:', error); EnhancedUIUpdater.showToast('Error sending SOS alert', 'error'); throw error; }
+    }
 };
 
 // ============================================
-// ENHANCED WALLET MANAGER (updated for new IDs)
+// ENHANCED WALLET MANAGER (same as original)
 // ============================================
 const EnhancedWalletManager = {
-    init: function() {
-        console.log('💰 Enhanced Wallet Manager initialized');
-        this.setupWalletEventListeners();
-    },
-
+    init: function() { console.log('💰 Enhanced Wallet Manager initialized'); this.setupWalletEventListeners(); },
     setupWalletEventListeners: function() {
-        const depositBtn = document.getElementById('depositBtn');
-        if (depositBtn) {
-            depositBtn.addEventListener('click', () => {
-                this.showDepositModal();
-            });
-        }
-
-        const withdrawBtn = document.getElementById('withdrawBtn');
-        if (withdrawBtn) {
-            withdrawBtn.addEventListener('click', () => {
-                this.showWithdrawModal();
-            });
-        }
-
-        const transactionsBtn = document.getElementById('transactionsBtn');
-        if (transactionsBtn) {
-            transactionsBtn.addEventListener('click', () => {
-                this.showTransactionsModal();
-            });
-        }
-
-        const transferBtn = document.getElementById('transferBtn');
-        if (transferBtn) {
-            transferBtn.addEventListener('click', () => {
-                showModal('transfer');
-            });
-        }
-
-        const confirmDepositBtn = document.getElementById('confirmDepositBtn');
-        if (confirmDepositBtn) {
-            confirmDepositBtn.addEventListener('click', () => {
-                this.processDeposit();
-            });
-        }
-
-        const confirmWithdrawBtn = document.getElementById('confirmWithdrawBtn');
-        if (confirmWithdrawBtn) {
-            confirmWithdrawBtn.addEventListener('click', () => {
-                this.processWithdrawal();
-            });
-        }
-
-        this.setupQuickAmounts();
-        this.setupPaymentMethodSelection();
-
-        const exportBtn = document.getElementById('exportTransactionsBtn');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', () => {
-                this.exportTransactions();
-            });
-        }
-
+        const depositBtn = document.getElementById('depositBtn'); if (depositBtn) depositBtn.addEventListener('click', () => { this.showDepositModal(); });
+        const withdrawBtn = document.getElementById('withdrawBtn'); if (withdrawBtn) withdrawBtn.addEventListener('click', () => { this.showWithdrawModal(); });
+        const transactionsBtn = document.getElementById('transactionsBtn'); if (transactionsBtn) transactionsBtn.addEventListener('click', () => { this.showTransactionsModal(); });
+        const transferBtn = document.getElementById('transferBtn'); if (transferBtn) transferBtn.addEventListener('click', () => { showModal('transfer'); });
+        const confirmDepositBtn = document.getElementById('confirmDepositBtn'); if (confirmDepositBtn) confirmDepositBtn.addEventListener('click', () => { this.processDeposit(); });
+        const confirmWithdrawBtn = document.getElementById('confirmWithdrawBtn'); if (confirmWithdrawBtn) confirmWithdrawBtn.addEventListener('click', () => { this.processWithdrawal(); });
+        this.setupQuickAmounts(); this.setupPaymentMethodSelection();
+        const exportBtn = document.getElementById('exportTransactionsBtn'); if (exportBtn) exportBtn.addEventListener('click', () => { this.exportTransactions(); });
         this.setupTransactionFilters();
     },
-
     showDepositModal: function() {
         const depositCurrentBalance = document.getElementById('depositCurrentBalance');
-        if (depositCurrentBalance) {
-            depositCurrentBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
-        }
-
-        const depositAmount = document.getElementById('depositAmount');
-        if (depositAmount) {
-            depositAmount.value = '';
-        }
-
-        document.querySelectorAll('#depositModal .quick-amount').forEach(btn => {
-            btn.classList.remove('active');
-        });
-
-        document.querySelectorAll('#depositModal .payment-method-option').forEach(method => {
-            method.classList.remove('selected');
-        });
-
-        const paymentMethodDetails = document.getElementById('paymentMethodDetails');
-        if (paymentMethodDetails) {
-            paymentMethodDetails.innerHTML = '';
-        }
-
+        if (depositCurrentBalance) depositCurrentBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
+        const depositAmount = document.getElementById('depositAmount'); if (depositAmount) depositAmount.value = '';
+        document.querySelectorAll('.quick-amount').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.payment-method-option').forEach(method => method.classList.remove('selected'));
+        const paymentMethodDetails = document.getElementById('paymentMethodDetails'); if (paymentMethodDetails) paymentMethodDetails.innerHTML = '';
         showModal('deposit');
     },
-
     showWithdrawModal: function() {
         const withdrawCurrentBalance = document.getElementById('withdrawCurrentBalance');
-        if (withdrawCurrentBalance) {
-            withdrawCurrentBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
-        }
-
-        const withdrawAmount = document.getElementById('withdrawAmount');
-        if (withdrawAmount) {
-            withdrawAmount.value = '';
-        }
-
-        document.querySelectorAll('#withdrawModal .quick-amount').forEach(btn => {
-            btn.classList.remove('active');
-        });
-
-        document.querySelectorAll('#withdrawModal .payment-method-option').forEach(method => {
-            method.classList.remove('selected');
-        });
-
-        const withdrawMethodDetails = document.getElementById('withdrawMethodDetails');
-        if (withdrawMethodDetails) {
-            withdrawMethodDetails.innerHTML = '';
-        }
-
+        if (withdrawCurrentBalance) withdrawCurrentBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
+        const withdrawAmount = document.getElementById('withdrawAmount'); if (withdrawAmount) withdrawAmount.value = '';
+        document.querySelectorAll('.quick-amount').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.payment-method-option').forEach(method => method.classList.remove('selected'));
+        const withdrawMethodDetails = document.getElementById('withdrawMethodDetails'); if (withdrawMethodDetails) withdrawMethodDetails.innerHTML = '';
         showModal('withdraw');
     },
-
     showTransactionsModal: function() {
         const transactionsBalance = document.getElementById('transactionsBalance');
         const transactionsCount = document.getElementById('transactionsCount');
-
-        if (transactionsBalance) {
-            transactionsBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
-        }
-
-        if (transactionsCount && AppState.walletTransactions) {
-            transactionsCount.textContent = AppState.walletTransactions.length;
-        }
-
+        if (transactionsBalance) transactionsBalance.textContent = `ZMW ${AppState.walletBalance.toFixed(2)}`;
+        if (transactionsCount && AppState.walletTransactions) transactionsCount.textContent = AppState.walletTransactions.length;
         this.displayTransactions(AppState.walletTransactions || []);
-
         showModal('transactions');
     },
-
     setupQuickAmounts: function() {
         const depositModal = document.getElementById('depositModal');
-        if (depositModal) {
-            depositModal.querySelectorAll('.quick-amount').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    depositModal.querySelectorAll('.quick-amount').forEach(b => {
-                        b.classList.remove('active');
-                    });
-                    this.classList.add('active');
-                    const amount = this.dataset.amount;
-                    const depositAmount = document.getElementById('depositAmount');
-                    if (depositAmount) {
-                        depositAmount.value = amount;
-                    }
-                });
+        if (depositModal) depositModal.querySelectorAll('.quick-amount').forEach(btn => {
+            btn.addEventListener('click', function() {
+                depositModal.querySelectorAll('.quick-amount').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const amount = this.dataset.amount;
+                const depositAmount = document.getElementById('depositAmount');
+                if (depositAmount) depositAmount.value = amount;
             });
-        }
-
+        });
         const withdrawModal = document.getElementById('withdrawModal');
-        if (withdrawModal) {
-            withdrawModal.querySelectorAll('.quick-amount').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    withdrawModal.querySelectorAll('.quick-amount').forEach(b => {
-                        b.classList.remove('active');
-                    });
-                    this.classList.add('active');
-                    const amount = this.dataset.amount;
-                    const withdrawAmount = document.getElementById('withdrawAmount');
-                    if (withdrawAmount) {
-                        withdrawAmount.value = amount;
-                    }
-                });
+        if (withdrawModal) withdrawModal.querySelectorAll('.quick-amount').forEach(btn => {
+            btn.addEventListener('click', function() {
+                withdrawModal.querySelectorAll('.quick-amount').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                const amount = this.dataset.amount;
+                const withdrawAmount = document.getElementById('withdrawAmount');
+                if (withdrawAmount) withdrawAmount.value = amount;
             });
-        }
+        });
     },
-
     setupPaymentMethodSelection: function() {
         const depositModal = document.getElementById('depositModal');
-        if (depositModal) {
-            depositModal.querySelectorAll('.payment-method-option').forEach(method => {
-                method.addEventListener('click', function() {
-                    depositModal.querySelectorAll('.payment-method-option').forEach(m => {
-                        m.classList.remove('selected');
-                    });
-                    this.classList.add('selected');
-                    const methodType = this.dataset.method;
-                    EnhancedWalletManager.showPaymentMethodDetails(methodType, 'deposit');
-                });
+        if (depositModal) depositModal.querySelectorAll('.payment-method-option').forEach(method => {
+            method.addEventListener('click', function() {
+                depositModal.querySelectorAll('.payment-method-option').forEach(m => m.classList.remove('selected'));
+                this.classList.add('selected');
+                const methodType = this.dataset.method;
+                EnhancedWalletManager.showPaymentMethodDetails(methodType, 'deposit');
             });
-        }
-
+        });
         const withdrawModal = document.getElementById('withdrawModal');
-        if (withdrawModal) {
-            withdrawModal.querySelectorAll('.payment-method-option').forEach(method => {
-                method.addEventListener('click', function() {
-                    withdrawModal.querySelectorAll('.payment-method-option').forEach(m => {
-                        m.classList.remove('selected');
-                    });
-                    this.classList.add('selected');
-                    const methodType = this.dataset.method;
-                    EnhancedWalletManager.showWithdrawalMethodDetails(methodType);
-                });
+        if (withdrawModal) withdrawModal.querySelectorAll('.payment-method-option').forEach(method => {
+            method.addEventListener('click', function() {
+                withdrawModal.querySelectorAll('.payment-method-option').forEach(m => m.classList.remove('selected'));
+                this.classList.add('selected');
+                const methodType = this.dataset.method;
+                EnhancedWalletManager.showWithdrawalMethodDetails(methodType);
             });
-        }
+        });
     },
-
     showPaymentMethodDetails: function(methodType, type) {
-        const container = type === 'deposit' ?
-            document.getElementById('paymentMethodDetails') :
-            document.getElementById('withdrawMethodDetails');
-
+        const container = type === 'deposit' ? document.getElementById('paymentMethodDetails') : document.getElementById('withdrawMethodDetails');
         if (!container) return;
-
         let html = '';
-
-        switch (methodType) {
-            case 'mtn':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> MTN Mobile Money Instructions
-                        </div>
-                        <div style="font-size: 14px; color: #333; margin-bottom: 10px;">
-                            To complete your deposit via MTN:
-                        </div>
-                        <ol style="font-size: 13px; color: #666; padding-left: 20px; margin: 0;">
-                            <li>Dial *111# on your MTN line</li>
-                            <li>Select "Send Money"</li>
-                            <li>Enter Jubel's MTN number: <strong>0961234567</strong></li>
-                            <li>Enter the exact deposit amount</li>
-                            <li>Use your Jubel ID as reference</li>
-                        </ol>
-                        <div style="margin-top: 10px; font-size: 12px; color: #999;">
-                            Deposit will reflect within 5-10 minutes after confirmation
-                        </div>
-                    </div>
-                `;
-                break;
-            case 'airtel':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> Airtel Money Instructions
-                        </div>
-                        <div style="font-size: 14px; color: #333; margin-bottom: 10px;">
-                            To complete your deposit via Airtel:
-                        </div>
-                        <ol style="font-size: 13px; color: #666; padding-left: 20px; margin: 0;">
-                            <li>Dial *123# on your Airtel line</li>
-                            <li>Select "Send Money"</li>
-                            <li>Enter Jubel's Airtel number: <strong>0971234567</strong></li>
-                            <li>Enter the exact deposit amount</li>
-                            <li>Use your Jubel ID as reference</li>
-                        </ol>
-                        <div style="margin-top: 10px; font-size: 12px; color: #999;">
-                            Deposit will reflect within 5-10 minutes after confirmation
-                        </div>
-                    </div>
-                `;
-                break;
-            case 'zamtel':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> Zamtel Kwacha Instructions
-                        </div>
-                        <div style="font-size: 14px; color: #333; margin-bottom: 10px;">
-                            To complete your deposit via Zamtel:
-                        </div>
-                        <ol style="font-size: 13px; color: #666; padding-left: 20px; margin: 0;">
-                            <li>Dial *115# on your Zamtel line</li>
-                            <li>Select "Send Money"</li>
-                            <li>Enter Jubel's Zamtel number: <strong>0951234567</strong></li>
-                            <li>Enter the exact deposit amount</li>
-                            <li>Use your Jubel ID as reference</li>
-                        </ol>
-                        <div style="margin-top: 10px; font-size: 12px; color: #999;">
-                            Deposit will reflect within 5-10 minutes after confirmation
-                        </div>
-                    </div>
-                `;
-                break;
-            case 'bank':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> Bank Transfer Instructions
-                        </div>
-                        <div style="font-size: 14px; color: #333; margin-bottom: 10px;">
-                            Jubel Bank Details:
-                        </div>
-                        <div style="font-size: 13px; color: #666;">
-                            <div><strong>Bank:</strong> Zanaco</div>
-                            <div><strong>Account Name:</strong> Jubel Technologies Ltd</div>
-                            <div><strong>Account Number:</strong> 1234567890</div>
-                            <div><strong>Branch Code:</strong> 0100</div>
-                            <div><strong>Reference:</strong> ${AppState.userData?.name || 'Your Name'}</div>
-                        </div>
-                        <div style="margin-top: 10px; font-size: 12px; color: #999;">
-                            Bank transfers take 1-2 business days to reflect
-                        </div>
-                    </div>
-                `;
-                break;
+        switch(methodType) {
+            case 'mtn': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> MTN Mobile Money Instructions</div><div style="font-size:14px; color:#333; margin-bottom:10px;">To complete your deposit via MTN:</div><ol style="font-size:13px; color:#666; padding-left:20px; margin:0;"><li>Dial *111# on your MTN line</li><li>Select "Send Money"</li><li>Enter Jubel's MTN number: <strong>0961234567</strong></li><li>Enter the exact deposit amount</li><li>Use your Jubel ID as reference</li></ol><div style="margin-top:10px; font-size:12px; color:#999;">Deposit will reflect within 5-10 minutes after confirmation</div></div>`; break;
+            case 'airtel': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> Airtel Money Instructions</div><div style="font-size:14px; color:#333; margin-bottom:10px;">To complete your deposit via Airtel:</div><ol style="font-size:13px; color:#666; padding-left:20px; margin:0;"><li>Dial *123# on your Airtel line</li><li>Select "Send Money"</li><li>Enter Jubel's Airtel number: <strong>0971234567</strong></li><li>Enter the exact deposit amount</li><li>Use your Jubel ID as reference</li></ol><div style="margin-top:10px; font-size:12px; color:#999;">Deposit will reflect within 5-10 minutes after confirmation</div></div>`; break;
+            case 'zamtel': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> Zamtel Kwacha Instructions</div><div style="font-size:14px; color:#333; margin-bottom:10px;">To complete your deposit via Zamtel:</div><ol style="font-size:13px; color:#666; padding-left:20px; margin:0;"><li>Dial *115# on your Zamtel line</li><li>Select "Send Money"</li><li>Enter Jubel's Zamtel number: <strong>0951234567</strong></li><li>Enter the exact deposit amount</li><li>Use your Jubel ID as reference</li></ol><div style="margin-top:10px; font-size:12px; color:#999;">Deposit will reflect within 5-10 minutes after confirmation</div></div>`; break;
+            case 'bank': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> Bank Transfer Instructions</div><div style="font-size:14px; color:#333; margin-bottom:10px;">Jubel Bank Details:</div><div style="font-size:13px; color:#666;"><div><strong>Bank:</strong> Zanaco</div><div><strong>Account Name:</strong> Jubel Technologies Ltd</div><div><strong>Account Number:</strong> 1234567890</div><div><strong>Branch Code:</strong> 0100</div><div><strong>Reference:</strong> ${AppState.userData?.name || 'Your Name'}</div></div><div style="margin-top:10px; font-size:12px; color:#999;">Bank transfers take 1-2 business days to reflect</div></div>`; break;
         }
-
         container.innerHTML = html;
     },
-
     showWithdrawalMethodDetails: function(methodType) {
         const container = document.getElementById('withdrawMethodDetails');
         if (!container) return;
-
         let html = '';
-
-        switch (methodType) {
-            case 'mtn':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> MTN Withdrawal
-                        </div>
-                        <input type="tel" class="form-control" id="mtnPhone" placeholder="Enter your MTN phone number" style="margin-bottom: 10px;">
-                        <div style="font-size: 12px; color: #666;">
-                            Withdrawals to MTN are processed within 24 hours
-                        </div>
-                    </div>
-                `;
-                break;
-            case 'airtel':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> Airtel Withdrawal
-                        </div>
-                        <input type="tel" class="form-control" id="airtelPhone" placeholder="Enter your Airtel phone number" style="margin-bottom: 10px;">
-                        <div style="font-size: 12px; color: #666;">
-                            Withdrawals to Airtel are processed within 24 hours
-                        </div>
-                    </div>
-                `;
-                break;
-            case 'zamtel':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> Zamtel Withdrawal
-                        </div>
-                        <input type="tel" class="form-control" id="zamtelPhone" placeholder="Enter your Zamtel phone number" style="margin-bottom: 10px;">
-                        <div style="font-size: 12px; color: #666;">
-                            Withdrawals to Zamtel are processed within 24 hours
-                        </div>
-                    </div>
-                `;
-                break;
-            case 'bank':
-                html = `
-                    <div style="background: #FFF3E0; padding: 15px; border-radius: 8px;">
-                        <div style="font-weight: 600; margin-bottom: 10px; color: #FF6B35;">
-                            <i class="fas fa-info-circle"></i> Bank Withdrawal
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-                            <input type="text" class="form-control" id="bankName" placeholder="Bank Name">
-                            <input type="text" class="form-control" id="accountNumber" placeholder="Account Number">
-                        </div>
-                        <input type="text" class="form-control" id="accountHolder" placeholder="Account Holder Name" style="margin-bottom: 10px;">
-                        <div style="font-size: 12px; color: #666;">
-                            Bank withdrawals are processed within 2-3 business days
-                        </div>
-                    </div>
-                `;
-                break;
+        switch(methodType) {
+            case 'mtn': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> MTN Withdrawal</div><input type="tel" class="form-control" id="mtnPhone" placeholder="Enter your MTN phone number" style="margin-bottom:10px;"><div style="font-size:12px; color:#666;">Withdrawals to MTN are processed within 24 hours</div></div>`; break;
+            case 'airtel': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> Airtel Withdrawal</div><input type="tel" class="form-control" id="airtelPhone" placeholder="Enter your Airtel phone number" style="margin-bottom:10px;"><div style="font-size:12px; color:#666;">Withdrawals to Airtel are processed within 24 hours</div></div>`; break;
+            case 'zamtel': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> Zamtel Withdrawal</div><input type="tel" class="form-control" id="zamtelPhone" placeholder="Enter your Zamtel phone number" style="margin-bottom:10px;"><div style="font-size:12px; color:#666;">Withdrawals to Zamtel are processed within 24 hours</div></div>`; break;
+            case 'bank': html = `<div style="background:#FFF3E0; padding:15px; border-radius:8px;"><div style="font-weight:600; margin-bottom:10px; color:#FF6B35;"><i class="fas fa-info-circle"></i> Bank Withdrawal</div><div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;"><input type="text" class="form-control" id="bankName" placeholder="Bank Name"><input type="text" class="form-control" id="accountNumber" placeholder="Account Number"></div><input type="text" class="form-control" id="accountHolder" placeholder="Account Holder Name" style="margin-bottom:10px;"><div style="font-size:12px; color:#666;">Bank withdrawals are processed within 2-3 business days</div></div>`; break;
         }
-
         container.innerHTML = html;
     },
-
     processDeposit: function() {
         const amountInput = document.getElementById('depositAmount');
         const amount = parseFloat(amountInput.value);
-
-        if (!amount || amount <= 0) {
-            EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning');
-            return;
-        }
-
+        if (!amount || amount <= 0) { EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning'); return; }
         const selectedMethod = document.querySelector('#depositModal .payment-method-option.selected');
-        if (!selectedMethod) {
-            EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
-            return;
-        }
-
+        if (!selectedMethod) { EnhancedUIUpdater.showToast('Please select a payment method', 'warning'); return; }
         const method = selectedMethod.dataset.method;
-
+        const methodName = selectedMethod.querySelector('.payment-method-name').textContent;
+        let details = '';
+        if (method === 'bank') details = 'Bank transfer';
+        else details = `${methodName.toUpperCase()} deposit`;
         EnhancedUIUpdater.showLoading('Processing deposit request...');
-
         setTimeout(() => {
-            this.createDepositTransaction(amount, method, '')
-                .then(() => {
-                    EnhancedUIUpdater.hideLoading();
-                    hideModal('deposit');
-                    EnhancedUIUpdater.showToast(`Deposit request for ZMW ${amount.toFixed(2)} submitted!`, 'success');
-                })
-                .catch(error => {
-                    EnhancedUIUpdater.hideLoading();
-                    console.error('Error creating deposit:', error);
-                    EnhancedUIUpdater.showToast('Error processing deposit', 'error');
-                });
+            this.createDepositTransaction(amount, method, details).then(() => {
+                EnhancedUIUpdater.hideLoading();
+                hideModal('deposit');
+                EnhancedUIUpdater.showToast(`Deposit request for ZMW ${amount.toFixed(2)} submitted!`, 'success');
+                this.showDepositConfirmation(amount, method);
+            }).catch(error => { EnhancedUIUpdater.hideLoading(); console.error('Error creating deposit:', error); EnhancedUIUpdater.showToast('Error processing deposit', 'error'); });
         }, 2000);
     },
-
     processWithdrawal: function() {
         const amountInput = document.getElementById('withdrawAmount');
         const amount = parseFloat(amountInput.value);
-
-        if (!amount || amount <= 0) {
-            EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning');
-            return;
-        }
-
-        if (amount > AppState.walletBalance) {
-            EnhancedUIUpdater.showToast('Insufficient balance', 'error');
-            return;
-        }
-
+        if (!amount || amount <= 0) { EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning'); return; }
+        if (amount > AppState.walletBalance) { EnhancedUIUpdater.showToast('Insufficient balance', 'error'); return; }
         const selectedMethod = document.querySelector('#withdrawModal .payment-method-option.selected');
-        if (!selectedMethod) {
-            EnhancedUIUpdater.showToast('Please select a withdrawal method', 'warning');
-            return;
-        }
-
+        if (!selectedMethod) { EnhancedUIUpdater.showToast('Please select a withdrawal method', 'warning'); return; }
         const method = selectedMethod.dataset.method;
-
+        const methodName = selectedMethod.querySelector('.payment-method-name').textContent;
         let recipientDetails = '';
-        switch (method) {
-            case 'mtn':
-                const mtnPhone = document.getElementById('mtnPhone');
-                if (!mtnPhone || !mtnPhone.value.trim()) {
-                    EnhancedUIUpdater.showToast('Please enter your MTN phone number', 'warning');
-                    return;
-                }
-                recipientDetails = mtnPhone.value;
-                break;
-            case 'airtel':
-                const airtelPhone = document.getElementById('airtelPhone');
-                if (!airtelPhone || !airtelPhone.value.trim()) {
-                    EnhancedUIUpdater.showToast('Please enter your Airtel phone number', 'warning');
-                    return;
-                }
-                recipientDetails = airtelPhone.value;
-                break;
-            case 'zamtel':
-                const zamtelPhone = document.getElementById('zamtelPhone');
-                if (!zamtelPhone || !zamtelPhone.value.trim()) {
-                    EnhancedUIUpdater.showToast('Please enter your Zamtel phone number', 'warning');
-                    return;
-                }
-                recipientDetails = zamtelPhone.value;
-                break;
-            case 'bank':
-                const bankName = document.getElementById('bankName');
-                const accountNumber = document.getElementById('accountNumber');
-                const accountHolder = document.getElementById('accountHolder');
-
-                if (!bankName || !bankName.value.trim()) {
-                    EnhancedUIUpdater.showToast('Please enter bank name', 'warning');
-                    return;
-                }
-                if (!accountNumber || !accountNumber.value.trim()) {
-                    EnhancedUIUpdater.showToast('Please enter account number', 'warning');
-                    return;
-                }
-                if (!accountHolder || !accountHolder.value.trim()) {
-                    EnhancedUIUpdater.showToast('Please enter account holder name', 'warning');
-                    return;
-                }
-
-                recipientDetails = `${bankName.value} - ${accountNumber.value} (${accountHolder.value})`;
-                break;
+        switch(method) {
+            case 'mtn': const mtnPhone = document.getElementById('mtnPhone'); if (!mtnPhone || !mtnPhone.value.trim()) { EnhancedUIUpdater.showToast('Please enter your MTN phone number', 'warning'); return; } recipientDetails = mtnPhone.value; break;
+            case 'airtel': const airtelPhone = document.getElementById('airtelPhone'); if (!airtelPhone || !airtelPhone.value.trim()) { EnhancedUIUpdater.showToast('Please enter your Airtel phone number', 'warning'); return; } recipientDetails = airtelPhone.value; break;
+            case 'zamtel': const zamtelPhone = document.getElementById('zamtelPhone'); if (!zamtelPhone || !zamtelPhone.value.trim()) { EnhancedUIUpdater.showToast('Please enter your Zamtel phone number', 'warning'); return; } recipientDetails = zamtelPhone.value; break;
+            case 'bank': const bankName = document.getElementById('bankName'), accountNumber = document.getElementById('accountNumber'), accountHolder = document.getElementById('accountHolder'); if (!bankName || !bankName.value.trim()) { EnhancedUIUpdater.showToast('Please enter bank name', 'warning'); return; } if (!accountNumber || !accountNumber.value.trim()) { EnhancedUIUpdater.showToast('Please enter account number', 'warning'); return; } if (!accountHolder || !accountHolder.value.trim()) { EnhancedUIUpdater.showToast('Please enter account holder name', 'warning'); return; } recipientDetails = `${bankName.value} - ${accountNumber.value} (${accountHolder.value})`; break;
         }
-
         EnhancedUIUpdater.showLoading('Processing withdrawal request...');
-
-        this.createWithdrawalTransaction(amount, method, recipientDetails)
-            .then(() => {
-                EnhancedUIUpdater.hideLoading();
-                hideModal('withdraw');
-                EnhancedUIUpdater.showToast(`Withdrawal request for ZMW ${amount.toFixed(2)} submitted!`, 'success');
-            })
-            .catch(error => {
-                EnhancedUIUpdater.hideLoading();
-                console.error('Error creating withdrawal:', error);
-                EnhancedUIUpdater.showToast('Error processing withdrawal', 'error');
-            });
+        this.createWithdrawalTransaction(amount, method, recipientDetails).then(() => {
+            EnhancedUIUpdater.hideLoading();
+            hideModal('withdraw');
+            EnhancedUIUpdater.showToast(`Withdrawal request for ZMW ${amount.toFixed(2)} submitted!`, 'success');
+            this.showWithdrawalConfirmation(amount, method, recipientDetails);
+        }).catch(error => { EnhancedUIUpdater.hideLoading(); console.error('Error creating withdrawal:', error); EnhancedUIUpdater.showToast('Error processing withdrawal', 'error'); });
     },
-
     createDepositTransaction: async function(amount, method, details) {
         try {
             const transactionId = database.ref().child('walletTransactions').push().key;
-
             const transaction = {
-                id: transactionId,
-                userId: AppState.currentUser.uid,
-                type: 'deposit',
-                amount: amount,
-                method: method,
-                details: details,
-                description: `Deposit via ${method}`,
-                status: 'pending',
-                timestamp: Date.now(),
-                balanceBefore: AppState.walletBalance,
-                balanceAfter: AppState.walletBalance,
-                metadata: {
-                    initiatedBy: 'user',
-                    userAgent: navigator.userAgent,
-                    platform: 'web'
-                }
+                id: transactionId, userId: AppState.currentUser.uid, type: 'deposit', amount: amount, method: method, details: details, description: `Deposit via ${method}`,
+                status: 'pending', timestamp: Date.now(), balanceBefore: AppState.walletBalance, balanceAfter: AppState.walletBalance,
+                metadata: { initiatedBy: 'user', userAgent: navigator.userAgent, platform: 'web' }
             };
-
             await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
-
-            EnhancedFirebaseManager.sendNotification(
-                AppState.currentUser.uid,
-                'Deposit Requested',
-                `Your deposit of ZMW ${amount.toFixed(2)} is being processed`,
-                'payment',
-                { transactionId: transactionId, amount: amount }
-            );
-
+            EnhancedFirebaseManager.sendNotification(AppState.currentUser.uid, 'Deposit Requested', `Your deposit of ZMW ${amount.toFixed(2)} is being processed`, 'payment', { transactionId: transactionId, amount: amount });
             return transactionId;
-        } catch (error) {
-            console.error('Error creating deposit transaction:', error);
-            throw error;
-        }
+        } catch (error) { console.error('Error creating deposit transaction:', error); throw error; }
     },
-
     createWithdrawalTransaction: async function(amount, method, recipientDetails) {
         try {
             const transactionId = database.ref().child('walletTransactions').push().key;
-
             const transaction = {
-                id: transactionId,
-                userId: AppState.currentUser.uid,
-                type: 'withdrawal',
-                amount: amount,
-                method: method,
-                recipientDetails: recipientDetails,
-                description: `Withdrawal to ${method}`,
-                status: 'pending',
-                timestamp: Date.now(),
-                balanceBefore: AppState.walletBalance,
-                balanceAfter: AppState.walletBalance - amount,
-                metadata: {
-                    initiatedBy: 'user',
-                    userAgent: navigator.userAgent,
-                    platform: 'web'
-                }
+                id: transactionId, userId: AppState.currentUser.uid, type: 'withdrawal', amount: amount, method: method, recipientDetails: recipientDetails, description: `Withdrawal to ${method}`,
+                status: 'pending', timestamp: Date.now(), balanceBefore: AppState.walletBalance, balanceAfter: AppState.walletBalance - amount,
+                metadata: { initiatedBy: 'user', userAgent: navigator.userAgent, platform: 'web' }
             };
-
             await database.ref(`walletTransactions/${AppState.currentUser.uid}/${transactionId}`).set(transaction);
-
             await EnhancedFirebaseManager.withdrawMoney(amount, `Withdrawal to ${method}`, transactionId);
-
-            EnhancedFirebaseManager.sendNotification(
-                AppState.currentUser.uid,
-                'Withdrawal Requested',
-                `Your withdrawal of ZMW ${amount.toFixed(2)} is being processed`,
-                'payment',
-                { transactionId: transactionId, amount: amount }
-            );
-
+            EnhancedFirebaseManager.sendNotification(AppState.currentUser.uid, 'Withdrawal Requested', `Your withdrawal of ZMW ${amount.toFixed(2)} is being processed`, 'payment', { transactionId: transactionId, amount: amount });
             return transactionId;
-        } catch (error) {
-            console.error('Error creating withdrawal transaction:', error);
-            throw error;
-        }
+        } catch (error) { console.error('Error creating withdrawal transaction:', error); throw error; }
     },
-
+    showDepositConfirmation: function(amount, method) {
+        const modal = document.createElement('div'); modal.className = 'deposit-confirmation-modal'; modal.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 10002; padding: 20px;`;
+        let instructions = '';
+        switch(method) {
+            case 'mtn': instructions = `<h4 style="color:#333; margin-bottom:15px;">Complete Your Deposit:</h4><ol style="text-align:left; padding-left:20px; color:#666; margin-bottom:20px;"><li>Dial <strong>*111#</strong> on your MTN line</li><li>Select <strong>"Send Money"</strong></li><li>Enter: <strong>0961234567</strong></li><li>Amount: <strong>ZMW ${amount.toFixed(2)}</strong></li><li>Reference: <strong>${AppState.userData?.referralCode || 'JUBEL'}</strong></li></ol>`; break;
+            case 'bank': instructions = `<h4 style="color:#333; margin-bottom:15px;">Complete Your Deposit:</h4><div style="text-align:left; color:#666; margin-bottom:20px;"><p>Transfer <strong>ZMW ${amount.toFixed(2)}</strong> to:</p><div style="background:#f9f9f9; padding:15px; border-radius:8px; margin-top:10px;"><div><strong>Bank:</strong> Zanaco</div><div><strong>Account:</strong> Jubel Technologies Ltd</div><div><strong>Account No:</strong> 1234567890</div><div><strong>Reference:</strong> ${AppState.userData?.name || 'Your Name'}</div></div></div>`; break;
+            default: instructions = `<h4 style="color:#333; margin-bottom:15px;">Complete Your Deposit:</h4><p style="color:#666; margin-bottom:20px;">Follow the instructions for ${method.toUpperCase()} to complete your deposit of ZMW ${amount.toFixed(2)}</p>`;
+        }
+        modal.innerHTML = `<div style="background:white; border-radius:12px; width:100%; max-width:500px; overflow:hidden;"><div style="padding:25px; background:linear-gradient(135deg,#4CAF50 0%,#66BB6A 100%); color:white; text-align:center;"><div style="font-size:48px; margin-bottom:15px;"><i class="fas fa-check-circle"></i></div><h3 style="margin:0; font-size:20px;">Deposit Request Submitted!</h3><p style="margin:10px 0 0 0; font-size:14px; opacity:0.9;">ZMW ${amount.toFixed(2)} via ${method.toUpperCase()}</p></div><div style="padding:25px;">${instructions}<div style="background:#FFF3E0; padding:15px; border-radius:8px; margin-bottom:20px;"><div style="display:flex; align-items:center; gap:10px; color:#FF9800;"><i class="fas fa-clock"></i><div style="font-size:14px;">Deposit will reflect in your wallet within 5-10 minutes after payment confirmation</div></div></div><div style="display:flex; gap:10px;"><button id="closeDepositConfirmation" style="flex:1; padding:15px; background:#4CAF50; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600;"><i class="fas fa-check"></i> Got it!</button></div></div></div>`;
+        document.body.appendChild(modal);
+        modal.querySelector('#closeDepositConfirmation').addEventListener('click', () => { document.body.removeChild(modal); });
+    },
+    showWithdrawalConfirmation: function(amount, method, recipientDetails) {
+        const modal = document.createElement('div'); modal.className = 'withdrawal-confirmation-modal'; modal.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 10002; padding: 20px;`;
+        modal.innerHTML = `<div style="background:white; border-radius:12px; width:100%; max-width:500px; overflow:hidden;"><div style="padding:25px; background:linear-gradient(135deg,#2196F3 0%,#42A5F5 100%); color:white; text-align:center;"><div style="font-size:48px; margin-bottom:15px;"><i class="fas fa-check-circle"></i></div><h3 style="margin:0; font-size:20px;">Withdrawal Request Submitted!</h3><p style="margin:10px 0 0 0; font-size:14px; opacity:0.9;">ZMW ${amount.toFixed(2)} to ${method.toUpperCase()}</p></div><div style="padding:25px;"><div style="background:#f9f9f9; padding:15px; border-radius:8px; margin-bottom:20px;"><div style="color:#333; margin-bottom:10px;"><strong>Withdrawal Details:</strong></div><div style="font-size:14px; color:#666;"><div><strong>Amount:</strong> ZMW ${amount.toFixed(2)}</div><div><strong>Method:</strong> ${method.toUpperCase()}</div><div><strong>Recipient:</strong> ${recipientDetails}</div></div></div><div style="background:#E3F2FD; padding:15px; border-radius:8px; margin-bottom:20px;"><div style="display:flex; align-items:center; gap:10px; color:#2196F3;"><i class="fas fa-info-circle"></i><div style="font-size:14px;">Withdrawal processing time: ${method === 'bank' ? '2-3 business days' : '24 hours'}</div></div></div><div style="display:flex; gap:10px;"><button id="closeWithdrawalConfirmation" style="flex:1; padding:15px; background:#2196F3; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600;"><i class="fas fa-check"></i> Got it!</button></div></div></div>`;
+        document.body.appendChild(modal);
+        modal.querySelector('#closeWithdrawalConfirmation').addEventListener('click', () => { document.body.removeChild(modal); });
+    },
     displayTransactions: function(transactions) {
         const container = document.getElementById('transactionsList');
         if (!container) return;
-
         const activeFilter = AppState.transactionFilter || 'all';
         let filteredTransactions = transactions;
-
-        if (activeFilter !== 'all') {
-            filteredTransactions = transactions.filter(t => t.type === activeFilter);
-        }
-
+        if (activeFilter !== 'all') filteredTransactions = transactions.filter(t => t.type === activeFilter);
         filteredTransactions.sort((a, b) => b.timestamp - a.timestamp);
-
         if (filteredTransactions.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: #999;">
-                    <i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i>
-                    <div style="font-weight: 600; margin-bottom: 10px;">No ${activeFilter !== 'all' ? activeFilter + ' ' : ''}transactions</div>
-                    <div>${activeFilter !== 'all' ? 'Try another filter' : 'Your transaction history will appear here'}</div>
-                </div>
-            `;
+            container.innerHTML = `<div style="text-align: center; padding: 40px 20px; color: #999;"><i class="fas fa-receipt" style="font-size: 48px; margin-bottom: 20px;"></i><div style="font-weight: 600; margin-bottom: 10px;">No ${activeFilter !== 'all' ? activeFilter + ' ' : ''}transactions</div><div>${activeFilter !== 'all' ? 'Try another filter' : 'Your transaction history will appear here'}</div></div>`;
             return;
         }
-
         let html = '';
-
         filteredTransactions.forEach(transaction => {
-            const time = new Date(transaction.timestamp);
-            const timeString = this.formatTransactionTime(time);
-
+            const time = new Date(transaction.timestamp); const timeString = this.formatTransactionTime(time);
             const iconInfo = this.getTransactionIconInfo(transaction);
-
-            const amountClass = transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral' ?
-                'positive' :
-                transaction.type === 'withdrawal' || transaction.type === 'payment' ? 'negative' : 'neutral';
-
+            const amountClass = transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral' ? 'positive' : transaction.type === 'withdrawal' || transaction.type === 'payment' ? 'negative' : 'neutral';
             const amountSign = transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral' ? '+' : '-';
-
-            html += `
-                <div class="transaction-item" data-transaction-id="${transaction.id}">
-                    <div class="transaction-icon ${iconInfo.class}">
-                        <i class="fas ${iconInfo.icon}"></i>
-                    </div>
-                    <div class="transaction-details">
-                        <div class="transaction-title">${this.getTransactionTitle(transaction)}</div>
-                        <div class="transaction-meta">
-                            ${timeString} • ${transaction.description || ''}
-                            ${transaction.method ? ` • ${transaction.method.toUpperCase()}` : ''}
-                        </div>
-                        ${transaction.status === 'pending' ? `
-                        <div class="transaction-status pending">Pending</div>
-                        ` : transaction.status === 'failed' ? `
-                        <div class="transaction-status failed">Failed</div>
-                        ` : ''}
-                    </div>
-                    <div class="transaction-amount ${amountClass}">
-                        ${amountSign}ZMW ${transaction.amount.toFixed(2)}
-                    </div>
-                </div>
-            `;
+            html += `<div class="transaction-item" data-transaction-id="${transaction.id}"><div class="transaction-icon ${iconInfo.class}"><i class="fas ${iconInfo.icon}"></i></div><div class="transaction-details"><div class="transaction-title">${this.getTransactionTitle(transaction)}</div><div class="transaction-meta">${timeString} • ${transaction.description || ''} ${transaction.method ? ` • ${transaction.method.toUpperCase()}` : ''}</div>${transaction.status === 'pending' ? `<div class="transaction-status pending">Pending</div>` : transaction.status === 'failed' ? `<div class="transaction-status failed">Failed</div>` : ''}</div><div class="transaction-amount ${amountClass}">${amountSign}ZMW ${transaction.amount.toFixed(2)}</div></div>`;
         });
-
         container.innerHTML = html;
-
         container.querySelectorAll('.transaction-item').forEach(item => {
             item.addEventListener('click', () => {
                 const transactionId = item.dataset.transactionId;
                 const transaction = filteredTransactions.find(t => t.id === transactionId);
-                if (transaction) {
-                    this.showTransactionDetails(transaction);
-                }
+                if (transaction) this.showTransactionDetails(transaction);
             });
         });
     },
-
     getTransactionIconInfo: function(transaction) {
-        switch (transaction.type) {
-            case 'deposit':
-                return { icon: 'fa-plus-circle', class: 'deposit' };
-            case 'withdrawal':
-                return { icon: 'fa-minus-circle', class: 'withdrawal' };
-            case 'payment':
-                return { icon: 'fa-money-bill-wave', class: 'payment' };
-            case 'refund':
-                return { icon: 'fa-undo', class: 'refund' };
-            case 'transfer':
-                return { icon: 'fa-exchange-alt', class: 'transfer' };
-            case 'referral':
-                return { icon: 'fa-gift', class: 'referral' };
-            default:
-                return { icon: 'fa-receipt', class: 'payment' };
+        switch(transaction.type) {
+            case 'deposit': return { icon: 'fa-plus-circle', class: 'deposit' };
+            case 'withdrawal': return { icon: 'fa-minus-circle', class: 'withdrawal' };
+            case 'payment': return { icon: 'fa-money-bill-wave', class: 'payment' };
+            case 'refund': return { icon: 'fa-undo', class: 'refund' };
+            case 'transfer': return { icon: 'fa-exchange-alt', class: 'transfer' };
+            case 'referral': return { icon: 'fa-gift', class: 'referral' };
+            default: return { icon: 'fa-receipt', class: 'payment' };
         }
     },
-
     getTransactionTitle: function(transaction) {
-        switch (transaction.type) {
-            case 'deposit':
-                return 'Deposit';
-            case 'withdrawal':
-                return 'Withdrawal';
-            case 'payment':
-                return transaction.description || 'Payment';
-            case 'refund':
-                return 'Refund';
-            case 'transfer':
-                return transaction.fromName ? `Transfer from ${transaction.fromName}` :
-                    transaction.toName ? `Transfer to ${transaction.toName}` : 'Transfer';
-            case 'referral':
-                return 'Referral Bonus';
-            default:
-                return 'Transaction';
+        switch(transaction.type) {
+            case 'deposit': return 'Deposit';
+            case 'withdrawal': return 'Withdrawal';
+            case 'payment': return transaction.description || 'Payment';
+            case 'refund': return 'Refund';
+            case 'transfer': return transaction.fromName ? `Transfer from ${transaction.fromName}` : transaction.toName ? `Transfer to ${transaction.toName}` : 'Transfer';
+            case 'referral': return 'Referral Bonus';
+            default: return 'Transaction';
         }
     },
-
     formatTransactionTime: function(date) {
-        const now = new Date();
-        const diff = now - date;
-
-        if (diff < 60000) return 'Just now';
-        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-        if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
-        return date.toLocaleDateString();
+        const now = new Date(); const diff = now - date;
+        if (diff < 60000) return 'Just now'; if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`; if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`; if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`; return date.toLocaleDateString();
     },
-
     setupTransactionFilters: function() {
         const filterButtons = document.querySelectorAll('#transactionsModal .filter-btn');
         filterButtons.forEach(btn => {
             btn.addEventListener('click', function() {
-                filterButtons.forEach(b => {
-                    b.classList.remove('active');
-                });
+                filterButtons.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
                 const filter = this.dataset.filter;
                 AppState.transactionFilter = filter;
@@ -3873,43 +3382,34 @@ const EnhancedWalletManager = {
             });
         });
     },
-
     showTransactionDetails: function(transaction) {
-        // Similar to original, omitted for brevity
+        const modal = document.createElement('div'); modal.className = 'transaction-details-modal'; modal.style.cssText = `position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; z-index: 10002; padding: 20px;`;
+        const time = new Date(transaction.timestamp); const iconInfo = this.getTransactionIconInfo(transaction);
+        let detailsHtml = '';
+        if (transaction.method) detailsHtml += `<div><strong>Method:</strong> ${transaction.method.toUpperCase()}</div>`;
+        if (transaction.recipientDetails) detailsHtml += `<div><strong>Recipient:</strong> ${transaction.recipientDetails}</div>`;
+        if (transaction.reference) detailsHtml += `<div><strong>Reference:</strong> ${transaction.reference}</div>`;
+        if (transaction.fromName) detailsHtml += `<div><strong>From:</strong> ${transaction.fromName}</div>`;
+        if (transaction.toName) detailsHtml += `<div><strong>To:</strong> ${transaction.toName}</div>`;
+        modal.innerHTML = `<div style="background:white; border-radius:12px; width:100%; max-width:500px; overflow:hidden;"><div style="padding:25px; background:linear-gradient(135deg,${iconInfo.class === 'deposit' ? '#4CAF50' : iconInfo.class === 'withdrawal' ? '#2196F3' : '#FF6B35'} 0%, ${iconInfo.class === 'deposit' ? '#66BB6A' : iconInfo.class === 'withdrawal' ? '#42A5F5' : '#FF8B35'} 100%); color:white; text-align:center;"><div style="font-size:48px; margin-bottom:15px;"><i class="fas ${iconInfo.icon}"></i></div><h3 style="margin:0; font-size:20px;">${this.getTransactionTitle(transaction)}</h3><p style="margin:10px 0 0 0; font-size:14px; opacity:0.9;">${time.toLocaleDateString()} • ${time.toLocaleTimeString()}</p></div><div style="padding:25px;"><div style="background:#f9f9f9; padding:20px; border-radius:8px; margin-bottom:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;"><div style="font-size:14px; color:#666;">Amount</div><div style="font-size:28px; font-weight:700; color:${transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral' ? '#4CAF50' : '#F44336'};">${transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'referral' ? '+' : '-'}ZMW ${transaction.amount.toFixed(2)}</div></div><div style="border-top:1px solid #eee; padding-top:15px;"><div style="font-size:14px; color:#666; margin-bottom:10px;"><strong>Transaction Details</strong></div><div style="font-size:13px; color:#333; line-height:1.6;"><div><strong>Transaction ID:</strong> ${transaction.id.substring(0,8)}...</div><div><strong>Status:</strong> <span style="padding:2px 8px; border-radius:10px; background:${transaction.status === 'completed' ? '#E8F5E9' : transaction.status === 'pending' ? '#FFF3E0' : '#FFEBEE'}; color:${transaction.status === 'completed' ? '#2E7D32' : transaction.status === 'pending' ? '#FF9800' : '#C62828'}; font-size:11px;">${transaction.status?.charAt(0).toUpperCase() + transaction.status?.slice(1) || 'Completed'}</span></div>${detailsHtml}${transaction.description ? `<div><strong>Description:</strong> ${transaction.description}</div>` : ''}</div></div></div><div style="display:flex; gap:10px;"><button id="closeTransactionDetails" style="flex:1; padding:15px; background:#FF6B35; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600;"><i class="fas fa-check"></i> Close</button><button id="shareTransactionBtn" style="padding:15px 20px; background:#f5f5f5; color:#666; border:none; border-radius:8px; cursor:pointer; font-weight:600;"><i class="fas fa-share"></i></button></div></div></div>`;
+        document.body.appendChild(modal);
+        modal.querySelector('#closeTransactionDetails').addEventListener('click', () => { document.body.removeChild(modal); });
+        modal.querySelector('#shareTransactionBtn').addEventListener('click', () => { this.shareTransaction(transaction); });
     },
-
+    shareTransaction: function(transaction) {
+        const shareText = `${this.getTransactionTitle(transaction)}: ZMW ${transaction.amount.toFixed(2)}`;
+        if (navigator.share) { navigator.share({ title: 'Transaction Details', text: shareText, url: window.location.href }).catch(console.error); }
+        else { navigator.clipboard.writeText(shareText).then(() => { EnhancedUIUpdater.showToast('Transaction details copied to clipboard', 'success'); }).catch(console.error); }
+    },
     exportTransactions: function() {
         EnhancedUIUpdater.showLoading('Generating PDF...');
-
         setTimeout(() => {
-            let exportText = `Jubel Wallet Transactions\n`;
-            exportText += `Generated: ${new Date().toLocaleString()}\n`;
-            exportText += `Total Balance: ZMW ${AppState.walletBalance.toFixed(2)}\n`;
-            exportText += `Total Transactions: ${AppState.walletTransactions.length}\n\n`;
-
-            exportText += `Transaction History:\n`;
-            exportText += `====================\n\n`;
-
+            let exportText = `Jubel Wallet Transactions\nGenerated: ${new Date().toLocaleString()}\nTotal Balance: ZMW ${AppState.walletBalance.toFixed(2)}\nTotal Transactions: ${AppState.walletTransactions.length}\n\nTransaction History:\n====================\n\n`;
             AppState.walletTransactions.forEach((transaction, index) => {
                 const date = new Date(transaction.timestamp);
-                exportText += `${index + 1}. ${this.getTransactionTitle(transaction)}\n`;
-                exportText += `   Date: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}\n`;
-                exportText += `   Amount: ZMW ${transaction.amount.toFixed(2)}\n`;
-                exportText += `   Type: ${transaction.type}\n`;
-                exportText += `   Status: ${transaction.status}\n`;
-                exportText += `   -------------------------\n`;
+                exportText += `${index + 1}. ${this.getTransactionTitle(transaction)}\n   Date: ${date.toLocaleDateString()} ${date.toLocaleTimeString()}\n   Amount: ZMW ${transaction.amount.toFixed(2)}\n   Type: ${transaction.type}\n   Status: ${transaction.status}\n   -------------------------\n`;
             });
-
-            const blob = new Blob([exportText], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `jubel-transactions-${new Date().getTime()}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-
+            const blob = new Blob([exportText], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `jubel-transactions-${new Date().getTime()}.txt`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
             EnhancedUIUpdater.hideLoading();
             EnhancedUIUpdater.showToast('Transactions exported successfully', 'success');
         }, 1000);
@@ -3917,12 +3417,286 @@ const EnhancedWalletManager = {
 };
 
 // ============================================
-// ENHANCED CITY DETECTOR (unchanged from original, but we'll keep it)
+// ENHANCED CITY DETECTOR (same as original)
 // ============================================
 const EnhancedCityDetector = {
-    // ... (same as original)
-    // Since it's large, we'll assume it's present.
-    // In practice, you'd copy the entire object from the original.
+    zambianCities: {
+        'Lusaka': { lat: -15.4167, lng: 28.2833, bounds: [27.8, -15.8, 28.8, -15.2], searchTerms: ['Lusaka'] },
+        'Ndola': { lat: -12.9667, lng: 28.6333, bounds: [28.5, -13.1, 28.8, -12.9], searchTerms: ['Ndola'] },
+        'Kitwe': { lat: -12.8167, lng: 28.2000, bounds: [27.9, -13.1, 28.4, -12.7], searchTerms: ['Kitwe'] },
+        'Kabwe': { lat: -14.4333, lng: 28.4500, bounds: [28.3, -14.6, 28.6, -14.3], searchTerms: ['Kabwe'] },
+        'Livingstone': { lat: -17.8500, lng: 25.8667, bounds: [25.7, -18.0, 26.0, -17.7], searchTerms: ['Livingstone'] },
+        'Chipata': { lat: -13.6333, lng: 32.6500, bounds: [32.5, -13.8, 32.8, -13.6], searchTerms: ['Chipata'] },
+        'Chingola': { lat: -12.5333, lng: 27.8500, bounds: [27.8, -12.8, 27.9, -12.4], searchTerms: ['Chingola'] },
+        'Mufulira': { lat: -12.5500, lng: 28.2333, bounds: [28.1, -12.7, 28.3, -12.5], searchTerms: ['Mufulira'] },
+        'Luanshya': { lat: -13.1333, lng: 28.4000, bounds: [28.3, -13.2, 28.5, -13.0], searchTerms: ['Luanshya'] },
+        'Kasama': { lat: -10.2000, lng: 31.2000, bounds: [31.1, -10.3, 31.3, -10.1], searchTerms: ['Kasama'] },
+        'Solwezi': { lat: -12.1833, lng: 26.4000, bounds: [26.3, -12.3, 26.5, -12.1], searchTerms: ['Solwezi'] },
+        'Mazabuka': { lat: -15.8667, lng: 27.7667, bounds: [27.7, -15.9, 27.9, -15.7], searchTerms: ['Mazabuka'] },
+        'Choma': { lat: -16.8167, lng: 26.9833, bounds: [26.8, -16.9, 27.1, -16.7], searchTerms: ['Choma'] },
+        'Mongu': { lat: -15.2500, lng: 23.1333, bounds: [23.0, -15.3, 23.3, -15.2], searchTerms: ['Mongu'] },
+        'Kafue': { lat: -15.7667, lng: 28.1833, bounds: [28.1, -15.8, 28.3, -15.7], searchTerms: ['Kafue'] },
+        'Monze': { lat: -16.2833, lng: 27.4833, bounds: [27.4, -16.3, 27.5, -16.2], searchTerms: ['Monze'] },
+        'Mumbwa': { lat: -14.9833, lng: 27.0667, bounds: [27.0, -15.0, 27.1, -14.9], searchTerms: ['Mumbwa'] },
+        'Kapiri Mposhi': { lat: -13.9667, lng: 28.6833, bounds: [28.6, -14.0, 28.7, -13.9], searchTerms: ['Kapiri Mposhi', 'Kapiri'] },
+        'Mpika': { lat: -11.8333, lng: 31.4500, bounds: [31.4, -11.9, 31.5, -11.8], searchTerms: ['Mpika'] },
+        'Nchelenge': { lat: -9.3500, lng: 28.7333, bounds: [28.7, -9.4, 28.8, -9.3], searchTerms: ['Nchelenge'] }
+    },
+
+    async detectCityFromCoordinates(lat, lng) {
+        console.log(`🔍 Starting city detection for coordinates: ${lat}, ${lng}`);
+        try {
+            const city = await this.reverseGeocodeWithFallback(lat, lng);
+            if (city) { console.log(`✅ City detected via reverse geocoding: ${city}`); return city; }
+            const proximityCity = this.detectCityByProximityWithGPS(lat, lng);
+            if (proximityCity) { console.log(`✅ City detected via GPS proximity: ${proximityCity}`); return proximityCity; }
+            console.log('❌ Could not automatically detect city. Showing manual selection.');
+            this.showManualCitySelection(lat, lng);
+            return null;
+        } catch (error) { console.error('Error in city detection:', error); this.showManualCitySelection(lat, lng); return null; }
+    },
+
+    async reverseGeocodeWithFallback(lat, lng) {
+        const endpoints = [
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&countrycodes=zm&zoom=18`,
+            `https://us1.locationiq.com/v1/reverse.php?key=pk.YOUR_LOCATIONIQ_KEY&lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+            `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+        ];
+        for (let i = 0; i < endpoints.length; i++) {
+            try {
+                console.log(`Trying geocoding endpoint ${i + 1}...`);
+                const response = await fetch(endpoints[i], { headers: { 'User-Agent': 'JubelRideApp/2.0', 'Accept': 'application/json' }, timeout: 5000 });
+                if (response.ok) {
+                    const data = await response.json();
+                    const detectedCity = this.extractCityFromGeocodeResponse(data);
+                    if (detectedCity && this.isValidZambianCity(detectedCity)) { console.log(`✅ Found city via endpoint ${i + 1}: ${detectedCity}`); return detectedCity; }
+                }
+            } catch (error) { console.warn(`Endpoint ${i + 1} failed:`, error.message); continue; }
+        }
+        return null;
+    },
+
+    extractCityFromGeocodeResponse(data) {
+        const address = data.address || data;
+        const cityFields = ['city', 'town', 'village', 'municipality', 'county', 'suburb', 'region', 'state', 'locality'];
+        for (const field of cityFields) { if (address[field]) return this.normalizeCityName(address[field]); }
+        if (data.display_name) {
+            const parts = data.display_name.split(',');
+            for (let i = 0; i < Math.min(3, parts.length); i++) {
+                const potentialCity = parts[i].trim();
+                if (this.isValidZambianCity(potentialCity)) return this.normalizeCityName(potentialCity);
+            }
+        }
+        return null;
+    },
+
+    detectCityByProximityWithGPS(lat, lng) {
+        let closestCity = null, minDistance = Infinity;
+        for (const [cityName, cityData] of Object.entries(this.zambianCities)) {
+            if (this.isWithinCityBounds(lat, lng, cityData.bounds)) { console.log(`📍 Within ${cityName} bounds`); return cityName; }
+            const distance = this.calculateDistance(lat, lng, cityData.lat, cityData.lng);
+            const threshold = cityName === 'Lusaka' ? 60 : (cityName === 'Ndola' || cityName === 'Kitwe' ? 40 : 25);
+            if (distance < minDistance && distance <= threshold) { minDistance = distance; closestCity = cityName; }
+        }
+        if (closestCity) { console.log(`📍 Closest city: ${closestCity} (${minDistance.toFixed(1)} km)`); return closestCity; }
+        return null;
+    },
+
+    isWithinCityBounds(lat, lng, bounds) {
+        if (!bounds) return false;
+        const [west, south, east, north] = bounds;
+        return lng >= west && lng <= east && lat >= south && lat <= north;
+    },
+
+    isValidZambianCity(cityName) {
+        if (!cityName) return false;
+        const normalizedInput = this.normalizeCityName(cityName).toLowerCase();
+        for (const [knownCity, cityData] of Object.entries(this.zambianCities)) {
+            const normalizedKnown = this.normalizeCityName(knownCity).toLowerCase();
+            if (normalizedInput === normalizedKnown) return true;
+            if (normalizedInput.includes(normalizedKnown) || normalizedKnown.includes(normalizedInput)) return true;
+            if (cityData.searchTerms) { for (const term of cityData.searchTerms) { if (normalizedInput.includes(term.toLowerCase())) return true; } }
+        }
+        return false;
+    },
+
+    normalizeCityName(cityName) {
+        if (!cityName) return '';
+        return cityName.replace(/ City$/i, '').replace(/ Town$/i, '').replace(/ Municipality$/i, '').replace(/ District$/i, '').trim();
+    },
+
+    async getPreciseUserLocation(lat, lng) {
+        console.log(`📍 Getting precise location details for: ${lat}, ${lng}`);
+        try {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18&extratags=1`;
+            const response = await fetch(url, { headers: { 'User-Agent': 'JubelRideApp/2.0', 'Accept': 'application/json' } });
+            if (response.ok) {
+                const data = await response.json();
+                const address = data.address || {};
+                const addressComponents = [];
+                if (address.house_number || address.housenumber) addressComponents.push(`#${address.house_number || address.housenumber}`);
+                if (address.building) addressComponents.push(address.building); else if (data.extratags?.building) addressComponents.push(data.extratags.building);
+                if (address.road) addressComponents.push(address.road);
+                if (address.suburb || address.neighbourhood) addressComponents.push(address.suburb || address.neighbourhood);
+                if (address.quarter) addressComponents.push(address.quarter);
+                if (address.city || address.town) addressComponents.push(address.city || address.town);
+                if (address.state) addressComponents.push(address.state);
+                const shortAddress = this.buildShortAddress(address);
+                const detailedAddress = addressComponents.join(', ');
+                const fullAddress = data.display_name || detailedAddress;
+                return { address: shortAddress, detailedAddress, fullAddress, city: address.city || address.town || address.municipality, road: address.road, suburb: address.suburb || address.neighbourhood, houseNumber: address.house_number || address.housenumber, building: address.building, latitude: lat, longitude: lng, rawAddress: address, geocodeData: data };
+            }
+        } catch (error) { console.error('Error getting precise location:', error); }
+        return { address: 'Current Location', detailedAddress: `Near coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, fullAddress: `Current Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`, city: 'Unknown', latitude: lat, longitude: lng };
+    },
+
+    buildShortAddress(address) {
+        const parts = [];
+        if (address.house_number || address.housenumber) parts.push(`#${address.house_number || address.housenumber}`);
+        if (address.building) parts.push(address.building);
+        if (address.road) parts.push(address.road);
+        if (address.suburb || address.neighbourhood) parts.push(address.suburb || address.neighbourhood);
+        return parts.slice(0, 3).join(', ');
+    },
+
+    showManualCitySelection(lat, lng) {
+        console.log('📍 Showing manual city selection');
+        const modal = document.createElement('div'); modal.className = 'manual-city-selection-modal'; modal.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 10001; padding: 20px;`;
+        const sortedCities = Object.keys(this.zambianCities).map(city => ({ name: city, distance: this.calculateDistance(lat, lng, this.zambianCities[city].lat, this.zambianCities[city].lng) })).sort((a, b) => a.distance - b.distance);
+        let html = `<div style="background:white; border-radius:12px; width:100%; max-width:400px; max-height:80vh; overflow:hidden;"><div style="padding:20px; background:linear-gradient(135deg,#FF6B35 0%,#FF8B35 100%); color:white;"><h3 style="margin:0; font-size:18px;"><i class="fas fa-map-marker-alt"></i> Select Your City</h3><p style="margin:10px 0 0 0; font-size:14px; opacity:0.9;">We need to know your city to provide accurate ride services</p></div><div style="padding:20px;"><div style="margin-bottom:15px;"><div style="background:#FFF3E0; border-left:4px solid #FF9800; padding:12px; border-radius:4px; font-size:14px; color:#333;"><i class="fas fa-info-circle" style="color:#FF9800;"></i><strong>Your approximate location:</strong><br>Latitude: ${lat.toFixed(6)}, Longitude: ${lng.toFixed(6)}</div></div><div style="margin-bottom:15px;"><input type="text" id="citySearchInput" placeholder="Search for your city..." style="width:100%; padding:12px; border:2px solid #e0e0e0; border-radius:8px; font-size:14px; box-sizing:border-box;" autocomplete="off"></div><div id="cityList" style="max-height:300px; overflow-y:auto; border:1px solid #e0e0e0; border-radius:8px;">`;
+        sortedCities.forEach((city, index) => {
+            const distanceText = city.distance < 1 ? `${(city.distance * 1000).toFixed(0)} m away` : `${city.distance.toFixed(1)} km away`;
+            const isNearby = index < 3;
+            html += `<div class="city-item" data-city="${city.name}" style="padding:15px; border-bottom:1px solid #eee; cursor:pointer; transition:all 0.2s; background:${isNearby ? '#f9f9f9' : 'white'};" onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background='${isNearby ? '#f9f9f9' : 'white'}'"><div style="display:flex; justify-content:space-between; align-items:center;"><div><div style="font-weight:600; color:#333; margin-bottom:4px;">${city.name} ${isNearby ? '<span style="color:#FF6B35; font-size:12px; margin-left:8px;">NEARBY</span>' : ''}</div><div style="font-size:12px; color:#666;">${distanceText}</div></div><div style="color:#FF6B35; font-size:18px;"><i class="fas fa-chevron-right"></i></div></div></div>`;
+        });
+        html += `</div><div style="margin-top:20px; text-align:center;"><button id="retryAutoDetectBtn" style="padding:12px 20px; background:#f5f5f5; color:#666; border:none; border-radius:6px; cursor:pointer; font-weight:600; width:100%; margin-bottom:10px;"><i class="fas fa-sync-alt"></i> Retry Auto-Detection</button><div style="font-size:12px; color:#999; margin-top:10px;">Can't find your city? Contact support for assistance.</div></div></div></div>`;
+        modal.innerHTML = html;
+        document.body.appendChild(modal);
+        const citySearchInput = modal.querySelector('#citySearchInput');
+        const cityList = modal.querySelector('#cityList');
+        const retryBtn = modal.querySelector('#retryAutoDetectBtn');
+        citySearchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            const cityItems = cityList.querySelectorAll('.city-item');
+            cityItems.forEach(item => { const cityName = item.dataset.city.toLowerCase(); if (cityName.includes(searchTerm) || !searchTerm) item.style.display = 'block'; else item.style.display = 'none'; });
+        });
+        modal.querySelectorAll('.city-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const selectedCity = this.dataset.city;
+                console.log(`📍 User manually selected city: ${selectedCity}`);
+                AppState.currentCity = selectedCity; AppState.detectedCity = selectedCity;
+                EnhancedUIUpdater.updateCityDisplay(selectedCity);
+                const cityData = this.zambianCities[selectedCity];
+                if (cityData && map) { map.setView([cityData.lat, cityData.lng], 13); if (!AppState.userLocation) AppState.userLocation = { lat: cityData.lat, lng: cityData.lng }; }
+                document.body.removeChild(modal);
+                EnhancedUIUpdater.showToast(`City set to ${selectedCity}`, 'success');
+                setTimeout(() => { if (AppState.userLocation) EnhancedCityDetector.updateAllPickupLocations({ latitude: AppState.userLocation.lat, longitude: AppState.userLocation.lng, address: 'Current Location', detailedAddress: selectedCity, fullAddress: selectedCity, city: selectedCity }); }, 500);
+            });
+        });
+        retryBtn.addEventListener('click', async function() {
+            EnhancedUIUpdater.showLoading('Detecting your location...');
+            try {
+                const position = await new Promise((resolve, reject) => { navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }); });
+                const { latitude, longitude } = position.coords;
+                const city = await EnhancedCityDetector.detectCityFromCoordinates(latitude, longitude);
+                if (city) { document.body.removeChild(modal); EnhancedUIUpdater.hideLoading(); AppState.userLocation = { lat: latitude, lng: longitude }; await EnhancedCityDetector.updateCityAndAddress(latitude, longitude); }
+                else { EnhancedUIUpdater.hideLoading(); EnhancedUIUpdater.showToast('Still unable to detect city. Please select manually.', 'warning'); }
+            } catch (error) { EnhancedUIUpdater.hideLoading(); EnhancedUIUpdater.showToast('Error getting location. Please select city manually.', 'error'); }
+        });
+        setTimeout(() => { citySearchInput.focus(); }, 300);
+    },
+
+    calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; const dLat = this.toRad(lat2 - lat1); const dLon = this.toRad(lon2 - lon1);
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c;
+    },
+
+    toRad(value) { return value * Math.PI / 180; },
+
+    async updateCityAndAddress(lat, lng) {
+        try {
+            console.log(`📍 Updating city and address for: ${lat}, ${lng}`);
+            const detectedCity = await this.detectCityFromCoordinates(lat, lng);
+            if (!detectedCity) { console.log('📍 Waiting for manual city selection...'); return null; }
+            AppState.currentCity = detectedCity; AppState.detectedCity = detectedCity;
+            EnhancedUIUpdater.updateCityDisplay(detectedCity);
+            const addressDetails = await this.getPreciseUserLocation(lat, lng);
+            this.updateAllPickupLocations(addressDetails);
+            if (map) {
+                map.setView([lat, lng], 17);
+                if (currentLocationMarker) map.removeLayer(currentLocationMarker);
+                currentLocationMarker = L.marker([lat, lng], { icon: L.divIcon({ className: 'precise-location-marker', html: `<div class="pulsing-dot"></div><div class="location-pin"><i class="fas fa-map-marker-alt"></i></div>`, iconSize: [40, 40], iconAnchor: [20, 40] }) }).addTo(map).bindPopup(`<strong>Your Current Location</strong><br>${addressDetails.address}<br><small>${detectedCity}</small>`);
+                const cityData = this.zambianCities[detectedCity];
+                if (cityData && cityData.bounds) this.showCityBoundaryOnMap(detectedCity);
+            }
+            console.log(`📍 Location update complete: ${detectedCity}, ${addressDetails.address}`);
+            EnhancedUIUpdater.showToast(`Location detected: ${addressDetails.address}`, 'success');
+            return { city: detectedCity, address: addressDetails, coordinates: { lat, lng } };
+        } catch (error) { console.error('Error updating city and address:', error); EnhancedUIUpdater.showToast('Error updating location', 'error'); return null; }
+    },
+
+    showCityBoundaryOnMap(cityName) {
+        if (cityBoundaryLayer) map.removeLayer(cityBoundaryLayer);
+        const cityData = this.zambianCities[cityName];
+        if (cityData && cityData.bounds) {
+            const [west, south, east, north] = cityData.bounds;
+            const bounds = [[south, west], [north, east]];
+            cityBoundaryLayer = L.rectangle(bounds, { color: '#FF6B35', weight: 2, opacity: 0.5, fillOpacity: 0.1, fillColor: '#FF6B35' }).addTo(map);
+            cityBoundaryLayer.bindPopup(`<strong>${cityName}</strong><br>Service Area`);
+        }
+    },
+
+    updateAllPickupLocations(addressDetails) {
+        console.log('📍 Updating all pickup locations with:', addressDetails);
+        const pickupInputs = ['pickupLocation', 'deliveryPickup', 'shortDeliveryPickup', 'truckPickup', 'emergencyPickup', 'schedulePickup', 'someonePickup', 'sharePickup', 'broadcastPickup'];
+        pickupInputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.value = addressDetails.detailedAddress;
+                input.dataset.lat = addressDetails.latitude; input.dataset.lng = addressDetails.longitude; input.dataset.address = JSON.stringify(addressDetails); input.dataset.city = addressDetails.city;
+                input.removeAttribute('readonly');
+                if (!input.nextElementSibling?.classList.contains('clear-input-btn')) this.addClearButtonToInput(input);
+                if (!input.parentNode.querySelector('.current-location-btn')) this.addCurrentLocationButton(input);
+            }
+        });
+        AppState.pickup = { lat: addressDetails.latitude, lng: addressDetails.longitude, address: addressDetails.address, detailedAddress: addressDetails.detailedAddress, fullAddress: addressDetails.fullAddress, city: addressDetails.city, road: addressDetails.road, suburb: addressDetails.suburb, houseNumber: addressDetails.houseNumber, building: addressDetails.building, rawData: addressDetails };
+        console.log('📍 AppState.pickup updated:', AppState.pickup);
+        if (map) EnhancedUIUpdater.updatePickupMarker(AppState.pickup);
+        EnhancedSearchEngine.addToRecentLocations({ lat: addressDetails.latitude, lng: addressDetails.longitude, name: 'Current Location', address: addressDetails.detailedAddress, fullAddress: addressDetails.fullAddress, city: addressDetails.city, category: 'current_location' });
+    },
+
+    addClearButtonToInput(input) {
+        const parent = input.parentNode;
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button'; clearBtn.className = 'clear-input-btn'; clearBtn.innerHTML = '<i class="fas fa-times"></i>'; clearBtn.title = 'Clear location';
+        clearBtn.style.cssText = `position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #999; cursor: pointer; display: none; z-index: 10; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s;`;
+        clearBtn.addEventListener('mouseover', () => { clearBtn.style.background = '#f5f5f5'; clearBtn.style.color = '#333'; });
+        clearBtn.addEventListener('mouseout', () => { clearBtn.style.background = 'none'; clearBtn.style.color = '#999'; });
+        clearBtn.addEventListener('click', () => {
+            input.value = ''; clearBtn.style.display = 'none';
+            if (input.id === 'pickupLocation' || input.id.includes('pickup')) { AppState.pickup = null; if (pickupMarker) { map.removeLayer(pickupMarker); pickupMarker = null; } }
+            EnhancedUIUpdater.showToast('Location cleared', 'info');
+        });
+        parent.style.position = 'relative';
+        parent.appendChild(clearBtn);
+        input.addEventListener('input', () => { clearBtn.style.display = input.value ? 'flex' : 'none'; });
+        clearBtn.style.display = input.value ? 'flex' : 'none';
+    },
+
+    addCurrentLocationButton(input) {
+        const parent = input.parentNode;
+        const currentLocationBtn = document.createElement('button');
+        currentLocationBtn.type = 'button'; currentLocationBtn.className = 'current-location-btn'; currentLocationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>'; currentLocationBtn.title = 'Use current location';
+        currentLocationBtn.style.cssText = `position: absolute; right: 45px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #FF6B35; cursor: pointer; z-index: 10; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: all 0.2s;`;
+        currentLocationBtn.addEventListener('mouseover', () => { currentLocationBtn.style.background = '#FFF3E0'; });
+        currentLocationBtn.addEventListener('mouseout', () => { currentLocationBtn.style.background = 'none'; });
+        currentLocationBtn.addEventListener('click', () => {
+            EnhancedUIUpdater.showLoading('Getting your current location...');
+            getCurrentLocation().then(() => { EnhancedUIUpdater.hideLoading(); }).catch(error => { EnhancedUIUpdater.hideLoading(); console.error('Error getting location:', error); });
+        });
+        parent.appendChild(currentLocationBtn);
+    }
 };
 
 // ============================================
@@ -3930,23 +3704,12 @@ const EnhancedCityDetector = {
 // ============================================
 function initializeMap() {
     console.log('Initializing map...');
-
-    const defaultLat = -15.4167;
-    const defaultLng = 28.2833;
-
+    const defaultLat = -15.4167; const defaultLng = 28.2833;
     map = L.map('map').setView([defaultLat, defaultLng], 13);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
-    }).addTo(map);
-
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors', maxZoom: 19 }).addTo(map);
     L.control.scale().addTo(map);
-
     EnhancedUIUpdater.hideMapLoading();
-
     console.log('Map initialized successfully');
-
     AppState.mapInitialized = true;
 }
 
@@ -3954,75 +3717,31 @@ function initializeMap() {
 // GET CURRENT LOCATION
 // ============================================
 async function getCurrentLocation(showLoading = true) {
-    if (!navigator.geolocation) {
-        console.error('Geolocation is not supported by this browser');
-        EnhancedUIUpdater.showToast('Geolocation is not supported by your browser', 'error');
-        showManualCitySelection();
-        return;
-    }
-
+    if (!navigator.geolocation) { console.error('Geolocation is not supported by this browser'); EnhancedUIUpdater.showToast('Geolocation is not supported by your browser', 'error'); showManualCitySelection(); return; }
     console.log('📍 Getting current location...');
-
-    if (showLoading) {
-        EnhancedUIUpdater.showLoading('Detecting your precise location and city...');
-    }
-
+    if (showLoading) EnhancedUIUpdater.showLoading('Detecting your precise location and city...');
     try {
-        const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-                resolve,
-                reject,
-                {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
-                }
-            );
-        });
-
+        const position = await new Promise((resolve, reject) => { navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }); });
         const { latitude, longitude, accuracy } = position.coords;
         console.log(`📍 Location obtained: ${latitude}, ${longitude} (Accuracy: ${accuracy}m)`);
-
-        AppState.userLocation = {
-            lat: latitude,
-            lng: longitude,
-            accuracy: accuracy,
-            timestamp: Date.now()
-        };
-
+        AppState.userLocation = { lat: latitude, lng: longitude, accuracy: accuracy, timestamp: Date.now() };
         const result = await EnhancedCityDetector.updateCityAndAddress(latitude, longitude);
-
         if (result) {
-            if (showLoading) {
-                EnhancedUIUpdater.hideLoading();
-            }
-
-            const message = result.address ?
-                `Location set: ${result.address.address}` :
-                `Location detected in ${result.city}`;
-
+            if (showLoading) EnhancedUIUpdater.hideLoading();
+            const message = result.address ? `Location set: ${result.address.address}` : `Location detected in ${result.city}`;
             EnhancedUIUpdater.showToast(message, 'success');
-
+            console.log(`✅ Location detection successful: ${result.city}, ${result.address?.address}`);
             return result;
-
         } else {
-            if (showLoading) {
-                EnhancedUIUpdater.hideLoading();
-            }
+            if (showLoading) EnhancedUIUpdater.hideLoading();
             console.warn('📍 City detection failed, manual selection shown');
             return null;
         }
-
     } catch (error) {
         console.error('❌ Error getting location:', error);
-
-        if (showLoading) {
-            EnhancedUIUpdater.hideLoading();
-        }
-
+        if (showLoading) EnhancedUIUpdater.hideLoading();
         let errorMessage = 'Unable to get your location';
-
-        switch (error.code) {
+        switch(error.code) {
             case error.PERMISSION_DENIED:
                 errorMessage = 'Location access denied. Please enable location services in your browser settings.';
                 EnhancedUIUpdater.showToast(errorMessage, 'error');
@@ -4036,165 +3755,59 @@ async function getCurrentLocation(showLoading = true) {
             case error.TIMEOUT:
                 errorMessage = 'Location request timed out. Please try again.';
                 EnhancedUIUpdater.showToast(errorMessage, 'warning');
-                setTimeout(() => {
-                    EnhancedUIUpdater.showToast('Retrying with standard accuracy...', 'info');
-                    getCurrentLocationWithStandardAccuracy();
-                }, 2000);
+                setTimeout(() => { EnhancedUIUpdater.showToast('Retrying with standard accuracy...', 'info'); getCurrentLocationWithStandardAccuracy(); }, 2000);
                 break;
             default:
                 EnhancedUIUpdater.showToast(errorMessage, 'error');
                 showManualCitySelection();
                 break;
         }
-
         return null;
     }
 }
 
 async function getCurrentLocationWithStandardAccuracy() {
     try {
-        const position = await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-                resolve,
-                reject,
-                {
-                    enableHighAccuracy: false,
-                    timeout: 10000,
-                    maximumAge: 60000
-                }
-            );
-        });
-
+        const position = await new Promise((resolve, reject) => { navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }); });
         const { latitude, longitude } = position.coords;
         console.log(`📍 Standard accuracy location: ${latitude}, ${longitude}`);
-
         AppState.userLocation = { lat: latitude, lng: longitude };
         return await EnhancedCityDetector.updateCityAndAddress(latitude, longitude);
-
-    } catch (error) {
-        console.error('Standard accuracy also failed:', error);
-        showManualCitySelection();
-        return null;
-    }
+    } catch (error) { console.error('Standard accuracy also failed:', error); showManualCitySelection(); return null; }
 }
 
 function showLocationPermissionInstructions() {
-    const modal = document.createElement('div');
-    modal.className = 'location-permission-modal';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.9);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 10002;
-        padding: 20px;
-    `;
-
+    const modal = document.createElement('div'); modal.className = 'location-permission-modal'; modal.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 10002; padding: 20px;`;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
     let instructions = '';
-    if (isMobile) {
-        instructions = `
-            <h4 style="color: #333; margin-bottom: 15px;">Enable Location on Mobile:</h4>
-            <ol style="text-align: left; padding-left: 20px; color: #666;">
-                <li>Open your device <strong>Settings</strong></li>
-                <li>Go to <strong>Privacy/Location Services</strong></li>
-                <li>Find <strong>Browser/Chrome/Safari</strong></li>
-                <li>Set to <strong>"While Using the App"</strong></li>
-                <li>Return here and refresh the page</li>
-            </ol>
-        `;
-    } else {
-        instructions = `
-            <h4 style="color: #333; margin-bottom: 15px;">Enable Location in Browser:</h4>
-            <ol style="text-align: left; padding-left: 20px; color: #666;">
-                <li>Look for the location icon in your browser's address bar</li>
-                <li>Click it and select <strong>"Allow"</strong></li>
-                <li>Refresh this page if needed</li>
-                <li>If blocked, clear browser settings for this site</li>
-            </ol>
-        `;
-    }
-
-    modal.innerHTML = `
-        <div style="
-            background: white;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 500px;
-            overflow: hidden;
-        ">
-            <div style="
-                padding: 25px;
-                background: linear-gradient(135deg, #FF6B35 0%, #FF8B35 100%);
-                color: white;
-                text-align: center;
-            ">
-                <div style="font-size: 48px; margin-bottom: 15px;">
-                    <i class="fas fa-map-marker-alt"></i>
-                </div>
-                <h3 style="margin: 0; font-size: 20px;">
-                    Location Required
-                </h3>
-                <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.9;">
-                    Jubel needs your location to provide ride services
-                </p>
-            </div>
-
-            <div style="padding: 25px;">
-                ${instructions}
-
-                <div style="margin-top: 25px;">
-                    <button id="retryLocationBtn"
-                            style="
-                                padding: 14px 25px;
-                                background: #FF6B35;
-                                color: white;
-                                border: none;
-                                border-radius: 8px;
-                                cursor: pointer;
-                                font-weight: 600;
-                                font-size: 16px;
-                                width: 100%;
-                                margin-bottom: 15px;
-                            ">
-                        <i class="fas fa-sync-alt"></i> Retry Location Access
-                    </button>
-
-                    <button id="useManualCityBtn"
-                            style="
-                                padding: 14px 25px;
-                                background: #f5f5f5;
-                                color: #666;
-                                border: none;
-                                border-radius: 8px;
-                                cursor: pointer;
-                                font-weight: 600;
-                                width: 100%;
-                            ">
-                        <i class="fas fa-map"></i> Select City Manually
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-
+    if (isMobile) instructions = `<h4 style="color:#333; margin-bottom:15px;">Enable Location on Mobile:</h4><ol style="text-align:left; padding-left:20px; color:#666;"><li>Open your device <strong>Settings</strong></li><li>Go to <strong>Privacy/Location Services</strong></li><li>Find <strong>Browser/Chrome/Safari</strong></li><li>Set to <strong>"While Using the App"</strong></li><li>Return here and refresh the page</li></ol>`;
+    else instructions = `<h4 style="color:#333; margin-bottom:15px;">Enable Location in Browser:</h4><ol style="text-align:left; padding-left:20px; color:#666;"><li>Look for the location icon in your browser's address bar</li><li>Click it and select <strong>"Allow"</strong></li><li>Refresh this page if needed</li><li>If blocked, clear browser settings for this site</li></ol>`;
+    modal.innerHTML = `<div style="background:white; border-radius:12px; width:100%; max-width:500px; overflow:hidden;"><div style="padding:25px; background:linear-gradient(135deg,#FF6B35 0%,#FF8B35 100%); color:white; text-align:center;"><div style="font-size:48px; margin-bottom:15px;"><i class="fas fa-map-marker-alt"></i></div><h3 style="margin:0; font-size:20px;">Location Required</h3><p style="margin:10px 0 0 0; font-size:14px; opacity:0.9;">Jubel needs your location to provide ride services</p></div><div style="padding:25px;">${instructions}<div style="margin-top:25px;"><button id="retryLocationBtn" style="padding:14px 25px; background:#FF6B35; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px; width:100%; margin-bottom:15px;"><i class="fas fa-sync-alt"></i> Retry Location Access</button><button id="useManualCityBtn" style="padding:14px 25px; background:#f5f5f5; color:#666; border:none; border-radius:8px; cursor:pointer; font-weight:600; width:100%;"><i class="fas fa-map"></i> Select City Manually</button></div></div></div>`;
     document.body.appendChild(modal);
+    modal.querySelector('#retryLocationBtn').addEventListener('click', () => { document.body.removeChild(modal); getCurrentLocation(); });
+    modal.querySelector('#useManualCityBtn').addEventListener('click', () => { document.body.removeChild(modal); EnhancedCityDetector.showManualCitySelection(); });
+}
 
-    modal.querySelector('#retryLocationBtn').addEventListener('click', () => {
-        document.body.removeChild(modal);
-        getCurrentLocation();
+function setupEnhancedLocationInputs() {
+    console.log('📍 Setting up enhanced location inputs...');
+    const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
+    pickupInputs.forEach(input => {
+        input.removeAttribute('readonly');
+        if (!input.placeholder) input.placeholder = 'Enter pickup location or use current location';
+        input.addEventListener('focus', function() { this.parentElement.classList.add('active'); if (!this.value.trim()) EnhancedLocationManager.showRecentLocations(this.id, 'pickup'); });
+        input.addEventListener('blur', function() { setTimeout(() => { this.parentElement.classList.remove('active'); EnhancedLocationManager.hideSuggestions(); }, 200); });
+        input.addEventListener('input', function(e) { EnhancedLocationManager.handlePickupInputChange(this.id, e.target.value); });
+        if (!input.nextElementSibling?.classList.contains('clear-input-btn')) EnhancedCityDetector.addClearButtonToInput(input);
+        if (!input.parentNode.querySelector('.current-location-btn')) EnhancedCityDetector.addCurrentLocationButton(input);
     });
-
-    modal.querySelector('#useManualCityBtn').addEventListener('click', () => {
-        document.body.removeChild(modal);
-        EnhancedCityDetector.showManualCitySelection();
+    const destinationInputs = document.querySelectorAll('input[id*="destination"], input[id*="Destination"]');
+    destinationInputs.forEach(input => {
+        input.addEventListener('focus', function() { this.parentElement.classList.add('active'); EnhancedLocationManager.showRecentLocations(this.id, 'destination'); });
+        input.addEventListener('blur', function() { setTimeout(() => { this.parentElement.classList.remove('active'); EnhancedLocationManager.hideSuggestions(); }, 200); });
+        input.addEventListener('input', function(e) { EnhancedLocationManager.handleDestinationInputChange(this.id, e.target.value); });
+        if (!input.nextElementSibling?.classList.contains('clear-input-btn')) EnhancedCityDetector.addClearButtonToInput(input);
     });
+    console.log(`📍 Enhanced ${pickupInputs.length} pickup inputs and ${destinationInputs.length} destination inputs`);
 }
 
 // ============================================
@@ -4202,592 +3815,639 @@ function showLocationPermissionInstructions() {
 // ============================================
 function switchScreen(screen) {
     console.log(`Switching to screen: ${screen}`);
-
-    document.querySelectorAll('.history-screen, .account-screen, .emergency-screen').forEach(s => {
-        s.style.display = 'none';
-    });
-
-    const homeContent = document.getElementById('homeContent');
-    if (homeContent) {
-        homeContent.style.display = 'none';
-    }
-
-    document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.classList.remove('active');
-    });
-
+    document.querySelectorAll('.history-screen, .account-screen, .emergency-screen').forEach(s => { s.style.display = 'none'; });
+    const homeContent = document.getElementById('homeContent'); if (homeContent) homeContent.style.display = 'none';
+    document.querySelectorAll('.nav-tab').forEach(tab => { tab.classList.remove('active'); });
     AppState.activeScreen = screen;
-
-    switch (screen) {
+    switch(screen) {
         case 'home':
-            const homeTab = document.querySelector('.nav-tab[data-screen="home"]');
-            if (homeTab) homeTab.classList.add('active');
-
-            if (homeContent) {
-                homeContent.style.display = 'block';
-            }
+            const homeTab = document.querySelector('.nav-tab[data-screen="home"]'); if (homeTab) homeTab.classList.add('active');
+            if (homeContent) homeContent.style.display = 'block';
             break;
-
         case 'history':
-            const historyScreen = document.getElementById('historyScreen');
-            const historyTab = document.querySelector('.nav-tab[data-screen="history"]');
-
-            if (historyScreen && historyTab) {
-                historyScreen.style.display = 'block';
-                historyTab.classList.add('active');
-                EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid);
-            }
+            const historyScreen = document.getElementById('historyScreen'); const historyTab = document.querySelector('.nav-tab[data-screen="history"]');
+            if (historyScreen && historyTab) { historyScreen.style.display = 'block'; historyTab.classList.add('active'); EnhancedFirebaseManager.loadRideHistory(AppState.currentUser.uid); }
             break;
-
         case 'account':
-            const accountScreen = document.getElementById('accountScreen');
-            const accountTab = document.querySelector('.nav-tab[data-screen="account"]');
-
-            if (accountScreen && accountTab) {
-                accountScreen.style.display = 'block';
-                accountTab.classList.add('active');
-            }
+            const accountScreen = document.getElementById('accountScreen'); const accountTab = document.querySelector('.nav-tab[data-screen="account"]');
+            if (accountScreen && accountTab) { accountScreen.style.display = 'block'; accountTab.classList.add('active'); }
             break;
-
         case 'emergency':
-            const emergencyScreen = document.getElementById('emergencyScreen');
-            const emergencyTab = document.querySelector('.nav-tab[data-screen="emergency"]');
-
-            if (emergencyScreen && emergencyTab) {
-                emergencyScreen.style.display = 'block';
-                emergencyTab.classList.add('active');
-            }
+            const emergencyScreen = document.getElementById('emergencyScreen'); const emergencyTab = document.querySelector('.nav-tab[data-screen="emergency"]');
+            if (emergencyScreen && emergencyTab) { emergencyScreen.style.display = 'block'; emergencyTab.classList.add('active'); }
             break;
     }
 }
 
 // ============================================
-// SETUP EVENT LISTENERS
+// SWITCH SERVICE
+// ============================================
+function switchService(service) {
+    console.log(`Switching to service: ${service}`);
+    document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => { form.style.display = 'none'; });
+    document.querySelectorAll('.service-tab').forEach(tab => { tab.classList.remove('active'); });
+    AppState.activeService = service;
+    switch(service) {
+        case 'car':
+            const carTab = document.querySelector('.service-tab.car'); const carForm = document.getElementById('carForm');
+            if (carTab) carTab.classList.add('active'); if (carForm) carForm.style.display = 'block';
+            break;
+        case 'delivery':
+            const deliveryTab = document.querySelector('.service-tab.delivery'); const deliveryForm = document.getElementById('deliveryForm');
+            if (deliveryTab) deliveryTab.classList.add('active'); if (deliveryForm) deliveryForm.style.display = 'block';
+            break;
+        case 'short-delivery':
+            const shortDeliveryTab = document.querySelector('.service-tab.short-delivery'); const shortDeliveryForm = document.getElementById('shortDeliveryForm');
+            if (shortDeliveryTab) shortDeliveryTab.classList.add('active'); if (shortDeliveryForm) shortDeliveryForm.style.display = 'block';
+            break;
+        case 'express':
+            const expressTab = document.querySelector('.service-tab[data-service="express"]'); const expressForm = document.getElementById('expressForm');
+            if (expressTab) expressTab.classList.add('active'); if (expressForm) expressForm.style.display = 'block';
+            break;
+        case 'truck':
+            const truckTab = document.querySelector('.service-tab[data-service="truck"]'); const truckForm = document.getElementById('truckForm');
+            if (truckTab) truckTab.classList.add('active'); if (truckForm) truckForm.style.display = 'block';
+            break;
+        case 'broadcast':
+            const broadcastForm = document.getElementById('broadcastForm'); if (broadcastForm) broadcastForm.style.display = 'block';
+            break;
+    }
+    if (AppState.pickup && AppState.destination) {
+        if (service === 'express' || service === 'shopping') updateShoppingServicePrice();
+        else if (service === 'delivery') updateDeliveryServicePrice();
+        else if (service === 'short-delivery') updateShortDeliveryServicePrice();
+        else if (service === 'truck') updateTruckServicePrice();
+    }
+}
+
+// ============================================
+// SHOPPING/DELIVERY PRICE FUNCTIONS
+// ============================================
+function updateShoppingServicePrice() {
+    if (!AppState.pickup || !AppState.destination) return;
+    const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+    const itemsCount = document.querySelectorAll('.item-entry').length || 1;
+    const budgetInput = document.getElementById('shoppingBudget');
+    const budget = budgetInput ? parseFloat(budgetInput.value) || 0 : 0;
+    const bikeFare = EnhancedPriceCalculator.calculateShoppingServiceFare(distance, itemsCount, budget, 'bike');
+    const carFare = EnhancedPriceCalculator.calculateShoppingServiceFare(distance, itemsCount, budget, 'car');
+    const fareDisplay = document.getElementById('shoppingFareDisplay');
+    const fareElement = document.getElementById('shoppingFare');
+    const distanceElement = document.getElementById('shoppingDistance');
+    const timeElement = document.getElementById('shoppingTime');
+    if (fareDisplay && fareElement && distanceElement && timeElement) {
+        fareElement.textContent = `ZMW ${bikeFare.toFixed(2)} - ZMW ${carFare.toFixed(2)}`;
+        distanceElement.textContent = `${distance.toFixed(1)} km`;
+        const time = Math.ceil((distance / 25) * 60) + (itemsCount * 5);
+        timeElement.textContent = `ETA: ${time} min`;
+        fareDisplay.style.display = 'block'; fareDisplay.classList.add('active');
+    }
+    AppState.shoppingServiceFares = { bike: bikeFare, car: carFare, distance: distance, itemsCount: itemsCount, budget: budget };
+}
+
+function updateDeliveryServicePrice() {
+    if (!AppState.pickup || !AppState.destination) return;
+    const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+    let deliveryType = 'standard';
+    if (document.getElementById('expressDelivery')?.classList.contains('active')) deliveryType = 'express';
+    else if (document.getElementById('sameDayDelivery')?.classList.contains('active')) deliveryType = 'sameDay';
+    const parcelValueInput = document.getElementById('parcelValue');
+    const parcelValue = parcelValueInput ? parseFloat(parcelValueInput.value) || 0 : 0;
+    const bikeFare = EnhancedPriceCalculator.calculateDeliveryServiceFare(distance, deliveryType, parcelValue, 'bike');
+    const carFare = EnhancedPriceCalculator.calculateDeliveryServiceFare(distance, deliveryType, parcelValue, 'car');
+    const fareDisplay = document.getElementById('deliveryFareDisplay');
+    const fareElement = document.getElementById('deliveryFare');
+    const distanceElement = document.getElementById('deliveryDistance');
+    const timeElement = document.getElementById('deliveryTime');
+    if (fareDisplay && fareElement && distanceElement && timeElement) {
+        fareElement.textContent = `ZMW ${bikeFare.toFixed(2)} - ZMW ${carFare.toFixed(2)}`;
+        distanceElement.textContent = `${distance.toFixed(1)} km`;
+        let time; if (deliveryType === 'express') time = Math.ceil((distance / 30) * 60); else if (deliveryType === 'sameDay') time = Math.ceil((distance / 35) * 60); else time = Math.ceil((distance / 25) * 60);
+        timeElement.textContent = `ETA: ${time} min`;
+        fareDisplay.style.display = 'block'; fareDisplay.classList.add('active');
+    }
+    AppState.deliveryServiceFares = { bike: bikeFare, car: carFare, distance: distance, deliveryType: deliveryType, parcelValue: parcelValue };
+}
+
+function updateShortDeliveryServicePrice() {
+    if (!AppState.pickup || !AppState.destination) return;
+    const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+    const parcelDescInput = document.getElementById('shortParcelDescription');
+    const parcelDescription = parcelDescInput ? parcelDescInput.value : '';
+    const bikeFare = EnhancedPriceCalculator.calculateShortDeliveryFare(distance, parcelDescription, 'bike');
+    const carFare = EnhancedPriceCalculator.calculateShortDeliveryFare(distance, parcelDescription, 'car');
+    const fareDisplay = document.getElementById('shortDeliveryFareDisplay');
+    const fareElement = document.getElementById('shortDeliveryFare');
+    const distanceElement = document.getElementById('shortDeliveryDistance');
+    const timeElement = document.getElementById('shortDeliveryTime');
+    if (fareDisplay && fareElement && distanceElement && timeElement) {
+        fareElement.textContent = `ZMW ${bikeFare.toFixed(2)} - ZMW ${carFare.toFixed(2)}`;
+        distanceElement.textContent = `${distance.toFixed(1)} km`;
+        const time = Math.ceil((distance / 30) * 60);
+        timeElement.textContent = `ETA: ${time} min`;
+        fareDisplay.style.display = 'block'; fareDisplay.classList.add('active');
+    }
+    AppState.shortDeliveryServiceFares = { bike: bikeFare, car: carFare, distance: distance, parcelDescription: parcelDescription };
+}
+
+function updateTruckServicePrice() {
+    if (!AppState.pickup || !AppState.destination) return;
+    const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+    const selectedTruck = document.querySelector('.truck-type.selected');
+    const truckType = selectedTruck ? selectedTruck.dataset.type : 'light';
+    const weightInput = document.getElementById('estimatedWeight');
+    const estimatedWeight = weightInput ? parseFloat(weightInput.value) || 0 : 0;
+    const helpersCheckbox = document.getElementById('needHelpers');
+    const needHelpers = helpersCheckbox ? helpersCheckbox.checked : false;
+    const fare = EnhancedPriceCalculator.calculateTruckFare(distance, truckType, needHelpers);
+    const fareDisplay = document.getElementById('truckFareDisplay');
+    const fareElement = document.getElementById('truckFare');
+    const distanceElement = document.getElementById('truckDistance');
+    const timeElement = document.getElementById('truckTime');
+    if (fareDisplay && fareElement && distanceElement && timeElement) {
+        fareElement.textContent = `ZMW ${fare.toFixed(2)}`;
+        distanceElement.textContent = `${distance.toFixed(1)} km`;
+        const time = Math.ceil((distance / 20) * 60);
+        timeElement.textContent = `ETA: ${time} min`;
+        fareDisplay.style.display = 'block'; fareDisplay.classList.add('active');
+    }
+    AppState.truckServiceFares = { fare: fare, distance: distance, truckType: truckType, estimatedWeight: estimatedWeight, needHelpers: needHelpers };
+}
+
+// ============================================
+// SHOPPING/DELIVERY REQUEST FUNCTIONS
+// ============================================
+async function requestShoppingService() {
+    try {
+        if (!AppState.pickup || !AppState.destination) { EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning'); return; }
+        const shopName = document.getElementById('shopName').value;
+        if (!shopName.trim()) { EnhancedUIUpdater.showToast('Please enter shop/restaurant name', 'warning'); return; }
+        const validation = EnhancedPriceCalculator.validateDistanceWithinCity(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng, AppState.currentCity);
+        if (!validation.valid) { EnhancedUIUpdater.showToast(validation.message, 'warning'); return; }
+        const itemsCount = document.querySelectorAll('.item-entry').length || 1;
+        const budgetInput = document.getElementById('shoppingBudget');
+        const budget = budgetInput ? parseFloat(budgetInput.value) || 0 : 0;
+        const instructions = document.getElementById('shoppingInstructions').value;
+        const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+        const bikeFare = EnhancedPriceCalculator.calculateShoppingServiceFare(distance, itemsCount, budget, 'bike');
+        const carFare = EnhancedPriceCalculator.calculateShoppingServiceFare(distance, itemsCount, budget, 'car');
+        const vehicleSelection = await showVehicleSelectionModal('shopping', { bike: bikeFare, car: carFare, distance: distance }).catch(error => { console.log('Vehicle selection cancelled'); return null; });
+        if (!vehicleSelection) return;
+        const serviceData = {
+            pickup: AppState.pickup, destination: AppState.destination, serviceType: 'shopping', shopName: shopName, itemsCount: itemsCount, budget: budget,
+            instructions: instructions, vehicleType: vehicleSelection.vehicleType, fare: vehicleSelection.fare, distance: distance, shoppingList: []
+        };
+        document.querySelectorAll('.item-entry .item-input').forEach((input, index) => { if (input.value.trim()) serviceData.shoppingList.push({ id: index + 1, name: input.value.trim() }); });
+        EnhancedUIUpdater.showPaymentModal(vehicleSelection.fare, serviceData);
+    } catch (error) { console.error('Error requesting shopping service:', error); EnhancedUIUpdater.showToast('Error processing shopping request', 'error'); }
+}
+
+async function requestDeliveryService() {
+    try {
+        if (!AppState.pickup || !AppState.destination) { EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning'); return; }
+        const parcelDescription = document.getElementById('parcelDescription').value;
+        if (!parcelDescription.trim()) { EnhancedUIUpdater.showToast('Please describe the parcel', 'warning'); return; }
+        const receiverName = document.getElementById('receiverName').value; const receiverPhone = document.getElementById('receiverPhone').value;
+        if (!receiverName.trim() || !receiverPhone.trim()) { EnhancedUIUpdater.showToast('Please enter receiver details', 'warning'); return; }
+        const validation = EnhancedPriceCalculator.validateDistanceWithinCity(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng, AppState.currentCity);
+        if (!validation.valid) { EnhancedUIUpdater.showToast(validation.message, 'warning'); return; }
+        let deliveryType = 'standard';
+        if (document.getElementById('expressDelivery')?.classList.contains('active')) deliveryType = 'express';
+        else if (document.getElementById('sameDayDelivery')?.classList.contains('active')) deliveryType = 'sameDay';
+        const parcelValueInput = document.getElementById('parcelValue');
+        const parcelValue = parcelValueInput ? parseFloat(parcelValueInput.value) || 0 : 0;
+        const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+        const bikeFare = EnhancedPriceCalculator.calculateDeliveryServiceFare(distance, deliveryType, parcelValue, 'bike');
+        const carFare = EnhancedPriceCalculator.calculateDeliveryServiceFare(distance, deliveryType, parcelValue, 'car');
+        const vehicleSelection = await showVehicleSelectionModal('delivery', { bike: bikeFare, car: carFare, distance: distance }).catch(error => { console.log('Vehicle selection cancelled'); return null; });
+        if (!vehicleSelection) return;
+        const serviceData = {
+            pickup: AppState.pickup, destination: AppState.destination, serviceType: 'delivery', deliveryType: deliveryType, parcelDescription: parcelDescription,
+            parcelValue: parcelValue, receiverName: receiverName, receiverPhone: receiverPhone, vehicleType: vehicleSelection.vehicleType, fare: vehicleSelection.fare, distance: distance
+        };
+        EnhancedUIUpdater.showPaymentModal(vehicleSelection.fare, serviceData);
+    } catch (error) { console.error('Error requesting delivery service:', error); EnhancedUIUpdater.showToast('Error processing delivery request', 'error'); }
+}
+
+async function requestShortDeliveryService() {
+    try {
+        if (!AppState.pickup || !AppState.destination) { EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning'); return; }
+        const parcelDescription = document.getElementById('shortParcelDescription').value;
+        if (!parcelDescription.trim()) { EnhancedUIUpdater.showToast('Please describe what you\'re sending', 'warning'); return; }
+        const receiverPhone = document.getElementById('shortReceiverPhone').value;
+        if (!receiverPhone.trim()) { EnhancedUIUpdater.showToast('Please enter receiver phone number', 'warning'); return; }
+        const validation = EnhancedPriceCalculator.validateDistanceWithinCity(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng, AppState.currentCity);
+        if (!validation.valid) { EnhancedUIUpdater.showToast(validation.message, 'warning'); return; }
+        const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+        const bikeFare = EnhancedPriceCalculator.calculateShortDeliveryFare(distance, parcelDescription, 'bike');
+        const carFare = EnhancedPriceCalculator.calculateShortDeliveryFare(distance, parcelDescription, 'car');
+        const vehicleSelection = await showVehicleSelectionModal('short-delivery', { bike: bikeFare, car: carFare, distance: distance }).catch(error => { console.log('Vehicle selection cancelled'); return null; });
+        if (!vehicleSelection) return;
+        const serviceData = {
+            pickup: AppState.pickup, destination: AppState.destination, serviceType: 'short-delivery', parcelDescription: parcelDescription,
+            receiverPhone: receiverPhone, vehicleType: vehicleSelection.vehicleType, fare: vehicleSelection.fare, distance: distance
+        };
+        EnhancedUIUpdater.showPaymentModal(vehicleSelection.fare, serviceData);
+    } catch (error) { console.error('Error requesting short delivery service:', error); EnhancedUIUpdater.showToast('Error processing delivery request', 'error'); }
+}
+
+async function requestTruckService() {
+    try {
+        if (!AppState.pickup || !AppState.destination) { EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning'); return; }
+        const itemDescription = document.getElementById('truckItemDescription').value;
+        if (!itemDescription.trim()) { EnhancedUIUpdater.showToast('Please describe what you\'re moving', 'warning'); return; }
+        const weightInput = document.getElementById('estimatedWeight');
+        const estimatedWeight = weightInput ? parseFloat(weightInput.value) || 0 : 0;
+        if (!estimatedWeight || estimatedWeight <= 0) { EnhancedUIUpdater.showToast('Please enter estimated weight', 'warning'); return; }
+        const validation = EnhancedPriceCalculator.validateDistanceWithinCity(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng, AppState.currentCity);
+        if (!validation.valid) { EnhancedUIUpdater.showToast(validation.message, 'warning'); return; }
+        const selectedTruck = document.querySelector('.truck-type.selected');
+        const truckType = selectedTruck ? selectedTruck.dataset.type : 'light';
+        const helpersCheckbox = document.getElementById('needHelpers');
+        const needHelpers = helpersCheckbox ? helpersCheckbox.checked : false;
+        const distance = EnhancedPriceCalculator.calculateDistance(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng);
+        const fare = EnhancedPriceCalculator.calculateTruckFare(distance, truckType, needHelpers);
+        const serviceData = {
+            pickup: AppState.pickup, destination: AppState.destination, serviceType: 'truck', truckType: truckType, itemDescription: itemDescription,
+            estimatedWeight: estimatedWeight, needHelpers: needHelpers, fare: fare, distance: distance
+        };
+        EnhancedUIUpdater.showPaymentModal(fare, serviceData);
+    } catch (error) { console.error('Error requesting truck service:', error); EnhancedUIUpdater.showToast('Error processing truck request', 'error'); }
+}
+
+function showVehicleSelectionModal(serviceType, fareData) {
+    return new Promise((resolve, reject) => {
+        const modal = document.createElement('div'); modal.className = 'vehicle-selection-modal'; modal.style.cssText = `position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10002; display: flex; justify-content: center; align-items: center; padding: 20px;`;
+        let vehicleOptions = [];
+        if (serviceType === 'shopping' || serviceType === 'express') vehicleOptions = [ { type: 'bike', name: 'Motorcycle', icon: 'fa-motorcycle', price: fareData?.bike || 0 }, { type: 'car', name: 'Car', icon: 'fa-car', price: fareData?.car || 0 } ];
+        else if (serviceType === 'delivery' || serviceType === 'short-delivery') vehicleOptions = [ { type: 'bike', name: 'Motorcycle', icon: 'fa-motorcycle', price: fareData?.bike || 0 }, { type: 'car', name: 'Car', icon: 'fa-car', price: fareData?.car || 0 } ];
+        else if (serviceType === 'truck') { resolve({ vehicleType: 'truck', fare: fareData?.fare || 0 }); return; }
+        let html = `<div class="vehicle-selection-content"><div style="padding:20px; background:linear-gradient(135deg,#FF6B35 0%,#FF8B35 100%); color:white;"><h3 style="margin:0; font-size:18px;"><i class="fas fa-${serviceType === 'truck' ? 'truck' : 'shipping-fast'}"></i> Select Vehicle Type</h3><p style="margin:10px 0 0 0; font-size:14px; opacity:0.9;">Choose your preferred vehicle for this ${serviceType} service</p></div><div class="vehicle-options" style="padding:20px;">`;
+        vehicleOptions.forEach((option, index) => { html += `<div class="vehicle-option" data-type="${option.type}" style="flex:1; padding:20px; border:2px solid #e0e0e0; border-radius:8px; text-align:center; cursor:pointer;"><div class="vehicle-icon" style="font-size:32px; color:#FF6B35; margin-bottom:10px;"><i class="fas ${option.icon}"></i></div><div class="vehicle-name" style="font-weight:600; margin-bottom:5px;">${option.name}</div><div class="vehicle-price" style="font-size:14px; color:#666;">ZMW ${option.price.toFixed(2)}</div><div class="vehicle-estimate" style="font-size:12px; color:#999; margin-top:5px;">${option.type === 'bike' ? 'Faster in traffic' : 'More capacity'}</div></div>`; });
+        html += `</div><div style="padding:0 20px 20px 20px;"><button id="confirmVehicleBtn" style="width:100%; padding:15px; background:#FF6B35; color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600; font-size:16px;">Confirm Selection</button><button id="cancelVehicleBtn" style="width:100%; padding:15px; background:#f5f5f5; color:#666; border:none; border-radius:8px; cursor:pointer; font-weight:600; margin-top:10px;">Cancel</button></div></div>`;
+        modal.innerHTML = html; document.body.appendChild(modal);
+        let selectedVehicle = null;
+        modal.querySelectorAll('.vehicle-option').forEach(option => {
+            option.addEventListener('click', function() {
+                modal.querySelectorAll('.vehicle-option').forEach(o => { o.style.borderColor = '#e0e0e0'; o.style.background = 'white'; });
+                this.style.borderColor = '#FF6B35'; this.style.background = '#FFF3E0';
+                selectedVehicle = this.dataset.type;
+            });
+        });
+        setTimeout(() => { const firstOption = modal.querySelector('.vehicle-option'); if (firstOption) { firstOption.style.borderColor = '#FF6B35'; firstOption.style.background = '#FFF3E0'; selectedVehicle = firstOption.dataset.type; } }, 100);
+        modal.querySelector('#confirmVehicleBtn').addEventListener('click', function() {
+            if (!selectedVehicle) { EnhancedUIUpdater.showToast('Please select a vehicle type', 'warning'); return; }
+            let fare; if (serviceType === 'truck') fare = fareData?.fare || 0; else fare = selectedVehicle === 'car' ? fareData?.car : fareData?.bike;
+            document.body.removeChild(modal); resolve({ vehicleType: selectedVehicle, fare: fare });
+        });
+        modal.querySelector('#cancelVehicleBtn').addEventListener('click', function() { document.body.removeChild(modal); reject(new Error('Vehicle selection cancelled')); });
+        modal.addEventListener('click', function(e) { if (e.target === this) { document.body.removeChild(modal); reject(new Error('Vehicle selection cancelled')); } });
+    });
+}
+
+// ============================================
+// INITIALIZE SHOPPING ITEMS
+// ============================================
+function initializeShoppingItems() {
+    console.log('Initializing shopping items...');
+    const itemsContainer = document.getElementById('shoppingItems');
+    const addItemBtn = document.getElementById('addItemBtn');
+    if (!itemsContainer || !addItemBtn) { console.warn('Shopping items elements not found'); return; }
+    addItemBtn.addEventListener('click', function() {
+        const itemCount = itemsContainer.children.length + 1;
+        const itemEntry = document.createElement('div'); itemEntry.className = 'item-entry';
+        itemEntry.innerHTML = `<input type="text" class="item-input" placeholder="Item ${itemCount}"><button class="remove-item" type="button"><i class="fas fa-times"></i></button>`;
+        itemsContainer.appendChild(itemEntry);
+        const removeBtn = itemEntry.querySelector('.remove-item');
+        removeBtn.addEventListener('click', function() { if (itemsContainer.children.length > 1) itemEntry.remove(); });
+    });
+    console.log('Shopping items initialized');
+}
+
+// ============================================
+// SETUP EVENT LISTENERS (new HTML)
 // ============================================
 function setupEventListeners() {
     console.log('Setting up event listeners...');
 
     // Navigation tabs
     document.querySelectorAll('.nav-tab').forEach(tab => {
-        tab.addEventListener('click', function () {
-            const screen = this.dataset.screen;
-            switchScreen(screen);
-        });
+        tab.addEventListener('click', function() { switchScreen(this.dataset.screen); });
     });
 
     // Back buttons
     document.querySelectorAll('.back-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-            switchScreen('home');
-        });
+        btn.addEventListener('click', function() { switchScreen('home'); });
     });
 
     // Panel handle (expand/collapse)
     const panelHandle = document.getElementById('panelHandle');
     if (panelHandle) {
-        panelHandle.addEventListener('click', function () {
-            const panel = document.getElementById('mainPanel');
-            panel.classList.toggle('collapsed');
+        panelHandle.addEventListener('click', function() {
+            document.getElementById('mainPanel').classList.toggle('collapsed');
         });
     }
 
-    // Service icons
-    document.querySelectorAll('.service-icon-item').forEach(icon => {
-        icon.addEventListener('click', function () {
-            const service = this.dataset.service;
-            AppState.activeService = service;
-
-            if (!AppState.pickup || !AppState.destination) {
-                EnhancedUIUpdater.showToast('Please set pickup and destination first', 'warning');
-                return;
-            }
-
-            EnhancedUIUpdater.showRideTypePopup(service);
-        });
+    // Service tabs
+    document.querySelectorAll('.service-tab').forEach(tab => {
+        tab.addEventListener('click', function() { switchService(this.dataset.service); });
     });
 
     // Map controls
     const locateMeBtn = document.getElementById('locateMeBtn');
-    if (locateMeBtn) {
-        locateMeBtn.addEventListener('click', getCurrentLocation);
-    }
-
+    if (locateMeBtn) locateMeBtn.addEventListener('click', getCurrentLocation);
     const zoomInBtn = document.getElementById('zoomInBtn');
-    if (zoomInBtn) {
-        zoomInBtn.addEventListener('click', function () {
-            if (map) map.zoomIn();
-        });
-    }
-
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => { if (map) map.zoomIn(); });
     const zoomOutBtn = document.getElementById('zoomOutBtn');
-    if (zoomOutBtn) {
-        zoomOutBtn.addEventListener('click', function () {
-            if (map) map.zoomOut();
-        });
-    }
-
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => { if (map) map.zoomOut(); });
     const clearRouteBtn = document.getElementById('clearRouteBtn');
     if (clearRouteBtn) {
-        clearRouteBtn.addEventListener('click', function () {
-            if (routeLayer) {
-                map.removeLayer(routeLayer);
-                routeLayer = null;
-            }
-            if (destinationMarker) {
-                map.removeLayer(destinationMarker);
-                destinationMarker = null;
-            }
+        clearRouteBtn.addEventListener('click', function() {
+            if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+            if (destinationMarker) { map.removeLayer(destinationMarker); destinationMarker = null; }
             const destinationInput = document.getElementById('destinationLocation');
-            if (destinationInput) {
-                destinationInput.value = '';
-                AppState.destination = null;
-            }
+            if (destinationInput) { destinationInput.value = ''; AppState.destination = null; }
             EnhancedUIUpdater.showToast('Route cleared', 'info');
         });
     }
 
+    // Ride type selection
+    document.querySelectorAll('.ride-type-card').forEach(card => {
+        card.addEventListener('click', function() {
+            document.querySelectorAll('.ride-type-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            AppState.selectedRideType = this.dataset.type;
+            if (AppState.pickup && AppState.destination) EnhancedUIUpdater.updateRidePrices();
+            EnhancedUIUpdater.showToast(`${this.dataset.type.charAt(0).toUpperCase() + this.dataset.type.slice(1)} selected`, 'info');
+        });
+    });
+
     // Add stop button
     const addStopBtn = document.getElementById('addStopBtn');
-    if (addStopBtn) {
-        addStopBtn.addEventListener('click', function () {
-            EnhancedLocationManager.addStop();
-        });
-    }
+    if (addStopBtn) addStopBtn.addEventListener('click', () => EnhancedLocationManager.addStop());
 
-    // Ride type popup close
-    const popupClose = document.getElementById('popupClose');
-    if (popupClose) {
-        popupClose.addEventListener('click', function () {
-            EnhancedUIUpdater.hideRideTypePopup();
-        });
-    }
-
-    // Confirm ride type button
-    const confirmRideTypeBtn = document.getElementById('confirmRideTypeBtn');
-    if (confirmRideTypeBtn) {
-        confirmRideTypeBtn.addEventListener('click', function () {
-            const selectedOption = document.querySelector('.ride-type-option.selected');
-            if (!selectedOption) {
-                EnhancedUIUpdater.showToast('Please select a ride type', 'warning');
-                return;
-            }
-
-            const rideType = selectedOption.dataset.rideType;
-            const fareElement = selectedOption.querySelector('.option-right');
-            const fare = parseFloat(fareElement.textContent.replace('ZMW ', ''));
-
-            // Get extra details if any
-            let extraDetails = {};
-            if (AppState.activeService === 'delivery-bike') {
-                const parcelValue = document.getElementById('deliveryParcelValue')?.value;
-                if (parcelValue) extraDetails.parcelValue = parseFloat(parcelValue);
-            } else if (AppState.activeService === 'truck') {
-                const weight = document.getElementById('truckWeight')?.value;
-                if (weight) extraDetails.weight = parseFloat(weight);
-                const helpers = document.getElementById('needHelpers')?.checked;
-                if (helpers) extraDetails.helpers = true;
-            }
-
-            const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
-                AppState.pickup,
-                AppState.destination,
-                AppState.rideStops.filter(stop => stop.location)
-            );
-
-            const rideData = {
-                pickup: AppState.pickup,
-                destination: AppState.destination,
-                serviceType: AppState.activeService,
-                rideType: rideType,
-                fare: fare,
-                distance: distance,
-                stops: AppState.rideStops.filter(stop => stop.location),
-                ...extraDetails
-            };
-
-            EnhancedUIUpdater.hideRideTypePopup();
+    // Request ride button (car)
+    const requestRideBtn = document.getElementById('requestRideBtn');
+    if (requestRideBtn) {
+        requestRideBtn.addEventListener('click', function() {
+            if (!AppState.pickup || !AppState.destination) { EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning'); return; }
+            const validation = EnhancedPriceCalculator.validateDistanceWithinCity(AppState.pickup.lat, AppState.pickup.lng, AppState.destination.lat, AppState.destination.lng, AppState.currentCity);
+            if (!validation.valid) { EnhancedUIUpdater.showToast(validation.message, 'warning'); return; }
+            const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(AppState.pickup, AppState.destination, AppState.rideStops.filter(stop => stop.location));
+            const surge = EnhancedPriceCalculator.getSurgeMultiplier();
+            const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge, null, AppState.rideStops.filter(stop => stop.location));
+            const rideData = { pickup: AppState.pickup, destination: AppState.destination, rideType: AppState.selectedRideType, fare: fare, distance: distance, stops: AppState.rideStops.filter(stop => stop.location) };
             EnhancedUIUpdater.showPaymentModal(fare, rideData);
         });
     }
 
-    // Payment modal close
-    const paymentClose = document.getElementById('paymentClose');
-    if (paymentClose) {
-        paymentClose.addEventListener('click', function () {
-            hideModal('payment');
+    // More options button (sidebar)
+    const moreOptionsBtn = document.getElementById('moreOptionsBtn');
+    if (moreOptionsBtn) {
+        moreOptionsBtn.addEventListener('click', function() {
+            document.getElementById('moreOptionsMenu').classList.toggle('active');
         });
     }
 
-    // Payment methods selection
-    document.querySelectorAll('.payment-method').forEach(method => {
-        method.addEventListener('click', function () {
-            document.querySelectorAll('.payment-method').forEach(m => {
-                m.classList.remove('selected');
-            });
-            this.classList.add('selected');
-        });
-    });
-
-    // Apply referral button
-    const applyReferralBtn = document.getElementById('applyReferralBtn');
-    if (applyReferralBtn) {
-        applyReferralBtn.addEventListener('click', function () {
-            EnhancedUIUpdater.applyReferralDiscount();
-        });
-    }
-
-    // Confirm payment button
-    const confirmPaymentBtn = document.getElementById('confirmPaymentBtn');
-    if (confirmPaymentBtn) {
-        confirmPaymentBtn.addEventListener('click', function () {
-            const selectedMethod = document.querySelector('.payment-method.selected');
-            if (!selectedMethod) {
-                EnhancedUIUpdater.showToast('Please select a payment method', 'warning');
-                return;
+    // More options menu items
+    document.querySelectorAll('#moreOptionsMenu .dropdown-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const option = this.dataset.option;
+            document.getElementById('moreOptionsMenu').classList.remove('active');
+            switch(option) {
+                case 'schedule': showModal('schedule'); break;
+                case 'orderForSomeone': showModal('orderForSomeone'); break;
+                case 'shareRide': EnhancedUIUpdater.showSplitRidePopup(); break;
+                case 'broadcast': EnhancedUIUpdater.showBroadcastRidePopup(); break;
             }
-
-            const paymentMethod = selectedMethod.dataset.payment;
-
-            const finalFareElement = document.getElementById('finalFareAmount');
-            const finalFare = finalFareElement ?
-                parseFloat(finalFareElement.textContent.replace('ZMW ', '')) :
-                AppState.rideFare;
-
-            if (paymentMethod === 'wallet' && finalFare > AppState.walletBalance) {
-                EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error');
-                return;
-            }
-
-            const rideData = AppState.pendingRideData;
-            if (!rideData) {
-                EnhancedUIUpdater.showToast('No ride data found', 'error');
-                return;
-            }
-
-            rideData.paymentMethod = paymentMethod;
-            rideData.fare = finalFare;
-
-            EnhancedFirebaseManager.requestRide(rideData)
-                .then(() => {
-                    hideModal('payment');
-                    AppState.pendingRideData = null;
-                })
-                .catch(error => {
-                    console.error('Error requesting ride:', error);
-                    EnhancedUIUpdater.showToast('Error requesting ride', 'error');
-                });
-        });
-    }
-
-    // Sidebar toggle
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', function () {
-            document.getElementById('sidebarMenu').classList.toggle('active');
-        });
-    }
-
-    // Sidebar items
-    document.querySelectorAll('.sidebar-item').forEach(item => {
-        item.addEventListener('click', function () {
-            const screen = this.dataset.screen;
-            if (screen) {
-                switchScreen(screen);
-            } else {
-                const option = this.dataset.option;
-                if (option === 'schedule') showModal('schedule');
-                else if (option === 'orderForSomeone') showModal('orderForSomeone');
-                else if (option === 'shareRide') EnhancedUIUpdater.showSplitRidePopup();
-                else if (option === 'broadcast') EnhancedUIUpdater.showBroadcastRidePopup();
-                else if (option === 'sosSetup') showModal('sos');
-            }
-            document.getElementById('sidebarMenu').classList.remove('active');
         });
     });
 
     // SOS button
     const sosButton = document.getElementById('sosButton');
     if (sosButton) {
-        sosButton.addEventListener('click', function () {
-            if (!AppState.sosConfig) {
-                showModal('sos');
-            } else if (AppState.currentRide) {
+        sosButton.addEventListener('click', function() {
+            if (!AppState.sosConfig) showModal('sos');
+            else if (AppState.currentRide) {
                 if (confirm('Send SOS alert to emergency contacts?')) {
-                    EnhancedFirebaseManager.sendSOSAlert(
-                        AppState.currentRide.id,
-                        {
-                            emergencyContact1Name: AppState.sosConfig.contact1Name,
-                            emergencyContact1: AppState.sosConfig.contact1Phone,
-                            emergencyContact2Name: AppState.sosConfig.contact2Name,
-                            emergencyContact2: AppState.sosConfig.contact2Phone,
-                            message: AppState.sosConfig.message,
-                            location: AppState.userLocation,
-                            rideDetails: {
-                                pickup: AppState.currentRide.pickupDisplay,
-                                destination: AppState.currentRide.destinationDisplay,
-                                driver: AppState.currentRide.driverName
-                            }
-                        }
-                    );
+                    EnhancedFirebaseManager.sendSOSAlert(AppState.currentRide.id, {
+                        emergencyContact1Name: AppState.sosConfig.contact1Name,
+                        emergencyContact1: AppState.sosConfig.contact1Phone,
+                        emergencyContact2Name: AppState.sosConfig.contact2Name,
+                        emergencyContact2: AppState.sosConfig.contact2Phone,
+                        message: AppState.sosConfig.message,
+                        location: AppState.userLocation,
+                        rideDetails: { pickup: AppState.currentRide.pickupDisplay, destination: AppState.currentRide.destinationDisplay, driver: AppState.currentRide.driverName }
+                    });
                 }
-            } else {
-                EnhancedUIUpdater.showToast('No active ride', 'warning');
-            }
+            } else EnhancedUIUpdater.showToast('No active ride', 'warning');
         });
     }
 
-    // SOS setup button in sidebar
-    const sosSetupBtn = document.querySelector('[data-option="sosSetup"]');
-    if (sosSetupBtn) {
-        sosSetupBtn.addEventListener('click', function () {
-            showModal('sos');
-        });
-    }
+    // SOS setup button
+    const sosSetupBtn = document.getElementById('sosSetupBtn');
+    if (sosSetupBtn) sosSetupBtn.addEventListener('click', () => showModal('sos'));
 
     // Save SOS button
     const saveSOSBtn = document.getElementById('saveSOSBtn');
     if (saveSOSBtn) {
-        saveSOSBtn.addEventListener('click', function () {
+        saveSOSBtn.addEventListener('click', function() {
             const contact1Name = document.getElementById('sosContact1Name').value;
             const contact1Phone = document.getElementById('sosContact1Phone').value;
             const contact2Name = document.getElementById('sosContact2Name').value;
             const contact2Phone = document.getElementById('sosContact2Phone').value;
             const message = document.getElementById('sosMessage').value;
-
-            if (!contact1Name || !contact1Phone) {
-                EnhancedUIUpdater.showToast('Please fill in at least primary contact details', 'warning');
-                return;
-            }
-
+            if (!contact1Name || !contact1Phone) { EnhancedUIUpdater.showToast('Please fill in at least primary contact details', 'warning'); return; }
             EnhancedFirebaseManager.saveSOSConfig(contact1Name, contact1Phone, contact2Name, contact2Phone, message);
             hideModal('sos');
         });
     }
 
-    // Cancel ride button (in driver panel)
+    // Cancel ride button
     const cancelRideBtn = document.getElementById('cancelRideBtn');
     if (cancelRideBtn) {
-        cancelRideBtn.addEventListener('click', function () {
-            if (AppState.currentRide) {
-                showModal('cancel');
-            } else {
-                EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
-            }
+        cancelRideBtn.addEventListener('click', function() {
+            if (AppState.currentRide) showModal('cancel');
+            else EnhancedUIUpdater.showToast('No active ride to cancel', 'warning');
         });
     }
 
     // Confirm cancel button
     const confirmCancelBtn = document.getElementById('confirmCancelBtn');
     if (confirmCancelBtn) {
-        confirmCancelBtn.addEventListener('click', function () {
+        confirmCancelBtn.addEventListener('click', function() {
             const selectedReason = document.querySelector('.cancel-reason.selected');
-            if (!selectedReason) {
-                EnhancedUIUpdater.showToast('Please select a cancellation reason', 'warning');
-                return;
-            }
-
+            if (!selectedReason) { EnhancedUIUpdater.showToast('Please select a cancellation reason', 'warning'); return; }
             let reason = selectedReason.dataset.reason;
             if (reason === 'other') {
                 const otherReason = document.getElementById('otherReason').value;
-                if (!otherReason.trim()) {
-                    EnhancedUIUpdater.showToast('Please specify your reason', 'warning');
-                    return;
-                }
+                if (!otherReason.trim()) { EnhancedUIUpdater.showToast('Please specify your reason', 'warning'); return; }
                 reason = `other: ${otherReason}`;
             }
-
-            if (AppState.currentRide) {
-                EnhancedFirebaseManager.cancelRide(AppState.currentRide.id, reason);
-                hideModal('cancel');
-            }
+            if (AppState.currentRide) { EnhancedFirebaseManager.cancelRide(AppState.currentRide.id, reason); hideModal('cancel'); }
         });
     }
 
     // Cancel reasons
     document.querySelectorAll('.cancel-reason').forEach(reason => {
-        reason.addEventListener('click', function () {
-            document.querySelectorAll('.cancel-reason').forEach(r => {
-                r.classList.remove('selected');
-            });
+        reason.addEventListener('click', function() {
+            document.querySelectorAll('.cancel-reason').forEach(r => r.classList.remove('selected'));
             this.classList.add('selected');
-
             const otherReasonGroup = document.getElementById('otherReasonGroup');
-            if (otherReasonGroup) {
-                if (this.dataset.reason === 'other') {
-                    otherReasonGroup.style.display = 'block';
-                } else {
-                    otherReasonGroup.style.display = 'none';
-                }
-            }
+            if (otherReasonGroup) otherReasonGroup.style.display = this.dataset.reason === 'other' ? 'block' : 'none';
         });
     });
 
-    // Call driver button
-    const callDriverBtn = document.getElementById('callDriverBtn');
-    if (callDriverBtn) {
-        callDriverBtn.addEventListener('click', function () {
-            if (AppState.currentRide && AppState.currentRide.driverPhone) {
-                window.open(`tel:${AppState.currentRide.driverPhone}`, '_blank');
-            } else {
-                EnhancedUIUpdater.showToast('Driver phone number not available', 'warning');
-            }
+    // Contact driver button
+    const contactDriverBtn = document.getElementById('contactDriverBtn');
+    if (contactDriverBtn) {
+        contactDriverBtn.addEventListener('click', function() {
+            if (AppState.currentRide && AppState.currentRide.driverPhone) window.open(`tel:${AppState.currentRide.driverPhone}`, '_blank');
+            else EnhancedUIUpdater.showToast('Driver phone number not available', 'warning');
         });
     }
 
     // Open chat button
     const openChatBtn = document.getElementById('openChatBtn');
     if (openChatBtn) {
-        openChatBtn.addEventListener('click', function () {
+        openChatBtn.addEventListener('click', function() {
             const chatContainer = document.getElementById('chatContainer');
-            if (chatContainer) {
-                chatContainer.classList.add('active');
-                AppState.chatOpen = true;
-            }
+            if (chatContainer) { chatContainer.classList.add('active'); AppState.chatOpen = true; }
         });
     }
 
     // Close chat button
     const chatClose = document.getElementById('chatClose');
     if (chatClose) {
-        chatClose.addEventListener('click', function () {
+        chatClose.addEventListener('click', function() {
             const chatContainer = document.getElementById('chatContainer');
-            if (chatContainer) {
-                chatContainer.classList.remove('active');
-                AppState.chatOpen = false;
-            }
+            if (chatContainer) { chatContainer.classList.remove('active'); AppState.chatOpen = false; }
         });
     }
 
     // Send chat message
-    const chatSendFull = document.getElementById('chatSendFull');
-    const chatInputFull = document.getElementById('chatInputFull');
-    if (chatSendFull && chatInputFull) {
-        chatSendFull.addEventListener('click', function () {
-            const message = chatInputFull.value.trim();
+    const chatSend = document.getElementById('chatSend');
+    const chatInput = document.getElementById('chatInput');
+    if (chatSend && chatInput) {
+        chatSend.addEventListener('click', function() {
+            const message = chatInput.value.trim();
             if (message && AppState.currentRide) {
                 EnhancedFirebaseManager.sendChatMessage(AppState.currentRide.id, message, false);
-                chatInputFull.value = '';
+                chatInput.value = '';
             }
         });
-
-        chatInputFull.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                chatSendFull.click();
-            }
-        });
+        chatInput.addEventListener('keypress', function(e) { if (e.key === 'Enter') chatSend.click(); });
     }
 
     // Notification bell
     const notificationBell = document.getElementById('notificationBell');
     if (notificationBell) {
-        notificationBell.addEventListener('click', function (e) {
+        notificationBell.addEventListener('click', function(e) {
             e.stopPropagation();
-            if (AppState.notificationsOpen) {
-                EnhancedUIUpdater.hideNotificationsPanel();
-            } else {
-                EnhancedUIUpdater.showNotificationsPanel();
-            }
+            if (AppState.notificationsOpen) EnhancedUIUpdater.hideNotificationsPanel();
+            else EnhancedUIUpdater.showNotificationsPanel();
         });
     }
 
     // Close notifications button
     const notificationsClose = document.getElementById('notificationsClose');
     if (notificationsClose) {
-        notificationsClose.addEventListener('click', function (e) {
+        notificationsClose.addEventListener('click', function(e) {
             e.stopPropagation();
             EnhancedUIUpdater.hideNotificationsPanel();
         });
     }
 
     // Close notifications when clicking outside
-    document.addEventListener('click', function (e) {
+    document.addEventListener('click', function(e) {
         const panel = document.getElementById('notificationsPanel');
         const bell = document.getElementById('notificationBell');
-
-        if (panel && panel.classList.contains('active') &&
-            !panel.contains(e.target) &&
-            !bell.contains(e.target)) {
+        if (panel && panel.classList.contains('active') && !panel.contains(e.target) && !bell.contains(e.target)) {
             EnhancedUIUpdater.hideNotificationsPanel();
         }
     });
 
     // Emergency services
     document.querySelectorAll('.emergency-service').forEach(service => {
-        service.addEventListener('click', function () {
+        service.addEventListener('click', function() {
             const type = this.dataset.type;
+            if (type === 'sos') showModal('sos');
+            else EnhancedUIUpdater.showEmergencyStations(type);
+        });
+    });
 
-            if (type === 'sos') {
-                showModal('sos');
+    // Payment methods
+    document.querySelectorAll('.payment-method').forEach(method => {
+        method.addEventListener('click', function() {
+            document.querySelectorAll('.payment-method').forEach(m => m.classList.remove('selected'));
+            this.classList.add('selected');
+        });
+    });
+
+    // Apply referral button
+    const applyReferralBtn = document.getElementById('applyReferralBtn');
+    if (applyReferralBtn) applyReferralBtn.addEventListener('click', () => EnhancedUIUpdater.applyReferralDiscount());
+
+    // Confirm payment button
+    const confirmPaymentBtn = document.getElementById('confirmPaymentBtn');
+    if (confirmPaymentBtn) {
+        confirmPaymentBtn.addEventListener('click', function() {
+            const selectedMethod = document.querySelector('.payment-method.selected');
+            if (!selectedMethod) { EnhancedUIUpdater.showToast('Please select a payment method', 'warning'); return; }
+            const paymentMethod = selectedMethod.dataset.payment;
+            const finalFareElement = document.getElementById('finalFareAmount');
+            const finalFare = finalFareElement ? parseFloat(finalFareElement.textContent.replace('ZMW ', '')) : AppState.rideFare;
+            if (paymentMethod === 'wallet' && finalFare > AppState.walletBalance) { EnhancedUIUpdater.showToast('Insufficient wallet balance', 'error'); return; }
+            const rideData = AppState.pendingRideData || AppState.pendingScheduledRideData;
+            if (!rideData) { EnhancedUIUpdater.showToast('No ride data found', 'error'); return; }
+            if (rideData.isScheduled || AppState.pendingScheduledRideData) {
+                rideData.paymentMethod = paymentMethod; rideData.fare = finalFare;
+                EnhancedFirebaseManager.requestScheduledRide(rideData).then((scheduledRideId) => {
+                    hideModal('payment');
+                    AppState.pendingRideData = null; AppState.pendingScheduledRideData = null;
+                    EnhancedUIUpdater.showScheduleCountdown(rideData.scheduledTime, { ...rideData, id: scheduledRideId });
+                }).catch(error => { console.error('Error scheduling ride:', error); EnhancedUIUpdater.showToast('Error scheduling ride', 'error'); });
             } else {
-                EnhancedUIUpdater.showEmergencyStations(type);
+                rideData.paymentMethod = paymentMethod; rideData.fare = finalFare;
+                EnhancedFirebaseManager.requestRide(rideData).then(() => { hideModal('payment'); AppState.pendingRideData = null; }).catch(error => { console.error('Error requesting ride:', error); EnhancedUIUpdater.showToast('Error requesting ride', 'error'); });
             }
         });
+    }
+
+    // Modal close buttons
+    document.querySelectorAll('.modal-close').forEach(btn => {
+        btn.addEventListener('click', function() { hideModal(this.dataset.modal); });
+    });
+
+    // Modal overlay clicks
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) { if (e.target === this) hideModal(this.id.replace('Modal', '')); });
     });
 
     // Schedule ride button
     const confirmScheduleBtn = document.getElementById('confirmScheduleBtn');
     if (confirmScheduleBtn) {
-        confirmScheduleBtn.addEventListener('click', async function () {
-            if (!AppState.pickup || !AppState.destination) {
-                EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning');
-                return;
-            }
-
+        confirmScheduleBtn.addEventListener('click', async function() {
+            if (!AppState.pickup || !AppState.destination) { EnhancedUIUpdater.showToast('Please set pickup and destination locations', 'warning'); return; }
             const scheduleDate = document.getElementById('scheduleDate').value;
             const scheduleTime = document.getElementById('scheduleTime').value;
             const forSomeone = document.getElementById('scheduleForSomeone').checked;
-
-            if (!scheduleDate || !scheduleTime) {
-                EnhancedUIUpdater.showToast('Please select date and time', 'warning');
-                return;
-            }
-
+            if (!scheduleDate || !scheduleTime) { EnhancedUIUpdater.showToast('Please select date and time', 'warning'); return; }
             const scheduledDateTime = new Date(`${scheduleDate}T${scheduleTime}`);
             const scheduledTime = scheduledDateTime.getTime();
-
-            if (scheduledTime <= Date.now()) {
-                EnhancedUIUpdater.showToast('Please select a future time', 'warning');
-                return;
-            }
-
-            const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(
-                AppState.pickup,
-                AppState.destination,
-                AppState.rideStops.filter(stop => stop.location)
-            );
-
+            if (scheduledTime <= Date.now()) { EnhancedUIUpdater.showToast('Please select a future time', 'warning'); return; }
+            const distance = EnhancedPriceCalculator.calculateRideDistanceWithStops(AppState.pickup, AppState.destination, AppState.rideStops.filter(stop => stop.location));
             const surge = EnhancedPriceCalculator.getSurgeMultiplier();
-            const fare = EnhancedPriceCalculator.calculateRideFare(
-                distance,
-                AppState.selectedRideType,
-                surge,
-                null,
-                AppState.rideStops.filter(stop => stop.location)
-            );
-
+            const fare = EnhancedPriceCalculator.calculateRideFare(distance, AppState.selectedRideType, surge, null, AppState.rideStops.filter(stop => stop.location));
             const scheduledRideData = {
-                pickup: AppState.pickup,
-                destination: AppState.destination,
-                rideType: AppState.selectedRideType,
-                fare: fare,
-                distance: distance,
-                stops: AppState.rideStops.filter(stop => stop.location),
-                scheduledTime: scheduledTime,
-                forSomeone: forSomeone,
-                isScheduled: true,
-                serviceType: 'car'
+                pickup: AppState.pickup, destination: AppState.destination, rideType: AppState.selectedRideType, fare: fare, distance: distance,
+                stops: AppState.rideStops.filter(stop => stop.location), scheduledTime: scheduledTime, forSomeone: forSomeone, isScheduled: true, serviceType: 'car'
             };
-
             if (forSomeone) {
                 scheduledRideData.recipientName = document.getElementById('recipientName').value;
                 scheduledRideData.recipientPhone = document.getElementById('recipientPhone').value;
-
-                if (!scheduledRideData.recipientName || !scheduledRideData.recipientPhone) {
-                    EnhancedUIUpdater.showToast('Please enter recipient details', 'warning');
-                    return;
-                }
+                if (!scheduledRideData.recipientName || !scheduledRideData.recipientPhone) { EnhancedUIUpdater.showToast('Please enter recipient details', 'warning'); return; }
             }
-
             EnhancedUIUpdater.showPaymentModal(fare, scheduledRideData);
             AppState.pendingScheduledRideData = scheduledRideData;
         });
@@ -4796,202 +4456,157 @@ function setupEventListeners() {
     // Schedule for someone checkbox
     const scheduleForSomeone = document.getElementById('scheduleForSomeone');
     if (scheduleForSomeone) {
-        scheduleForSomeone.addEventListener('change', function () {
+        scheduleForSomeone.addEventListener('change', function() {
             const someoneElseDetails = document.getElementById('someoneElseDetails');
-            if (someoneElseDetails) {
-                someoneElseDetails.style.display = this.checked ? 'block' : 'none';
-            }
+            if (someoneElseDetails) someoneElseDetails.style.display = this.checked ? 'block' : 'none';
         });
     }
 
     // Logout button
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', function () {
+        logoutBtn.addEventListener('click', function() {
             if (confirm('Are you sure you want to logout?')) {
-                auth.signOut().then(() => {
-                    window.location.href = 'signup.html';
-                }).catch(error => {
-                    console.error('Error signing out:', error);
-                    EnhancedUIUpdater.showToast('Error logging out', 'error');
-                });
+                auth.signOut().then(() => { window.location.href = 'signup.html'; }).catch(error => { console.error('Error signing out:', error); EnhancedUIUpdater.showToast('Error logging out', 'error'); });
             }
         });
     }
 
     // Update profile button
     const updateProfileBtn = document.getElementById('updateProfileBtn');
-    if (updateProfileBtn) {
-        updateProfileBtn.addEventListener('click', function () {
-            showModal('updateProfile');
-        });
-    }
+    if (updateProfileBtn) updateProfileBtn.addEventListener('click', () => showModal('updateProfile'));
 
     // Save profile button
     const saveProfileBtn = document.getElementById('saveProfileBtn');
     if (saveProfileBtn) {
-        saveProfileBtn.addEventListener('click', function () {
+        saveProfileBtn.addEventListener('click', function() {
             const name = document.getElementById('updateName').value;
             const phone = document.getElementById('updatePhone').value;
             const homeAddress = document.getElementById('updateHomeAddress').value;
             const workAddress = document.getElementById('updateWorkAddress').value;
-
-            if (!name || !phone) {
-                EnhancedUIUpdater.showToast('Please fill in required fields', 'warning');
-                return;
-            }
-
-            const updates = {
-                name: name,
-                phone: phone
-            };
-
+            if (!name || !phone) { EnhancedUIUpdater.showToast('Please fill in required fields', 'warning'); return; }
+            const updates = { name: name, phone: phone };
             if (homeAddress) updates.homeAddress = homeAddress;
             if (workAddress) updates.workAddress = workAddress;
-
-            database.ref(`users/${AppState.currentUser.uid}`).update(updates)
-                .then(() => {
-                    hideModal('updateProfile');
-                    EnhancedUIUpdater.showToast('Profile updated successfully', 'success');
-                })
-                .catch(error => {
-                    console.error('Error updating profile:', error);
-                    EnhancedUIUpdater.showToast('Error updating profile', 'error');
-                });
+            database.ref(`users/${AppState.currentUser.uid}`).update(updates).then(() => { hideModal('updateProfile'); EnhancedUIUpdater.showToast('Profile updated successfully', 'success'); }).catch(error => { console.error('Error updating profile:', error); EnhancedUIUpdater.showToast('Error updating profile', 'error'); });
         });
     }
 
     // Share referral button
     const shareReferralBtn = document.getElementById('shareReferralBtn');
     if (shareReferralBtn) {
-        shareReferralBtn.addEventListener('click', function () {
+        shareReferralBtn.addEventListener('click', function() {
             const referralCode = AppState.userData?.referralCode;
             if (referralCode && navigator.share) {
-                navigator.share({
-                    title: 'Join me on Jubel!',
-                    text: `Use my referral code ${referralCode} to get 50% off your first ride on Jubel!`,
-                    url: window.location.href
-                }).catch(console.error);
+                navigator.share({ title: 'Join me on Jubel!', text: `Use my referral code ${referralCode} to get 50% off your first ride on Jubel!`, url: window.location.href }).catch(console.error);
             } else if (referralCode) {
-                navigator.clipboard.writeText(referralCode)
-                    .then(() => {
-                        EnhancedUIUpdater.showToast('Referral code copied to clipboard!', 'success');
-                    })
-                    .catch(() => {
-                        const textArea = document.createElement('textarea');
-                        textArea.value = referralCode;
-                        document.body.appendChild(textArea);
-                        textArea.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(textArea);
-                        EnhancedUIUpdater.showToast('Referral code copied to clipboard!', 'success');
-                    });
+                navigator.clipboard.writeText(referralCode).then(() => { EnhancedUIUpdater.showToast('Referral code copied to clipboard!', 'success'); }).catch(() => { const textArea = document.createElement('textarea'); textArea.value = referralCode; document.body.appendChild(textArea); textArea.select(); document.execCommand('copy'); document.body.removeChild(textArea); EnhancedUIUpdater.showToast('Referral code copied to clipboard!', 'success'); });
             }
         });
     }
 
-    // Transfer button in transfer modal
+    // Confirm transfer button
     const confirmTransferBtn = document.getElementById('confirmTransferBtn');
     if (confirmTransferBtn) {
-        confirmTransferBtn.addEventListener('click', function () {
+        confirmTransferBtn.addEventListener('click', function() {
             const recipientCode = document.getElementById('recipientCode').value;
             const amountInput = document.getElementById('transferAmount');
             const amount = parseFloat(amountInput.value);
             const message = document.getElementById('transferMessage').value;
-
-            if (!recipientCode) {
-                EnhancedUIUpdater.showToast('Please enter recipient referral code', 'warning');
-                return;
-            }
-
-            if (!amount || amount <= 0) {
-                EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning');
-                return;
-            }
-
-            if (amount > AppState.walletBalance) {
-                EnhancedUIUpdater.showToast('Insufficient balance', 'error');
-                return;
-            }
-
-            EnhancedFirebaseManager.transferMoney(recipientCode, amount, message, 'wallet')
-                .then(() => {
-                    hideModal('transfer');
-                    document.getElementById('recipientCode').value = '';
-                    amountInput.value = '';
-                    document.getElementById('transferMessage').value = '';
-                })
-                .catch(error => {
-                    // Error already shown in transferMoney function
-                });
+            if (!recipientCode) { EnhancedUIUpdater.showToast('Please enter recipient referral code', 'warning'); return; }
+            if (!amount || amount <= 0) { EnhancedUIUpdater.showToast('Please enter a valid amount', 'warning'); return; }
+            if (amount > AppState.walletBalance) { EnhancedUIUpdater.showToast('Insufficient balance', 'error'); return; }
+            EnhancedFirebaseManager.transferMoney(recipientCode, amount, message, 'wallet').then(() => { hideModal('transfer'); document.getElementById('recipientCode').value = ''; amountInput.value = ''; document.getElementById('transferMessage').value = ''; }).catch(error => {});
         });
     }
 
     // History filters
     document.querySelectorAll('.filter-btn').forEach(btn => {
-        btn.addEventListener('click', function () {
-            document.querySelectorAll('.filter-btn').forEach(b => {
-                b.classList.remove('active');
-            });
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-
-            const filter = this.dataset.filter;
-            AppState.activeFilter = filter;
-
+            AppState.activeFilter = this.dataset.filter;
             if (AppState.rideHistory) {
                 let filteredRides;
-
-                switch (filter) {
-                    case 'all':
-                        filteredRides = AppState.rideHistory;
-                        break;
-                    case 'completed':
-                        filteredRides = AppState.rideHistory.filter(ride => ride.status === 'completed');
-                        break;
-                    case 'cancelled':
-                        filteredRides = AppState.rideHistory.filter(ride => ride.status === 'cancelled');
-                        break;
-                    case 'scheduled':
-                        filteredRides = AppState.scheduledRides;
-                        break;
-                    case 'emergency':
-                        filteredRides = AppState.rideHistory.filter(ride => ride.emergency);
-                        break;
-                    case 'delivery':
-                        filteredRides = AppState.rideHistory.filter(ride => ride.serviceType === 'delivery');
-                        break;
-                    case 'truck':
-                        filteredRides = AppState.rideHistory.filter(ride => ride.serviceType === 'truck');
-                        break;
-                    case 'broadcast':
-                        filteredRides = AppState.rideHistory.filter(ride => ride.broadcast);
-                        break;
-                    default:
-                        filteredRides = AppState.rideHistory;
+                switch(AppState.activeFilter) {
+                    case 'all': filteredRides = AppState.rideHistory; break;
+                    case 'completed': filteredRides = AppState.rideHistory.filter(ride => ride.status === 'completed'); break;
+                    case 'cancelled': filteredRides = AppState.rideHistory.filter(ride => ride.status === 'cancelled'); break;
+                    case 'scheduled': filteredRides = AppState.scheduledRides; break;
+                    case 'emergency': filteredRides = AppState.rideHistory.filter(ride => ride.emergency); break;
+                    case 'delivery': filteredRides = AppState.rideHistory.filter(ride => ride.serviceType === 'delivery'); break;
+                    case 'truck': filteredRides = AppState.rideHistory.filter(ride => ride.serviceType === 'truck'); break;
+                    case 'broadcast': filteredRides = AppState.rideHistory.filter(ride => ride.broadcast); break;
+                    default: filteredRides = AppState.rideHistory;
                 }
-
                 EnhancedUIUpdater.updateRideHistory(filteredRides);
             }
         });
     });
 
-    // Modal close buttons
-    document.querySelectorAll('.modal-close').forEach(btn => {
-        btn.addEventListener('click', function () {
-            const modal = this.dataset.modal;
-            hideModal(modal);
+    // Shopping service button
+    const requestShoppingBtn = document.getElementById('requestShoppingBtn');
+    if (requestShoppingBtn) requestShoppingBtn.addEventListener('click', requestShoppingService);
+
+    // Delivery service button
+    const requestDeliveryBtn = document.getElementById('requestDeliveryBtn');
+    if (requestDeliveryBtn) requestDeliveryBtn.addEventListener('click', requestDeliveryService);
+
+    // Short delivery service button
+    const requestShortDeliveryBtn = document.getElementById('requestShortDeliveryBtn');
+    if (requestShortDeliveryBtn) requestShortDeliveryBtn.addEventListener('click', requestShortDeliveryService);
+
+    // Truck service button
+    const requestTruckBtn = document.getElementById('requestTruckBtn');
+    if (requestTruckBtn) requestTruckBtn.addEventListener('click', requestTruckService);
+
+    // Destination input change listeners for price updates
+    const shoppingDestination = document.getElementById('shoppingDestination');
+    if (shoppingDestination) shoppingDestination.addEventListener('change', function() { if (AppState.pickup && AppState.destination) updateShoppingServicePrice(); });
+    const deliveryDestination = document.getElementById('deliveryDestination');
+    if (deliveryDestination) deliveryDestination.addEventListener('change', function() { if (AppState.pickup && AppState.destination) updateDeliveryServicePrice(); });
+    const shortDeliveryDestination = document.getElementById('shortDeliveryDestination');
+    if (shortDeliveryDestination) shortDeliveryDestination.addEventListener('change', function() { if (AppState.pickup && AppState.destination) updateShortDeliveryServicePrice(); });
+    const truckDestination = document.getElementById('truckDestination');
+    if (truckDestination) truckDestination.addEventListener('change', function() { if (AppState.pickup && AppState.destination) updateTruckServicePrice(); });
+
+    // Delivery type buttons
+    document.querySelectorAll('#standardDelivery, #expressDelivery, #sameDayDelivery').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('#standardDelivery, #expressDelivery, #sameDayDelivery').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            if (AppState.pickup && AppState.destination) updateDeliveryServicePrice();
         });
     });
 
-    // Modal overlay clicks
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-        overlay.addEventListener('click', function (e) {
-            if (e.target === this) {
-                const modalId = this.id.replace('Modal', '');
-                hideModal(modalId);
-            }
+    // Truck type selection
+    document.querySelectorAll('.truck-type').forEach(type => {
+        type.addEventListener('click', function() {
+            document.querySelectorAll('.truck-type').forEach(t => t.classList.remove('selected'));
+            this.classList.add('selected');
+            if (AppState.pickup && AppState.destination) updateTruckServicePrice();
         });
     });
+
+    // Helpers checkbox
+    const needHelpers = document.getElementById('needHelpers');
+    if (needHelpers) needHelpers.addEventListener('change', function() { if (AppState.pickup && AppState.destination) updateTruckServicePrice(); });
+
+    // Shopping budget input
+    const shoppingBudget = document.getElementById('shoppingBudget');
+    if (shoppingBudget) shoppingBudget.addEventListener('input', function() { if (AppState.pickup && AppState.destination) updateShoppingServicePrice(); });
+
+    // Add item button
+    const addItemBtn = document.getElementById('addItemBtn');
+    if (addItemBtn) addItemBtn.addEventListener('click', function() { if (AppState.pickup && AppState.destination) updateShoppingServicePrice(); });
+
+    // Parcel value input
+    const parcelValue = document.getElementById('parcelValue');
+    if (parcelValue) parcelValue.addEventListener('input', function() { if (AppState.pickup && AppState.destination) updateDeliveryServicePrice(); });
+
+    // Short delivery parcel description
+    const shortParcelDesc = document.getElementById('shortParcelDescription');
+    if (shortParcelDesc) shortParcelDesc.addEventListener('input', function() { if (AppState.pickup && AppState.destination) updateShortDeliveryServicePrice(); });
 
     console.log('Event listeners setup completed');
 }
@@ -4999,223 +4614,57 @@ function setupEventListeners() {
 // ============================================
 // MODAL FUNCTIONS
 // ============================================
-function showModal(modalId) {
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) {
-        modal.style.display = 'block';
-    }
-}
-
-function hideModal(modalId) {
-    const modal = document.getElementById(`${modalId}Modal`);
-    if (modal) {
-        modal.style.display = 'none';
-    }
-}
+function showModal(modalId) { const modal = document.getElementById(`${modalId}Modal`); if (modal) modal.style.display = 'block'; }
+function hideModal(modalId) { const modal = document.getElementById(`${modalId}Modal`); if (modal) modal.style.display = 'none'; }
 
 // ============================================
 // INITIALIZE APP
 // ============================================
 async function initializeApp() {
     console.log('🚀 Initializing Jubel Passenger App...');
-
     try {
         EnhancedUIUpdater.showLoading('Initializing app...');
-
         const urlParams = new URLSearchParams(window.location.search);
-        const email = urlParams.get('email');
-        const uid = urlParams.get('uid');
-
+        const email = urlParams.get('email'); const uid = urlParams.get('uid');
         let authPromise;
-
-        if (email && uid) {
-            console.log('🔑 Authenticated via URL parameters');
-            AppState.currentUser = { uid, email };
-            authPromise = EnhancedFirebaseManager.loadUserData(uid);
-        } else {
+        if (email && uid) { console.log('🔑 Authenticated via URL parameters'); AppState.currentUser = { uid, email }; authPromise = EnhancedFirebaseManager.loadUserData(uid); }
+        else {
             console.log('🔑 Checking Firebase auth state...');
             authPromise = new Promise((resolve, reject) => {
                 auth.onAuthStateChanged(async (user) => {
                     try {
-                        if (user) {
-                            console.log('✅ User authenticated:', user.uid);
-                            AppState.currentUser = user;
-                            await EnhancedFirebaseManager.loadUserData(user.uid);
-                            resolve();
-                        } else {
-                            console.log('❌ No user logged in');
-                            window.location.href = 'signup.html';
-                            reject(new Error('No user authenticated'));
-                        }
-                    } catch (error) {
-                        reject(error);
-                    }
+                        if (user) { console.log('✅ User authenticated:', user.uid); AppState.currentUser = user; await EnhancedFirebaseManager.loadUserData(user.uid); resolve(); }
+                        else { console.log('❌ No user logged in'); window.location.href = 'signup.html'; reject(new Error('No user authenticated')); }
+                    } catch (error) { reject(error); }
                 });
             });
         }
-
         await authPromise;
-
         initializeMap();
-
         setupEnhancedLocationInputs();
-
         EnhancedLocationManager.init();
-
         EnhancedSearchEngine.init();
-
         console.log('📍 Getting initial location...');
         const locationResult = await getCurrentLocation();
-
-        if (!locationResult) {
-            console.warn('⚠️ Initial location detection failed or was deferred');
-        }
-
+        if (!locationResult) console.warn('⚠️ Initial location detection failed or was deferred');
         setupEventListeners();
-
         initializeShoppingItems();
-
         EnhancedWalletManager.init();
-
         const scheduleDateInput = document.getElementById('scheduleDate');
-        if (scheduleDateInput) {
-            const today = new Date().toISOString().split('T')[0];
-            scheduleDateInput.min = today;
-            scheduleDateInput.value = today;
-        }
-
+        if (scheduleDateInput) { const today = new Date().toISOString().split('T')[0]; scheduleDateInput.min = today; scheduleDateInput.value = today; }
         const scheduleTimeInput = document.getElementById('scheduleTime');
-        if (scheduleTimeInput) {
-            const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = (now.getMinutes() + 10).toString().padStart(2, '0');
-            scheduleTimeInput.value = `${hours}:${minutes}`;
-        }
-
+        if (scheduleTimeInput) { const now = new Date(); const hours = now.getHours().toString().padStart(2, '0'); const minutes = (now.getMinutes() + 10).toString().padStart(2, '0'); scheduleTimeInput.value = `${hours}:${minutes}`; }
         if (AppState.userLocation && !AppState.locationUpdateInterval) {
-            AppState.locationUpdateInterval = setInterval(() => {
-                if (AppState.activeScreen === 'home' && !AppState.currentRide) {
-                    getCurrentLocation(false).catch(error =>
-                        console.warn('Periodic location update failed:', error)
-                    );
-                }
-            }, 30000);
+            AppState.locationUpdateInterval = setInterval(() => { if (AppState.activeScreen === 'home' && !AppState.currentRide) getCurrentLocation(false).catch(error => console.warn('Periodic location update failed:', error)); }, 30000);
         }
-
         EnhancedUIUpdater.hideLoading();
         EnhancedUIUpdater.showToast('Jubel Passenger App Ready! 🚗', 'success');
-
         console.log('✅ App initialization completed successfully');
-
     } catch (error) {
         console.error('❌ Error initializing app:', error);
         EnhancedUIUpdater.hideLoading();
-
-        if (!error.message.includes('No user authenticated')) {
-            EnhancedUIUpdater.showToast('Error initializing app. Please refresh.', 'error');
-        }
+        if (!error.message.includes('No user authenticated')) EnhancedUIUpdater.showToast('Error initializing app. Please refresh.', 'error');
     }
-}
-
-function setupEnhancedLocationInputs() {
-    console.log('📍 Setting up enhanced location inputs...');
-
-    const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
-
-    pickupInputs.forEach(input => {
-        input.removeAttribute('readonly');
-        if (!input.placeholder) {
-            input.placeholder = 'Enter pickup location or use current location';
-        }
-
-        input.addEventListener('focus', function () {
-            this.parentElement.classList.add('active');
-            if (!this.value.trim()) {
-                EnhancedLocationManager.showRecentLocations(this.id, 'pickup');
-            }
-        });
-
-        input.addEventListener('blur', function () {
-            setTimeout(() => {
-                this.parentElement.classList.remove('active');
-                EnhancedLocationManager.hideSuggestions();
-            }, 200);
-        });
-
-        input.addEventListener('input', function (e) {
-            EnhancedLocationManager.handlePickupInputChange(this.id, e.target.value);
-        });
-
-        if (!input.nextElementSibling?.classList.contains('clear-input-btn')) {
-            EnhancedCityDetector.addClearButtonToInput(input);
-        }
-
-        if (!input.parentNode.querySelector('.current-location-btn')) {
-            EnhancedCityDetector.addCurrentLocationButton(input);
-        }
-    });
-
-    const destinationInputs = document.querySelectorAll('input[id*="destination"], input[id*="Destination"]');
-
-    destinationInputs.forEach(input => {
-        input.addEventListener('focus', function () {
-            this.parentElement.classList.add('active');
-            EnhancedLocationManager.showRecentLocations(this.id, 'destination');
-        });
-
-        input.addEventListener('blur', function () {
-            setTimeout(() => {
-                this.parentElement.classList.remove('active');
-                EnhancedLocationManager.hideSuggestions();
-            }, 200);
-        });
-
-        input.addEventListener('input', function (e) {
-            EnhancedLocationManager.handleDestinationInputChange(this.id, e.target.value);
-        });
-
-        if (!input.nextElementSibling?.classList.contains('clear-input-btn')) {
-            EnhancedCityDetector.addClearButtonToInput(input);
-        }
-    });
-
-    console.log(`📍 Enhanced ${pickupInputs.length} pickup inputs and ${destinationInputs.length} destination inputs`);
-}
-
-function initializeShoppingItems() {
-    console.log('Initializing shopping items...');
-
-    const itemsContainer = document.getElementById('shoppingItems');
-    const addItemBtn = document.getElementById('addItemBtn');
-
-    if (!itemsContainer || !addItemBtn) {
-        console.warn('Shopping items elements not found');
-        return;
-    }
-
-    addItemBtn.addEventListener('click', function () {
-        const itemCount = itemsContainer.children.length + 1;
-
-        const itemEntry = document.createElement('div');
-        itemEntry.className = 'item-entry';
-        itemEntry.innerHTML = `
-            <input type="text" class="item-input" placeholder="Item ${itemCount}">
-            <button class="remove-item" type="button">
-                <i class="fas fa-times"></i>
-            </button>
-        `;
-
-        itemsContainer.appendChild(itemEntry);
-
-        const removeBtn = itemEntry.querySelector('.remove-item');
-        removeBtn.addEventListener('click', function () {
-            if (itemsContainer.children.length > 1) {
-                itemEntry.remove();
-            }
-        });
-    });
-
-    console.log('Shopping items initialized');
 }
 
 // ============================================
@@ -5229,8 +4678,13 @@ window.addEventListener('load', initializeApp);
 window.EnhancedUIUpdater = EnhancedUIUpdater;
 window.EnhancedLocationManager = EnhancedLocationManager;
 window.switchScreen = switchScreen;
+window.switchService = switchService;
 window.showModal = showModal;
 window.hideModal = hideModal;
 window.getCurrentLocation = getCurrentLocation;
+window.requestShoppingService = requestShoppingService;
+window.requestDeliveryService = requestDeliveryService;
+window.requestShortDeliveryService = requestShortDeliveryService;
+window.requestTruckService = requestTruckService;
 
 console.log('Jubel Passenger App JavaScript loaded');
