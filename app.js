@@ -136,7 +136,8 @@ const AppState = {
     },
     walletTransactions: [],
     rideHistory: [],
-    transactionFilter: 'all'
+    transactionFilter: 'all',
+    pendingScheduledRideData: null
 };
 
 // ============================================
@@ -2153,14 +2154,22 @@ const EnhancedPriceCalculator = {
 // ENHANCED UI UPDATER
 // ============================================
 const EnhancedUIUpdater = {
+    formatTimeAgo: function(timestamp) {
+        return formatTimeAgo(timestamp);
+    },
+
     updateWalletBalance: function(balance) {
         const formatted = `ZMW ${balance.toFixed(2)}`;
         const walletBalance = document.getElementById('walletBalance');
         const accountBalance = document.getElementById('accountBalance');
         const paymentAmount = document.getElementById('paymentAmount');
+        const depositCurrent = document.getElementById('depositCurrentBalance');
+        const withdrawCurrent = document.getElementById('withdrawCurrentBalance');
         if (walletBalance) walletBalance.textContent = formatted;
         if (accountBalance) accountBalance.textContent = formatted;
         if (paymentAmount) paymentAmount.textContent = formatted;
+        if (depositCurrent) depositCurrent.textContent = formatted;
+        if (withdrawCurrent) withdrawCurrent.textContent = formatted;
         AppState.walletBalance = balance;
     },
 
@@ -3773,7 +3782,7 @@ function setupEventListeners() {
             const option = this.dataset.option;
             document.getElementById('sidebarMenu').classList.remove('active');
             if (screen) {
-                if (screen === 'home') {
+                if (screen === 'dashboard') {
                     document.querySelectorAll('.full-screen-modal').forEach(m => m.classList.remove('active'));
                 } else {
                     document.getElementById(screen + 'Screen').classList.add('active');
@@ -4144,10 +4153,6 @@ function setupEventListeners() {
             EnhancedWalletManager.displayTransactions(AppState.walletTransactions || []);
         });
     });
-
-    // Add map controls if they exist in new UI (locateMeBtn, zoomInBtn, zoomOutBtn, clearRouteBtn)
-    // They are present in HTML? Not in provided HTML but we'll assume they exist or add them dynamically
-    // For now, we'll skip if not found.
 }
 
 // ============================================
