@@ -7952,7 +7952,6 @@ displaySearchResults: function(results) {
             // Set destination in the main input (the one that triggered the overlay)
             const originalInput = document.getElementById(this.activeSearchInput);
             if (originalInput) {
-                // This now closes the overlay internally
                 this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
             } else {
                 // Fallback: update AppState directly
@@ -7974,12 +7973,13 @@ displaySearchResults: function(results) {
                     EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
                     EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
-                // Close overlay for fallback case
-                this.closeSearchOverlay();
             }
+            
+            // Close overlay
+            this.closeSearchOverlay();
         });
     });
-}
+},
     
     // Input Setup Functions
     setupPickupInput: function(inputElement) {
@@ -8560,9 +8560,9 @@ displaySearchResults: function(results) {
     
     EnhancedUIUpdater.showToast('Destination set', 'success');
     
-    // 🔥 Close the search overlay
+    // ***** ADD THIS LINE: Close the search overlay *****
     this.closeSearchOverlay();
-}
+},
     
     // Clear Functions
     clearPickupLocation: function(inputId) {
@@ -8792,64 +8792,70 @@ displaySearchResults: function(results) {
     },
     
     // Stop Management Functions
-    addStop: function() {
-        const stopsContainer = document.getElementById('stopsContainer');
-        if (!stopsContainer) return;
-        
-        const stopIndex = AppState.rideStops.length + 1;
-        const stopId = `stop-${stopIndex}`;
-        
-        const stopElement = document.createElement('div');
-        stopElement.className = 'ride-stop';
-        stopElement.dataset.stopId = stopId;
-        stopElement.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <div style="color: #FF6B35;">
-                    <i class="fas fa-map-pin"></i>
-                </div>
-                <input type="text" class="stop-input" placeholder="Stop ${stopIndex}" 
-                       style="flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px;">
-                <button type="button" class="remove-stop-btn" style="
-                    background: #f44336;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 5px 10px;
-                    cursor: pointer;
-                ">
-                    <i class="fas fa-times"></i>
-                </button>
+   addStop: function() {
+    const stopsContainer = document.getElementById('stopsContainer');
+    if (!stopsContainer) return;
+    
+    const stopIndex = AppState.rideStops.length + 1;
+    const stopId = `stop-${stopIndex}`;
+    
+    const stopElement = document.createElement('div');
+    stopElement.className = 'ride-stop';
+    stopElement.dataset.stopId = stopId;
+    stopElement.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+            <div style="color: #FF6B35;">
+                <i class="fas fa-map-pin"></i>
             </div>
-        `;
-        
-        stopsContainer.appendChild(stopElement);
-        
-        // Add stop to state
-        AppState.rideStops.push({
-            id: stopId,
-            name: `Stop ${stopIndex}`,
-            location: null,
-            index: stopIndex
-        });
-        
-        // Setup input event
-        const stopInput = stopElement.querySelector('.stop-input');
-        stopInput.addEventListener('focus', () => {
-            this.handleStopInputFocus(stopId, stopInput);
-        });
-        
-        stopInput.addEventListener('input', (e) => {
-            this.handleStopInputChange(stopId, e.target.value);
-        });
-        
-        // Setup remove button
-        const removeBtn = stopElement.querySelector('.remove-stop-btn');
-        removeBtn.addEventListener('click', () => {
-            this.removeStop(stopId);
-        });
-        
-        EnhancedUIUpdater.showToast(`Stop ${stopIndex} added`, 'info');
-    },
+            <input type="text" class="stop-input" placeholder="Stop ${stopIndex}" 
+                   style="flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px;">
+            <button type="button" class="remove-stop-btn" style="
+                background: #f44336;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 5px 10px;
+                cursor: pointer;
+            ">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+    
+    stopsContainer.appendChild(stopElement);
+    
+    // Add stop to state
+    AppState.rideStops.push({
+        id: stopId,
+        name: `Stop ${stopIndex}`,
+        location: null,
+        index: stopIndex
+    });
+    
+    // Setup input event
+    const stopInput = stopElement.querySelector('.stop-input');
+    
+    // Make it searchable using the same logic as destination inputs
+    stopInput.addEventListener('focus', () => {
+        EnhancedLocationManager.handleStopInputFocus(stopId, stopInput);
+    });
+    
+    stopInput.addEventListener('input', (e) => {
+        EnhancedLocationManager.handleStopInputChange(stopId, e.target.value);
+    });
+    
+    // Also add a clear button and current location button for stops (optional)
+    // For simplicity, we reuse existing functions
+    EnhancedCityDetector.addClearButtonToInput(stopInput);
+    
+    // Setup remove button
+    const removeBtn = stopElement.querySelector('.remove-stop-btn');
+    removeBtn.addEventListener('click', () => {
+        this.removeStop(stopId);
+    });
+    
+    EnhancedUIUpdater.showToast(`Stop ${stopIndex} added`, 'info');
+},
     
     removeStop: function(stopId) {
         const stopElement = document.querySelector(`[data-stop-id="${stopId}"]`);
