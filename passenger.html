@@ -4587,6 +4587,163 @@ body {
     border-radius: var(--element-radius);
     padding: 12px;
 }
+
+/* ============================================
+   PAYMENT MODAL STYLES (Enhanced)
+   ============================================ */
+#paymentModal .modal {
+    max-width: 480px;
+}
+
+#paymentModal .wallet-balance {
+    background: linear-gradient(135deg, #FF6B35, #FF8B35);
+    color: white;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+#paymentModal .balance-label {
+    font-size: 14px;
+    opacity: 0.9;
+    margin-bottom: 5px;
+}
+
+#paymentModal .balance-amount-large {
+    font-size: 28px;
+    font-weight: 800;
+}
+
+#paymentModal .payment-amount {
+    background: #f9f9f9;
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: #FF6B35;
+    border: 1px solid #eee;
+}
+
+#paymentModal .referral-discount-section {
+    background: #E8F5E9;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid #C8E6C9;
+}
+
+#paymentModal .section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #2E7D32;
+    margin-bottom: 12px;
+}
+
+#paymentModal .referral-input-group {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+#paymentModal .referral-input-group input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+#paymentModal .btn-orange {
+    background: #FF6B35;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+#paymentModal .btn-orange:hover {
+    background: #E55A28;
+}
+
+#paymentModal .discount-breakdown {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+#paymentModal .price-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+}
+
+#paymentModal .price-row.total {
+    border-top: 1px solid #ddd;
+    margin-top: 6px;
+    padding-top: 10px;
+    font-weight: 700;
+    font-size: 16px;
+}
+
+#paymentModal .payment-methods {
+    margin: 20px 0;
+}
+
+#paymentModal .payment-method {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+#paymentModal .payment-method:hover,
+#paymentModal .payment-method.selected {
+    border-color: #FF6B35;
+    background: #FFF3E0;
+    transform: translateX(4px);
+}
+
+#paymentModal .payment-icon {
+    width: 40px;
+    height: 40px;
+    background: #f5f5f5;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: #FF6B35;
+}
+
+#paymentModal .payment-details {
+    flex: 1;
+}
+
+#paymentModal .payment-name {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+#paymentModal .payment-info {
+    font-size: 12px;
+    color: #666;
+}
 /* ============================================
    END OF CSS
    ============================================ */
@@ -7592,7 +7749,7 @@ EnhancedLocationManager = {
         }
     },
 
-    showSearchOverlay: function(inputId) {
+   showSearchOverlay: function(inputId) {
     // If overlay already exists, reuse it
     let overlay = document.getElementById('searchOverlay');
     if (!overlay) {
@@ -7602,39 +7759,140 @@ EnhancedLocationManager = {
         overlay.innerHTML = `
             <div class="search-overlay-header">
                 <i class="fas fa-arrow-left" id="closeSearchOverlay"></i>
-                <input type="text" id="searchInput" placeholder="Search for destination..." autofocus>
+                <div style="font-size: 18px; font-weight: 600;">Book a Ride</div>
             </div>
-            <div class="search-results-list" id="searchResultsList"></div>
+            <div class="search-overlay-content">
+                <div class="location-preview">
+                    <div class="preview-item">
+                        <i class="fas fa-circle" style="font-size: 12px; color: #FF6B35;"></i>
+                        <div>
+                            <div class="preview-label">Pickup</div>
+                            <div class="preview-address" id="overlayPickupAddress">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="preview-item">
+                        <i class="fas fa-flag-checkered" style="font-size: 12px; color: #4CAF50;"></i>
+                        <div>
+                            <div class="preview-label">Where to?</div>
+                            <input type="text" id="overlayDestinationInput" placeholder="Enter destination..." autocomplete="off">
+                        </div>
+                    </div>
+                </div>
+                <div class="add-stop-container">
+                    <button type="button" id="overlayAddStopBtn" class="btn-add-stop">
+                        <i class="fas fa-plus"></i> Add Stop
+                    </button>
+                </div>
+                <div class="search-results-list" id="searchResultsList"></div>
+            </div>
         `;
         document.body.appendChild(overlay);
-        
+
         // Close button
         document.getElementById('closeSearchOverlay').addEventListener('click', () => {
             this.closeSearchOverlay();
         });
-        
-        // Search input event
-        const searchInput = document.getElementById('searchInput');
-        searchInput.addEventListener('input', (e) => {
+
+        // Destination input event
+        const destInput = document.getElementById('overlayDestinationInput');
+        destInput.addEventListener('input', (e) => {
             this.handleDestinationInputChange(inputId, e.target.value);
         });
-        
-        // Close when clicking outside? Not needed, but we'll close on ESC
+
+        // Add stop button
+        const addStopBtn = document.getElementById('overlayAddStopBtn');
+        if (addStopBtn) {
+            addStopBtn.addEventListener('click', () => {
+                this.addStop();
+            });
+        }
+
+        // Close when pressing Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && overlay.classList.contains('active')) {
                 this.closeSearchOverlay();
             }
         });
     }
-    
-    // Show overlay and focus input
+
+    // Show overlay and update pickup display
     overlay.classList.add('active');
-    const searchInput = document.getElementById('searchInput');
-    searchInput.value = '';
-    searchInput.focus();
-    
+    const pickupAddressEl = document.getElementById('overlayPickupAddress');
+    if (pickupAddressEl) {
+        const pickup = AppState.pickup;
+        pickupAddressEl.textContent = pickup ? (pickup.address || 'Current Location') : 'Not set';
+    }
+    const destInput = document.getElementById('overlayDestinationInput');
+    if (destInput) {
+        destInput.value = '';
+        destInput.focus();
+    }
+
     // Clear results
-    document.getElementById('searchResultsList').innerHTML = '';
+    const resultsContainer = document.getElementById('searchResultsList');
+    if (resultsContainer) resultsContainer.innerHTML = '';
+},
+
+closeSearchOverlay: function() {
+    const overlay = document.getElementById('searchOverlay');
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+},
+
+displaySearchResults: function(results) {
+    const container = document.getElementById('searchResultsList');
+    if (!container) return;
+
+    if (!results || results.length === 0) {
+        container.innerHTML = '<div class="no-results"><i class="fas fa-search"></i><div>No results found</div></div>';
+        return;
+    }
+
+    let html = '';
+    results.forEach(result => {
+        html += `
+            <div class="search-result-item" data-lat="${result.lat}" data-lng="${result.lng}" data-name="${result.name}" data-address="${result.address}">
+                <div class="search-result-icon"><i class="fas fa-map-marker-alt"></i></div>
+                <div class="search-result-info">
+                    <div class="search-result-name">${result.name}</div>
+                    <div class="search-result-address">${result.address}</div>
+                    ${result.distance ? `<div class="search-result-distance">${result.distance.toFixed(1)} km away</div>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+
+    // Attach click event to each result
+    container.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const lat = parseFloat(item.dataset.lat);
+            const lng = parseFloat(item.dataset.lng);
+            const name = item.dataset.name;
+            const address = item.dataset.address;
+
+            const selectedLocation = { lat, lng, name, address };
+
+            // Set destination in AppState and main input
+            this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
+
+            // Close overlay
+            this.closeSearchOverlay();
+
+            // Draw route on map
+            if (AppState.pickup && AppState.destination) {
+                EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+                // Show toast with estimated arrival
+                const distance = EnhancedPriceCalculator.calculateDistance(
+                    AppState.pickup.lat, AppState.pickup.lng,
+                    AppState.destination.lat, AppState.destination.lng
+                );
+                const time = EnhancedPriceCalculator.estimateTime(distance);
+                EnhancedUIUpdater.showToast(`Estimated arrival: ${Math.ceil(time)} min`, 'info');
+            }
+        });
+    });
 },
 
 closeSearchOverlay: function() {
