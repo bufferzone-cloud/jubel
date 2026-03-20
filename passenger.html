@@ -4503,7 +4503,6 @@ body {
 }
 
 /* Full‑screen search overlay */
-/* Full‑screen search overlay with new layout */
 .search-overlay {
     position: fixed;
     top: 0;
@@ -4512,14 +4511,10 @@ body {
     bottom: 0;
     background: white;
     z-index: 10000;
-    display: none;                /* Hidden by default */
+    display: none;               /* hidden by default */
     flex-direction: column;
     animation: fadeIn 0.3s ease;
     transform: translateY(0);
-}
-
-.search-overlay.active {
-    display: flex;                /* Shown when active */
 }
 
 .search-overlay-header {
@@ -4704,7 +4699,7 @@ body {
 }
 
 .search-overlay.active {
-    display: flex;
+    display: flex;               /* shown only when active */
 }
 
 .search-overlay-header {
@@ -7874,16 +7869,6 @@ EnhancedLocationManager = {
         });
     }
 
-
-destInput.addEventListener('blur', () => {
-    // Delay to allow result click to register
-    setTimeout(() => {
-        // Only close if the overlay is still active and the focus hasn't moved to a result
-        if (this.activeSearchInput && !document.activeElement?.closest('.search-result-item')) {
-            this.closeSearchOverlay();
-        }
-    }, 200);
-});
     // Close button
     const closeBtn = document.getElementById('closeSearchOverlay');
     if (closeBtn) {
@@ -7927,11 +7912,16 @@ closeSearchOverlay: function() {
     const overlay = document.getElementById('searchOverlay');
     if (overlay) {
         overlay.classList.remove('active');
-        // Optionally clear the results container
+        // Clear the destination input inside the overlay
+        const destInput = overlay.querySelector('#overlayDestinationLocation');
+        if (destInput) destInput.value = '';
+        // Clear results list
         const resultsContainer = document.getElementById('searchResultsList');
         if (resultsContainer) resultsContainer.innerHTML = '';
+        // Optional: blur the input to hide keyboard on mobile
+        if (destInput) destInput.blur();
     }
-},
+}
 
 displaySearchResults: function(results) {
     const container = document.getElementById('searchResultsList');
@@ -7964,34 +7954,33 @@ displaySearchResults: function(results) {
             
             const selectedLocation = { lat, lng, name, address };
             
-            // Use the original input ID stored during focus
-            const originalInputId = this.activeSearchInput;
-            const originalInput = document.getElementById(originalInputId);
-            
+            // Set destination in the main input (the one that triggered the overlay)
+            const originalInput = document.getElementById(this.activeSearchInput);
             if (originalInput) {
-                // Update the original destination input and AppState
-                this.selectDestinationLocation(originalInputId, selectedLocation);
+                this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
             } else {
-                // Fallback: update AppState directly and update the main destination input
+                // Fallback: update AppState directly
                 AppState.destination = {
                     lat: selectedLocation.lat,
                     lng: selectedLocation.lng,
                     address: selectedLocation.address,
                     name: selectedLocation.name
                 };
+                // Also update the main destination input
                 const mainDestInput = document.getElementById('destinationLocation');
                 if (mainDestInput) {
                     mainDestInput.value = selectedLocation.address;
                     mainDestInput.dataset.lat = selectedLocation.lat;
                     mainDestInput.dataset.lng = selectedLocation.lng;
                 }
+                // Draw route
                 if (AppState.pickup && AppState.destination) {
                     EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
                     EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
             }
             
-            // Close the overlay
+            // Close overlay
             this.closeSearchOverlay();
         });
     });
@@ -17236,11 +17225,9 @@ function setupEnhancedLocationInputs() {
             input.placeholder = 'Enter pickup location or use current location';
         }
         
-        // Add event listener for focus to show suggestions
+        // Add event listener for focus to show recent locations
         input.addEventListener('focus', function() {
             this.parentElement.classList.add('active');
-            
-            // If empty, show recent locations
             if (!this.value.trim()) {
                 EnhancedLocationManager.showRecentLocations(this.id, 'pickup');
             }
@@ -17788,26 +17775,13 @@ function setupEventListeners() {
         });
     });
     
-  // Add Stop button – closes overlay and triggers the main panel's add stop
-const addStopBtn = document.getElementById('overlayAddStopBtn');
-if (addStopBtn) {
-    addStopBtn.addEventListener('click', () => {
-        this.closeSearchOverlay();
-        // Try to trigger the main "Add Stop" button in the car form
-        const mainAddStop = document.getElementById('addStopBtn');
-        if (mainAddStop && typeof mainAddStop.click === 'function') {
-            mainAddStop.click();
-        } else {
-            // Fallback: call the addStop method directly
-            if (typeof EnhancedLocationManager.addStop === 'function') {
-                EnhancedLocationManager.addStop();
-            } else {
-                console.warn('Add Stop method not available');
-                EnhancedUIUpdater.showToast('Add stop feature not available in this service', 'warning');
-            }
-        }
-    });
-}
+    // Add stop button
+    const addStopBtn = document.getElementById('addStopBtn');
+    if (addStopBtn) {
+        addStopBtn.addEventListener('click', function() {
+            EnhancedLocationManager.addStop();
+        });
+    }
     
     // Request ride button
     const requestRideBtn = document.getElementById('requestRideBtn');
