@@ -4503,6 +4503,7 @@ body {
 }
 
 /* Full‑screen search overlay */
+/* Full‑screen search overlay with new layout */
 .search-overlay {
     position: fixed;
     top: 0;
@@ -4511,10 +4512,14 @@ body {
     bottom: 0;
     background: white;
     z-index: 10000;
-    display: flex;
+    display: none;                /* Hidden by default */
     flex-direction: column;
     animation: fadeIn 0.3s ease;
     transform: translateY(0);
+}
+
+.search-overlay.active {
+    display: flex;                /* Shown when active */
 }
 
 .search-overlay-header {
@@ -7671,14 +7676,11 @@ const EnhancedSearchEngine = {
 // ============================================
 // ENHANCED LOCATION MANAGER
 // ============================================
-// ============================================
-// ENHANCED LOCATION MANAGER
-// ============================================
 EnhancedLocationManager = {
     // Properties
     searchTimeout: null,
     activeSearchInput: null,
-
+    
     // Main Initialization
     init: function() {
         console.log('Enhanced Location Manager initialized');
@@ -7686,18 +7688,24 @@ EnhancedLocationManager = {
         this.setupSearchSuggestions();
         this.setupEditablePickup();
     },
-
+    
     // Setup Functions
     setupEditablePickup: function() {
         // Make all pickup inputs editable by default
         const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
+        
         pickupInputs.forEach(input => {
+            // Remove readonly attribute
             input.removeAttribute('readonly');
+            
+            // Add clear button functionality
             this.addClearButton(input);
+            
+            // Add current location button
             this.addCurrentLocationButton(input);
         });
     },
-
+    
     addCurrentLocationButton: function(input) {
         const parent = input.parentNode;
         if (!parent.querySelector('.current-location-btn')) {
@@ -7717,14 +7725,16 @@ EnhancedLocationManager = {
                 font-size: 16px;
                 z-index: 10;
             `;
+            
             currentLocationBtn.addEventListener('click', () => {
                 getCurrentLocation();
             });
+            
             parent.style.position = 'relative';
             parent.appendChild(currentLocationBtn);
         }
     },
-
+    
     addClearButton: function(input) {
         if (!input.nextElementSibling?.classList.contains('clear-input-btn')) {
             const clearBtn = document.createElement('button');
@@ -7743,12 +7753,16 @@ EnhancedLocationManager = {
                 display: none;
                 z-index: 10;
             `;
+            
             const parent = input.parentNode;
             parent.style.position = 'relative';
             parent.appendChild(clearBtn);
+            
             clearBtn.addEventListener('click', () => {
                 input.value = '';
                 clearBtn.style.display = 'none';
+                
+                // Clear pickup location in state if this is the main pickup input
                 if (input.id === 'pickupLocation') {
                     AppState.pickup = null;
                     if (pickupMarker) {
@@ -7757,28 +7771,32 @@ EnhancedLocationManager = {
                     }
                 }
             });
+            
             input.addEventListener('input', () => {
                 clearBtn.style.display = input.value ? 'block' : 'none';
             });
         }
     },
-
+    
     setupLocationInputs: function() {
         // Setup pickup inputs
         const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
         pickupInputs.forEach(input => {
             this.setupPickupInput(input);
         });
+        
         // Setup destination inputs
         const destinationInputs = document.querySelectorAll('input[id*="destination"], input[id*="Destination"]');
         destinationInputs.forEach(input => {
             this.setupDestinationInput(input);
         });
+        
         // Setup shopping categories
         this.setupShoppingCategories();
     },
-
+    
     setupSearchSuggestions: function() {
+        // Create global suggestion container if it doesn't exist
         if (!document.getElementById('globalSuggestionsContainer')) {
             const container = document.createElement('div');
             container.id = 'globalSuggestionsContainer';
@@ -7799,197 +7817,339 @@ EnhancedLocationManager = {
         }
     },
 
-    showSearchOverlay: function(inputId) {
-        let overlay = document.getElementById('searchOverlay');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'searchOverlay';
-            overlay.className = 'search-overlay';
-            overlay.innerHTML = `
-                <div class="search-overlay-header">
-                    <i class="fas fa-arrow-left" id="closeSearchOverlay"></i>
-                    <div class="logo-with-title">
-                        <i class="fas fa-car" style="margin-right: 8px;"></i>
-                        <span>Book a Ride</span>
-                    </div>
+   showSearchOverlay: function(inputId) {
+    // If overlay already exists, reuse it
+    let overlay = document.getElementById('searchOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'searchOverlay';
+        overlay.className = 'search-overlay';
+        overlay.innerHTML = `
+            <div class="search-overlay-header">
+                <i class="fas fa-arrow-left" id="closeSearchOverlay"></i>
+                <div class="logo-with-title">
+                    <i class="fas fa-car" style="margin-right: 8px;"></i>
+                    <span>Book a Ride</span>
                 </div>
-                <div class="search-overlay-body">
-                    <div class="location-input current-location">
-                        <i class="fas fa-map-marker-alt"></i>
-                        <input type="text" id="overlayPickupLocation" placeholder="Current location" readonly>
-                    </div>
-                    <div class="location-input destination-input">
-                        <i class="fas fa-flag"></i>
-                        <input type="text" id="overlayDestinationLocation" placeholder="Where to?" autocomplete="off">
-                    </div>
-                    <button class="add-stop-btn" id="overlayAddStopBtn">
-                        <i class="fas fa-plus"></i> Add Stop
-                    </button>
-                    <div class="search-results-list" id="searchResultsList"></div>
+            </div>
+            <div class="search-overlay-body">
+                <div class="location-input current-location">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <input type="text" id="overlayPickupLocation" placeholder="Current location" readonly>
                 </div>
-            `;
-            document.body.appendChild(overlay);
-        }
+                <div class="location-input destination-input">
+                    <i class="fas fa-flag"></i>
+                    <input type="text" id="overlayDestinationLocation" placeholder="Where to?" autocomplete="off">
+                </div>
+                <button class="add-stop-btn" id="overlayAddStopBtn">
+                    <i class="fas fa-plus"></i> Add Stop
+                </button>
+                <div class="search-results-list" id="searchResultsList"></div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+    }
 
-        // Copy current pickup location to overlay
-        const mainPickup = document.getElementById('pickupLocation');
-        const overlayPickup = document.getElementById('overlayPickupLocation');
-        if (mainPickup && overlayPickup) {
-            overlayPickup.value = mainPickup.value;
-            if (mainPickup.dataset.lat && mainPickup.dataset.lng) {
-                overlayPickup.dataset.lat = mainPickup.dataset.lat;
-                overlayPickup.dataset.lng = mainPickup.dataset.lng;
+    // Set the current location address from the main pickup input
+    const mainPickup = document.getElementById('pickupLocation');
+    const overlayPickup = document.getElementById('overlayPickupLocation');
+    if (mainPickup && overlayPickup) {
+        overlayPickup.value = mainPickup.value;
+        // Also copy the stored coordinates if available
+        if (mainPickup.dataset.lat && mainPickup.dataset.lng) {
+            overlayPickup.dataset.lat = mainPickup.dataset.lat;
+            overlayPickup.dataset.lng = mainPickup.dataset.lng;
+        }
+    }
+
+    // Set up destination input event listeners
+    const destInput = document.getElementById('overlayDestinationLocation');
+    if (destInput) {
+        destInput.addEventListener('focus', () => {
+            this.activeSearchInput = inputId; // keep track of original input
+            // No need to re‑show overlay – we're already inside it
+        });
+        destInput.addEventListener('input', (e) => {
+            this.handleDestinationInputChange(inputId, e.target.value);
+        });
+    }
+
+
+destInput.addEventListener('blur', () => {
+    // Delay to allow result click to register
+    setTimeout(() => {
+        // Only close if the overlay is still active and the focus hasn't moved to a result
+        if (this.activeSearchInput && !document.activeElement?.closest('.search-result-item')) {
+            this.closeSearchOverlay();
+        }
+    }, 200);
+});
+    // Close button
+    const closeBtn = document.getElementById('closeSearchOverlay');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            this.closeSearchOverlay();
+        });
+    }
+
+    // Add Stop button – closes overlay and triggers the main panel's add stop
+    const addStopBtn = document.getElementById('overlayAddStopBtn');
+    if (addStopBtn) {
+        addStopBtn.addEventListener('click', () => {
+            this.closeSearchOverlay();
+            // Trigger the main panel's add stop button if exists
+            const mainAddStop = document.getElementById('addStopBtn');
+            if (mainAddStop) {
+                mainAddStop.click();
+            } else if (typeof EnhancedLocationManager.addStop === 'function') {
+                EnhancedLocationManager.addStop();
             }
-        }
+        });
+    }
 
-        // Set up destination input event listener (always reattach to be safe)
-        const destInput = overlay.querySelector('#overlayDestinationLocation');
-        if (destInput) {
-            // Remove any previous listener to avoid duplicates
-            const newDestInput = destInput.cloneNode(true);
-            destInput.parentNode.replaceChild(newDestInput, destInput);
-            newDestInput.addEventListener('input', (e) => {
-                this.handleDestinationInputChange(inputId, e.target.value);
-            });
-            // Store reference so we can use it later
-            this.activeSearchInput = inputId;
-        }
+    // Show overlay
+    overlay.classList.add('active');
+    const searchInput = destInput;
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
 
-        // Set up close button (re‑attach)
-        const closeBtn = overlay.querySelector('#closeSearchOverlay');
-        if (closeBtn) {
-            const newCloseBtn = closeBtn.cloneNode(true);
-            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
-            newCloseBtn.addEventListener('click', () => {
-                this.closeSearchOverlay();
-            });
-        }
+    // Clear previous results
+    const resultsContainer = document.getElementById('searchResultsList');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = '';
+    }
+},
 
-        // Set up Add Stop button (re‑attach)
-        const addStopBtn = overlay.querySelector('#overlayAddStopBtn');
-        if (addStopBtn) {
-            const newAddStopBtn = addStopBtn.cloneNode(true);
-            addStopBtn.parentNode.replaceChild(newAddStopBtn, addStopBtn);
-            newAddStopBtn.addEventListener('click', () => {
-                this.closeSearchOverlay();
-                const mainAddStop = document.getElementById('addStopBtn');
-                if (mainAddStop) {
-                    mainAddStop.click();
-                } else if (typeof this.addStop === 'function') {
-                    this.addStop();
-                }
-            });
-        }
 
-        // Show overlay
-        overlay.classList.add('active');
-        const searchInput = overlay.querySelector('#overlayDestinationLocation');
-        if (searchInput) {
-            searchInput.value = '';
-            searchInput.focus();
-        }
-
-        // Clear previous results
+closeSearchOverlay: function() {
+    const overlay = document.getElementById('searchOverlay');
+    if (overlay) {
+        overlay.classList.remove('active');
+        // Optionally clear the results container
         const resultsContainer = document.getElementById('searchResultsList');
         if (resultsContainer) resultsContainer.innerHTML = '';
-    },
+    }
+},
 
-    closeSearchOverlay: function() {
-        const overlay = document.getElementById('searchOverlay');
-        if (overlay) {
-            overlay.classList.remove('active');
-            const resultsContainer = document.getElementById('searchResultsList');
-            if (resultsContainer) resultsContainer.innerHTML = '';
-        }
-    },
-
-    displaySearchResults: function(results) {
-        const container = document.getElementById('searchResultsList');
-        if (!container) return;
-
-        if (!results || results.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:20px;">No results found</div>';
-            return;
-        }
-
-        let html = '';
-        results.forEach(result => {
-            html += `
-                <div class="search-result-item" data-lat="${result.lat}" data-lng="${result.lng}" data-name="${result.name}" data-address="${result.address}">
-                    <div class="search-result-name">${result.name}</div>
-                    <div class="search-result-address">${result.address}</div>
-                    ${result.distance ? `<div class="search-result-distance">${result.distance.toFixed(1)} km away</div>` : ''}
-                </div>
-            `;
-        });
-        container.innerHTML = html;
-
-        container.querySelectorAll('.search-result-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const lat = parseFloat(item.dataset.lat);
-                const lng = parseFloat(item.dataset.lng);
-                const name = item.dataset.name;
-                const address = item.dataset.address;
-                const selectedLocation = { lat, lng, name, address };
-
-                const originalInput = document.getElementById(this.activeSearchInput);
-                if (originalInput) {
-                    this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
-                } else {
-                    // Fallback: update AppState directly
-                    AppState.destination = {
-                        lat: selectedLocation.lat,
-                        lng: selectedLocation.lng,
-                        address: selectedLocation.address,
-                        name: selectedLocation.name
-                    };
-                    const mainDestInput = document.getElementById('destinationLocation');
-                    if (mainDestInput) {
-                        mainDestInput.value = selectedLocation.address;
-                        mainDestInput.dataset.lat = selectedLocation.lat;
-                        mainDestInput.dataset.lng = selectedLocation.lng;
-                    }
-                    if (AppState.pickup && AppState.destination) {
-                        EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-                        EnhancedUIUpdater.calculateAndUpdatePrices();
-                    }
-                    this.closeSearchOverlay();
+displaySearchResults: function(results) {
+    const container = document.getElementById('searchResultsList');
+    if (!container) return;
+    
+    if (!results || results.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;">No results found</div>';
+        return;
+    }
+    
+    let html = '';
+    results.forEach(result => {
+        html += `
+            <div class="search-result-item" data-lat="${result.lat}" data-lng="${result.lng}" data-name="${result.name}" data-address="${result.address}">
+                <div class="search-result-name">${result.name}</div>
+                <div class="search-result-address">${result.address}</div>
+                ${result.distance ? `<div class="search-result-distance">${result.distance.toFixed(1)} km away</div>` : ''}
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+    
+    // Attach click event to each result
+    container.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const lat = parseFloat(item.dataset.lat);
+            const lng = parseFloat(item.dataset.lng);
+            const name = item.dataset.name;
+            const address = item.dataset.address;
+            
+            const selectedLocation = { lat, lng, name, address };
+            
+            // Use the original input ID stored during focus
+            const originalInputId = this.activeSearchInput;
+            const originalInput = document.getElementById(originalInputId);
+            
+            if (originalInput) {
+                // Update the original destination input and AppState
+                this.selectDestinationLocation(originalInputId, selectedLocation);
+            } else {
+                // Fallback: update AppState directly and update the main destination input
+                AppState.destination = {
+                    lat: selectedLocation.lat,
+                    lng: selectedLocation.lng,
+                    address: selectedLocation.address,
+                    name: selectedLocation.name
+                };
+                const mainDestInput = document.getElementById('destinationLocation');
+                if (mainDestInput) {
+                    mainDestInput.value = selectedLocation.address;
+                    mainDestInput.dataset.lat = selectedLocation.lat;
+                    mainDestInput.dataset.lng = selectedLocation.lng;
                 }
-            });
+                if (AppState.pickup && AppState.destination) {
+                    EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+                    EnhancedUIUpdater.calculateAndUpdatePrices();
+                }
+            }
+            
+            // Close the overlay
+            this.closeSearchOverlay();
         });
-    },
-
+    });
+},
+    
     // Input Setup Functions
     setupPickupInput: function(inputElement) {
         const inputId = inputElement.id;
+        
         inputElement.addEventListener('focus', () => {
             this.handlePickupInputFocus(inputId);
         });
+        
         inputElement.addEventListener('input', (e) => {
             this.handlePickupInputChange(inputId, e.target.value);
         });
+        
         inputElement.addEventListener('blur', () => {
             setTimeout(() => {
                 this.handlePickupInputBlur(inputId);
             }, 200);
         });
+        
+        // Add clear button
+        if (!inputElement.nextElementSibling?.classList.contains('clear-input-btn')) {
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'clear-input-btn';
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+            clearBtn.style.cssText = `
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: #999;
+                cursor: pointer;
+                display: none;
+                z-index: 10;
+            `;
+            
+            inputElement.parentNode.style.position = 'relative';
+            inputElement.parentNode.appendChild(clearBtn);
+            
+            clearBtn.addEventListener('click', () => {
+                inputElement.value = '';
+                clearBtn.style.display = 'none';
+                this.clearPickupLocation(inputId);
+            });
+            
+            inputElement.addEventListener('input', () => {
+                clearBtn.style.display = inputElement.value ? 'block' : 'none';
+            });
+        }
     },
-
+    
     setupDestinationInput: function(inputElement) {
         const inputId = inputElement.id;
+        
         inputElement.addEventListener('focus', () => {
             this.handleDestinationInputFocus(inputId);
         });
+        
         inputElement.addEventListener('input', (e) => {
             this.handleDestinationInputChange(inputId, e.target.value);
         });
+        
         inputElement.addEventListener('blur', () => {
             setTimeout(() => {
                 this.handleDestinationInputBlur(inputId);
             }, 200);
         });
+        
+        // Add clear button
+        if (!inputElement.nextElementSibling?.classList.contains('clear-input-btn')) {
+            const clearBtn = document.createElement('button');
+            clearBtn.type = 'button';
+            clearBtn.className = 'clear-input-btn';
+            clearBtn.innerHTML = '<i class="fas fa-times"></i>';
+            clearBtn.style.cssText = `
+                position: absolute;
+                right: 10px;
+                top: 50%;
+                transform: translateY(-50%);
+                background: none;
+                border: none;
+                color: #999;
+                cursor: pointer;
+                display: none;
+                z-index: 10;
+            `;
+            
+            inputElement.parentNode.style.position = 'relative';
+            inputElement.parentNode.appendChild(clearBtn);
+            
+            clearBtn.addEventListener('click', () => {
+                inputElement.value = '';
+                clearBtn.style.display = 'none';
+                this.clearDestinationLocation(inputId);
+            });
+            
+            inputElement.addEventListener('input', () => {
+                clearBtn.style.display = inputElement.value ? 'block' : 'none';
+            });
+        }
     },
-
+    
+    setupShoppingCategories: function() {
+        // Create shopping category selector if it doesn't exist
+        if (!document.getElementById('shoppingCategorySelector')) {
+            const container = document.createElement('div');
+            container.id = 'shoppingCategorySelector';
+            container.className = 'shopping-category-selector';
+            container.style.cssText = `
+                display: flex;
+                gap: 10px;
+                margin-bottom: 15px;
+                flex-wrap: wrap;
+            `;
+            
+            Object.entries(AppState.shoppingCategories).forEach(([key, category]) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'category-btn';
+                button.dataset.category = key;
+                button.innerHTML = `
+                    <i class="fas ${category.icon}"></i>
+                    <span>${category.name}</span>
+                `;
+                button.style.cssText = `
+                    flex: 1;
+                    min-width: 120px;
+                    padding: 10px;
+                    background: white;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 5px;
+                `;
+                
+                button.addEventListener('click', () => {
+                    this.handleShoppingCategoryClick(key);
+                });
+                
+                container.appendChild(button);
+            });
+            
+            const shopNameInput = document.getElementById('shopName');
+            if (shopNameInput && shopNameInput.parentNode) {
+                shopNameInput.parentNode.insertBefore(container, shopNameInput);
+            }
+        }
+    },
+    
     // Event Handlers - Pickup
     handlePickupInputFocus: function(inputId) {
         const input = document.getElementById(inputId);
@@ -7998,69 +8158,357 @@ EnhancedLocationManager = {
             this.showRecentLocations(inputId, 'pickup');
         }
     },
-
+    
     handlePickupInputChange: async function(inputId, value) {
         if (!value.trim() || value.length < 2) {
             this.hideSuggestions();
             return;
         }
+        
         clearTimeout(this.searchTimeout);
         this.searchTimeout = setTimeout(async () => {
             await this.searchLocations(inputId, value, 'pickup');
         }, 300);
     },
-
+    
     handlePickupInputBlur: function(inputId) {
         const input = document.getElementById(inputId);
         if (input) {
             input.parentElement.classList.remove('active');
         }
+        
         setTimeout(() => {
             this.hideSuggestions();
         }, 200);
     },
-
+    
     // Event Handlers - Destination
-    handleDestinationInputFocus: function(inputId) {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        this.activeSearchInput = inputId;
-        this.showSearchOverlay(inputId);
-    },
-
-    handleDestinationInputChange: async function(inputId, value) {
-        if (!value || value.length < 2) return;
-        const overlay = document.getElementById('searchOverlay');
-        if (!overlay || !overlay.classList.contains('active')) return;
-        const resultsContainer = document.getElementById('searchResultsList');
-        if (!resultsContainer) return;
-        resultsContainer.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
-        try {
-            const results = await EnhancedSearchEngine.search(value, 'destination', AppState.userLocation, AppState.currentCity);
-            this.displaySearchResults(results);
-        } catch (error) {
-            console.error('Search error:', error);
-            resultsContainer.innerHTML = '<div style="text-align:center;padding:20px;">Search failed. Try again.</div>';
-        }
-    },
-
+   handleDestinationInputFocus: function(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    this.activeSearchInput = inputId;
+    this.showSearchOverlay(inputId);
+},
+   handleDestinationInputChange: async function(inputId, value) {
+    if (!value || value.length < 2) return;
+    
+    const overlay = document.getElementById('searchOverlay');
+    if (!overlay || !overlay.classList.contains('active')) return;
+    
+    const resultsContainer = document.getElementById('searchResultsList');
+    if (!resultsContainer) return;
+    
+    // Show loading
+    resultsContainer.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
+    
+    try {
+        const results = await EnhancedSearchEngine.search(value, 'destination', AppState.userLocation, AppState.currentCity);
+        this.displaySearchResults(results);
+    } catch (error) {
+        console.error('Search error:', error);
+        resultsContainer.innerHTML = '<div style="text-align:center;padding:20px;">Search failed. Try again.</div>';
+    }
+},
+    
     handleDestinationInputBlur: function(inputId) {
         const input = document.getElementById(inputId);
         if (input) {
             input.parentElement.classList.remove('active');
         }
+        
         setTimeout(() => {
             this.hideSuggestions();
         }, 200);
     },
-
-    // Suggestion Selection
+    
+    // Shopping Category Handler
+    handleShoppingCategoryClick: async function(category) {
+        if (!AppState.currentCity) {
+            EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
+            return;
+        }
+        
+        EnhancedUIUpdater.showLoading(`Finding ${AppState.shoppingCategories[category].name}...`);
+        
+        try {
+            const results = await EnhancedSearchEngine.searchShoppingLocations(category, AppState.currentCity);
+            
+            if (results.length > 0) {
+                this.showShoppingLocationsPopup(category, results);
+            } else {
+                EnhancedUIUpdater.showToast(`No ${AppState.shoppingCategories[category].name} found in your city`, 'info');
+            }
+        } catch (error) {
+            console.error('Error searching shopping locations:', error);
+            EnhancedUIUpdater.showToast('Error searching locations', 'error');
+        } finally {
+            EnhancedUIUpdater.hideLoading();
+        }
+    },
+    
+    // Search Functions
+    async searchLocations(inputId, query, type) {
+        if (!AppState.currentCity) {
+            EnhancedUIUpdater.showToast('Please wait while we detect your city', 'warning');
+            return;
+        }
+        
+        this.activeSearchInput = inputId;
+        const input = document.getElementById(inputId);
+        
+        if (!input) return;
+        
+        input.parentElement.classList.add('searching');
+        
+        try {
+            const results = await EnhancedSearchEngine.search(
+                query,
+                type,
+                AppState.userLocation,
+                AppState.currentCity
+            );
+            
+            this.showSearchSuggestions(input, results, type);
+            
+        } catch (error) {
+            console.error('Search error:', error);
+            EnhancedUIUpdater.showToast('Search failed. Please try again.', 'error');
+        } finally {
+            input.parentElement.classList.remove('searching');
+        }
+    },
+    
+    // Suggestion Display Functions
+    showSearchSuggestions: function(input, results, type) {
+        const container = document.getElementById('globalSuggestionsContainer');
+        if (!container) return;
+        
+        // Position container below input
+        const rect = input.getBoundingClientRect();
+        container.style.top = `${rect.bottom + window.scrollY + 5}px`;
+        container.style.left = `${rect.left + window.scrollX}px`;
+        container.style.width = `${rect.width}px`;
+        
+        let html = '';
+        
+        if (results.length === 0) {
+            html = `
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    <i class="fas fa-search" style="font-size: 24px; margin-bottom: 10px; color: #ccc;"></i>
+                    <div>No results found in ${AppState.currentCity}</div>
+                </div>
+            `;
+        } else {
+            results.forEach((result, index) => {
+                let icon = 'fa-map-marker-alt';
+                let iconColor = '#FF6B35';
+                
+                if (result.category === 'restaurant') {
+                    icon = 'fa-utensils';
+                    iconColor = '#FFC107';
+                } else if (result.category === 'pharmacy') {
+                    icon = 'fa-prescription-bottle-medical';
+                    iconColor = '#2196F3';
+                } else if (result.category === 'supermarket') {
+                    icon = 'fa-shopping-cart';
+                    iconColor = '#9C27B0';
+                } else if (result.category === 'mall') {
+                    icon = 'fa-store';
+                    iconColor = '#4CAF50';
+                } else if (result.category === 'medical') {
+                    icon = 'fa-hospital';
+                    iconColor = '#F44336';
+                }
+                
+                html += `
+                    <div class="suggestion-item" data-index="${index}" style="
+                        padding: 12px 15px;
+                        border-bottom: 1px solid #f5f5f5;
+                        cursor: pointer;
+                        transition: background 0.2s;
+                    ">
+                        <div style="display: flex; align-items: flex-start; gap: 12px;">
+                            <div style="color: ${iconColor}; font-size: 18px; margin-top: 2px;">
+                                <i class="fas ${icon}"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; margin-bottom: 4px;">${result.name}</div>
+                                <div style="font-size: 13px; color: #666; margin-bottom: 4px;">${result.address}</div>
+                                ${result.distance ? `
+                                <div style="font-size: 12px; color: #FF6B35;">
+                                    <i class="fas fa-location-arrow"></i> ${result.distance.toFixed(1)} km away
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // Add recent searches section if there are recent searches
+            const recentSearches = EnhancedSearchEngine.getRecentDestinations(5);
+            if (recentSearches.length > 0) {
+                html += `
+                    <div style="padding: 12px 15px; background: #f9f9f9; border-top: 1px solid #e0e0e0;">
+                        <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+                            <i class="fas fa-history"></i> Recent searches
+                        </div>
+                `;
+                
+                recentSearches.forEach((item, index) => {
+                    html += `
+                        <div class="recent-item" data-recent-index="${index}" style="
+                            padding: 8px 0;
+                            border-bottom: 1px solid #eee;
+                            cursor: pointer;
+                            font-size: 14px;
+                        ">
+                            <div>${item.location.name}</div>
+                            <div style="font-size: 12px; color: #999;">${item.location.address}</div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            }
+        }
+        
+        container.innerHTML = html;
+        container.style.display = 'block';
+        
+        // Add click handlers
+        container.querySelectorAll('.suggestion-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.dataset.index);
+                const result = results[index];
+                
+                if (type === 'pickup') {
+                    this.selectPickupLocation(this.activeSearchInput, result);
+                } else {
+                    this.selectDestinationLocation(this.activeSearchInput, result);
+                }
+                
+                this.hideSuggestions();
+            });
+        });
+        
+        container.querySelectorAll('.recent-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.dataset.recentIndex);
+                const recentItem = recentSearches[index];
+                
+                const result = {
+                    lat: recentItem.coordinates.lat,
+                    lng: recentItem.coordinates.lng,
+                    name: recentItem.location.name,
+                    address: recentItem.location.address
+                };
+                
+                if (type === 'pickup') {
+                    this.selectPickupLocation(this.activeSearchInput, result);
+                } else {
+                    this.selectDestinationLocation(this.activeSearchInput, result);
+                }
+                
+                this.hideSuggestions();
+            });
+        });
+        
+        // Close suggestions when clicking outside
+        document.addEventListener('click', this.handleClickOutsideSuggestions);
+    },
+    
+    showRecentLocations: function(inputId, type) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        
+        const container = document.getElementById('globalSuggestionsContainer');
+        if (!container) return;
+        
+        const recentSearches = EnhancedSearchEngine.getRecentDestinations(10);
+        
+        if (recentSearches.length === 0) {
+            return;
+        }
+        
+        // Position container below input
+        const rect = input.getBoundingClientRect();
+        container.style.top = `${rect.bottom + window.scrollY + 5}px`;
+        container.style.left = `${rect.left + window.scrollX}px`;
+        container.style.width = `${rect.width}px`;
+        
+        let html = `
+            <div style="padding: 15px;">
+                <div style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                    <i class="fas fa-history"></i> Recent destinations
+                </div>
+        `;
+        
+        recentSearches.forEach((item, index) => {
+            const timeAgo = EnhancedUIUpdater.formatTimeAgo(item.timestamp);
+            
+            html += `
+                <div class="recent-item" data-recent-index="${index}" style="
+                    padding: 10px 0;
+                    border-bottom: 1px solid #eee;
+                    cursor: pointer;
+                ">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600; margin-bottom: 4px;">${item.location.name}</div>
+                            <div style="font-size: 13px; color: #666;">${item.location.address}</div>
+                        </div>
+                        <div style="font-size: 12px; color: #999; margin-left: 10px;">
+                            ${timeAgo}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `</div>`;
+        
+        container.innerHTML = html;
+        container.style.display = 'block';
+        
+        // Add click handlers
+        container.querySelectorAll('.recent-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const index = parseInt(item.dataset.recentIndex);
+                const recentItem = recentSearches[index];
+                
+                const result = {
+                    lat: recentItem.coordinates.lat,
+                    lng: recentItem.coordinates.lng,
+                    name: recentItem.location.name,
+                    address: recentItem.location.address
+                };
+                
+                if (type === 'pickup') {
+                    this.selectPickupLocation(inputId, result);
+                } else {
+                    this.selectDestinationLocation(inputId, result);
+                }
+                
+                this.hideSuggestions();
+            });
+        });
+        
+        // Close suggestions when clicking outside
+        document.addEventListener('click', this.handleClickOutsideSuggestions);
+    },
+    
+    // Suggestion Selection Functions
     selectPickupLocation: function(inputId, location) {
         const input = document.getElementById(inputId);
         if (!input) return;
+        
         input.value = location.address || location.name;
+        
+        // Store coordinates in data attributes
         input.dataset.lat = location.lat;
         input.dataset.lng = location.lng;
+        
         AppState.pickup = {
             lat: location.lat,
             lng: location.lng,
@@ -8068,23 +8516,38 @@ EnhancedLocationManager = {
             name: location.name,
             fullAddress: location.fullAddress || location.address
         };
+        
+        // Add to recent locations
         EnhancedSearchEngine.addToRecentLocations(location);
+        
+        // Update map
         EnhancedUIUpdater.updatePickupMarker(location);
+        
+        // Calculate prices if destination exists
         if (AppState.destination) {
             EnhancedUIUpdater.calculateAndUpdatePrices();
             EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
         }
+        
+        // Show clear button
         const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-        if (clearBtn) clearBtn.style.display = 'block';
+        if (clearBtn) {
+            clearBtn.style.display = 'block';
+        }
+        
         EnhancedUIUpdater.showToast('Pickup location set', 'success');
     },
-
+    
     selectDestinationLocation: function(inputId, location) {
         const input = document.getElementById(inputId);
         if (!input) return;
+        
         input.value = location.address || location.name;
+        
+        // Store coordinates in data attributes
         input.dataset.lat = location.lat;
         input.dataset.lng = location.lng;
+        
         AppState.destination = {
             lat: location.lat,
             lng: location.lng,
@@ -8092,19 +8555,6 @@ EnhancedLocationManager = {
             name: location.name,
             fullAddress: location.fullAddress || location.address
         };
-        EnhancedSearchEngine.addToRecentLocations(location);
-        EnhancedUIUpdater.updateDestinationMarker(location);
-        if (AppState.pickup) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-        }
-        const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-        if (clearBtn) clearBtn.style.display = 'block';
-        EnhancedUIUpdater.showToast('Destination set', 'success');
-        this.closeSearchOverlay();
-    },
-
-
         
         // Add to recent locations
         EnhancedSearchEngine.addToRecentLocations(location);
@@ -17338,13 +17788,26 @@ function setupEventListeners() {
         });
     });
     
-    // Add stop button
-    const addStopBtn = document.getElementById('addStopBtn');
-    if (addStopBtn) {
-        addStopBtn.addEventListener('click', function() {
-            EnhancedLocationManager.addStop();
-        });
-    }
+  // Add Stop button – closes overlay and triggers the main panel's add stop
+const addStopBtn = document.getElementById('overlayAddStopBtn');
+if (addStopBtn) {
+    addStopBtn.addEventListener('click', () => {
+        this.closeSearchOverlay();
+        // Try to trigger the main "Add Stop" button in the car form
+        const mainAddStop = document.getElementById('addStopBtn');
+        if (mainAddStop && typeof mainAddStop.click === 'function') {
+            mainAddStop.click();
+        } else {
+            // Fallback: call the addStop method directly
+            if (typeof EnhancedLocationManager.addStop === 'function') {
+                EnhancedLocationManager.addStop();
+            } else {
+                console.warn('Add Stop method not available');
+                EnhancedUIUpdater.showToast('Add stop feature not available in this service', 'warning');
+            }
+        }
+    });
+}
     
     // Request ride button
     const requestRideBtn = document.getElementById('requestRideBtn');
