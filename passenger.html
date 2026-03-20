@@ -7685,21 +7685,21 @@ EnhancedLocationManager = {
     },
     
     // Setup Functions
-   setupEditablePickup: function() {
-    // Make all pickup inputs editable by default
-    const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
-    
-    pickupInputs.forEach(input => {
-        // Remove readonly attribute
-        input.removeAttribute('readonly');
+    setupEditablePickup: function() {
+        // Make all pickup inputs editable by default
+        const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
         
-        // Add clear button functionality
-        this.addClearButton(input);
-        
-        // Add current location button
-        this.addCurrentLocationButton(input);
-    });
-}
+        pickupInputs.forEach(input => {
+            // Remove readonly attribute
+            input.removeAttribute('readonly');
+            
+            // Add clear button functionality
+            this.addClearButton(input);
+            
+            // Add current location button
+            this.addCurrentLocationButton(input);
+        });
+    },
     
     addCurrentLocationButton: function(input) {
         const parent = input.parentNode;
@@ -7912,15 +7912,11 @@ closeSearchOverlay: function() {
     const overlay = document.getElementById('searchOverlay');
     if (overlay) {
         overlay.classList.remove('active');
+        // Optionally clear the results container
         const resultsContainer = document.getElementById('searchResultsList');
         if (resultsContainer) resultsContainer.innerHTML = '';
     }
-    // Also hide any global suggestions container if open
-    const suggestionsContainer = document.getElementById('globalSuggestionsContainer');
-    if (suggestionsContainer) {
-        suggestionsContainer.style.display = 'none';
-    }
-}
+},
 
 displaySearchResults: function(results) {
     const container = document.getElementById('searchResultsList');
@@ -7953,7 +7949,7 @@ displaySearchResults: function(results) {
             
             const selectedLocation = { lat, lng, name, address };
             
-            // Set destination in the original input
+            // Set destination in the main input (the one that triggered the overlay)
             const originalInput = document.getElementById(this.activeSearchInput);
             if (originalInput) {
                 this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
@@ -7965,28 +7961,25 @@ displaySearchResults: function(results) {
                     address: selectedLocation.address,
                     name: selectedLocation.name
                 };
+                // Also update the main destination input
                 const mainDestInput = document.getElementById('destinationLocation');
                 if (mainDestInput) {
                     mainDestInput.value = selectedLocation.address;
                     mainDestInput.dataset.lat = selectedLocation.lat;
                     mainDestInput.dataset.lng = selectedLocation.lng;
                 }
+                // Draw route
                 if (AppState.pickup && AppState.destination) {
                     EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
                     EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
             }
             
-            // Blur the destination input to remove focus
-            if (originalInput) {
-                originalInput.blur();
-            }
-            
-            // Close the overlay
+            // Close overlay
             this.closeSearchOverlay();
         });
     });
-}
+},
     
     // Input Setup Functions
     setupPickupInput: function(inputElement) {
@@ -17522,12 +17515,6 @@ async function initializeApp() {
         
         // Setup enhanced location inputs BEFORE getting location
         setupEnhancedLocationInputs();
-
-        // Ensure main pickup input is editable (fallback)
-const pickupMain = document.getElementById('pickupLocation');
-if (pickupMain) {
-    pickupMain.removeAttribute('readonly');
-}
         
         // Initialize location manager
         EnhancedLocationManager.init();
