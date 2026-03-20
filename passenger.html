@@ -5066,7 +5066,7 @@ body {
                 <div class="location-inputs">
                     <div class="location-input" id="pickupInput">
                         <i class="fas fa-map-marker-alt"></i>
-                        <input type="text" id="pickupLocation" placeholder="Current location">
+                        <input type="text" id="pickupLocation" placeholder="Current location" readonly>
                         <div class="search-loading" id="searchLoading"></div>
                         <div class="suggestion-list" id="pickupSuggestions"></div>
                     </div>
@@ -7693,33 +7693,13 @@ EnhancedLocationManager = {
         // Remove readonly attribute
         input.removeAttribute('readonly');
         
-        // Add placeholder if empty
-        if (!input.placeholder) {
-            input.placeholder = 'Enter pickup location or use current location';
-        }
-        
         // Add clear button functionality
         this.addClearButton(input);
         
         // Add current location button
         this.addCurrentLocationButton(input);
-        
-        // Add event listeners for search suggestions
-        input.addEventListener('focus', () => {
-            this.handlePickupInputFocus(input.id);
-        });
-        
-        input.addEventListener('input', (e) => {
-            this.handlePickupInputChange(input.id, e.target.value);
-        });
-        
-        input.addEventListener('blur', () => {
-            setTimeout(() => {
-                this.handlePickupInputBlur(input.id);
-            }, 200);
-        });
     });
-},
+}
     
     addCurrentLocationButton: function(input) {
         const parent = input.parentNode;
@@ -7888,36 +7868,29 @@ EnhancedLocationManager = {
             this.handleDestinationInputChange(inputId, e.target.value);
         });
     }
-const closeBtn = overlay.querySelector('#closeSearchOverlay');
-if (closeBtn) {
-    // Remove any existing listeners to avoid duplicates
-    const newCloseBtn = closeBtn.cloneNode(true);
-    closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
-    newCloseBtn.addEventListener('click', () => {
-        this.closeSearchOverlay();
-    });
-}
+
     // Close button
     const closeBtn = document.getElementById('closeSearchOverlay');
-if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-        this.closeSearchOverlay();
-    });
-}
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            this.closeSearchOverlay();
+        });
+    }
 
     // Add Stop button – closes overlay and triggers the main panel's add stop
     const addStopBtn = document.getElementById('overlayAddStopBtn');
-if (addStopBtn) {
-    addStopBtn.addEventListener('click', () => {
-        this.closeSearchOverlay();
-        const mainAddStop = document.getElementById('addStopBtn');
-        if (mainAddStop) {
-            mainAddStop.click();
-        } else if (typeof EnhancedLocationManager.addStop === 'function') {
-            EnhancedLocationManager.addStop();
-        }
-    });
-}
+    if (addStopBtn) {
+        addStopBtn.addEventListener('click', () => {
+            this.closeSearchOverlay();
+            // Trigger the main panel's add stop button if exists
+            const mainAddStop = document.getElementById('addStopBtn');
+            if (mainAddStop) {
+                mainAddStop.click();
+            } else if (typeof EnhancedLocationManager.addStop === 'function') {
+                EnhancedLocationManager.addStop();
+            }
+        });
+    }
 
     // Show overlay
     overlay.classList.add('active');
@@ -7942,9 +7915,12 @@ closeSearchOverlay: function() {
         const resultsContainer = document.getElementById('searchResultsList');
         if (resultsContainer) resultsContainer.innerHTML = '';
     }
-    // Also reset any other references
-    this.activeSearchInput = null;
-},
+    // Also hide any global suggestions container if open
+    const suggestionsContainer = document.getElementById('globalSuggestionsContainer');
+    if (suggestionsContainer) {
+        suggestionsContainer.style.display = 'none';
+    }
+}
 
 displaySearchResults: function(results) {
     const container = document.getElementById('searchResultsList');
@@ -7977,7 +7953,7 @@ displaySearchResults: function(results) {
             
             const selectedLocation = { lat, lng, name, address };
             
-            // Set destination in the main input (the one that triggered the overlay)
+            // Set destination in the original input
             const originalInput = document.getElementById(this.activeSearchInput);
             if (originalInput) {
                 this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
@@ -7989,25 +7965,28 @@ displaySearchResults: function(results) {
                     address: selectedLocation.address,
                     name: selectedLocation.name
                 };
-                // Also update the main destination input
                 const mainDestInput = document.getElementById('destinationLocation');
                 if (mainDestInput) {
                     mainDestInput.value = selectedLocation.address;
                     mainDestInput.dataset.lat = selectedLocation.lat;
                     mainDestInput.dataset.lng = selectedLocation.lng;
                 }
-                // Draw route
                 if (AppState.pickup && AppState.destination) {
                     EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
                     EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
             }
             
-            // Close overlay
+            // Blur the destination input to remove focus
+            if (originalInput) {
+                originalInput.blur();
+            }
+            
+            // Close the overlay
             this.closeSearchOverlay();
         });
     });
-},
+}
     
     // Input Setup Functions
     setupPickupInput: function(inputElement) {
@@ -8550,45 +8529,44 @@ displaySearchResults: function(results) {
         EnhancedUIUpdater.showToast('Pickup location set', 'success');
     },
     
-   selectDestinationLocation: function(inputId, location) {
-    const input = document.getElementById(inputId);
-    if (!input) return;
-    
-    input.value = location.address || location.name;
-    input.dataset.lat = location.lat;
-    input.dataset.lng = location.lng;
-    
-    AppState.destination = {
-        lat: location.lat,
-        lng: location.lng,
-        address: location.address || location.name,
-        name: location.name,
-        fullAddress: location.fullAddress || location.address
-    };
-    
-    // Add to recent locations
-    EnhancedSearchEngine.addToRecentLocations(location);
-    
-    // Update map
-    EnhancedUIUpdater.updateDestinationMarker(location);
-    
-    // Calculate prices if pickup exists
-    if (AppState.pickup) {
-        EnhancedUIUpdater.calculateAndUpdatePrices();
-        EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-    }
-    
-    // Show clear button
-    const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-    if (clearBtn) {
-        clearBtn.style.display = 'block';
-    }
-    
-    // ✅ CLOSE THE SEARCH OVERLAY
-    this.closeSearchOverlay();
-    
-    EnhancedUIUpdater.showToast('Destination set', 'success');
-},
+    selectDestinationLocation: function(inputId, location) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        
+        input.value = location.address || location.name;
+        
+        // Store coordinates in data attributes
+        input.dataset.lat = location.lat;
+        input.dataset.lng = location.lng;
+        
+        AppState.destination = {
+            lat: location.lat,
+            lng: location.lng,
+            address: location.address || location.name,
+            name: location.name,
+            fullAddress: location.fullAddress || location.address
+        };
+        
+        // Add to recent locations
+        EnhancedSearchEngine.addToRecentLocations(location);
+        
+        // Update map
+        EnhancedUIUpdater.updateDestinationMarker(location);
+        
+        // Calculate prices if pickup exists
+        if (AppState.pickup) {
+            EnhancedUIUpdater.calculateAndUpdatePrices();
+            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+        }
+        
+        // Show clear button
+        const clearBtn = input.parentNode.querySelector('.clear-input-btn');
+        if (clearBtn) {
+            clearBtn.style.display = 'block';
+        }
+        
+        EnhancedUIUpdater.showToast('Destination set', 'success');
+    },
     
     // Clear Functions
     clearPickupLocation: function(inputId) {
@@ -17544,6 +17522,12 @@ async function initializeApp() {
         
         // Setup enhanced location inputs BEFORE getting location
         setupEnhancedLocationInputs();
+
+        // Ensure main pickup input is editable (fallback)
+const pickupMain = document.getElementById('pickupLocation');
+if (pickupMain) {
+    pickupMain.removeAttribute('readonly');
+}
         
         // Initialize location manager
         EnhancedLocationManager.init();
@@ -17802,12 +17786,12 @@ function setupEventListeners() {
     });
     
     // Add stop button
-   const addStopBtn = document.getElementById('addStopBtn');
-if (addStopBtn) {
-    addStopBtn.addEventListener('click', function() {
-        EnhancedLocationManager.addStop();
-    });
-}
+    const addStopBtn = document.getElementById('addStopBtn');
+    if (addStopBtn) {
+        addStopBtn.addEventListener('click', function() {
+            EnhancedLocationManager.addStop();
+        });
+    }
     
     // Request ride button
     const requestRideBtn = document.getElementById('requestRideBtn');
