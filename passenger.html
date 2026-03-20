@@ -5066,7 +5066,7 @@ body {
                 <div class="location-inputs">
                     <div class="location-input" id="pickupInput">
                         <i class="fas fa-map-marker-alt"></i>
-                        <input type="text" id="pickupLocation" placeholder="Current location" readonly>
+                        <input type="text" id="pickupLocation" placeholder="Current location">
                         <div class="search-loading" id="searchLoading"></div>
                         <div class="suggestion-list" id="pickupSuggestions"></div>
                     </div>
@@ -7685,21 +7685,41 @@ EnhancedLocationManager = {
     },
     
     // Setup Functions
-    setupEditablePickup: function() {
-        // Make all pickup inputs editable by default
-        const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
+   setupEditablePickup: function() {
+    // Make all pickup inputs editable by default
+    const pickupInputs = document.querySelectorAll('input[id*="pickup"], input[id*="Pickup"]');
+    
+    pickupInputs.forEach(input => {
+        // Remove readonly attribute
+        input.removeAttribute('readonly');
         
-        pickupInputs.forEach(input => {
-            // Remove readonly attribute
-            input.removeAttribute('readonly');
-            
-            // Add clear button functionality
-            this.addClearButton(input);
-            
-            // Add current location button
-            this.addCurrentLocationButton(input);
+        // Add placeholder if empty
+        if (!input.placeholder) {
+            input.placeholder = 'Enter pickup location or use current location';
+        }
+        
+        // Add clear button functionality
+        this.addClearButton(input);
+        
+        // Add current location button
+        this.addCurrentLocationButton(input);
+        
+        // Add event listeners for search suggestions
+        input.addEventListener('focus', () => {
+            this.handlePickupInputFocus(input.id);
         });
-    },
+        
+        input.addEventListener('input', (e) => {
+            this.handlePickupInputChange(input.id, e.target.value);
+        });
+        
+        input.addEventListener('blur', () => {
+            setTimeout(() => {
+                this.handlePickupInputBlur(input.id);
+            }, 200);
+        });
+    });
+},
     
     addCurrentLocationButton: function(input) {
         const parent = input.parentNode;
@@ -7868,29 +7888,36 @@ EnhancedLocationManager = {
             this.handleDestinationInputChange(inputId, e.target.value);
         });
     }
-
+const closeBtn = overlay.querySelector('#closeSearchOverlay');
+if (closeBtn) {
+    // Remove any existing listeners to avoid duplicates
+    const newCloseBtn = closeBtn.cloneNode(true);
+    closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+    newCloseBtn.addEventListener('click', () => {
+        this.closeSearchOverlay();
+    });
+}
     // Close button
     const closeBtn = document.getElementById('closeSearchOverlay');
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            this.closeSearchOverlay();
-        });
-    }
+if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+        this.closeSearchOverlay();
+    });
+}
 
     // Add Stop button – closes overlay and triggers the main panel's add stop
     const addStopBtn = document.getElementById('overlayAddStopBtn');
-    if (addStopBtn) {
-        addStopBtn.addEventListener('click', () => {
-            this.closeSearchOverlay();
-            // Trigger the main panel's add stop button if exists
-            const mainAddStop = document.getElementById('addStopBtn');
-            if (mainAddStop) {
-                mainAddStop.click();
-            } else if (typeof EnhancedLocationManager.addStop === 'function') {
-                EnhancedLocationManager.addStop();
-            }
-        });
-    }
+if (addStopBtn) {
+    addStopBtn.addEventListener('click', () => {
+        this.closeSearchOverlay();
+        const mainAddStop = document.getElementById('addStopBtn');
+        if (mainAddStop) {
+            mainAddStop.click();
+        } else if (typeof EnhancedLocationManager.addStop === 'function') {
+            EnhancedLocationManager.addStop();
+        }
+    });
+}
 
     // Show overlay
     overlay.classList.add('active');
@@ -7912,10 +7939,11 @@ closeSearchOverlay: function() {
     const overlay = document.getElementById('searchOverlay');
     if (overlay) {
         overlay.classList.remove('active');
-        // Optionally clear the results container
         const resultsContainer = document.getElementById('searchResultsList');
         if (resultsContainer) resultsContainer.innerHTML = '';
     }
+    // Also reset any other references
+    this.activeSearchInput = null;
 },
 
 displaySearchResults: function(results) {
@@ -8527,8 +8555,6 @@ displaySearchResults: function(results) {
     if (!input) return;
     
     input.value = location.address || location.name;
-    
-    // Store coordinates in data attributes
     input.dataset.lat = location.lat;
     input.dataset.lng = location.lng;
     
@@ -8558,10 +8584,10 @@ displaySearchResults: function(results) {
         clearBtn.style.display = 'block';
     }
     
-    EnhancedUIUpdater.showToast('Destination set', 'success');
-    
-    // ***** ADD THIS LINE: Close the search overlay *****
+    // ✅ CLOSE THE SEARCH OVERLAY
     this.closeSearchOverlay();
+    
+    EnhancedUIUpdater.showToast('Destination set', 'success');
 },
     
     // Clear Functions
@@ -8792,70 +8818,64 @@ displaySearchResults: function(results) {
     },
     
     // Stop Management Functions
-   addStop: function() {
-    const stopsContainer = document.getElementById('stopsContainer');
-    if (!stopsContainer) return;
-    
-    const stopIndex = AppState.rideStops.length + 1;
-    const stopId = `stop-${stopIndex}`;
-    
-    const stopElement = document.createElement('div');
-    stopElement.className = 'ride-stop';
-    stopElement.dataset.stopId = stopId;
-    stopElement.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-            <div style="color: #FF6B35;">
-                <i class="fas fa-map-pin"></i>
+    addStop: function() {
+        const stopsContainer = document.getElementById('stopsContainer');
+        if (!stopsContainer) return;
+        
+        const stopIndex = AppState.rideStops.length + 1;
+        const stopId = `stop-${stopIndex}`;
+        
+        const stopElement = document.createElement('div');
+        stopElement.className = 'ride-stop';
+        stopElement.dataset.stopId = stopId;
+        stopElement.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <div style="color: #FF6B35;">
+                    <i class="fas fa-map-pin"></i>
+                </div>
+                <input type="text" class="stop-input" placeholder="Stop ${stopIndex}" 
+                       style="flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px;">
+                <button type="button" class="remove-stop-btn" style="
+                    background: #f44336;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 5px 10px;
+                    cursor: pointer;
+                ">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
-            <input type="text" class="stop-input" placeholder="Stop ${stopIndex}" 
-                   style="flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px;">
-            <button type="button" class="remove-stop-btn" style="
-                background: #f44336;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 5px 10px;
-                cursor: pointer;
-            ">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    `;
-    
-    stopsContainer.appendChild(stopElement);
-    
-    // Add stop to state
-    AppState.rideStops.push({
-        id: stopId,
-        name: `Stop ${stopIndex}`,
-        location: null,
-        index: stopIndex
-    });
-    
-    // Setup input event
-    const stopInput = stopElement.querySelector('.stop-input');
-    
-    // Make it searchable using the same logic as destination inputs
-    stopInput.addEventListener('focus', () => {
-        EnhancedLocationManager.handleStopInputFocus(stopId, stopInput);
-    });
-    
-    stopInput.addEventListener('input', (e) => {
-        EnhancedLocationManager.handleStopInputChange(stopId, e.target.value);
-    });
-    
-    // Also add a clear button and current location button for stops (optional)
-    // For simplicity, we reuse existing functions
-    EnhancedCityDetector.addClearButtonToInput(stopInput);
-    
-    // Setup remove button
-    const removeBtn = stopElement.querySelector('.remove-stop-btn');
-    removeBtn.addEventListener('click', () => {
-        this.removeStop(stopId);
-    });
-    
-    EnhancedUIUpdater.showToast(`Stop ${stopIndex} added`, 'info');
-},
+        `;
+        
+        stopsContainer.appendChild(stopElement);
+        
+        // Add stop to state
+        AppState.rideStops.push({
+            id: stopId,
+            name: `Stop ${stopIndex}`,
+            location: null,
+            index: stopIndex
+        });
+        
+        // Setup input event
+        const stopInput = stopElement.querySelector('.stop-input');
+        stopInput.addEventListener('focus', () => {
+            this.handleStopInputFocus(stopId, stopInput);
+        });
+        
+        stopInput.addEventListener('input', (e) => {
+            this.handleStopInputChange(stopId, e.target.value);
+        });
+        
+        // Setup remove button
+        const removeBtn = stopElement.querySelector('.remove-stop-btn');
+        removeBtn.addEventListener('click', () => {
+            this.removeStop(stopId);
+        });
+        
+        EnhancedUIUpdater.showToast(`Stop ${stopIndex} added`, 'info');
+    },
     
     removeStop: function(stopId) {
         const stopElement = document.querySelector(`[data-stop-id="${stopId}"]`);
@@ -17782,12 +17802,12 @@ function setupEventListeners() {
     });
     
     // Add stop button
-    const addStopBtn = document.getElementById('addStopBtn');
-    if (addStopBtn) {
-        addStopBtn.addEventListener('click', function() {
-            EnhancedLocationManager.addStop();
-        });
-    }
+   const addStopBtn = document.getElementById('addStopBtn');
+if (addStopBtn) {
+    addStopBtn.addEventListener('click', function() {
+        EnhancedLocationManager.addStop();
+    });
+}
     
     // Request ride button
     const requestRideBtn = document.getElementById('requestRideBtn');
