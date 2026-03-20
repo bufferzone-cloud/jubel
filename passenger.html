@@ -4511,7 +4511,7 @@ body {
     bottom: 0;
     background: white;
     z-index: 10000;
-    display: none;               /* hidden by default */
+    display: flex;
     flex-direction: column;
     animation: fadeIn 0.3s ease;
     transform: translateY(0);
@@ -4699,7 +4699,7 @@ body {
 }
 
 .search-overlay.active {
-    display: flex;               /* shown only when active */
+    display: flex;
 }
 
 .search-overlay-header {
@@ -7912,16 +7912,11 @@ closeSearchOverlay: function() {
     const overlay = document.getElementById('searchOverlay');
     if (overlay) {
         overlay.classList.remove('active');
-        // Clear the destination input inside the overlay
-        const destInput = overlay.querySelector('#overlayDestinationLocation');
-        if (destInput) destInput.value = '';
-        // Clear results list
+        // Optionally clear the results container
         const resultsContainer = document.getElementById('searchResultsList');
         if (resultsContainer) resultsContainer.innerHTML = '';
-        // Optional: blur the input to hide keyboard on mobile
-        if (destInput) destInput.blur();
     }
-}
+},
 
 displaySearchResults: function(results) {
     const container = document.getElementById('searchResultsList');
@@ -7957,6 +7952,7 @@ displaySearchResults: function(results) {
             // Set destination in the main input (the one that triggered the overlay)
             const originalInput = document.getElementById(this.activeSearchInput);
             if (originalInput) {
+                // This now closes the overlay internally
                 this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
             } else {
                 // Fallback: update AppState directly
@@ -7978,10 +7974,9 @@ displaySearchResults: function(results) {
                     EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
                     EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
+                // Close overlay for fallback case
+                this.closeSearchOverlay();
             }
-            
-            // Close overlay
-            this.closeSearchOverlay();
         });
     });
 },
@@ -8528,43 +8523,46 @@ displaySearchResults: function(results) {
     },
     
     selectDestinationLocation: function(inputId, location) {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        
-        input.value = location.address || location.name;
-        
-        // Store coordinates in data attributes
-        input.dataset.lat = location.lat;
-        input.dataset.lng = location.lng;
-        
-        AppState.destination = {
-            lat: location.lat,
-            lng: location.lng,
-            address: location.address || location.name,
-            name: location.name,
-            fullAddress: location.fullAddress || location.address
-        };
-        
-        // Add to recent locations
-        EnhancedSearchEngine.addToRecentLocations(location);
-        
-        // Update map
-        EnhancedUIUpdater.updateDestinationMarker(location);
-        
-        // Calculate prices if pickup exists
-        if (AppState.pickup) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-        }
-        
-        // Show clear button
-        const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-        if (clearBtn) {
-            clearBtn.style.display = 'block';
-        }
-        
-        EnhancedUIUpdater.showToast('Destination set', 'success');
-    },
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    
+    input.value = location.address || location.name;
+    
+    // Store coordinates in data attributes
+    input.dataset.lat = location.lat;
+    input.dataset.lng = location.lng;
+    
+    AppState.destination = {
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address || location.name,
+        name: location.name,
+        fullAddress: location.fullAddress || location.address
+    };
+    
+    // Add to recent locations
+    EnhancedSearchEngine.addToRecentLocations(location);
+    
+    // Update map
+    EnhancedUIUpdater.updateDestinationMarker(location);
+    
+    // Calculate prices if pickup exists
+    if (AppState.pickup) {
+        EnhancedUIUpdater.calculateAndUpdatePrices();
+        EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+    }
+    
+    // Show clear button
+    const clearBtn = input.parentNode.querySelector('.clear-input-btn');
+    if (clearBtn) {
+        clearBtn.style.display = 'block';
+    }
+    
+    EnhancedUIUpdater.showToast('Destination set', 'success');
+    
+    // 🔥 Close the search overlay
+    this.closeSearchOverlay();
+}
     
     // Clear Functions
     clearPickupLocation: function(inputId) {
@@ -17225,9 +17223,11 @@ function setupEnhancedLocationInputs() {
             input.placeholder = 'Enter pickup location or use current location';
         }
         
-        // Add event listener for focus to show recent locations
+        // Add event listener for focus to show suggestions
         input.addEventListener('focus', function() {
             this.parentElement.classList.add('active');
+            
+            // If empty, show recent locations
             if (!this.value.trim()) {
                 EnhancedLocationManager.showRecentLocations(this.id, 'pickup');
             }
