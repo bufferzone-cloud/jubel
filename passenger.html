@@ -7952,6 +7952,7 @@ displaySearchResults: function(results) {
             // Set destination in the main input (the one that triggered the overlay)
             const originalInput = document.getElementById(this.activeSearchInput);
             if (originalInput) {
+                // This now closes the overlay internally
                 this.selectDestinationLocation(this.activeSearchInput, selectedLocation);
             } else {
                 // Fallback: update AppState directly
@@ -7973,13 +7974,12 @@ displaySearchResults: function(results) {
                     EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
                     EnhancedUIUpdater.calculateAndUpdatePrices();
                 }
+                // Close overlay for fallback case
+                this.closeSearchOverlay();
             }
-            
-            // Close overlay
-            this.closeSearchOverlay();
         });
     });
-},
+}
     
     // Input Setup Functions
     setupPickupInput: function(inputElement) {
@@ -8522,44 +8522,47 @@ displaySearchResults: function(results) {
         EnhancedUIUpdater.showToast('Pickup location set', 'success');
     },
     
-    selectDestinationLocation: function(inputId, location) {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        
-        input.value = location.address || location.name;
-        
-        // Store coordinates in data attributes
-        input.dataset.lat = location.lat;
-        input.dataset.lng = location.lng;
-        
-        AppState.destination = {
-            lat: location.lat,
-            lng: location.lng,
-            address: location.address || location.name,
-            name: location.name,
-            fullAddress: location.fullAddress || location.address
-        };
-        
-        // Add to recent locations
-        EnhancedSearchEngine.addToRecentLocations(location);
-        
-        // Update map
-        EnhancedUIUpdater.updateDestinationMarker(location);
-        
-        // Calculate prices if pickup exists
-        if (AppState.pickup) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-        }
-        
-        // Show clear button
-        const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-        if (clearBtn) {
-            clearBtn.style.display = 'block';
-        }
-        
-        EnhancedUIUpdater.showToast('Destination set', 'success');
-    },
+   selectDestinationLocation: function(inputId, location) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    
+    input.value = location.address || location.name;
+    
+    // Store coordinates in data attributes
+    input.dataset.lat = location.lat;
+    input.dataset.lng = location.lng;
+    
+    AppState.destination = {
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address || location.name,
+        name: location.name,
+        fullAddress: location.fullAddress || location.address
+    };
+    
+    // Add to recent locations
+    EnhancedSearchEngine.addToRecentLocations(location);
+    
+    // Update map
+    EnhancedUIUpdater.updateDestinationMarker(location);
+    
+    // Calculate prices if pickup exists
+    if (AppState.pickup) {
+        EnhancedUIUpdater.calculateAndUpdatePrices();
+        EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+    }
+    
+    // Show clear button
+    const clearBtn = input.parentNode.querySelector('.clear-input-btn');
+    if (clearBtn) {
+        clearBtn.style.display = 'block';
+    }
+    
+    EnhancedUIUpdater.showToast('Destination set', 'success');
+    
+    // 🔥 Close the search overlay
+    this.closeSearchOverlay();
+}
     
     // Clear Functions
     clearPickupLocation: function(inputId) {
