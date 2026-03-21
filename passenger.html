@@ -4959,6 +4959,16 @@ body {
     margin: 0 -8px;
     padding: 8px;
 }
+
+/* Nearby driver markers */
+.nearby-driver-marker {
+    background: transparent;
+    border: none;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+.nearby-driver-marker i {
+    text-shadow: 0 0 2px rgba(0,0,0,0.5);
+}
    </style>
 </head>
 <body>
@@ -10492,27 +10502,38 @@ const EnhancedUIUpdater = {
         }
     },
     
-    showRideInfo: function(ride) {
-        document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => {
-            form.style.display = 'none';
-        });
-        
-        const rideInfoPanel = document.getElementById('rideInfoPanel');
-        if (rideInfoPanel) {
-            rideInfoPanel.style.display = 'block';
-            rideInfoPanel.classList.add('active');
-        }
-        
-        // Update ride details
-        this.updateRideDetails(ride);
-        this.updateRideStatus(ride.status);
-        this.updateTimeline(ride.status);
-        
-        if (ride.status === 'accepted' && AppState.sosConfig) {
-            const sosButton = document.getElementById('sosButton');
-            if (sosButton) sosButton.style.display = 'flex';
-        }
-    },
+ showRideInfo: function(ride) {
+    // Hide service tabs and related content
+    const serviceTabs = document.querySelector('.service-tabs');
+    const quickActions = document.querySelector('.quick-actions');
+    const moreOptionsBtn = document.getElementById('moreOptionsBtn');
+    
+    if (serviceTabs) serviceTabs.style.display = 'none';
+    if (quickActions) quickActions.style.display = 'none';
+    if (moreOptionsBtn) moreOptionsBtn.style.display = 'none';
+    
+    // Hide all service forms
+    document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => {
+        form.style.display = 'none';
+    });
+    
+    // Show ride info panel
+    const rideInfoPanel = document.getElementById('rideInfoPanel');
+    if (rideInfoPanel) {
+        rideInfoPanel.style.display = 'block';
+        rideInfoPanel.classList.add('active');
+    }
+    
+    // Update ride details and status
+    this.updateRideDetails(ride);
+    this.updateRideStatus(ride.status);
+    this.updateTimeline(ride.status);
+    
+    if (ride.status === 'accepted' && AppState.sosConfig) {
+        const sosButton = document.getElementById('sosButton');
+        if (sosButton) sosButton.style.display = 'flex';
+    }
+}
     
    // ENHANCED: Update ride details including driver info and images
 updateRideDetails: function(ride) {
@@ -14278,29 +14299,83 @@ async loadRideDetails(rideId) {
     },
     
     resetActiveRide: function() {
-        AppState.currentRide = null;
-        
-        // Remove pulsing icon
-        EnhancedUIUpdater.removePulsingRideIcon();
-        
-        // Hide ride info panel
-        const rideInfoPanel = document.getElementById('rideInfoPanel');
-        if (rideInfoPanel) {
-            rideInfoPanel.style.display = 'none';
+    AppState.currentRide = null;
+    
+    // Remove pulsing icon
+    EnhancedUIUpdater.removePulsingRideIcon();
+    
+    // Hide ride info panel
+    const rideInfoPanel = document.getElementById('rideInfoPanel');
+    if (rideInfoPanel) {
+        rideInfoPanel.style.display = 'none';
+        rideInfoPanel.classList.remove('active');
+    }
+    
+    // Hide status bar
+    const statusBar = document.getElementById('rideStatusBar');
+    if (statusBar) {
+        statusBar.classList.remove('active');
+    }
+    
+    // Hide SOS button
+    const sosButton = document.getElementById('sosButton');
+    if (sosButton) {
+        sosButton.style.display = 'none';
+    }
+    
+    // Show service tabs and quick actions again
+    const serviceTabs = document.querySelector('.service-tabs');
+    const quickActions = document.querySelector('.quick-actions');
+    const moreOptionsBtn = document.getElementById('moreOptionsBtn');
+    
+    if (serviceTabs) serviceTabs.style.display = 'flex';
+    if (quickActions) quickActions.style.display = 'grid';
+    if (moreOptionsBtn) moreOptionsBtn.style.display = 'flex';
+    
+    // Restore the default service form (car)
+    switchService('car');
+}
+
+fetchAndDisplayNearbyDrivers: async function() {
+    if (!map || !AppState.currentUser) return;
+
+    // Clear existing driver markers (keep the current ride driver marker)
+    if (window.nearbyDriverMarkers) {
+        window.nearbyDriverMarkers.forEach(marker => map.removeLayer(marker));
+        window.nearbyDriverMarkers = [];
+    } else {
+        window.nearbyDriverMarkers = [];
+    }
+
+    try {
+        const snapshot = await database.ref('driverLocations').once('value');
+        const drivers = snapshot.val();
+        if (!drivers) return;
+
+        const currentDriverId = AppState.currentRide?.driverId;
+
+        for (const [driverId, loc] of Object.entries(drivers)) {
+            if (driverId === currentDriverId) continue;
+
+            const carIcon = L.divIcon({
+                className: 'nearby-driver-marker',
+                html: `<i class="fas fa-car" style="color: #FF6B35; font-size: 20px;"></i>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+
+            const marker = L.marker([loc.latitude, loc.longitude], { icon: carIcon })
+                .addTo(map)
+                .bindPopup(`Driver ID: ${driverId.substring(0, 8)}...`);
+
+            window.nearbyDriverMarkers.push(marker);
         }
-        
-        // Hide status bar
-        const statusBar = document.getElementById('rideStatusBar');
-        if (statusBar) {
-            statusBar.classList.remove('active');
-        }
-        
-        // Hide SOS button
-        const sosButton = document.getElementById('sosButton');
-        if (sosButton) {
-            sosButton.style.display = 'none';
-        }
-    },
+
+        console.log(`Displayed ${window.nearbyDriverMarkers.length} nearby drivers`);
+    } catch (error) {
+        console.error('Error fetching nearby drivers:', error);
+    }
+}
     
     handleRideCompletion: function(ride) {
         // Process referral reward if applicable
@@ -17265,7 +17340,8 @@ function initializeMap() {
     
     // Create map
     map = L.map('map').setView([defaultLat, defaultLng], 13);
-    
+    // Load nearby drivers
+EnhancedFirebaseManager.fetchAndDisplayNearbyDrivers();
     // Add OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
@@ -17914,7 +17990,12 @@ EnhancedWalletManager.init();
                 }
             }, 30000); // Update every 30 seconds
         }
-        
+        // Set interval to refresh nearby drivers every 15 seconds (only when no active ride)
+setInterval(() => {
+    if (!AppState.currentRide) {
+        EnhancedFirebaseManager.fetchAndDisplayNearbyDrivers();
+    }
+}, 15000);
         EnhancedUIUpdater.hideLoading();
         EnhancedUIUpdater.showToast('Jubel Passenger App Ready! 🚗', 'success');
         
