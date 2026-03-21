@@ -4810,6 +4810,155 @@ body {
     color: #FF6B35;
     margin-top: 4px;
 }
+
+/* ============================================
+   SEARCH OVERLAY & RESULTS STYLES
+   ============================================ */
+.search-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    z-index: 10000;
+    display: none;
+    flex-direction: column;
+    animation: fadeIn 0.3s ease;
+}
+
+.search-overlay.active {
+    display: flex;
+}
+
+.search-overlay-header {
+    padding: 16px;
+    background: white;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.search-overlay-header i {
+    font-size: 20px;
+    color: #FF6B35;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.search-overlay-header i:hover {
+    background: #f0f0f0;
+}
+
+.search-overlay-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.search-overlay-body .location-input {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: white;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.search-overlay-body .location-input i {
+    color: #FF6B35;
+    font-size: 16px;
+    width: 20px;
+}
+
+.search-overlay-body .location-input input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    outline: none;
+}
+
+.search-overlay-body .add-stop-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+    background: white;
+    border: 2px dashed #FF6B35;
+    border-radius: 12px;
+    color: #FF6B35;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 20px;
+    transition: all 0.2s;
+}
+
+.search-overlay-body .add-stop-btn:hover {
+    background: #FFF3E0;
+    border-color: #FF6B35;
+}
+
+.search-results-list {
+    max-height: calc(100% - 140px);
+    overflow-y: auto;
+}
+
+.search-result-item {
+    background: white;
+    border-radius: 12px;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.search-result-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    background: #FFF3E0;
+}
+
+.search-result-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 15px;
+    color: #333;
+}
+
+.search-result-address {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.search-result-distance {
+    font-size: 12px;
+    color: #FF6B35;
+    margin-top: 4px;
+}
+
+.recent-item {
+    padding: 8px 0;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.recent-item:hover {
+    background: #FFF3E0;
+    margin: 0 -8px;
+    padding: 8px;
+}
    </style>
 </head>
 <body>
@@ -7824,17 +7973,19 @@ EnhancedLocationManager = {
                 <i class="fas fa-arrow-left" id="closeSearchOverlay"></i>
                 <div class="logo-with-title">
                     <i class="fas fa-car" style="margin-right: 8px;"></i>
-                    <span>Book a Ride</span>
+                    <span>Edit Trip</span>
                 </div>
             </div>
             <div class="search-overlay-body">
                 <div class="location-input current-location">
                     <i class="fas fa-map-marker-alt"></i>
-                    <input type="text" id="overlayPickupLocation" placeholder="Current location" readonly>
+                    <input type="text" id="overlayPickupLocation" placeholder="Pickup location" autocomplete="off">
+                    <div class="search-loading" style="display: none;"></div>
                 </div>
                 <div class="location-input destination-input">
                     <i class="fas fa-flag"></i>
                     <input type="text" id="overlayDestinationLocation" placeholder="Where to?" autocomplete="off">
+                    <div class="search-loading" style="display: none;"></div>
                 </div>
                 <button class="add-stop-btn" id="overlayAddStopBtn">
                     <i class="fas fa-plus"></i> Add Stop
@@ -7850,24 +8001,79 @@ EnhancedLocationManager = {
     const overlayPickup = document.getElementById('overlayPickupLocation');
     if (mainPickup && overlayPickup) {
         overlayPickup.value = mainPickup.value;
-        // Also copy the stored coordinates if available
         if (mainPickup.dataset.lat && mainPickup.dataset.lng) {
             overlayPickup.dataset.lat = mainPickup.dataset.lat;
             overlayPickup.dataset.lng = mainPickup.dataset.lng;
         }
     }
 
-    // Set up destination input event listeners
-    const destInput = document.getElementById('overlayDestinationLocation');
-    if (destInput) {
-        destInput.addEventListener('focus', () => {
-            this.activeSearchInput = inputId; // keep track of original input
-            // No need to re‑show overlay – we're already inside it
-        });
-        destInput.addEventListener('input', (e) => {
-            this.handleDestinationInputChange(inputId, e.target.value);
-        });
+    // Set the current destination from main destination input (if any)
+    const mainDest = document.getElementById('destinationLocation');
+    const overlayDest = document.getElementById('overlayDestinationLocation');
+    if (mainDest && overlayDest) {
+        overlayDest.value = mainDest.value;
+        if (mainDest.dataset.lat && mainDest.dataset.lng) {
+            overlayDest.dataset.lat = mainDest.dataset.lat;
+            overlayDest.dataset.lng = mainDest.dataset.lng;
+        }
     }
+
+    // Store which input is currently being searched
+    let activeSearchInput = null;
+
+    // Setup pickup input
+    const pickupInput = overlayPickup;
+    const destInput = overlayDest;
+    const resultsContainer = document.getElementById('searchResultsList');
+
+    // Helper to perform search and show results
+    const performSearch = async (query, inputElement, type) => {
+        if (!query || query.length < 2) {
+            resultsContainer.innerHTML = '';
+            return;
+        }
+
+        // Show loading
+        const loading = inputElement.parentNode.querySelector('.search-loading');
+        if (loading) loading.style.display = 'block';
+
+        try {
+            const results = await EnhancedSearchEngine.search(query, type, AppState.userLocation, AppState.currentCity);
+            this.displaySearchResults(results, inputElement.id, type);
+        } catch (error) {
+            console.error('Search error:', error);
+            resultsContainer.innerHTML = '<div style="text-align:center;padding:20px;">Search failed. Try again.</div>';
+        } finally {
+            if (loading) loading.style.display = 'none';
+        }
+    };
+
+    // Debounce function
+    let searchTimeout;
+    const handleInput = (inputElement, type) => {
+        const query = inputElement.value.trim();
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            performSearch(query, inputElement, type);
+        }, 300);
+    };
+
+    // Pickup input events
+    pickupInput.addEventListener('focus', () => {
+        activeSearchInput = pickupInput;
+        resultsContainer.innerHTML = ''; // clear previous results
+        // Optionally show recent locations here
+        this.showRecentLocationsForInput(pickupInput, 'pickup');
+    });
+    pickupInput.addEventListener('input', (e) => handleInput(pickupInput, 'pickup'));
+
+    // Destination input events
+    destInput.addEventListener('focus', () => {
+        activeSearchInput = destInput;
+        resultsContainer.innerHTML = '';
+        this.showRecentLocationsForInput(destInput, 'destination');
+    });
+    destInput.addEventListener('input', (e) => handleInput(destInput, 'destination'));
 
     // Close button
     const closeBtn = document.getElementById('closeSearchOverlay');
@@ -7877,12 +8083,11 @@ EnhancedLocationManager = {
         });
     }
 
-    // Add Stop button – closes overlay and triggers the main panel's add stop
+    // Add Stop button – closes overlay and triggers main panel's add stop
     const addStopBtn = document.getElementById('overlayAddStopBtn');
     if (addStopBtn) {
         addStopBtn.addEventListener('click', () => {
             this.closeSearchOverlay();
-            // Trigger the main panel's add stop button if exists
             const mainAddStop = document.getElementById('addStopBtn');
             if (mainAddStop) {
                 mainAddStop.click();
@@ -7894,19 +8099,149 @@ EnhancedLocationManager = {
 
     // Show overlay
     overlay.classList.add('active');
-    const searchInput = destInput;
-    if (searchInput) {
-        searchInput.value = '';
-        searchInput.focus();
-    }
 
-    // Clear previous results
-    const resultsContainer = document.getElementById('searchResultsList');
-    if (resultsContainer) {
-        resultsContainer.innerHTML = '';
+    // Focus the input that originally triggered the overlay (destination by default)
+    if (destInput) {
+        destInput.value = '';
+        destInput.focus();
     }
 },
 
+showRecentLocationsForInput: function(input, type) {
+    const resultsContainer = document.getElementById('searchResultsList');
+    if (!resultsContainer) return;
+
+    const recentSearches = EnhancedSearchEngine.getRecentDestinations(5);
+    if (recentSearches.length === 0) return;
+
+    let html = `
+        <div style="padding: 12px 15px; background: #f9f9f9; border-radius: 12px; margin-bottom: 8px;">
+            <div style="font-size: 12px; color: #666; margin-bottom: 8px;">
+                <i class="fas fa-history"></i> Recent destinations
+            </div>
+    `;
+
+    recentSearches.forEach((item, index) => {
+        html += `
+            <div class="recent-item" data-recent-index="${index}" style="
+                padding: 8px 0;
+                border-bottom: 1px solid #eee;
+                cursor: pointer;
+            ">
+                <div style="font-weight: 600;">${item.location.name}</div>
+                <div style="font-size: 12px; color: #666;">${item.location.address}</div>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+    resultsContainer.innerHTML = html;
+
+    // Add click handlers
+    resultsContainer.querySelectorAll('.recent-item').forEach((item, idx) => {
+        item.addEventListener('click', () => {
+            const location = recentSearches[idx].location;
+            this.selectLocationForOverlay(input, location, type);
+        });
+    });
+},
+
+displaySearchResults: function(results, inputId, type) {
+    const container = document.getElementById('searchResultsList');
+    if (!container) return;
+
+    if (!results || results.length === 0) {
+        container.innerHTML = '<div style="text-align:center;padding:20px;">No results found</div>';
+        return;
+    }
+
+    let html = '';
+    results.forEach(result => {
+        html += `
+            <div class="search-result-item" data-lat="${result.lat}" data-lng="${result.lng}" data-name="${result.name}" data-address="${result.address}">
+                <div class="search-result-name">${result.name}</div>
+                <div class="search-result-address">${result.address}</div>
+                ${result.distance ? `<div class="search-result-distance">${result.distance.toFixed(1)} km away</div>` : ''}
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+
+    // Attach click event to each result
+    const input = document.getElementById(inputId);
+    container.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const lat = parseFloat(item.dataset.lat);
+            const lng = parseFloat(item.dataset.lng);
+            const name = item.dataset.name;
+            const address = item.dataset.address;
+
+            const selectedLocation = { lat, lng, name, address };
+            this.selectLocationForOverlay(input, selectedLocation, type);
+        });
+    });
+},
+
+selectLocationForOverlay: function(input, location, type) {
+    if (!input) return;
+
+    // Update input value and data attributes
+    input.value = location.address || location.name;
+    input.dataset.lat = location.lat;
+    input.dataset.lng = location.lng;
+
+    // Update the corresponding AppState
+    if (type === 'pickup') {
+        AppState.pickup = {
+            lat: location.lat,
+            lng: location.lng,
+            address: location.address,
+            name: location.name
+        };
+        // Update main panel pickup input
+        const mainPickup = document.getElementById('pickupLocation');
+        if (mainPickup) {
+            mainPickup.value = location.address;
+            mainPickup.dataset.lat = location.lat;
+            mainPickup.dataset.lng = location.lng;
+        }
+        // Update map marker
+        EnhancedUIUpdater.updatePickupMarker(location);
+    } else {
+        AppState.destination = {
+            lat: location.lat,
+            lng: location.lng,
+            address: location.address,
+            name: location.name
+        };
+        const mainDest = document.getElementById('destinationLocation');
+        if (mainDest) {
+            mainDest.value = location.address;
+            mainDest.dataset.lat = location.lat;
+            mainDest.dataset.lng = location.lng;
+        }
+        EnhancedUIUpdater.updateDestinationMarker(location);
+    }
+
+    // If both pickup and destination are set, draw route and calculate prices
+    if (AppState.pickup && AppState.destination) {
+        EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+        EnhancedUIUpdater.calculateAndUpdatePrices();
+    }
+
+    // Close overlay after selection
+    this.closeSearchOverlay();
+},
+
+closeSearchOverlay: function() {
+    const overlay = document.getElementById('searchOverlay');
+    if (overlay) {
+        overlay.classList.remove('active');
+        // Clear results container
+        const resultsContainer = document.getElementById('searchResultsList');
+        if (resultsContainer) resultsContainer.innerHTML = '';
+    }
+},
 
 closeSearchOverlay: function() {
     const overlay = document.getElementById('searchOverlay');
