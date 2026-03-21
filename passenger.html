@@ -585,15 +585,14 @@ body {
 
 .sos-button {
     position: absolute;
-    top: 60px;                     /* change from bottom */
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: 140px;
+    right: var(--app-padding);
     z-index: 150;
     width: 54px;
     height: 54px;
     background: linear-gradient(135deg, var(--error-red), #C0392B);
     border-radius: 50%;
-    display: none;                 /* hidden by default, shown only during active ride */
+    display: none;
     align-items: center;
     justify-content: center;
     color: var(--white);
@@ -602,6 +601,15 @@ body {
     cursor: pointer;
     transition: all var(--transition-speed) ease;
     animation: sosPulse 1.5s infinite;
+}
+
+/* New class for centered SOS button */
+.sos-button.centered {
+    top: 58px;
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
 }
 
 .sos-button:hover {
@@ -4960,6 +4968,13 @@ body {
     margin: 0 -8px;
     padding: 8px;
 }
+.sos-button.centered {
+    top: 58px;
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    right: auto;
+}
    </style>
 </head>
 <body>
@@ -7158,7 +7173,6 @@ const storage = firebase.storage();
 const AppState = {
     currentUser: null,
     userData: null,
-    initialDriverDistance: null,
     currentRide: null,
     activeScreen: 'home',
     activeService: 'car',
@@ -7277,6 +7291,7 @@ const AppState = {
 let map = null;
 let currentLocationMarker = null;
 let pickupMarker = null;
+let driverMarkers = {}; // store markers for nearby drivers
 let destinationMarker = null;
 let driverMarker = null;
 let routeLayer = null;
@@ -10178,6 +10193,11 @@ const EnhancedUIUpdater = {
             }, 5000);
         }
     },
+
+    // ============================================
+// LOAD NEARBY DRIVERS (REAL‑TIME)
+// ============================================
+
     
     updateRidePrices: function() {
         if (!AppState.pickup || !AppState.destination) {
@@ -10509,6 +10529,18 @@ const EnhancedUIUpdater = {
         this.updateRideDetails(ride);
         this.updateRideStatus(ride.status);
         this.updateTimeline(ride.status);
+
+        // Show SOS button centered when ride is accepted
+const sosButton = document.getElementById('sosButton');
+if (sosButton) {
+    if (ride.status === 'accepted' || ride.status === 'started') {
+        sosButton.style.display = 'flex';
+        sosButton.classList.add('centered');
+    } else {
+        sosButton.style.display = 'none';
+        sosButton.classList.remove('centered');
+    }
+}
         
         if (ride.status === 'accepted' && AppState.sosConfig) {
             const sosButton = document.getElementById('sosButton');
@@ -13696,75 +13728,63 @@ updateNotificationBadge: function(count) {
         );
     },
     
-   listenToDriverLocation: function(driverId) {
-    const locationRef = database.ref(`driverLocations/${driverId}`);
-    
-    // Store initial distance when ride is accepted
-    let initialDistance = null;
-    
-    AppState.realtimeListeners.push(
-        locationRef.on('value', (snapshot) => {
-            const location = snapshot.val();
-            if (location) {
-                AppState.driverLocation = {
-                    lat: location.latitude,
-                    lng: location.longitude
-                };
-                
-                // Update driver marker on map
-                if (driverMarker) {
-                    driverMarker.setLatLng([AppState.driverLocation.lat, AppState.driverLocation.lng]);
-                } else {
-                    driverMarker = L.marker([AppState.driverLocation.lat, AppState.driverLocation.lng], {
-                        icon: L.divIcon({
-                            className: 'driver-marker',
-                            html: '<i class="fas fa-car" style="color: #2196F3; font-size: 24px;"></i>',
-                            iconSize: [24, 24],
-                            iconAnchor: [12, 24]
-                        })
-                    }).addTo(map).bindPopup('Your Driver');
-                }
-                
-                if (AppState.currentRide && AppState.currentRide.pickupLat) {
-                    const pickupLocation = {
-                        lat: AppState.currentRide.pickupLat,
-                        lng: AppState.currentRide.pickupLng
+    listenToDriverLocation: function(driverId) {
+        const locationRef = database.ref(`driverLocations/${driverId}`);
+        
+        AppState.realtimeListeners.push(
+            locationRef.on('value', (snapshot) => {
+                const location = snapshot.val();
+                if (location) {
+                    AppState.driverLocation = {
+                        lat: location.latitude,
+                        lng: location.longitude
                     };
                     
-                    const distance = EnhancedPriceCalculator.calculateDistance(
-                        AppState.driverLocation.lat, AppState.driverLocation.lng,
-                        pickupLocation.lat, pickupLocation.lng
-                    );
+                    // Update driver marker on map
+                    if (driverMarker) {
+                        driverMarker.setLatLng([AppState.driverLocation.lat, AppState.driverLocation.lng]);
+                    } else {
+                        driverMarker = L.marker([AppState.driverLocation.lat, AppState.driverLocation.lng], {
+                            icon: L.divIcon({
+                                className: 'driver-marker',
+                                html: '<i class="fas fa-car" style="color: #2196F3; font-size: 24px;"></i>',
+                                iconSize: [24, 24],
+                                iconAnchor: [12, 24]
+                            })
+                        }).addTo(map).bindPopup('Your Driver');
+                    }
                     
-                    const eta = Math.ceil((distance / 40) * 60);
-                    
-                    const driverDistance = document.getElementById('driverDistance');
-                    const etaToPickup = document.getElementById('etaToPickup');
-                    
-                    if (driverDistance) driverDistance.textContent = `${distance.toFixed(1)} km`;
-                    if (etaToPickup) etaToPickup.textContent = `ETA: ${eta} min`;
-                    
-                    // Update progress bar
-                    const progressBar = document.getElementById('trackingProgress');
-                    if (progressBar) {
-                        // Store initial distance if not set
-                        if (initialDistance === null) {
-                            initialDistance = distance;
-                        }
-                        // Calculate progress percentage (how much of the initial distance has been covered)
-                        let progress = 0;
-                        if (initialDistance > 0) {
-                            const covered = initialDistance - distance;
-                            progress = (covered / initialDistance) * 100;
-                            progress = Math.min(100, Math.max(0, progress)); // clamp
-                        }
-                        progressBar.style.width = `${progress}%`;
+                    // Update tracking info
+                    if (AppState.currentRide && AppState.currentRide.pickupLat) {
+                        const pickupLocation = {
+                            lat: AppState.currentRide.pickupLat,
+                            lng: AppState.currentRide.pickupLng
+                        };
+                        
+                        const distance = EnhancedPriceCalculator.calculateDistance(
+                            AppState.driverLocation.lat, AppState.driverLocation.lng,
+                            pickupLocation.lat, pickupLocation.lng
+                        );
+                        
+                        const eta = Math.ceil((distance / 40) * 60);
+                        
+                        const driverDistance = document.getElementById('driverDistance');
+                        const etaToPickup = document.getElementById('etaToPickup');
+                        
+                        if (driverDistance) driverDistance.textContent = `${distance.toFixed(1)} km`;
+                        if (etaToPickup) etaToPickup.textContent = `ETA: ${eta} min`;
+                        // Update progress bar (max distance 5 km)
+const maxDistance = 5; // km
+let progress = Math.max(0, Math.min(100, (maxDistance - distance) / maxDistance * 100));
+const trackingProgress = document.getElementById('trackingProgress');
+if (trackingProgress) {
+    trackingProgress.style.width = `${progress}%`;
+}
                     }
                 }
-            }
-        })
-    );
-}
+            })
+        );
+    },
     
     listenToChatMessages: function(rideId) {
         const chatRef = database.ref(`chats/${rideId}/messages`).orderByChild('timestamp').limitToLast(50);
@@ -14315,6 +14335,12 @@ async loadRideDetails(rideId) {
         if (statusBar) {
             statusBar.classList.remove('active');
         }
+
+        const sosButton = document.getElementById('sosButton');
+if (sosButton) {
+    sosButton.style.display = 'none';
+    sosButton.classList.remove('centered');
+}
         
         // Hide SOS button
         const sosButton = document.getElementById('sosButton');
@@ -17304,49 +17330,6 @@ function initializeMap() {
     AppState.mapInitialized = true;
 }
 
-function loadNearbyDrivers() {
-    const driverMarkers = {}; // store markers by driverId
-    
-    const driversRef = database.ref('driverLocations');
-    driversRef.on('value', (snapshot) => {
-        const locations = snapshot.val();
-        if (!locations) return;
-        
-        // Remove old markers that are no longer present
-        Object.keys(driverMarkers).forEach(driverId => {
-            if (!locations[driverId]) {
-                map.removeLayer(driverMarkers[driverId]);
-                delete driverMarkers[driverId];
-            }
-        });
-        
-        // Add or update markers
-        Object.keys(locations).forEach(driverId => {
-            const loc = locations[driverId];
-            // Skip if location is stale (older than 2 minutes)
-            if (loc.timestamp && (Date.now() - loc.timestamp) > 120000) return;
-            
-            // Skip the current user's own location if they are a driver? Not needed.
-            
-            const position = [loc.latitude, loc.longitude];
-            
-            if (driverMarkers[driverId]) {
-                driverMarkers[driverId].setLatLng(position);
-            } else {
-                const marker = L.marker(position, {
-                    icon: L.divIcon({
-                        className: 'driver-marker',
-                        html: '<i class="fas fa-car" style="color: #FF6B35; font-size: 20px;"></i>',
-                        iconSize: [30, 30],
-                        iconAnchor: [15, 30]
-                    })
-                }).addTo(map).bindPopup('Driver nearby');
-                driverMarkers[driverId] = marker;
-            }
-        });
-    });
-}
-
 // ============================================
 // GET CURRENT LOCATION
 // ============================================
@@ -17871,6 +17854,51 @@ function switchService(service) {
     }
 }
 
+function loadNearbyDrivers() {
+    if (!map) return;
+    const driversRef = database.ref('driverLocations');
+    
+    // Listen for child added (new driver comes online)
+    driversRef.on('child_added', (snapshot) => {
+        const driverId = snapshot.key;
+        const location = snapshot.val();
+        if (!location) return;
+        
+        // Add marker
+        const marker = L.marker([location.latitude, location.longitude], {
+            icon: L.divIcon({
+                className: 'driver-car-marker',
+                html: '<i class="fas fa-car" style="font-size: 24px; color: #FF6B35; text-shadow: 0 0 2px white;"></i>',
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            })
+        }).addTo(map).bindPopup(`Driver ${driverId.slice(0,6)}...`);
+        
+        driverMarkers[driverId] = marker;
+    });
+    
+    // Listen for child changed (driver moves)
+    driversRef.on('child_changed', (snapshot) => {
+        const driverId = snapshot.key;
+        const location = snapshot.val();
+        if (!location) return;
+        const marker = driverMarkers[driverId];
+        if (marker) {
+            marker.setLatLng([location.latitude, location.longitude]);
+        }
+    });
+    
+    // Listen for child removed (driver goes offline)
+    driversRef.on('child_removed', (snapshot) => {
+        const driverId = snapshot.key;
+        const marker = driverMarkers[driverId];
+        if (marker) {
+            map.removeLayer(marker);
+            delete driverMarkers[driverId];
+        }
+    });
+}
+
 // ============================================
 // INITIALIZE APP
 // ============================================
@@ -17919,7 +17947,7 @@ async function initializeApp() {
         
         // Initialize map
         initializeMap();
-        
+        loadNearbyDrivers();
         // Setup enhanced location inputs BEFORE getting location
         setupEnhancedLocationInputs();
         
