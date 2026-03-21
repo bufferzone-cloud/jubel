@@ -603,15 +603,6 @@ body {
     animation: sosPulse 1.5s infinite;
 }
 
-/* New class for centered SOS button */
-.sos-button.centered {
-    top: 58px;
-    bottom: auto;
-    left: 50%;
-    transform: translateX(-50%);
-    right: auto;
-}
-
 .sos-button:hover {
     transform: scale(1.12);
     box-shadow: 0 0 25px rgba(231, 76, 60, 0.6);
@@ -4968,13 +4959,6 @@ body {
     margin: 0 -8px;
     padding: 8px;
 }
-.sos-button.centered {
-    top: 58px;
-    bottom: auto;
-    left: 50%;
-    transform: translateX(-50%);
-    right: auto;
-}
    </style>
 </head>
 <body>
@@ -7291,7 +7275,6 @@ const AppState = {
 let map = null;
 let currentLocationMarker = null;
 let pickupMarker = null;
-let driverMarkers = {}; // store markers for nearby drivers
 let destinationMarker = null;
 let driverMarker = null;
 let routeLayer = null;
@@ -10193,11 +10176,6 @@ const EnhancedUIUpdater = {
             }, 5000);
         }
     },
-
-    // ============================================
-// LOAD NEARBY DRIVERS (REAL‑TIME)
-// ============================================
-
     
     updateRidePrices: function() {
         if (!AppState.pickup || !AppState.destination) {
@@ -10529,18 +10507,6 @@ const EnhancedUIUpdater = {
         this.updateRideDetails(ride);
         this.updateRideStatus(ride.status);
         this.updateTimeline(ride.status);
-
-        // Show SOS button centered when ride is accepted
-const sosButton = document.getElementById('sosButton');
-if (sosButton) {
-    if (ride.status === 'accepted' || ride.status === 'started') {
-        sosButton.style.display = 'flex';
-        sosButton.classList.add('centered');
-    } else {
-        sosButton.style.display = 'none';
-        sosButton.classList.remove('centered');
-    }
-}
         
         if (ride.status === 'accepted' && AppState.sosConfig) {
             const sosButton = document.getElementById('sosButton');
@@ -13773,13 +13739,6 @@ updateNotificationBadge: function(count) {
                         
                         if (driverDistance) driverDistance.textContent = `${distance.toFixed(1)} km`;
                         if (etaToPickup) etaToPickup.textContent = `ETA: ${eta} min`;
-                        // Update progress bar (max distance 5 km)
-const maxDistance = 5; // km
-let progress = Math.max(0, Math.min(100, (maxDistance - distance) / maxDistance * 100));
-const trackingProgress = document.getElementById('trackingProgress');
-if (trackingProgress) {
-    trackingProgress.style.width = `${progress}%`;
-}
                     }
                 }
             })
@@ -14335,12 +14294,6 @@ async loadRideDetails(rideId) {
         if (statusBar) {
             statusBar.classList.remove('active');
         }
-
-        const sosButton = document.getElementById('sosButton');
-if (sosButton) {
-    sosButton.style.display = 'none';
-    sosButton.classList.remove('centered');
-}
         
         // Hide SOS button
         const sosButton = document.getElementById('sosButton');
@@ -17854,51 +17807,6 @@ function switchService(service) {
     }
 }
 
-function loadNearbyDrivers() {
-    if (!map) return;
-    const driversRef = database.ref('driverLocations');
-    
-    // Listen for child added (new driver comes online)
-    driversRef.on('child_added', (snapshot) => {
-        const driverId = snapshot.key;
-        const location = snapshot.val();
-        if (!location) return;
-        
-        // Add marker
-        const marker = L.marker([location.latitude, location.longitude], {
-            icon: L.divIcon({
-                className: 'driver-car-marker',
-                html: '<i class="fas fa-car" style="font-size: 24px; color: #FF6B35; text-shadow: 0 0 2px white;"></i>',
-                iconSize: [24, 24],
-                iconAnchor: [12, 12]
-            })
-        }).addTo(map).bindPopup(`Driver ${driverId.slice(0,6)}...`);
-        
-        driverMarkers[driverId] = marker;
-    });
-    
-    // Listen for child changed (driver moves)
-    driversRef.on('child_changed', (snapshot) => {
-        const driverId = snapshot.key;
-        const location = snapshot.val();
-        if (!location) return;
-        const marker = driverMarkers[driverId];
-        if (marker) {
-            marker.setLatLng([location.latitude, location.longitude]);
-        }
-    });
-    
-    // Listen for child removed (driver goes offline)
-    driversRef.on('child_removed', (snapshot) => {
-        const driverId = snapshot.key;
-        const marker = driverMarkers[driverId];
-        if (marker) {
-            map.removeLayer(marker);
-            delete driverMarkers[driverId];
-        }
-    });
-}
-
 // ============================================
 // INITIALIZE APP
 // ============================================
@@ -17947,7 +17855,7 @@ async function initializeApp() {
         
         // Initialize map
         initializeMap();
-        loadNearbyDrivers();
+        
         // Setup enhanced location inputs BEFORE getting location
         setupEnhancedLocationInputs();
         
