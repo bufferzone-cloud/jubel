@@ -7825,43 +7825,6 @@ const EnhancedSearchEngine = {
     }
 };
 
-// Function to load and display nearby drivers on the map
-function loadNearbyDrivers() {
-    // Clear existing driver markers (if any)
-    if (window.driverMarkers) {
-        window.driverMarkers.forEach(marker => map.removeLayer(marker));
-    }
-    window.driverMarkers = [];
-
-    // Reference to all driver locations
-    const driversRef = database.ref('driverLocations');
-    driversRef.on('value', (snapshot) => {
-        const drivers = snapshot.val();
-        if (!drivers) return;
-        
-        // Remove all existing markers
-        window.driverMarkers.forEach(marker => map.removeLayer(marker));
-        window.driverMarkers = [];
-        
-        // Add markers for each online driver
-        Object.keys(drivers).forEach(driverId => {
-            const location = drivers[driverId];
-            if (location && location.latitude && location.longitude) {
-                // Create a custom car icon
-                const carIcon = L.divIcon({
-                    className: 'driver-car-marker',
-                    html: '<i class="fas fa-car" style="color: #FF6B35; font-size: 20px;"></i>',
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 24]
-                });
-                const marker = L.marker([location.latitude, location.longitude], { icon: carIcon })
-                    .addTo(map)
-                    .bindPopup('Driver nearby');
-                window.driverMarkers.push(marker);
-            }
-        });
-    });
-}
 
 // ============================================
 // ENHANCED LOCATION MANAGER
@@ -17329,6 +17292,43 @@ const EnhancedCityDetector = {
     }
 };
 
+// Function to load and display nearby drivers on the map
+function loadNearbyDrivers() {
+    // Clear existing driver markers (if any)
+    if (window.driverMarkers) {
+        window.driverMarkers.forEach(marker => map.removeLayer(marker));
+    }
+    window.driverMarkers = [];
+
+    // Reference to all driver locations
+    const driversRef = database.ref('driverLocations');
+    driversRef.on('value', (snapshot) => {
+        const drivers = snapshot.val();
+        if (!drivers) return;
+        
+        // Remove all existing markers
+        window.driverMarkers.forEach(marker => map.removeLayer(marker));
+        window.driverMarkers = [];
+        
+        // Add markers for each online driver
+        Object.keys(drivers).forEach(driverId => {
+            const location = drivers[driverId];
+            if (location && location.latitude && location.longitude) {
+                // Create a custom car icon
+                const carIcon = L.divIcon({
+                    className: 'driver-car-marker',
+                    html: '<i class="fas fa-car" style="color: #FF6B35; font-size: 20px;"></i>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 24]
+                });
+                const marker = L.marker([location.latitude, location.longitude], { icon: carIcon })
+                    .addTo(map)
+                    .bindPopup('Driver nearby');
+                window.driverMarkers.push(marker);
+            }
+        });
+    });
+}
 // ============================================
 // INITIALIZE MAP
 // ============================================
@@ -17350,11 +17350,14 @@ function initializeMap() {
     
     // Add scale control
     L.control.scale().addTo(map);
-    loadNearbyDrivers();
+    
     // Hide loading overlay
     EnhancedUIUpdater.hideMapLoading();
     
     console.log('Map initialized successfully');
+    
+    // *** ADD THIS LINE RIGHT HERE ***
+    loadNearbyDrivers();
     
     AppState.mapInitialized = true;
 }
