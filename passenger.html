@@ -4959,6 +4959,19 @@ body {
     margin: 0 -8px;
     padding: 8px;
 }
+
+.driver-marker {
+    background: #FF6B35;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: white;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
    </style>
 </head>
 <body>
@@ -7273,6 +7286,7 @@ const AppState = {
 // MAP MANAGEMENT
 // ============================================
 let map = null;
+let nearbyDriverMarkers = [];
 let currentLocationMarker = null;
 let pickupMarker = null;
 let destinationMarker = null;
@@ -10493,6 +10507,11 @@ const EnhancedUIUpdater = {
     },
     
     showRideInfo: function(ride) {
+        // Hide service tabs and quick actions while a ride is active
+document.querySelector('.service-tabs')?.style.setProperty('display', 'none');
+document.querySelector('.quick-actions')?.style.setProperty('display', 'none');
+document.getElementById('moreOptionsBtn')?.style.setProperty('display', 'none');
+document.getElementById('addStopBtn')?.style.setProperty('display', 'none');
         document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => {
             form.style.display = 'none';
         });
@@ -12940,6 +12959,40 @@ handleNotificationAction: function(notification) {
                     </div>
                 </div>
             `;
+
+            if (ride.driverName) {
+            html += `
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee;">
+                    <div style="font-weight: 600; margin-bottom: 5px;">
+                        <i class="fas fa-user"></i> Driver
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div style="
+                            width: 40px;
+                            height: 40px;
+                            background: #FF6B35;
+                            color: white;
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-weight: 600;
+                        ">
+                            ${ride.driverName.charAt(0).toUpperCase()}
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">${ride.driverName}</div>
+                            <div style="font-size: 12px; color: #666;">
+                                ${ride.driverVehicle?.model || ride.driverVehicle?.type || 'Vehicle'} - ${ride.driverVehicle?.licensePlate || 'N/A'}
+                            </div>
+                        </div>
+                        <div style="color: #FFC107;">
+                            <i class="fas fa-star"></i> ${ride.driverRating || '4.8'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
         });
         
         container.innerHTML = html;
@@ -13788,6 +13841,41 @@ updateNotificationBadge: function(count) {
             console.error('Error loading driver info:', error);
         }
     },
+
+    loadNearbyDrivers: function(centerLat, centerLng, radius = 5) {
+    // Clear existing markers
+    if (nearbyDriverMarkers) {
+        nearbyDriverMarkers.forEach(marker => map.removeLayer(marker));
+        nearbyDriverMarkers = [];
+    }
+    // Listen to driverLocations in real time
+    const driverLocationsRef = database.ref('driverLocations');
+    const listener = driverLocationsRef.on('value', (snapshot) => {
+        const locations = snapshot.val();
+        if (!locations) return;
+        // Remove old markers
+        nearbyDriverMarkers.forEach(marker => map.removeLayer(marker));
+        nearbyDriverMarkers = [];
+        // Add markers for drivers within radius (except current user)
+        Object.entries(locations).forEach(([driverId, loc]) => {
+            if (driverId === AppState.currentUser?.uid) return;
+            const distance = EnhancedPriceCalculator.calculateDistance(centerLat, centerLng, loc.latitude, loc.longitude);
+            if (distance <= radius) {
+                const driverIcon = L.divIcon({
+                    className: 'driver-marker',
+                    html: '<i class="fas fa-car" style="color: #FF6B35; font-size: 20px;"></i>',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                });
+                const marker = L.marker([loc.latitude, loc.longitude], { icon: driverIcon }).addTo(map);
+                marker.bindPopup(`Driver ${driverId.substring(0, 8)}...`);
+                nearbyDriverMarkers.push(marker);
+            }
+        });
+    });
+    // Store listener for cleanup
+    AppState.realtimeListeners.push(listener);
+}
     
     async requestRide(rideData) {
         try {
@@ -14270,6 +14358,10 @@ async loadRideDetails(rideId) {
     },
     
     resetActiveRide: function() {
+        document.querySelector('.service-tabs')?.style.removeProperty('display');
+document.querySelector('.quick-actions')?.style.removeProperty('display');
+document.getElementById('moreOptionsBtn')?.style.removeProperty('display');
+document.getElementById('addStopBtn')?.style.removeProperty('display');
         AppState.currentRide = null;
         
         // Remove pulsing icon
@@ -17321,21 +17413,22 @@ async function getCurrentLocation(showLoading = true) {
         const result = await EnhancedCityDetector.updateCityAndAddress(latitude, longitude);
         
         if (result) {
-            if (showLoading) {
-                EnhancedUIUpdater.hideLoading();
-            }
-            
-            // Show notification with precise address
-            const message = result.address ? 
-                `Location set: ${result.address.address}` : 
-                `Location detected in ${result.city}`;
-            
-            EnhancedUIUpdater.showToast(message, 'success');
-            
-            // Log success
-            console.log(`✅ Location detection successful: ${result.city}, ${result.address?.address}`);
-            
-            return result;
+    if (showLoading) {
+        EnhancedUIUpdater.hideLoading();
+    }
+    
+    const message = result.address ? 
+        `Location set: ${result.address.address}` : 
+        `Location detected in ${result.city}`;
+    EnhancedUIUpdater.showToast(message, 'success');
+    
+    // 🚗 Load nearby drivers after location is known
+    EnhancedFirebaseManager.loadNearbyDrivers(latitude, longitude);
+    
+    console.log(`✅ Location detection successful: ${result.city}, ${result.address?.address}`);
+    
+    return result;
+}
             
         } else {
             // City detection failed - manual selection was shown
@@ -17386,6 +17479,8 @@ async function getCurrentLocation(showLoading = true) {
                 showManualCitySelection();
                 break;
         }
+
+        
         
         return null;
     }
