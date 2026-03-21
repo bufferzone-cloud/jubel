@@ -7277,7 +7277,6 @@ let currentLocationMarker = null;
 let pickupMarker = null;
 let destinationMarker = null;
 let driverMarker = null;
-let driverMarkers = {}; 
 let routeLayer = null;
 let emergencyMarkers = [];
 let emergencyStationMarkers = [];
@@ -10494,18 +10493,6 @@ const EnhancedUIUpdater = {
     },
     
     showRideInfo: function(ride) {
-        // Hide service tabs and "More Options" button during active ride
-const serviceTabs = document.querySelector('.service-tabs');
-const moreOptionsBtn = document.querySelector('#moreOptionsBtn');
-if (serviceTabs) serviceTabs.style.display = 'none';
-if (moreOptionsBtn) moreOptionsBtn.style.display = 'none';
-
-// Ensure ride info panel is visible
-const rideInfoPanel = document.getElementById('rideInfoPanel');
-if (rideInfoPanel) {
-    rideInfoPanel.style.display = 'block';
-    rideInfoPanel.classList.add('active');
-}
         document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => {
             form.style.display = 'none';
         });
@@ -13724,31 +13711,7 @@ updateNotificationBadge: function(count) {
                             })
                         }).addTo(map).bindPopup('Your Driver');
                     }
-                    // If we have an active ride with pickup coordinates, calculate distance & update progress
-if (AppState.currentRide && AppState.currentRide.pickupLat && AppState.currentRide.pickupLng) {
-    const pickup = { lat: AppState.currentRide.pickupLat, lng: AppState.currentRide.pickupLng };
-    const driverPos = { lat: location.latitude, lng: location.longitude };
-    const distanceToPickup = EnhancedPriceCalculator.calculateDistance(
-        driverPos.lat, driverPos.lng, pickup.lat, pickup.lng
-    );
-
-    // Update distance and ETA in the UI
-    const driverDistanceElem = document.getElementById('driverDistance');
-    if (driverDistanceElem) driverDistanceElem.textContent = `${distanceToPickup.toFixed(1)} km`;
-
-    const etaElem = document.getElementById('etaToPickup');
-    if (etaElem) {
-        const eta = Math.ceil((distanceToPickup / 40) * 60); // assume 40 km/h
-        etaElem.textContent = `ETA: ${eta} min`;
-    }
-
-    // Update progress bar – progress = how close driver is to pickup (max 5 km)
-    const maxDistance = 5; // km
-    let progress = (maxDistance - Math.min(maxDistance, distanceToPickup)) / maxDistance * 100;
-    progress = Math.max(0, Math.min(100, progress)); // clamp between 0 and 100
-    const progressBar = document.getElementById('trackingProgress');
-    if (progressBar) progressBar.style.width = `${progress}%`;
-}
+                    
                     // Update tracking info
                     if (AppState.currentRide && AppState.currentRide.pickupLat) {
                         const pickupLocation = {
@@ -14308,18 +14271,7 @@ async loadRideDetails(rideId) {
     
     resetActiveRide: function() {
         AppState.currentRide = null;
-        // Show service tabs and "More Options" button again
-const serviceTabs = document.querySelector('.service-tabs');
-const moreOptionsBtn = document.querySelector('#moreOptionsBtn');
-if (serviceTabs) serviceTabs.style.display = '';
-if (moreOptionsBtn) moreOptionsBtn.style.display = '';
-
-// Hide ride info panel
-const rideInfoPanel = document.getElementById('rideInfoPanel');
-if (rideInfoPanel) {
-    rideInfoPanel.style.display = 'none';
-    rideInfoPanel.classList.remove('active');
-}
+        
         // Remove pulsing icon
         EnhancedUIUpdater.removePulsingRideIcon();
         
@@ -15036,50 +14988,6 @@ async markAllNotificationsAsRead() {
     }
 };
 
-
-
-function loadNearbyDrivers() {
-    if (!map) return;
-
-    const driversRef = database.ref('driverLocations');
-    driversRef.on('value', (snapshot) => {
-        const drivers = snapshot.val();
-
-        // Remove markers for drivers that went offline
-        Object.keys(driverMarkers).forEach(driverId => {
-            if (!drivers || !drivers[driverId]) {
-                map.removeLayer(driverMarkers[driverId]);
-                delete driverMarkers[driverId];
-            }
-        });
-
-        // Add or update markers for online drivers
-        if (drivers) {
-            Object.keys(drivers).forEach(driverId => {
-                const driver = drivers[driverId];
-                const lat = driver.latitude;
-                const lng = driver.longitude;
-                if (lat && lng) {
-                    if (driverMarkers[driverId]) {
-                        // Update existing marker position
-                        driverMarkers[driverId].setLatLng([lat, lng]);
-                    } else {
-                        // Create new marker with car icon
-                        const carIcon = L.divIcon({
-                            className: 'driver-car-marker',
-                            html: '<i class="fas fa-car" style="color: #FF6B35; font-size: 24px;"></i>',
-                            iconSize: [24, 24],
-                            iconAnchor: [12, 24]
-                        });
-                        const marker = L.marker([lat, lng], { icon: carIcon }).addTo(map);
-                        marker.bindPopup(`<strong>Driver</strong><br>Vehicle: ${driver.vehicleType || 'Car'}`);
-                        driverMarkers[driverId] = marker;
-                    }
-                }
-            });
-        }
-    });
-}
 
 // ============================================
 // ENHANCED WALLET MANAGER
@@ -17939,7 +17847,7 @@ async function initializeApp() {
         
         // Initialize map
         initializeMap();
-        loadNearbyDrivers();
+        
         // Setup enhanced location inputs BEFORE getting location
         setupEnhancedLocationInputs();
         
@@ -17957,7 +17865,6 @@ async function initializeApp() {
             console.warn('⚠️ Initial location detection failed or was deferred');
             // App will continue with manual city selection
         }
-        
         // Set up periodic check for scheduled rides
 if (!AppState.scheduledRideCheckInterval) {
     AppState.scheduledRideCheckInterval = setInterval(() => {
