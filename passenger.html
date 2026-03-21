@@ -4959,14 +4959,6 @@ body {
     margin: 0 -8px;
     padding: 8px;
 }
-
-/* When ride active, hide certain elements */
-.ride-active .service-tabs,
-.ride-active .quick-actions,
-.ride-active #moreOptionsBtn,
-.ride-active #addStopBtn {
-    display: none !important;
-}
    </style>
 </head>
 <body>
@@ -7176,7 +7168,10 @@ const AppState = {
     selectedVehicle: null,
     destination: null,
     pickup: null,
+    nearbyDriverMarkers: [],
+nearbyDriversListener: null,
     rideFare: 0,
+    initialDriverDistance: null,
     driverLocation: null,
     chatMessages: [],
     scheduledRides: [],
@@ -7824,7 +7819,6 @@ const EnhancedSearchEngine = {
         return lng >= west && lng <= east && lat >= south && lat <= north;
     }
 };
-
 
 // ============================================
 // ENHANCED LOCATION MANAGER
@@ -10501,38 +10495,28 @@ const EnhancedUIUpdater = {
         }
     },
     
-    showRideInfo: function(ride) {
-    // Hide all forms and service tabs, quick actions, and more options
-    document.querySelectorAll('.ride-request-form, .service-form, #broadcastForm').forEach(form => {
-        form.style.display = 'none';
-    });
-    // Hide service tabs, quick actions, more options button, and add stop button
-    const serviceTabs = document.querySelector('.service-tabs');
-    const quickActions = document.querySelector('.quick-actions');
-    const moreOptionsBtn = document.getElementById('moreOptionsBtn');
-    const addStopBtn = document.getElementById('addStopBtn');
-    if (serviceTabs) serviceTabs.style.display = 'none';
-    if (quickActions) quickActions.style.display = 'none';
-    if (moreOptionsBtn) moreOptionsBtn.style.display = 'none';
-    if (addStopBtn) addStopBtn.style.display = 'none';
-
-    // Show ride info panel
+   showRideInfo: function(ride) {
+    // Hide the main forms and tabs
+    const homeContent = document.getElementById('homeContent');
+    if (homeContent) homeContent.style.display = 'none';
+    
+    // Show the ride info panel
     const rideInfoPanel = document.getElementById('rideInfoPanel');
     if (rideInfoPanel) {
         rideInfoPanel.style.display = 'block';
         rideInfoPanel.classList.add('active');
     }
-
-    // Update ride details and status
+    
+    // Update ride details
     this.updateRideDetails(ride);
     this.updateRideStatus(ride.status);
     this.updateTimeline(ride.status);
-
+    
     if (ride.status === 'accepted' && AppState.sosConfig) {
         const sosButton = document.getElementById('sosButton');
         if (sosButton) sosButton.style.display = 'flex';
     }
-}
+},
     
    // ENHANCED: Update ride details including driver info and images
 updateRideDetails: function(ride) {
@@ -12863,128 +12847,115 @@ handleNotificationAction: function(notification) {
     },
     
     updateRideHistory: function(rides) {
-    const container = document.getElementById('historyList');
-    if (!container) return;
-    
-    if (rides.length === 0) {
-        container.innerHTML = `
-            <div style="text-align: center; padding: 40px 20px; color: #999;">
-                <i class="fas fa-history" style="font-size: 48px; margin-bottom: 20px;"></i>
-                <div style="font-weight: 600; margin-bottom: 10px;">No ride history</div>
-                <div>Your completed rides will appear here</div>
-            </div>
-        `;
-        return;
-    }
-    
-    // Sort by timestamp (newest first)
-    const sortedRides = rides.sort((a, b) => b.timestamp - a.timestamp);
-    
-    let html = '';
-    
-    sortedRides.forEach(ride => {
-        const time = new Date(ride.timestamp);
-        const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const container = document.getElementById('historyList');
+        if (!container) return;
         
-        let icon = 'fa-car';
-        let iconColor = '#FF6B35';
-        let typeLabel = 'Ride';
-        
-        if (ride.serviceType === 'delivery') {
-            icon = 'fa-shipping-fast';
-            iconColor = '#9C27B0';
-            typeLabel = 'Delivery';
-        } else if (ride.serviceType === 'truck') {
-            icon = 'fa-truck';
-            iconColor = '#795548';
-            typeLabel = 'Truck';
-        } else if (ride.serviceType === 'shopping') {
-            icon = 'fa-shopping-bag';
-            iconColor = '#4CAF50';
-            typeLabel = 'Shopping';
-        } else if (ride.emergency) {
-            icon = 'fa-ambulance';
-            iconColor = '#F44336';
-            typeLabel = 'Emergency';
-        } else if (ride.splitRide) {
-            icon = 'fa-user-friends';
-            iconColor = '#2196F3';
-            typeLabel = 'Split Ride';
-        } else if (ride.broadcast) {
-            icon = 'fa-broadcast-tower';
-            iconColor = '#FFC107';
-            typeLabel = 'Broadcast';
-        }
-        
-        const statusColor = ride.status === 'completed' ? '#4CAF50' : 
-                           ride.status === 'cancelled' ? '#F44336' : '#FFC107';
-        
-        // Build driver info if available
-        let driverInfo = '';
-        if (ride.driverName) {
-            driverInfo = `
-                <div class="history-driver-info" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee;">
-                    <div><strong>Driver:</strong> ${ride.driverName}</div>
-                    <div><strong>Phone:</strong> ${ride.driverPhone || 'N/A'}</div>
-                    <div><strong>Vehicle:</strong> ${ride.driverVehicle ? (ride.driverVehicle.model || ride.driverVehicle.type) + ' - ' + (ride.driverVehicle.licensePlate || 'N/A') : 'N/A'}</div>
+        if (rides.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px; color: #999;">
+                    <i class="fas fa-history" style="font-size: 48px; margin-bottom: 20px;"></i>
+                    <div style="font-weight: 600; margin-bottom: 10px;">No ride history</div>
+                    <div>Your completed rides will appear here</div>
                 </div>
             `;
+            return;
         }
         
-        html += `
-            <div class="history-item" style="
-                padding: 15px;
-                border-bottom: 1px solid #eee;
-                cursor: pointer;
-            ">
-                <div style="display: flex; gap: 12px;">
-                    <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
-                        <i class="fas ${icon}"></i>
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                            <div style="font-weight: 600; color: #333;">${typeLabel}</div>
-                            <div style="font-weight: 700; color: #FF6B35;">ZMW ${ride.fare?.toFixed(2) || '0.00'}</div>
+        // Sort by timestamp (newest first)
+        const sortedRides = rides.sort((a, b) => b.timestamp - a.timestamp);
+        
+        let html = '';
+        
+        sortedRides.forEach(ride => {
+            const time = new Date(ride.timestamp);
+            const timeString = time.toLocaleDateString() + ' ' + time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            let icon = 'fa-car';
+            let iconColor = '#FF6B35';
+            let typeLabel = 'Ride';
+            
+            if (ride.serviceType === 'delivery') {
+                icon = 'fa-shipping-fast';
+                iconColor = '#9C27B0';
+                typeLabel = 'Delivery';
+            } else if (ride.serviceType === 'truck') {
+                icon = 'fa-truck';
+                iconColor = '#795548';
+                typeLabel = 'Truck';
+            } else if (ride.serviceType === 'shopping') {
+                icon = 'fa-shopping-bag';
+                iconColor = '#4CAF50';
+                typeLabel = 'Shopping';
+            } else if (ride.emergency) {
+                icon = 'fa-ambulance';
+                iconColor = '#F44336';
+                typeLabel = 'Emergency';
+            } else if (ride.splitRide) {
+                icon = 'fa-user-friends';
+                iconColor = '#2196F3';
+                typeLabel = 'Split Ride';
+            } else if (ride.broadcast) {
+                icon = 'fa-broadcast-tower';
+                iconColor = '#FFC107';
+                typeLabel = 'Broadcast';
+            }
+            
+            const statusColor = ride.status === 'completed' ? '#4CAF50' : 
+                               ride.status === 'cancelled' ? '#F44336' : '#FFC107';
+            
+            html += `
+                <div class="history-item" style="
+                    padding: 15px;
+                    border-bottom: 1px solid #eee;
+                    cursor: pointer;
+                ">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="color: ${iconColor}; font-size: 20px; margin-top: 2px;">
+                            <i class="fas ${icon}"></i>
                         </div>
-                        <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
-                            ${ride.pickupDisplay || ride.pickup}
-                        </div>
-                        <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
-                            <i class="fas fa-arrow-right" style="font-size: 12px; margin: 0 5px;"></i>
-                            ${ride.destinationDisplay || ride.destination}
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div style="font-size: 12px; color: #999;">
-                                ${timeString}
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                <div style="font-weight: 600; color: #333;">${typeLabel}</div>
+                                <div style="font-weight: 700; color: #FF6B35;">ZMW ${ride.fare?.toFixed(2) || '0.00'}</div>
                             </div>
-                            <div style="
-                                padding: 3px 8px;
-                                background: ${statusColor};
-                                color: white;
-                                border-radius: 12px;
-                                font-size: 11px;
-                                font-weight: 600;
-                            ">
-                                ${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}
+                            <div style="color: #666; font-size: 14px; margin-bottom: 5px;">
+                                ${ride.pickupDisplay || ride.pickup}
+                            </div>
+                            <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
+                                <i class="fas fa-arrow-right" style="font-size: 12px; margin: 0 5px;"></i>
+                                ${ride.destinationDisplay || ride.destination}
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-size: 12px; color: #999;">
+                                    ${timeString}
+                                </div>
+                                <div style="
+                                    padding: 3px 8px;
+                                    background: ${statusColor};
+                                    color: white;
+                                    border-radius: 12px;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                ">
+                                    ${ride.status?.charAt(0).toUpperCase() + ride.status?.slice(1) || 'Unknown'}
+                                </div>
                             </div>
                         </div>
-                        ${driverInfo}
                     </div>
                 </div>
-            </div>
-        `;
-    });
-    
-    container.innerHTML = html;
-    
-    // Add click handlers
-    container.querySelectorAll('.history-item').forEach((item, index) => {
-        item.addEventListener('click', () => {
-            const ride = sortedRides[index];
-            EnhancedUIUpdater.showRideDetailsModal(ride);
+            `;
         });
-    });
-}
+        
+        container.innerHTML = html;
+        
+        // Add click handlers
+        container.querySelectorAll('.history-item').forEach((item, index) => {
+            item.addEventListener('click', () => {
+                const ride = sortedRides[index];
+                this.showRideDetailsModal(ride);
+            });
+        });
+    },
     
     showRideDetailsModal: function(ride) {
         const modal = document.createElement('div');
@@ -13347,6 +13318,7 @@ AppState.realtimeListeners.push(
             }
             
             if (activeRide) {
+                AppState.initialDriverDistance = null;
                 if (!AppState.currentRide || AppState.currentRide.id !== activeRide.id) {
                     // New active ride
                     AppState.currentRide = activeRide;
@@ -13719,56 +13691,134 @@ updateNotificationBadge: function(count) {
         );
     },
     
-    listenToDriverLocation: function(driverId) {
-        const locationRef = database.ref(`driverLocations/${driverId}`);
-        
-        AppState.realtimeListeners.push(
-            locationRef.on('value', (snapshot) => {
-                const location = snapshot.val();
-                if (location) {
-                    AppState.driverLocation = {
-                        lat: location.latitude,
-                        lng: location.longitude
+   listenToDriverLocation: function(driverId) {
+    const locationRef = database.ref(`driverLocations/${driverId}`);
+    
+    AppState.realtimeListeners.push(
+        locationRef.on('value', (snapshot) => {
+            const location = snapshot.val();
+            if (location) {
+                AppState.driverLocation = {
+                    lat: location.latitude,
+                    lng: location.longitude
+                };
+                
+                // Update driver marker on map
+                if (driverMarker) {
+                    driverMarker.setLatLng([AppState.driverLocation.lat, AppState.driverLocation.lng]);
+                } else {
+                    driverMarker = L.marker([AppState.driverLocation.lat, AppState.driverLocation.lng], {
+                        icon: L.divIcon({
+                            className: 'driver-marker',
+                            html: '<i class="fas fa-car" style="color: #2196F3; font-size: 24px;"></i>',
+                            iconSize: [24, 24],
+                            iconAnchor: [12, 24]
+                        })
+                    }).addTo(map).bindPopup('Your Driver');
+                }
+                
+                // Update tracking info and progress bar
+                if (AppState.currentRide && AppState.currentRide.pickupLat) {
+                    const pickupLocation = {
+                        lat: AppState.currentRide.pickupLat,
+                        lng: AppState.currentRide.pickupLng
                     };
                     
-                    // Update driver marker on map
-                    if (driverMarker) {
-                        driverMarker.setLatLng([AppState.driverLocation.lat, AppState.driverLocation.lng]);
-                    } else {
-                        driverMarker = L.marker([AppState.driverLocation.lat, AppState.driverLocation.lng], {
-                            icon: L.divIcon({
-                                className: 'driver-marker',
-                                html: '<i class="fas fa-car" style="color: #2196F3; font-size: 24px;"></i>',
-                                iconSize: [24, 24],
-                                iconAnchor: [12, 24]
-                            })
-                        }).addTo(map).bindPopup('Your Driver');
+                    const currentDistance = EnhancedPriceCalculator.calculateDistance(
+                        AppState.driverLocation.lat, AppState.driverLocation.lng,
+                        pickupLocation.lat, pickupLocation.lng
+                    );
+                    
+                    // Store initial distance if not already set
+                    if (AppState.initialDriverDistance === null) {
+                        AppState.initialDriverDistance = currentDistance;
                     }
                     
-                    // Update tracking info
-                    if (AppState.currentRide && AppState.currentRide.pickupLat) {
-                        const pickupLocation = {
-                            lat: AppState.currentRide.pickupLat,
-                            lng: AppState.currentRide.pickupLng
-                        };
-                        
-                        const distance = EnhancedPriceCalculator.calculateDistance(
-                            AppState.driverLocation.lat, AppState.driverLocation.lng,
-                            pickupLocation.lat, pickupLocation.lng
-                        );
-                        
-                        const eta = Math.ceil((distance / 40) * 60);
-                        
-                        const driverDistance = document.getElementById('driverDistance');
-                        const etaToPickup = document.getElementById('etaToPickup');
-                        
-                        if (driverDistance) driverDistance.textContent = `${distance.toFixed(1)} km`;
-                        if (etaToPickup) etaToPickup.textContent = `ETA: ${eta} min`;
+                    // Calculate progress percentage
+                    let progressPercent = 0;
+                    if (AppState.initialDriverDistance > 0) {
+                        const distanceTraveled = AppState.initialDriverDistance - currentDistance;
+                        progressPercent = (distanceTraveled / AppState.initialDriverDistance) * 100;
+                        progressPercent = Math.min(100, Math.max(0, progressPercent)); // clamp
+                    } else {
+                        // If driver is already at pickup, set to 100%
+                        progressPercent = 100;
+                    }
+                    
+                    // Update progress bar width
+                    const trackingProgress = document.getElementById('trackingProgress');
+                    if (trackingProgress) {
+                        trackingProgress.style.width = `${progressPercent}%`;
+                    }
+                    
+                    const driverDistance = document.getElementById('driverDistance');
+                    const etaToPickup = document.getElementById('etaToPickup');
+                    
+                    if (driverDistance) driverDistance.textContent = `${currentDistance.toFixed(1)} km`;
+                    if (etaToPickup) {
+                        const eta = Math.ceil((currentDistance / 40) * 60);
+                        etaToPickup.textContent = `ETA: ${eta} min`;
                     }
                 }
-            })
-        );
-    },
+            }
+        })
+    );
+},
+
+loadNearbyDrivers: function() {
+    // Remove existing listener if any
+    if (this.nearbyDriversListener) {
+        this.nearbyDriversListener();
+    }
+    
+    // Listen to all driver locations
+    const driversRef = database.ref('driverLocations');
+    this.nearbyDriversListener = driversRef.on('value', (snapshot) => {
+        const drivers = snapshot.val();
+        
+        // Clear existing markers
+        AppState.nearbyDriverMarkers.forEach(marker => {
+            if (map && map.hasLayer(marker)) map.removeLayer(marker);
+        });
+        AppState.nearbyDriverMarkers = [];
+        
+        if (!drivers) return;
+        
+        // Get current user's location (if available)
+        const userLoc = AppState.userLocation;
+        if (!userLoc) return;
+        
+        // Loop through each driver
+        for (const driverId in drivers) {
+            // Skip current driver if this is the driver of the active ride (optional)
+            if (AppState.currentRide && AppState.currentRide.driverId === driverId) continue;
+            
+            const driver = drivers[driverId];
+            if (!driver.latitude || !driver.longitude) continue;
+            
+            // Calculate distance
+            const distance = EnhancedPriceCalculator.calculateDistance(
+                userLoc.lat, userLoc.lng,
+                driver.latitude, driver.longitude
+            );
+            
+            // Show only drivers within, say, 5 km
+            if (distance > 5) continue;
+            
+            // Create marker
+            const marker = L.marker([driver.latitude, driver.longitude], {
+                icon: L.divIcon({
+                    className: 'driver-marker',
+                    html: '<i class="fas fa-car" style="color: #FF6B35; font-size: 20px;"></i>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 24]
+                })
+            }).addTo(map).bindPopup('Nearby Driver');
+            
+            AppState.nearbyDriverMarkers.push(marker);
+        }
+    });
+},
     
     listenToChatMessages: function(rideId) {
         const chatRef = database.ref(`chats/${rideId}/messages`).orderByChild('timestamp').limitToLast(50);
@@ -14302,7 +14352,7 @@ async loadRideDetails(rideId) {
         }
     },
     
-    resetActiveRide: function() {
+   resetActiveRide: function() {
     AppState.currentRide = null;
     
     // Remove pulsing icon
@@ -14312,8 +14362,11 @@ async loadRideDetails(rideId) {
     const rideInfoPanel = document.getElementById('rideInfoPanel');
     if (rideInfoPanel) {
         rideInfoPanel.style.display = 'none';
-        rideInfoPanel.classList.remove('active');
     }
+    
+    // Restore home content
+    const homeContent = document.getElementById('homeContent');
+    if (homeContent) homeContent.style.display = 'block';
     
     // Hide status bar
     const statusBar = document.getElementById('rideStatusBar');
@@ -14326,20 +14379,7 @@ async loadRideDetails(rideId) {
     if (sosButton) {
         sosButton.style.display = 'none';
     }
-    
-    // Show back the service tabs, quick actions, more options, and add stop button
-    const serviceTabs = document.querySelector('.service-tabs');
-    const quickActions = document.querySelector('.quick-actions');
-    const moreOptionsBtn = document.getElementById('moreOptionsBtn');
-    const addStopBtn = document.getElementById('addStopBtn');
-    if (serviceTabs) serviceTabs.style.display = 'flex';
-    if (quickActions) quickActions.style.display = 'grid';
-    if (moreOptionsBtn) moreOptionsBtn.style.display = 'flex';
-    if (addStopBtn) addStopBtn.style.display = 'block';
-    
-    // Show the active service form again (default to car)
-    switchService(AppState.activeService);
-}
+},
     
     handleRideCompletion: function(ride) {
         // Process referral reward if applicable
@@ -17292,7 +17332,6 @@ const EnhancedCityDetector = {
     }
 };
 
-
 // ============================================
 // INITIALIZE MAP
 // ============================================
@@ -17320,52 +17359,9 @@ function initializeMap() {
     
     console.log('Map initialized successfully');
     
-    // Call the function to load nearby drivers
-  
-    
     AppState.mapInitialized = true;
 }
-// Function to load and display nearby drivers on the map
-function loadNearbyDrivers() {
-    // Clear existing driver markers (if any)
-    if (window.driverMarkers) {
-        window.driverMarkers.forEach(marker => {
-            if (map && map.hasLayer(marker)) map.removeLayer(marker);
-        });
-    }
-    window.driverMarkers = [];
 
-    // Reference to all driver locations
-    const driversRef = database.ref('driverLocations');
-    driversRef.on('value', (snapshot) => {
-        const drivers = snapshot.val();
-        if (!drivers) return;
-        
-        // Remove all existing markers
-        window.driverMarkers.forEach(marker => {
-            if (map && map.hasLayer(marker)) map.removeLayer(marker);
-        });
-        window.driverMarkers = [];
-        
-        // Add markers for each online driver
-        Object.keys(drivers).forEach(driverId => {
-            const location = drivers[driverId];
-            if (location && location.latitude && location.longitude) {
-                // Create a custom car icon
-                const carIcon = L.divIcon({
-                    className: 'driver-car-marker',
-                    html: '<i class="fas fa-car" style="color: #FF6B35; font-size: 20px;"></i>',
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 24]
-                });
-                const marker = L.marker([location.latitude, location.longitude], { icon: carIcon })
-                    .addTo(map)
-                    .bindPopup('Driver nearby');
-                window.driverMarkers.push(marker);
-            }
-        });
-    });
-}
 // ============================================
 // GET CURRENT LOCATION
 // ============================================
@@ -17956,6 +17952,9 @@ async function initializeApp() {
             console.warn('⚠️ Initial location detection failed or was deferred');
             // App will continue with manual city selection
         }
+
+        // After map initialization and user location is set
+EnhancedFirebaseManager.loadNearbyDrivers();
         // Set up periodic check for scheduled rides
 if (!AppState.scheduledRideCheckInterval) {
     AppState.scheduledRideCheckInterval = setInterval(() => {
