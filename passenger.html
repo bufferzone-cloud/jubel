@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9404,121 +9405,178 @@ displaySearchResults: function(results) {
 // ENHANCED PRICE CALCULATOR
 // ============================================
 const EnhancedPriceCalculator = {
-    // Ride fare calculation
     calculateRideFare: function(distanceKm, rideType = 'standard', surge = 1.0, timeOfDay = null, stops = []) {
         const config = AppState.rideTypes[rideType] || AppState.rideTypes.standard;
+        
         let fare = config.base + (distanceKm * config.perKm);
+        
         fare *= config.multiplier;
+        
         fare *= surge;
-        if (!timeOfDay) timeOfDay = new Date().getHours();
-        if (timeOfDay >= 22 || timeOfDay <= 5) fare *= 1.2;
-        else if (timeOfDay >= 7 && timeOfDay <= 9) fare *= 1.3;
-        else if (timeOfDay >= 16 && timeOfDay <= 19) fare *= 1.4;
-        if (stops.length > 0) fare += stops.length * 5;
+        
+        if (!timeOfDay) {
+            timeOfDay = new Date().getHours();
+        }
+        
+        if (timeOfDay >= 22 || timeOfDay <= 5) {
+            fare *= 1.2;
+        } else if (timeOfDay >= 7 && timeOfDay <= 9) {
+            fare *= 1.3;
+        } else if (timeOfDay >= 16 && timeOfDay <= 19) {
+            fare *= 1.4;
+        }
+        
+        // Add additional charge for stops
+        if (stops.length > 0) {
+            fare += stops.length * 5; // ZMW 5 per additional stop
+        }
+        
         fare = Math.max(fare, config.min);
-        fare = Math.round(fare * 1.15);
-        return fare;
+        
+        return Math.round(fare * 100) / 100;
     },
-
-    // Emergency fare
+    
     calculateEmergencyFare: function(distanceKm, serviceType, surge = 1.0) {
         const config = AppState.emergencyServices[serviceType] || AppState.emergencyServices.police;
+        
         let fare = config.base + (distanceKm * config.perKm);
         fare *= config.multiplier;
         fare *= surge;
         fare = Math.max(fare, config.min);
-        fare = Math.round(fare * 1.15);
-        return fare;
+        
+        return Math.round(fare * 100) / 100;
     },
-
-    // Delivery fare (standard delivery)
+    
     calculateDeliveryFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0) {
         const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
+        
         let fare = config.base + (distanceKm * config.perKm);
         fare *= config.multiplier;
-        if (parcelValue > 500) fare += parcelValue * 0.01;
-        fare = Math.round(fare * 1.15);
-        return fare;
+        
+        if (parcelValue > 500) {
+            fare += parcelValue * 0.01;
+        }
+        
+        return Math.round(fare * 100) / 100;
     },
-
-    // Truck fare
+    
     calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
         const config = AppState.truckTypes[truckType] || AppState.truckTypes.light;
+        
         let fare = config.base + (distanceKm * config.perKm);
         fare *= config.multiplier;
-        if (helpers) fare += 50;
-        fare = Math.round(fare * 1.15);
-        return fare;
+        
+        if (helpers) {
+            fare += 50;
+        }
+        
+        return Math.round(fare * 100) / 100;
     },
-
-    // Shopping fare (for express shopping)
+    
     calculateShoppingFare: function(distanceKm, itemsCount = 1, budget = 0) {
         let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
-        if (budget > 0) fare += budget * 0.05;
-        fare = Math.round(fare * 1.15);
-        return fare;
+        
+        if (budget > 0) {
+            fare += budget * 0.05;
+        }
+        
+        return Math.round(fare * 100) / 100;
     },
-
-    // Distance helpers
+    
     calculateDistance: function(lat1, lon1, lat2, lon2) {
         return EnhancedSearchEngine.calculateDistance(lat1, lon1, lat2, lon2);
     },
-
+    
     calculateRouteDistance: function(points) {
         if (points.length < 2) return 0;
+        
         let totalDistance = 0;
         for (let i = 0; i < points.length - 1; i++) {
-            totalDistance += this.calculateDistance(points[i].lat, points[i].lng, points[i + 1].lat, points[i + 1].lng);
+            totalDistance += this.calculateDistance(
+                points[i].lat, points[i].lng,
+                points[i + 1].lat, points[i + 1].lng
+            );
         }
+        
         return totalDistance;
     },
-
+    
     calculateRideDistanceWithStops: function(pickup, destination, stops = []) {
         const points = [pickup];
+        
+        // Add stops in order
         stops.forEach(stop => {
-            if (stop.location) points.push(stop.location);
+            if (stop.location) {
+                points.push(stop.location);
+            }
         });
+        
         points.push(destination);
+        
         return this.calculateRouteDistance(points);
     },
-
+    
     estimateTime: function(distanceKm, rideType = 'standard', traffic = null, stops = []) {
         const baseSpeed = rideType === 'premium' ? 45 : 35;
         let baseTime = (distanceKm / baseSpeed) * 60;
-        if (!traffic) traffic = this.getTrafficFactor();
+        
+        if (!traffic) {
+            traffic = this.getTrafficFactor();
+        }
+        
         baseTime *= traffic;
-        if (stops.length > 0) baseTime += stops.length * 3;
-        if (rideType === 'premium') baseTime += 2;
-        else baseTime += 5;
+        
+        // Add time for stops
+        if (stops.length > 0) {
+            baseTime += stops.length * 3; // 3 minutes per stop
+        }
+        
+        if (rideType === 'premium') {
+            baseTime += 2;
+        } else {
+            baseTime += 5;
+        }
+        
         return Math.ceil(baseTime);
     },
-
+    
     getTrafficFactor: function() {
         const hour = new Date().getHours();
         const day = new Date().getDay();
+        
         if (day >= 1 && day <= 5) {
-            if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) return 1.5;
+            if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) {
+                return 1.5;
+            }
         }
+        
         if (day === 6 || day === 0) {
-            if (hour >= 12 && hour <= 16) return 1.3;
+            if (hour >= 12 && hour <= 16) {
+                return 1.3;
+            }
         }
+        
         return 1.0;
     },
-
+    
     getSurgeMultiplier: function() {
         const hour = new Date().getHours();
         const day = new Date().getDay();
+        
         if (day >= 1 && day <= 5) {
             if (hour >= 7 && hour <= 9) return 1.5;
             if (hour >= 16 && hour <= 19) return 1.8;
         }
+        
         if (day === 5 || day === 6) {
             if (hour >= 20 && hour <= 23) return 2.0;
         }
+        
         if (hour >= 22 || hour <= 5) return 1.8;
+        
         return 1.0;
     },
-
+    
     getFareBreakdown: function(distanceKm, rideType = 'standard', surge = 1.0, stops = []) {
         const config = AppState.rideTypes[rideType] || AppState.rideTypes.standard;
         const baseFare = config.base;
@@ -9527,10 +9585,12 @@ const EnhancedPriceCalculator = {
         const surgeMultiplier = surge;
         const timeMultiplier = this.getTimeMultiplier();
         const stopsCharge = stops.length * 5;
+        
         const subtotal = (baseFare + distanceFare) * rideTypeMultiplier + stopsCharge;
         const surgeAmount = subtotal * (surgeMultiplier - 1);
         const timeAmount = subtotal * (timeMultiplier - 1);
         const total = subtotal * surgeMultiplier * timeMultiplier;
+        
         return {
             baseFare: baseFare,
             distanceFare: distanceFare,
@@ -9544,15 +9604,17 @@ const EnhancedPriceCalculator = {
             total: Math.max(total, config.min)
         };
     },
-
+    
     getTimeMultiplier: function() {
         const hour = new Date().getHours();
-        return (hour >= 22 || hour <= 5) ? 1.2 : 1.0;
+        if (hour >= 22 || hour <= 5) return 1.2;
+        return 1.0;
     },
-
+    
     calculateSplitRideFare: function(totalFare, splitType = 'equal', participants = 2) {
         let yourShare = totalFare;
         let othersShare = 0;
+        
         switch(splitType) {
             case 'equal':
                 yourShare = totalFare / participants;
@@ -9567,11 +9629,19 @@ const EnhancedPriceCalculator = {
                 othersShare = 0;
                 break;
         }
-        return { total: totalFare, yourShare: yourShare, othersShare: othersShare, splitType: splitType, participants: participants };
+        
+        return {
+            total: totalFare,
+            yourShare: yourShare,
+            othersShare: othersShare,
+            splitType: splitType,
+            participants: participants
+        };
     },
-
+    
     validateDistanceWithinCity: function(startLat, startLng, endLat, endLng, city) {
         const distance = this.calculateDistance(startLat, startLng, endLat, endLng);
+        
         const maxCityDistance = {
             'Lusaka': 50,
             'Ndola': 30,
@@ -9581,47 +9651,105 @@ const EnhancedPriceCalculator = {
             'Chipata': 15,
             'default': 25
         };
+        
         const maxDistance = maxCityDistance[city] || maxCityDistance.default;
+        
         if (distance > maxDistance) {
-            return { valid: false, distance: distance, maxAllowed: maxDistance, message: `Distance exceeds maximum allowed for ${city} (${maxDistance}km)` };
+            return {
+                valid: false,
+                distance: distance,
+                maxAllowed: maxDistance,
+                message: `Distance exceeds maximum allowed for ${city} (${maxDistance}km)`
+            };
         }
-        return { valid: true, distance: distance };
+        
+        return {
+            valid: true,
+            distance: distance
+        };
     },
 
-    // Shopping service fare (with vehicle type)
-    calculateShoppingServiceFare: function(distanceKm, itemsCount = 1, budget = 0, vehicleType = 'bike') {
-        let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
-        if (budget > 0) fare += budget * 0.05;
-        if (vehicleType === 'car') fare *= 1.5;
-        else if (vehicleType === 'bike') fare *= 1.2;
-        fare = Math.round(fare * 1.15);
-        return fare;
-    },
+// In the EnhancedPriceCalculator object, add these methods:
 
-    // Delivery service fare (with vehicle type)
-    calculateDeliveryServiceFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0, vehicleType = 'bike') {
-        const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
-        let fare = config.base + (distanceKm * config.perKm);
-        fare *= config.multiplier;
-        if (parcelValue > 500) fare += parcelValue * 0.01;
-        if (vehicleType === 'car') fare *= 1.5;
-        else if (vehicleType === 'bike') fare *= 1.2;
-        fare = Math.round(fare * 1.15);
-        return fare;
-    },
+calculateShoppingServiceFare: function(distanceKm, itemsCount = 1, budget = 0, vehicleType = 'bike') {
+    let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
+    
+    if (budget > 0) {
+        fare += budget * 0.05;
+    }
+    
+    // Add vehicle type multiplier
+    if (vehicleType === 'car') {
+        fare *= 1.5;
+    } else if (vehicleType === 'bike') {
+        fare *= 1.2;
+    }
+    
+    return Math.round(fare * 100) / 100;
+},
 
-    // Short delivery fare (with vehicle type)
-    calculateShortDeliveryFare: function(distanceKm, parcelDescription = '', vehicleType = 'bike') {
-        let fare = 20 + (distanceKm * 3.0);
-        if (parcelDescription.toLowerCase().includes('food') || parcelDescription.toLowerCase().includes('medic')) fare += 10;
-        if (vehicleType === 'car') fare *= 1.5;
-        else if (vehicleType === 'bike') fare *= 1.3;
-        fare = Math.round(fare * 1.15);
-        return fare;
+calculateDeliveryServiceFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0, vehicleType = 'bike') {
+    const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
+    
+    let fare = config.base + (distanceKm * config.perKm);
+    fare *= config.multiplier;
+    
+    if (parcelValue > 500) {
+        fare += parcelValue * 0.01;
+    }
+    
+    // Add vehicle type multiplier
+    if (vehicleType === 'car') {
+        fare *= 1.5;
+    } else if (vehicleType === 'bike') {
+        fare *= 1.2;
+    }
+    
+    return Math.round(fare * 100) / 100;
+},
+
+calculateShortDeliveryFare: function(distanceKm, parcelDescription = '', vehicleType = 'bike') {
+    let fare = 20 + (distanceKm * 3.0);
+    
+    // Add premium for certain items
+    if (parcelDescription.toLowerCase().includes('food') || 
+        parcelDescription.toLowerCase().includes('medic')) {
+        fare += 10;
+    }
+    
+    // Add vehicle type multiplier
+    if (vehicleType === 'car') {
+        fare *= 1.5;
+    } else if (vehicleType === 'bike') {
+        fare *= 1.3;
+    }
+    
+    return Math.round(fare * 100) / 100;
+},
+    
+    applyReferralDiscount: function(fare) {
+        if (AppState.referralDiscountApplied) {
+            const discount = fare * 0.5;
+            const discountedFare = fare - discount;
+            return {
+                originalFare: fare,
+                discount: discount,
+                finalFare: discountedFare,
+                discountApplied: true
+            };
+        }
+        return {
+            originalFare: fare,
+            discount: 0,
+            finalFare: fare,
+            discountApplied: false
+        };
+    },
+    
+    calculateStopsFare: function(stopsCount) {
+        return stopsCount * 5; // ZMW 5 per stop
     }
 };
-
-
 
 // Add these functions to update service prices when destination is set
 function updateShoppingServicePrice() {
@@ -10247,121 +10375,106 @@ const EnhancedUIUpdater = {
         }
     },
     
-    // Helper: animate polyline by adding points gradually
-animatePolyline: function(coordinates, color, weight, duration = 2000) {
-    return new Promise((resolve) => {
-        if (!coordinates || coordinates.length === 0) {
-            resolve(null);
+    drawRouteWithStops: async function() {
+        if (!map || !AppState.pickup || !AppState.destination) {
             return;
         }
         
-        const startTime = performance.now();
-        const totalPoints = coordinates.length;
-        const polyline = L.polyline([], { color: color, weight: weight, opacity: 0.7, lineJoin: 'round', lineCap: 'round' }).addTo(map);
-        
-        const step = (timestamp) => {
-            const elapsed = timestamp - startTime;
-            const progress = Math.min(1, elapsed / duration);
-            const pointsToShow = Math.max(1, Math.floor(totalPoints * progress));
-            
-            const currentPoints = coordinates.slice(0, pointsToShow);
-            polyline.setLatLngs(currentPoints);
-            
-            if (progress < 1) {
-                requestAnimationFrame(step);
-            } else {
-                // Final step: ensure full route is displayed
-                polyline.setLatLngs(coordinates);
-                resolve(polyline);
-            }
-        };
-        
-        requestAnimationFrame(step);
-    });
-},
-
-drawRouteWithStops: async function() {
-    if (!map || !AppState.pickup || !AppState.destination) {
-        return;
-    }
-    
-    // Clear existing route
-    if (routeLayer) {
-        map.removeLayer(routeLayer);
-        routeLayer = null;
-    }
-    
-    // Prepare waypoints
-    const waypoints = [];
-    waypoints.push(L.latLng(AppState.pickup.lat, AppState.pickup.lng));
-    
-    AppState.rideStops.forEach(stop => {
-        if (stop.location) {
-            waypoints.push(L.latLng(stop.location.lat, stop.location.lng));
+        // Clear existing route
+        if (routeLayer) {
+            map.removeLayer(routeLayer);
+            routeLayer = null;
         }
-    });
-    
-    waypoints.push(L.latLng(AppState.destination.lat, AppState.destination.lng));
-    
-    try {
-        // Use OSRM routing service
-        const waypointString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
-        const url = `https://router.project-osrm.org/route/v1/driving/${waypointString}?overview=full&geometries=geojson`;
         
-        const response = await fetch(url);
-        const data = await response.json();
+        // Prepare waypoints
+        const waypoints = [];
         
-        if (data.routes && data.routes.length > 0) {
-            const route = data.routes[0];
-            const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+        // Start with pickup
+        waypoints.push(L.latLng(AppState.pickup.lat, AppState.pickup.lng));
+        
+        // Add stops
+        AppState.rideStops.forEach(stop => {
+            if (stop.location) {
+                waypoints.push(L.latLng(stop.location.lat, stop.location.lng));
+            }
+        });
+        
+        // End with destination
+        waypoints.push(L.latLng(AppState.destination.lat, AppState.destination.lng));
+        
+        try {
+            // Use OSRM routing service
+            const waypointString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
+            const url = `https://router.project-osrm.org/route/v1/driving/${waypointString}?overview=full&geometries=geojson`;
             
-            // Animate the route drawing
-            routeLayer = await this.animatePolyline(routeCoordinates, '#FF6B35', 4, 2000);
+            const response = await fetch(url);
+            const data = await response.json();
             
-            // Fit map to route bounds after animation (or at start)
-            const bounds = L.latLngBounds(routeCoordinates);
+            if (data.routes && data.routes.length > 0) {
+                const route = data.routes[0];
+                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                
+                routeLayer = L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 4,
+                    opacity: 0.7,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                }).addTo(map);
+                
+                // Fit map to route bounds
+                const bounds = L.latLngBounds(routeCoordinates);
+                map.fitBounds(bounds, { padding: [50, 50] });
+                
+                const distance = route.distance / 1000;
+                const duration = route.duration / 60;
+                
+                console.log(`Route distance: ${distance.toFixed(2)} km, Duration: ${duration.toFixed(0)} min`);
+                
+                AppState.activeRoute = {
+                    distance: distance,
+                    duration: duration,
+                    coordinates: routeCoordinates
+                };
+                
+                // Update prices
+                this.updateRidePrices();
+                
+                return { distance, duration };
+            }
+        } catch (error) {
+            console.error('Routing error:', error);
+            
+            // Fallback: draw straight lines between points
+            routeLayer = L.polyline(waypoints, {
+                color: '#FF6B35',
+                weight: 3,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(map);
+            
+            const bounds = L.latLngBounds(waypoints);
             map.fitBounds(bounds, { padding: [50, 50] });
             
-            const distance = route.distance / 1000;
-            const duration = route.duration / 60;
+            // Calculate approximate distance
+            let totalDistance = 0;
+            for (let i = 0; i < waypoints.length - 1; i++) {
+                totalDistance += EnhancedPriceCalculator.calculateDistance(
+                    waypoints[i].lat, waypoints[i].lng,
+                    waypoints[i + 1].lat, waypoints[i + 1].lng
+                );
+            }
             
-            console.log(`Route distance: ${distance.toFixed(2)} km, Duration: ${duration.toFixed(0)} min`);
-            
-            AppState.activeRoute = {
-                distance: distance,
-                duration: duration,
-                coordinates: routeCoordinates
-            };
-            
-            // Update prices
-            this.updateRidePrices();
-            
-            return { distance, duration };
+            // Update prices with approximate distance
+            if (AppState.pickup && AppState.destination) {
+                this.updateRidePrices();
+            }
         }
-    } catch (error) {
-        console.error('Routing error:', error);
-        
-        // Fallback: draw straight lines between points
-        const straightLineCoords = waypoints.map(wp => [wp.lat, wp.lng]);
-        routeLayer = await this.animatePolyline(straightLineCoords, '#FF6B35', 3, 2000);
-        
-        const bounds = L.latLngBounds(waypoints);
-        map.fitBounds(bounds, { padding: [50, 50] });
-        
-        // Calculate approximate distance
-        let totalDistance = 0;
-        for (let i = 0; i < waypoints.length - 1; i++) {
-            totalDistance += EnhancedPriceCalculator.calculateDistance(
-                waypoints[i].lat, waypoints[i].lng,
-                waypoints[i+1].lat, waypoints[i+1].lng
-            );
-        }
-        
-        if (AppState.pickup && AppState.destination) {
-            this.updateRidePrices();
-        }
-    }
-}
+    },
+    
+    drawRoute: function(start, end) {
+        return this.drawRouteWithStops();
+    },
     
     calculateAndUpdatePrices: function() {
         if (AppState.pickup && AppState.destination) {
@@ -14165,93 +14278,30 @@ async loadRideDetails(rideId) {
         }
     },
     
-   resetActiveRide: function() {
-    AppState.currentRide = null;
-    
-    // Remove pulsing icon
-    EnhancedUIUpdater.removePulsingRideIcon();
-    
-    // Hide ride info panel
-    const rideInfoPanel = document.getElementById('rideInfoPanel');
-    if (rideInfoPanel) {
-        rideInfoPanel.style.display = 'none';
-        rideInfoPanel.classList.remove('active');
-    }
-    
-    // Hide status bar
-    const statusBar = document.getElementById('rideStatusBar');
-    if (statusBar) {
-        statusBar.classList.remove('active');
-    }
-    
-    // Hide SOS button
-    const sosButton = document.getElementById('sosButton');
-    if (sosButton) {
-        sosButton.style.display = 'none';
-    }
-    
-    // Show the main forms again
-    // Determine which service was active before the ride
-    const activeService = AppState.activeService || 'car';
-    switchService(activeService);
-    
-    // Ensure the home content is visible (in case we were on another screen)
-    const homeContent = document.getElementById('homeContent');
-    if (homeContent) {
-        homeContent.style.display = 'block';
-    }
-    
-    // Reset to home screen if not already
-    if (AppState.activeScreen !== 'home') {
-        switchScreen('home');
-    }
-    
-    // Clear the route layer and markers if desired
-    if (routeLayer) {
-        map.removeLayer(routeLayer);
-        routeLayer = null;
-    }
-    if (pickupMarker) {
-        map.removeLayer(pickupMarker);
-        pickupMarker = null;
-    }
-    if (destinationMarker) {
-        map.removeLayer(destinationMarker);
-        destinationMarker = null;
-    }
-    
-    // Clear stop inputs if any
-    const stopsContainer = document.getElementById('stopsContainer');
-    if (stopsContainer) {
-        stopsContainer.innerHTML = '';
-        AppState.rideStops = [];
-    }
-    
-    // Optionally clear the destination input value
-    const destInput = document.getElementById('destinationLocation');
-    if (destInput) {
-        destInput.value = '';
-        AppState.destination = null;
-    }
-    
-    // Clear the pickup input value (optional)
-    const pickupInput = document.getElementById('pickupLocation');
-    if (pickupInput && pickupInput.value === AppState.pickup?.address) {
-        pickupInput.value = '';
-        AppState.pickup = null;
-    }
-    
-    // Reset selected ride type to standard
-    AppState.selectedRideType = 'standard';
-    document.querySelectorAll('.ride-type-card').forEach(card => {
-        card.classList.remove('selected');
-        if (card.dataset.type === 'standard') {
-            card.classList.add('selected');
+    resetActiveRide: function() {
+        AppState.currentRide = null;
+        
+        // Remove pulsing icon
+        EnhancedUIUpdater.removePulsingRideIcon();
+        
+        // Hide ride info panel
+        const rideInfoPanel = document.getElementById('rideInfoPanel');
+        if (rideInfoPanel) {
+            rideInfoPanel.style.display = 'none';
         }
-    });
-    
-    console.log('Active ride reset, forms restored');
-}
+        
+        // Hide status bar
+        const statusBar = document.getElementById('rideStatusBar');
+        if (statusBar) {
+            statusBar.classList.remove('active');
+        }
+        
+        // Hide SOS button
+        const sosButton = document.getElementById('sosButton');
+        if (sosButton) {
+            sosButton.style.display = 'none';
+        }
+    },
     
     handleRideCompletion: function(ride) {
         // Process referral reward if applicable
@@ -16973,7 +17023,7 @@ const EnhancedCityDetector = {
             }
             
             console.log(`📍 Location update complete: ${detectedCity}, ${addressDetails.address}`);
-            // EnhancedUIUpdater.showToast(`Location detected: ${addressDetails.address}`, 'success');
+           // EnhancedUIUpdater.showToast(`Location detected: ${addressDetails.address}`, 'success');
             
             return { 
                 city: detectedCity, 
@@ -17825,10 +17875,9 @@ async function initializeApp() {
             // App will continue with manual city selection
         }
         // Set up periodic check for scheduled rides
-// Set up periodic check for scheduled rides
 if (!AppState.scheduledRideCheckInterval) {
     AppState.scheduledRideCheckInterval = setInterval(() => {
-        checkAndProcessScheduledRides();   // Remove "this."
+        this.checkAndProcessScheduledRides();
     }, 60000); // Check every minute
 }
         // Setup event listeners
@@ -19536,3 +19585,5 @@ console.log('Jubel Passenger App JavaScript loaded');
 </script>
 </body>
 </html>
+
+write the full complete functions step by step and what functions i should replace them with
