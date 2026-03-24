@@ -14153,16 +14153,14 @@ resetActiveRide: function() {
     // Clear current ride reference
     AppState.currentRide = null;
 
-    // 1. Safely remove the pulsing ride icon
-    if (typeof EnhancedUIUpdater !== 'undefined' && EnhancedUIUpdater.removePulsingRideIcon) {
-        EnhancedUIUpdater.removePulsingRideIcon();
-    }
+    // 1. Remove pulsing icon
+    EnhancedUIUpdater.removePulsingRideIcon();
 
-    // 2. Hide the ride info panel
+    // 2. Hide ride info panel
     const rideInfoPanel = document.getElementById('rideInfoPanel');
     if (rideInfoPanel) rideInfoPanel.style.display = 'none';
 
-    // 3. Hide the ride status bar
+    // 3. Hide status bar
     const statusBar = document.getElementById('rideStatusBar');
     if (statusBar) statusBar.classList.remove('active');
 
@@ -14170,7 +14168,7 @@ resetActiveRide: function() {
     const sosButton = document.getElementById('sosButton');
     if (sosButton) sosButton.style.display = 'none';
 
-    // 5. Restore the appropriate service form
+    // 5. Restore the appropriate service form (e.g., 'car' by default)
     const activeService = AppState.activeService || 'car';
     if (typeof switchService === 'function') {
         switchService(activeService);
@@ -14178,18 +14176,16 @@ resetActiveRide: function() {
         console.warn('switchService not defined');
     }
 
-    // 6. Ensure home content is visible (in case we were on another screen)
+    // 6. Ensure home content is visible
     const homeContent = document.getElementById('homeContent');
     if (homeContent) homeContent.style.display = 'block';
 
-    // 7. Switch to home screen if not already
+    // 7. Switch to home screen if not already there
     if (AppState.activeScreen !== 'home' && typeof switchScreen === 'function') {
         switchScreen('home');
-    } else {
-        console.warn('switchScreen not defined or already on home screen');
     }
 
-    // 8. Clear map route and markers (only if map exists)
+    // 8. Clear map route and markers (only if map is ready)
     if (map) {
         if (routeLayer) {
             map.removeLayer(routeLayer);
@@ -14205,40 +14201,33 @@ resetActiveRide: function() {
         }
     }
 
-    // 9. Clear stops container and reset stops array
+    // 9. Clear any additional stops container
     const stopsContainer = document.getElementById('stopsContainer');
     if (stopsContainer) {
         stopsContainer.innerHTML = '';
         AppState.rideStops = [];
     }
 
-    // 10. Clear destination input (if exists)
+    // 10. Clear the destination input (only if it was set)
     const destInput = document.getElementById('destinationLocation');
     if (destInput) {
         destInput.value = '';
         AppState.destination = null;
     }
 
-    // 11. Clear pickup input (if it matches the stored pickup address)
-    const pickupInput = document.getElementById('pickupLocation');
-    if (pickupInput && AppState.pickup && pickupInput.value === AppState.pickup.address) {
-        pickupInput.value = '';
-        AppState.pickup = null;
-    }
+    // 11. DO NOT clear the pickup input – it should remain as the current location
+    //    (If you want to optionally clear it, add a check, but usually it's better to keep it.)
 
-    // 12. Reset ride type selection
+    // 12. Reset ride type selection to 'standard'
     AppState.selectedRideType = 'standard';
-    const rideCards = document.querySelectorAll('.ride-type-card');
-    if (rideCards.length) {
-        rideCards.forEach(card => {
-            card.classList.remove('selected');
-            if (card.dataset.type === 'standard') {
-                card.classList.add('selected');
-            }
-        });
-    }
+    document.querySelectorAll('.ride-type-card').forEach(card => {
+        card.classList.remove('selected');
+        if (card.dataset.type === 'standard') {
+            card.classList.add('selected');
+        }
+    });
 
-    console.log('✅ Active ride reset, forms restored');
+    console.log('Active ride reset, forms restored');
 }
     
     handleRideCompletion: function(ride) {
