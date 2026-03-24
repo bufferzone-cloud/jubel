@@ -9404,177 +9404,121 @@ displaySearchResults: function(results) {
 // ENHANCED PRICE CALCULATOR
 // ============================================
 const EnhancedPriceCalculator = {
-   calculateRideFare: function(distanceKm, rideType = 'standard', surge = 1.0, timeOfDay = null, stops = []) {
-    const config = AppState.rideTypes[rideType] || AppState.rideTypes.standard;
-    
-    let fare = config.base + (distanceKm * config.perKm);
-    fare *= config.multiplier;
-    fare *= surge;
-    
-    // Apply time-of-day multiplier
-    if (!timeOfDay) timeOfDay = new Date().getHours();
-    if (timeOfDay >= 22 || timeOfDay <= 5) fare *= 1.2;
-    else if (timeOfDay >= 7 && timeOfDay <= 9) fare *= 1.3;
-    else if (timeOfDay >= 16 && timeOfDay <= 19) fare *= 1.4;
-    
-    // Add extra for stops
-    if (stops.length > 0) fare += stops.length * 5;
-    
-    // Apply minimum fare
-    fare = Math.max(fare, config.min);
-    
-    // ** ADD 15% INCREASE AND ROUND TO INTEGER **
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-}
-    
+    // Ride fare calculation
+    calculateRideFare: function(distanceKm, rideType = 'standard', surge = 1.0, timeOfDay = null, stops = []) {
+        const config = AppState.rideTypes[rideType] || AppState.rideTypes.standard;
+        let fare = config.base + (distanceKm * config.perKm);
+        fare *= config.multiplier;
+        fare *= surge;
+        if (!timeOfDay) timeOfDay = new Date().getHours();
+        if (timeOfDay >= 22 || timeOfDay <= 5) fare *= 1.2;
+        else if (timeOfDay >= 7 && timeOfDay <= 9) fare *= 1.3;
+        else if (timeOfDay >= 16 && timeOfDay <= 19) fare *= 1.4;
+        if (stops.length > 0) fare += stops.length * 5;
+        fare = Math.max(fare, config.min);
+        fare = Math.round(fare * 1.15);
+        return fare;
+    },
+
+    // Emergency fare
     calculateEmergencyFare: function(distanceKm, serviceType, surge = 1.0) {
-    const config = AppState.emergencyServices[serviceType] || AppState.emergencyServices.police;
-    
-    let fare = config.base + (distanceKm * config.perKm);
-    fare *= config.multiplier;
-    fare *= surge;
-    fare = Math.max(fare, config.min);
-    
-    // ** ADD 15% INCREASE AND ROUND TO INTEGER **
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-}
-    
-   calculateDeliveryFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0) {
-    const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
-    
-    let fare = config.base + (distanceKm * config.perKm);
-    fare *= config.multiplier;
-    
-    if (parcelValue > 500) fare += parcelValue * 0.01;
-    
-    // ** ADD 15% INCREASE AND ROUND TO INTEGER **
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-}
-    
-calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
-    const config = AppState.truckTypes[truckType] || AppState.truckTypes.light;
-    
-    let fare = config.base + (distanceKm * config.perKm);
-    fare *= config.multiplier;
-    
-    if (helpers) fare += 50;
-    
-    // ** ADD 15% INCREASE AND ROUND TO INTEGER **
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-}
-    
-  calculateShoppingFare: function(distanceKm, itemsCount = 1, budget = 0) {
-    let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
-    if (budget > 0) fare += budget * 0.05;
-    
-    // ** ADD 15% INCREASE AND ROUND TO INTEGER **
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-},
-    
+        const config = AppState.emergencyServices[serviceType] || AppState.emergencyServices.police;
+        let fare = config.base + (distanceKm * config.perKm);
+        fare *= config.multiplier;
+        fare *= surge;
+        fare = Math.max(fare, config.min);
+        fare = Math.round(fare * 1.15);
+        return fare;
+    },
+
+    // Delivery fare (standard delivery)
+    calculateDeliveryFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0) {
+        const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
+        let fare = config.base + (distanceKm * config.perKm);
+        fare *= config.multiplier;
+        if (parcelValue > 500) fare += parcelValue * 0.01;
+        fare = Math.round(fare * 1.15);
+        return fare;
+    },
+
+    // Truck fare
+    calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
+        const config = AppState.truckTypes[truckType] || AppState.truckTypes.light;
+        let fare = config.base + (distanceKm * config.perKm);
+        fare *= config.multiplier;
+        if (helpers) fare += 50;
+        fare = Math.round(fare * 1.15);
+        return fare;
+    },
+
+    // Shopping fare (for express shopping)
+    calculateShoppingFare: function(distanceKm, itemsCount = 1, budget = 0) {
+        let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
+        if (budget > 0) fare += budget * 0.05;
+        fare = Math.round(fare * 1.15);
+        return fare;
+    },
+
+    // Distance helpers
     calculateDistance: function(lat1, lon1, lat2, lon2) {
         return EnhancedSearchEngine.calculateDistance(lat1, lon1, lat2, lon2);
     },
-    
+
     calculateRouteDistance: function(points) {
         if (points.length < 2) return 0;
-        
         let totalDistance = 0;
         for (let i = 0; i < points.length - 1; i++) {
-            totalDistance += this.calculateDistance(
-                points[i].lat, points[i].lng,
-                points[i + 1].lat, points[i + 1].lng
-            );
+            totalDistance += this.calculateDistance(points[i].lat, points[i].lng, points[i + 1].lat, points[i + 1].lng);
         }
-        
         return totalDistance;
     },
-    
+
     calculateRideDistanceWithStops: function(pickup, destination, stops = []) {
         const points = [pickup];
-        
-        // Add stops in order
         stops.forEach(stop => {
-            if (stop.location) {
-                points.push(stop.location);
-            }
+            if (stop.location) points.push(stop.location);
         });
-        
         points.push(destination);
-        
         return this.calculateRouteDistance(points);
     },
-    
+
     estimateTime: function(distanceKm, rideType = 'standard', traffic = null, stops = []) {
         const baseSpeed = rideType === 'premium' ? 45 : 35;
         let baseTime = (distanceKm / baseSpeed) * 60;
-        
-        if (!traffic) {
-            traffic = this.getTrafficFactor();
-        }
-        
+        if (!traffic) traffic = this.getTrafficFactor();
         baseTime *= traffic;
-        
-        // Add time for stops
-        if (stops.length > 0) {
-            baseTime += stops.length * 3; // 3 minutes per stop
-        }
-        
-        if (rideType === 'premium') {
-            baseTime += 2;
-        } else {
-            baseTime += 5;
-        }
-        
+        if (stops.length > 0) baseTime += stops.length * 3;
+        if (rideType === 'premium') baseTime += 2;
+        else baseTime += 5;
         return Math.ceil(baseTime);
     },
-    
+
     getTrafficFactor: function() {
         const hour = new Date().getHours();
         const day = new Date().getDay();
-        
         if (day >= 1 && day <= 5) {
-            if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) {
-                return 1.5;
-            }
+            if ((hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)) return 1.5;
         }
-        
         if (day === 6 || day === 0) {
-            if (hour >= 12 && hour <= 16) {
-                return 1.3;
-            }
+            if (hour >= 12 && hour <= 16) return 1.3;
         }
-        
         return 1.0;
     },
-    
+
     getSurgeMultiplier: function() {
         const hour = new Date().getHours();
         const day = new Date().getDay();
-        
         if (day >= 1 && day <= 5) {
             if (hour >= 7 && hour <= 9) return 1.5;
             if (hour >= 16 && hour <= 19) return 1.8;
         }
-        
         if (day === 5 || day === 6) {
             if (hour >= 20 && hour <= 23) return 2.0;
         }
-        
         if (hour >= 22 || hour <= 5) return 1.8;
-        
         return 1.0;
     },
-    
+
     getFareBreakdown: function(distanceKm, rideType = 'standard', surge = 1.0, stops = []) {
         const config = AppState.rideTypes[rideType] || AppState.rideTypes.standard;
         const baseFare = config.base;
@@ -9583,12 +9527,10 @@ calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
         const surgeMultiplier = surge;
         const timeMultiplier = this.getTimeMultiplier();
         const stopsCharge = stops.length * 5;
-        
         const subtotal = (baseFare + distanceFare) * rideTypeMultiplier + stopsCharge;
         const surgeAmount = subtotal * (surgeMultiplier - 1);
         const timeAmount = subtotal * (timeMultiplier - 1);
         const total = subtotal * surgeMultiplier * timeMultiplier;
-        
         return {
             baseFare: baseFare,
             distanceFare: distanceFare,
@@ -9602,17 +9544,15 @@ calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
             total: Math.max(total, config.min)
         };
     },
-    
+
     getTimeMultiplier: function() {
         const hour = new Date().getHours();
-        if (hour >= 22 || hour <= 5) return 1.2;
-        return 1.0;
+        return (hour >= 22 || hour <= 5) ? 1.2 : 1.0;
     },
-    
+
     calculateSplitRideFare: function(totalFare, splitType = 'equal', participants = 2) {
         let yourShare = totalFare;
         let othersShare = 0;
-        
         switch(splitType) {
             case 'equal':
                 yourShare = totalFare / participants;
@@ -9627,19 +9567,11 @@ calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
                 othersShare = 0;
                 break;
         }
-        
-        return {
-            total: totalFare,
-            yourShare: yourShare,
-            othersShare: othersShare,
-            splitType: splitType,
-            participants: participants
-        };
+        return { total: totalFare, yourShare: yourShare, othersShare: othersShare, splitType: splitType, participants: participants };
     },
-    
+
     validateDistanceWithinCity: function(startLat, startLng, endLat, endLng, city) {
         const distance = this.calculateDistance(startLat, startLng, endLat, endLng);
-        
         const maxCityDistance = {
             'Lusaka': 50,
             'Ndola': 30,
@@ -9649,84 +9581,45 @@ calculateTruckFare: function(distanceKm, truckType = 'light', helpers = false) {
             'Chipata': 15,
             'default': 25
         };
-        
         const maxDistance = maxCityDistance[city] || maxCityDistance.default;
-        
         if (distance > maxDistance) {
-            return {
-                valid: false,
-                distance: distance,
-                maxAllowed: maxDistance,
-                message: `Distance exceeds maximum allowed for ${city} (${maxDistance}km)`
-            };
+            return { valid: false, distance: distance, maxAllowed: maxDistance, message: `Distance exceeds maximum allowed for ${city} (${maxDistance}km)` };
         }
-        
-        return {
-            valid: true,
-            distance: distance
-        };
+        return { valid: true, distance: distance };
     },
 
-// In the EnhancedPriceCalculator object, add these methods:
+    // Shopping service fare (with vehicle type)
+    calculateShoppingServiceFare: function(distanceKm, itemsCount = 1, budget = 0, vehicleType = 'bike') {
+        let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
+        if (budget > 0) fare += budget * 0.05;
+        if (vehicleType === 'car') fare *= 1.5;
+        else if (vehicleType === 'bike') fare *= 1.2;
+        fare = Math.round(fare * 1.15);
+        return fare;
+    },
 
-calculateShoppingServiceFare: function(distanceKm, itemsCount = 1, budget = 0, vehicleType = 'bike') {
-    let fare = 30 + (distanceKm * 2.5) + (itemsCount * 5);
-    if (budget > 0) fare += budget * 0.05;
-    
-    // Add vehicle type multiplier
-    if (vehicleType === 'car') fare *= 1.5;
-    else if (vehicleType === 'bike') fare *= 1.2;
-    
-    // ** ADD 15% INCREASE AND ROUND TO INTEGER **
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-}
+    // Delivery service fare (with vehicle type)
+    calculateDeliveryServiceFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0, vehicleType = 'bike') {
+        const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
+        let fare = config.base + (distanceKm * config.perKm);
+        fare *= config.multiplier;
+        if (parcelValue > 500) fare += parcelValue * 0.01;
+        if (vehicleType === 'car') fare *= 1.5;
+        else if (vehicleType === 'bike') fare *= 1.2;
+        fare = Math.round(fare * 1.15);
+        return fare;
+    },
 
-calculateDeliveryServiceFare: function(distanceKm, deliveryType = 'standard', parcelValue = 0, vehicleType = 'bike') {
-    const config = AppState.deliveryTypes[deliveryType] || AppState.deliveryTypes.standard;
-    
-    let fare = config.base + (distanceKm * config.perKm);
-    fare *= config.multiplier;
-    
-    if (parcelValue > 500) {
-        fare += parcelValue * 0.01;
+    // Short delivery fare (with vehicle type)
+    calculateShortDeliveryFare: function(distanceKm, parcelDescription = '', vehicleType = 'bike') {
+        let fare = 20 + (distanceKm * 3.0);
+        if (parcelDescription.toLowerCase().includes('food') || parcelDescription.toLowerCase().includes('medic')) fare += 10;
+        if (vehicleType === 'car') fare *= 1.5;
+        else if (vehicleType === 'bike') fare *= 1.3;
+        fare = Math.round(fare * 1.15);
+        return fare;
     }
-    
-    // Add vehicle type multiplier
-    if (vehicleType === 'car') {
-        fare *= 1.5;
-    } else if (vehicleType === 'bike') {
-        fare *= 1.2;
-    }
-    
-    // Apply 15% increase and round to integer
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-},
-
-calculateShortDeliveryFare: function(distanceKm, parcelDescription = '', vehicleType = 'bike') {
-    let fare = 20 + (distanceKm * 3.0);
-    
-    // Add premium for certain items
-    if (parcelDescription.toLowerCase().includes('food') || 
-        parcelDescription.toLowerCase().includes('medic')) {
-        fare += 10;
-    }
-    
-    // Add vehicle type multiplier
-    if (vehicleType === 'car') {
-        fare *= 1.5;
-    } else if (vehicleType === 'bike') {
-        fare *= 1.3;
-    }
-    
-    // Apply 15% increase and round to integer
-    fare = Math.round(fare * 1.15);
-    
-    return fare;
-}
+};
 
 
 
@@ -17932,9 +17825,10 @@ async function initializeApp() {
             // App will continue with manual city selection
         }
         // Set up periodic check for scheduled rides
+// Set up periodic check for scheduled rides
 if (!AppState.scheduledRideCheckInterval) {
     AppState.scheduledRideCheckInterval = setInterval(() => {
-        this.checkAndProcessScheduledRides();
+        checkAndProcessScheduledRides();   // Remove "this."
     }, 60000); // Check every minute
 }
         // Setup event listeners
