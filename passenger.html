@@ -14150,61 +14150,81 @@ async loadRideDetails(rideId) {
     },
     
 resetActiveRide: function() {
-    // Clear active ride
     AppState.currentRide = null;
-
-    // Remove pulsing icon from map
+    
+    // Remove pulsing icon
     EnhancedUIUpdater.removePulsingRideIcon();
-
+    
     // Hide ride info panel
     const rideInfoPanel = document.getElementById('rideInfoPanel');
     if (rideInfoPanel) {
         rideInfoPanel.style.display = 'none';
-        rideInfoPanel.classList.remove('active');
     }
-
-    // Hide ride status bar
+    
+    // Hide status bar
     const statusBar = document.getElementById('rideStatusBar');
     if (statusBar) {
         statusBar.classList.remove('active');
     }
-
+    
     // Hide SOS button
     const sosButton = document.getElementById('sosButton');
     if (sosButton) {
         sosButton.style.display = 'none';
     }
-
-    // Switch back to the active service (e.g., car, delivery, etc.)
+    
+    // Show the main forms again
+    // Determine which service was active before the ride
     const activeService = AppState.activeService || 'car';
     switchService(activeService);
-
-    // Make sure home content is visible
+    
+    // Ensure the home content is visible (in case we were on another screen)
     const homeContent = document.getElementById('homeContent');
     if (homeContent) {
         homeContent.style.display = 'block';
     }
-
-    // If not already on the home screen, switch to it
+    
+    // Reset to home screen if not already
     if (AppState.activeScreen !== 'home') {
         switchScreen('home');
     }
-
-    // Clear the destination input and stored destination
-    const destInput = document.getElementById('destinationLocation');
-    if (destInput) {
-        destInput.value = '';
-        AppState.destination = null;
+    
+    // Clear the route layer and markers if desired
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
     }
-
-    // Clear any added stops
+    if (pickupMarker) {
+        map.removeLayer(pickupMarker);
+        pickupMarker = null;
+    }
+    if (destinationMarker) {
+        map.removeLayer(destinationMarker);
+        destinationMarker = null;
+    }
+    
+    // Clear stop inputs if any
     const stopsContainer = document.getElementById('stopsContainer');
     if (stopsContainer) {
         stopsContainer.innerHTML = '';
         AppState.rideStops = [];
     }
-
-    // Reset the selected ride type to standard (or the default)
+    
+    // Optionally clear the destination input value
+    const destInput = document.getElementById('destinationLocation');
+    if (destInput) {
+        destInput.value = '';
+        AppState.destination = null;
+    }
+    
+    // Clear the pickup input value (optional)
+    const pickupInput = document.getElementById('pickupLocation');
+    if (pickupInput && pickupInput.value === AppState.pickup?.address) {
+        pickupInput.value = '';
+        AppState.pickup = null;
+    }
+    
+    // Reset selected ride type to standard
     AppState.selectedRideType = 'standard';
     document.querySelectorAll('.ride-type-card').forEach(card => {
         card.classList.remove('selected');
@@ -14212,8 +14232,8 @@ resetActiveRide: function() {
             card.classList.add('selected');
         }
     });
-
-    console.log('Active ride reset, booking form restored');
+    
+    console.log('Active ride reset, forms restored');
 }
     
     handleRideCompletion: function(ride) {
