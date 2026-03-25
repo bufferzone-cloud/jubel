@@ -58,14 +58,14 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
-            font-size: 15px;        /* ~15% bigger than original 12px → 13.8 → 15px */
+            font-size: 15px;
             line-height: 1.45;
         }
 
         /* Main auth card — floating, clean white */
         .auth-container {
             width: 100%;
-            max-width: 420px;        /* 15% bigger than 350px → ~402px, set to 420px for comfort */
+            max-width: 420px;
             background: var(--white);
             border-radius: var(--card-radius);
             box-shadow: var(--shadow-medium);
@@ -92,9 +92,9 @@
         }
 
         .brand-logo {
-            width: 110px;            /* big logo with curved edges */
+            width: 110px;
             height: auto;
-            border-radius: 28px;      /* curved edges effect */
+            border-radius: 28px;
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
             transition: transform 0.2s ease;
             display: inline-block;
@@ -105,13 +105,14 @@
         }
 
         .brand-name {
-            font-size: 2rem;          /* 15% bigger impact */
+            font-size: 2rem;
             font-weight: 800;
             letter-spacing: -0.3px;
-            color: var(--dark-gray);
             margin: 8px 0 4px 0;
             line-height: 1.2;
         }
+        .brand-name .ju { color: #FF6B35; }
+        .brand-name .bel { color: #E74C3C; }
 
         .tagline {
             font-size: 0.95rem;
@@ -190,7 +191,7 @@
         /* PILL INPUTS — floating effect */
         .form-input {
             width: 100%;
-            padding: 14px 20px 14px 48px;   /* extra left for icon */
+            padding: 14px 20px 14px 48px;
             border: 1.5px solid var(--border-color);
             border-radius: var(--pill-radius) !important;
             font-size: 0.95rem;
@@ -211,7 +212,7 @@
         .input-icon {
             position: absolute;
             left: 20px;
-            top: 46px;          /* aligns with larger input (label + gap) */
+            top: 46px;
             color: var(--primary-orange);
             font-size: 1rem;
             pointer-events: none;
@@ -264,9 +265,10 @@
         .password-strength.good .password-strength-bar { width: 75%; background: var(--info-blue); }
         .password-strength.strong .password-strength-bar { width: 100%; background: var(--success-green); }
 
-        /* BUTTON — pill shape, bigger */
+        /* BUTTON — pill shape, now matching input dimensions */
         .submit-btn {
-            padding: 14px 16px;
+            width: 100%;
+            padding: 14px 20px;          /* same vertical padding as input, horizontal consistent */
             border: none;
             border-radius: var(--pill-radius) !important;
             background: var(--primary-gradient);
@@ -275,7 +277,6 @@
             font-weight: 700;
             cursor: pointer;
             transition: all 0.2s ease;
-            margin-top: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -498,12 +499,14 @@
 <body>
 
 <div class="auth-container">
-    <!-- HEADER: big logo with curved edges + JUBEL + Tagline (orange "Go with Jubel") -->
+    <!-- HEADER: logo + JUBEL with JU orange, BEL red -->
     <div class="auth-header">
         <div class="logo-wrapper">
             <img src="jubel.png" alt="Jubel" class="brand-logo" onerror="this.src='https://placehold.co/120x120?text=JUBEL'">
         </div>
-        <div class="brand-name">JUBEL</div>
+        <div class="brand-name">
+            <span class="ju">JU</span><span class="bel">BEL</span>
+        </div>
         <div class="tagline">
             Tap. Ride. <span class="tagline-orange">Go with Jubel.</span>
         </div>
@@ -515,7 +518,7 @@
         <div class="auth-tab" id="signupTab">Sign Up</div>
     </div>
 
-    <!-- LOGIN FORM (will be replaced with clone to remove original listener) -->
+    <!-- LOGIN FORM -->
     <div class="auth-content" id="loginContent">
         <form class="auth-form" id="loginForm">
             <div class="form-group">
@@ -537,7 +540,7 @@
                 <a href="#" id="forgotPasswordLink">Forgot your password?</a>
             </div>
             
-            <!-- button container will be enhanced with car icon later -->
+            <!-- button container for car animation -->
             <div class="btn-animation-container" id="loginBtnContainer">
                 <button type="submit" class="submit-btn" id="loginSubmitBtn">
                     <span class="btn-text">Log In</span>
@@ -857,12 +860,10 @@
 <!-- ========== ADDITIONAL JS: CAR ANIMATION (without modifying original) ========== -->
 <script>
     (function() {
-        // Wait for DOM to be fully ready and original event listeners attached
         window.addEventListener('DOMContentLoaded', function() {
-            // Step 1: inject car icon into login button container
+            // inject car icon into login button container
             const loginBtnContainer = document.getElementById('loginBtnContainer');
             if (!loginBtnContainer) return;
-            // remove any existing car icon if any
             const existingCar = loginBtnContainer.querySelector('.car-drive-icon');
             if (existingCar) existingCar.remove();
             const carIcon = document.createElement('div');
@@ -870,50 +871,41 @@
             carIcon.innerHTML = '<i class="fas fa-car-side"></i>';
             loginBtnContainer.appendChild(carIcon);
             
-            // Step 2: replace login form with a clone to detach original submit listener
+            // replace login form with clone to detach original submit listener
             const originalForm = document.getElementById('loginForm');
             if (!originalForm) return;
             const parent = originalForm.parentNode;
             const clonedForm = originalForm.cloneNode(true);
             parent.replaceChild(clonedForm, originalForm);
-            // reassign ID to the new form
             clonedForm.id = 'loginForm';
             
-            // re-fetch elements that are now in the cloned form
             const newLoginEmail = document.getElementById('loginEmail');
             const newLoginPassword = document.getElementById('loginPassword');
             const newLoginSubmitBtn = document.getElementById('loginSubmitBtn');
             const newLoginBtnContainer = document.getElementById('loginBtnContainer');
             const newCarIcon = newLoginBtnContainer ? newLoginBtnContainer.querySelector('.car-drive-icon') : null;
             
-            // Helper: get relative positions for animation
             function getButtonBounds(container, button) {
                 const containerRect = container.getBoundingClientRect();
                 const btnRect = button.getBoundingClientRect();
-                const startLeft = btnRect.left - containerRect.left - 10; // start slightly left
-                const endLeft = btnRect.right - containerRect.left - 30;   // car width approx 30px
+                const startLeft = btnRect.left - containerRect.left - 10;
+                const endLeft = btnRect.right - containerRect.left - 30;
                 return { startLeft, endLeft };
             }
             
-            // Animation function
             async function animateCar(success) {
                 const container = newLoginBtnContainer;
                 const car = newCarIcon;
                 const btn = newLoginSubmitBtn;
                 if (!container || !car || !btn) return false;
-                
-                // reset car position
                 car.style.transition = 'none';
                 car.style.left = '0px';
                 car.style.opacity = '1';
                 car.classList.remove('crash-effect');
-                // force reflow
                 void car.offsetWidth;
-                
                 const { startLeft, endLeft } = getButtonBounds(container, btn);
                 car.style.left = startLeft + 'px';
                 car.style.transition = 'left 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1)';
-                
                 if (success) {
                     car.style.left = endLeft + 'px';
                     await new Promise(resolve => setTimeout(resolve, 850));
@@ -945,66 +937,49 @@
                 }
             }
             
-            // Custom login handler with car animation
             let animationActive = false;
             async function handleLoginSubmit(e) {
                 e.preventDefault();
                 if (animationActive) return;
-                
                 const email = newLoginEmail.value;
                 const password = newLoginPassword.value;
-                // basic validation using existing validation functions (they are global)
                 if (typeof validateEmail === 'function') {
                     if (!validateEmail(email, 'loginEmailValidation') || !password) {
                         if (!password && typeof showValidation === 'function') showValidation('loginPasswordValidation');
                         return;
                     }
-                } else {
-                    // fallback validation
-                    if (!email || !password) return;
-                }
+                } else if (!email || !password) return;
                 
-                // Disable button during animation
                 newLoginSubmitBtn.disabled = true;
                 const originalText = newLoginSubmitBtn.querySelector('.btn-text');
                 if (originalText) originalText.textContent = 'Verifying...';
-                
                 animationActive = true;
                 try {
-                    // Attempt firebase login
                     const userCred = await auth.signInWithEmailAndPassword(email, password);
-                    // Success: drive full
                     await animateCar(true);
-                    // after full drive, redirect using original function
                     if (typeof redirectToPassenger === 'function') {
                         redirectToPassenger(userCred.user);
                     } else {
                         window.location.href = 'passenger.html';
                     }
                 } catch (error) {
-                    // Failure: crash animation
                     await animateCar(false);
-                    // Show error notification using original function
                     let msg = 'Login failed';
                     if (error.code === 'auth/user-not-found') msg = 'No account found';
                     else if (error.code === 'auth/wrong-password') msg = 'Wrong password';
                     else if (error.code === 'auth/invalid-email') msg = 'Invalid email format';
                     if (typeof showNotification === 'function') showNotification(msg, 'error');
-                    // re-enable button
                     newLoginSubmitBtn.disabled = false;
                     if (originalText) originalText.textContent = 'Log In';
                 } finally {
                     animationActive = false;
                 }
             }
-            
-            // Attach our new submit handler
             clonedForm.addEventListener('submit', handleLoginSubmit);
             
-            // Re-attach password toggle functionality for the cloned form (since it was cloned)
+            // re-attach password toggle for cloned form
             const newToggle = document.getElementById('loginPasswordToggle');
             if (newToggle) {
-                // remove any previous listener (if any) and add new
                 newToggle.removeEventListener('click', null);
                 newToggle.addEventListener('click', function() {
                     const inp = document.getElementById('loginPassword');
@@ -1016,8 +991,7 @@
                     }
                 });
             }
-            
-            // Ensure forgot password link still works (it's still in DOM)
+            // ensure forgot password link still works
             const forgotLink = document.getElementById('forgotPasswordLink');
             if (forgotLink && !forgotLink._listenerAdded) {
                 forgotLink._listenerAdded = true;
