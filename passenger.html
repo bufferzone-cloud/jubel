@@ -8878,14 +8878,6 @@ displaySearchResults: function(results) {
             EnhancedUIUpdater.calculateAndUpdatePrices();
             EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
         }
-
-        // Auto‑scroll to the request ride button
-setTimeout(() => {
-    const requestBtn = document.getElementById('requestRideBtn');
-    if (requestBtn) {
-        requestBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-}, 100);
         
         // Show clear button
         const clearBtn = input.parentNode.querySelector('.clear-input-btn');
@@ -10284,14 +10276,13 @@ const EnhancedUIUpdater = {
                 const route = data.routes[0];
                 const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
                 
-          // Animate the route over 4 seconds
-this.animateRoute(routeCoordinates, {
-    color: '#FF6B35',
-    weight: 4,
-    opacity: 0.7,
-    lineJoin: 'round',
-    lineCap: 'round'
-}, 4000);
+                routeLayer = L.polyline(routeCoordinates, {
+                    color: '#FF6B35',
+                    weight: 4,
+                    opacity: 0.7,
+                    lineJoin: 'round',
+                    lineCap: 'round'
+                }).addTo(map);
                 
                 // Fit map to route bounds
                 const bounds = L.latLngBounds(routeCoordinates);
@@ -10313,17 +10304,16 @@ this.animateRoute(routeCoordinates, {
                 
                 return { distance, duration };
             }
-       } catch (error) {
-    console.error('Routing error:', error);
-    
-    // Fallback: animate straight lines between points
-    const waypointCoords = waypoints.map(wp => [wp.lat, wp.lng]);
-    this.animateRoute(waypointCoords, {
-        color: '#FF6B35',
-        weight: 3,
-        opacity: 0.7,
-        dashArray: '10, 10'
-    }, 4000);
+        } catch (error) {
+            console.error('Routing error:', error);
+            
+            // Fallback: draw straight lines between points
+            routeLayer = L.polyline(waypoints, {
+                color: '#FF6B35',
+                weight: 3,
+                opacity: 0.7,
+                dashArray: '10, 10'
+            }).addTo(map);
             
             const bounds = L.latLngBounds(waypoints);
             map.fitBounds(bounds, { padding: [50, 50] });
@@ -10343,42 +10333,6 @@ this.animateRoute(routeCoordinates, {
             }
         }
     },
-
-    // Animate a polyline from an array of coordinates over a given duration (ms)
-animateRoute: function(coordinates, options, duration = 4000) {
-    const startTime = performance.now();
-    const totalPoints = coordinates.length;
-    let currentPointIndex = 0;
-    let animationFrame = null;
-    let polyline = null;
-
-    const step = (now) => {
-        const elapsed = now - startTime;
-        const progress = Math.min(1, elapsed / duration);
-        const targetIndex = Math.floor(progress * totalPoints);
-
-        if (targetIndex > currentPointIndex) {
-            const visiblePoints = coordinates.slice(0, targetIndex + 1);
-            if (polyline) map.removeLayer(polyline);
-            polyline = L.polyline(visiblePoints, options).addTo(map);
-            currentPointIndex = targetIndex;
-        }
-
-        if (progress < 1) {
-            animationFrame = requestAnimationFrame(step);
-        } else {
-            // final full line
-            if (polyline) map.removeLayer(polyline);
-            polyline = L.polyline(coordinates, options).addTo(map);
-            routeLayer = polyline;
-            animationFrame = null;
-        }
-    };
-
-    if (animationFrame) cancelAnimationFrame(animationFrame);
-    animationFrame = requestAnimationFrame(step);
-    return polyline;
-}
     
     drawRoute: function(start, end) {
         return this.drawRouteWithStops();
