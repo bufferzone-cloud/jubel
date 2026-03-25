@@ -1142,14 +1142,34 @@ body {
 
 /* Fare Display */
 .fare-display {
-    background: linear-gradient(135deg, var(--primary-orange), var(--primary-red));
-    color: var(--white);
+    background: transparent;        /* remove gradient */
     padding: 14px;
     border-radius: var(--element-radius);
     margin: 14px 0;
     text-align: center;
-    box-shadow: var(--shadow-medium);
     display: none;
+    border: 1px solid var(--primary-orange); /* optional thin border */
+}
+
+.fare-display .fare-label {
+    font-size: 11px;
+    color: var(--primary-orange);   /* orange text */
+    margin-bottom: 2px;
+}
+
+.fare-display .fare-amount {
+    font-size: 24px;
+    font-weight: 800;
+    margin: 5px 0;
+    color: var(--primary-orange);   /* orange price */
+}
+
+.fare-display .fare-details {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--primary-orange);   /* orange details */
 }
 
 .fare-display.active {
@@ -5244,7 +5264,7 @@ body {
                 
                 <!-- Fare Display -->
                 <div class="fare-display" id="fareDisplay">
-                    <div class="fare-label">Estimated Fare</div>
+                    <div class="fare-label">Please Pay</div>
                     <div class="fare-amount" id="estimatedFare">ZMW 0.00</div>
                     <div class="fare-details">
                         <span id="distanceDetail">0 km</span>
@@ -5724,24 +5744,7 @@ body {
                     </div>
                 </div>
                 
-                <div class="fare-breakdown">
-                    <div class="fare-row">
-                        <span class="fare-label">Base Fare</span>
-                        <span class="fare-value" id="baseFareValue">ZMW 15.00</span>
-                    </div>
-                    <div class="fare-row">
-                        <span class="fare-label">Distance</span>
-                        <span class="fare-value" id="distanceFareValue">ZMW 5.00</span>
-                    </div>
-                    <div class="fare-row">
-                        <span class="fare-label">Ride Type</span>
-                        <span class="fare-value" id="rideTypeValue">Standard</span>
-                    </div>
-                    <div class="fare-row total">
-                        <span class="fare-label">Total Fare</span>
-                        <span class="fare-value" id="totalFareValue">ZMW 20.00</span>
-                    </div>
-                </div>
+             
                 
                 <!-- Emergency Contact Display -->
                 <div class="emergency-contact-display" id="emergencyContactDisplay" style="display: none;">
@@ -7809,6 +7812,20 @@ const EnhancedSearchEngine = {
     }
 };
 
+function scrollToRequestRideButton() {
+    const activeService = AppState.activeService;
+    let buttonId = 'requestRideBtn'; // default for car
+    if (activeService === 'delivery') buttonId = 'requestDeliveryBtn';
+    else if (activeService === 'short-delivery') buttonId = 'requestShortDeliveryBtn';
+    else if (activeService === 'express') buttonId = 'requestShoppingBtn';
+    else if (activeService === 'truck') buttonId = 'requestTruckBtn';
+
+    const button = document.getElementById(buttonId);
+    if (button) {
+        button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
 // ============================================
 // ENHANCED LOCATION MANAGER
 // ============================================
@@ -8875,9 +8892,10 @@ displaySearchResults: function(results) {
         
         // Calculate prices if pickup exists
         if (AppState.pickup) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
-        }
+    EnhancedUIUpdater.calculateAndUpdatePrices();
+    EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+    scrollToRequestRideButton();   // <-- Add this line
+}
         
         // Show clear button
         const clearBtn = input.parentNode.querySelector('.clear-input-btn');
