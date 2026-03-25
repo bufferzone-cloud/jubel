@@ -1143,14 +1143,15 @@ body {
 
 /* Fare Display */
 .fare-display {
-    background: linear-gradient(135deg, var(--primary-orange), var(--primary-red));
-    color: var(--white);
+    background: transparent; /* remove gradient */
+    color: var(--primary-orange);
     padding: 14px;
     border-radius: var(--element-radius);
     margin: 14px 0;
     text-align: center;
-    box-shadow: var(--shadow-medium);
+    box-shadow: none; /* optional: remove shadow */
     display: none;
+    border: 1px solid rgba(255, 107, 53, 0.3);
 }
 
 .fare-display.active {
@@ -5725,25 +5726,6 @@ body {
                     </div>
                 </div>
                 
-                <div class="fare-breakdown">
-                    <div class="fare-row">
-                        <span class="fare-label">Base Fare</span>
-                        <span class="fare-value" id="baseFareValue">ZMW 15.00</span>
-                    </div>
-                    <div class="fare-row">
-                        <span class="fare-label">Distance</span>
-                        <span class="fare-value" id="distanceFareValue">ZMW 5.00</span>
-                    </div>
-                    <div class="fare-row">
-                        <span class="fare-label">Ride Type</span>
-                        <span class="fare-value" id="rideTypeValue">Standard</span>
-                    </div>
-                    <div class="fare-row total">
-                        <span class="fare-label">Total Fare</span>
-                        <span class="fare-value" id="totalFareValue">ZMW 20.00</span>
-                    </div>
-                </div>
-                
                 <!-- Emergency Contact Display -->
                 <div class="emergency-contact-display" id="emergencyContactDisplay" style="display: none;">
                     <div class="emergency-contact-header">
@@ -8850,44 +8832,43 @@ displaySearchResults: function(results) {
         EnhancedUIUpdater.showToast('Pickup location set', 'success');
     },
     
-    selectDestinationLocation: function(inputId, location) {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        
-        input.value = location.address || location.name;
-        
-        // Store coordinates in data attributes
-        input.dataset.lat = location.lat;
-        input.dataset.lng = location.lng;
-        
-        AppState.destination = {
-            lat: location.lat,
-            lng: location.lng,
-            address: location.address || location.name,
-            name: location.name,
-            fullAddress: location.fullAddress || location.address
-        };
-        
-        // Add to recent locations
-        EnhancedSearchEngine.addToRecentLocations(location);
-        
-        // Update map
-        EnhancedUIUpdater.updateDestinationMarker(location);
-        
-        // Calculate prices if pickup exists
-        if (AppState.pickup) {
-            EnhancedUIUpdater.calculateAndUpdatePrices();
-            EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+   selectDestinationLocation: function(inputId, location) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    
+    input.value = location.address || location.name;
+    input.dataset.lat = location.lat;
+    input.dataset.lng = location.lng;
+    
+    AppState.destination = {
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address || location.name,
+        name: location.name,
+        fullAddress: location.fullAddress || location.address
+    };
+    
+    EnhancedSearchEngine.addToRecentLocations(location);
+    EnhancedUIUpdater.updateDestinationMarker(location);
+    
+    if (AppState.pickup) {
+        EnhancedUIUpdater.calculateAndUpdatePrices();
+        EnhancedUIUpdater.drawRoute(AppState.pickup, AppState.destination);
+    }
+    
+    // Auto-scroll to the request ride button
+    setTimeout(() => {
+        const requestBtn = document.getElementById('requestRideBtn');
+        if (requestBtn) {
+            requestBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        
-        // Show clear button
-        const clearBtn = input.parentNode.querySelector('.clear-input-btn');
-        if (clearBtn) {
-            clearBtn.style.display = 'block';
-        }
-        
-        EnhancedUIUpdater.showToast('Destination set', 'success');
-    },
+    }, 100);
+    
+    const clearBtn = input.parentNode.querySelector('.clear-input-btn');
+    if (clearBtn) clearBtn.style.display = 'block';
+    
+    EnhancedUIUpdater.showToast('Destination set', 'success');
+}
     
     // Clear Functions
     clearPickupLocation: function(inputId) {
@@ -10238,103 +10219,119 @@ const EnhancedUIUpdater = {
         }
     },
     
-    drawRouteWithStops: async function() {
-        if (!map || !AppState.pickup || !AppState.destination) {
-            return;
+   drawRouteWithStops: async function() {
+    if (!map || !AppState.pickup || !AppState.destination) {
+        return;
+    }
+
+    // Clear any ongoing animation
+    if (this.animationInterval) {
+        clearInterval(this.animationInterval);
+        this.animationInterval = null;
+    }
+
+    // Clear existing route
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+    }
+
+    // Prepare waypoints
+    const waypoints = [];
+    waypoints.push(L.latLng(AppState.pickup.lat, AppState.pickup.lng));
+    AppState.rideStops.forEach(stop => {
+        if (stop.location) {
+            waypoints.push(L.latLng(stop.location.lat, stop.location.lng));
         }
-        
-        // Clear existing route
-        if (routeLayer) {
-            map.removeLayer(routeLayer);
-            routeLayer = null;
-        }
-        
-        // Prepare waypoints
-        const waypoints = [];
-        
-        // Start with pickup
-        waypoints.push(L.latLng(AppState.pickup.lat, AppState.pickup.lng));
-        
-        // Add stops
-        AppState.rideStops.forEach(stop => {
-            if (stop.location) {
-                waypoints.push(L.latLng(stop.location.lat, stop.location.lng));
-            }
-        });
-        
-        // End with destination
-        waypoints.push(L.latLng(AppState.destination.lat, AppState.destination.lng));
-        
-        try {
-            // Use OSRM routing service
-            const waypointString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
-            const url = `https://router.project-osrm.org/route/v1/driving/${waypointString}?overview=full&geometries=geojson`;
-            
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                routeLayer = L.polyline(routeCoordinates, {
-                    color: '#FF6B35',
-                    weight: 4,
-                    opacity: 0.7,
-                    lineJoin: 'round',
-                    lineCap: 'round'
-                }).addTo(map);
-                
-                // Fit map to route bounds
-                const bounds = L.latLngBounds(routeCoordinates);
-                map.fitBounds(bounds, { padding: [50, 50] });
-                
-                const distance = route.distance / 1000;
-                const duration = route.duration / 60;
-                
-                console.log(`Route distance: ${distance.toFixed(2)} km, Duration: ${duration.toFixed(0)} min`);
-                
-                AppState.activeRoute = {
-                    distance: distance,
-                    duration: duration,
-                    coordinates: routeCoordinates
-                };
-                
-                // Update prices
-                this.updateRidePrices();
-                
-                return { distance, duration };
-            }
-        } catch (error) {
-            console.error('Routing error:', error);
-            
-            // Fallback: draw straight lines between points
-            routeLayer = L.polyline(waypoints, {
-                color: '#FF6B35',
-                weight: 3,
-                opacity: 0.7,
-                dashArray: '10, 10'
-            }).addTo(map);
-            
-            const bounds = L.latLngBounds(waypoints);
+    });
+    waypoints.push(L.latLng(AppState.destination.lat, AppState.destination.lng));
+
+    try {
+        const waypointString = waypoints.map(wp => `${wp.lng},${wp.lat}`).join(';');
+        const url = `https://router.project-osrm.org/route/v1/driving/${waypointString}?overview=full&geometries=geojson`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.routes && data.routes.length > 0) {
+            const route = data.routes[0];
+            const routeCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+
+            // Store full coordinates for animation
+            AppState.fullRouteCoordinates = routeCoordinates;
+
+            // Start animated drawing
+            this.animateRouteDrawing(routeCoordinates);
+
+            // Fit map bounds
+            const bounds = L.latLngBounds(routeCoordinates);
             map.fitBounds(bounds, { padding: [50, 50] });
-            
-            // Calculate approximate distance
-            let totalDistance = 0;
-            for (let i = 0; i < waypoints.length - 1; i++) {
-                totalDistance += EnhancedPriceCalculator.calculateDistance(
-                    waypoints[i].lat, waypoints[i].lng,
-                    waypoints[i + 1].lat, waypoints[i + 1].lng
-                );
-            }
-            
-            // Update prices with approximate distance
-            if (AppState.pickup && AppState.destination) {
-                this.updateRidePrices();
-            }
+
+            const distance = route.distance / 1000;
+            const duration = route.duration / 60;
+            AppState.activeRoute = { distance, duration, coordinates: routeCoordinates };
+
+            this.updateRidePrices();
+            return { distance, duration };
+        } else {
+            this.fallbackRouteDrawing(waypoints);
         }
-    },
-    
+    } catch (error) {
+        console.error('Routing error:', error);
+        this.fallbackRouteDrawing(waypoints);
+    }
+},
+
+animateRouteDrawing: function(fullCoords) {
+    if (!map) return;
+    if (routeLayer) map.removeLayer(routeLayer);
+
+    // Create empty polyline
+    routeLayer = L.polyline([], {
+        color: '#FF6B35',
+        weight: 4,
+        opacity: 0.7,
+        lineJoin: 'round',
+        lineCap: 'round'
+    }).addTo(map);
+
+    let index = 0;
+    const totalSteps = fullCoords.length;
+    const stepTime = 4000 / totalSteps; // milliseconds per segment
+
+    this.animationInterval = setInterval(() => {
+        if (index < totalSteps - 1) {
+            const currentPoints = routeLayer.getLatLngs();
+            currentPoints.push(L.latLng(fullCoords[index + 1][0], fullCoords[index + 1][1]));
+            routeLayer.setLatLngs(currentPoints);
+            index++;
+        } else {
+            clearInterval(this.animationInterval);
+            this.animationInterval = null;
+        }
+    }, stepTime);
+},
+
+fallbackRouteDrawing: function(waypoints) {
+    if (routeLayer) map.removeLayer(routeLayer);
+    routeLayer = L.polyline(waypoints, {
+        color: '#FF6B35',
+        weight: 3,
+        opacity: 0.7,
+        dashArray: '10, 10'
+    }).addTo(map);
+    const bounds = L.latLngBounds(waypoints);
+    map.fitBounds(bounds, { padding: [50, 50] });
+    // Calculate approximate distance
+    let totalDistance = 0;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+        totalDistance += EnhancedPriceCalculator.calculateDistance(
+            waypoints[i].lat, waypoints[i].lng,
+            waypoints[i+1].lat, waypoints[i+1].lng
+        );
+    }
+    if (AppState.pickup && AppState.destination) this.updateRidePrices();
+},
     drawRoute: function(start, end) {
         return this.drawRouteWithStops();
     },
