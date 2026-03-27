@@ -456,6 +456,27 @@
             background: #1c1c1e; color: white; padding: 8px 18px; border-radius: 60px; z-index: 3000;
             display: none; font-size: 0.85rem;
         }
+        /* additional styles for chat and SOS (kept from original) */
+        .sos-button {
+            position: fixed; bottom: 100px; right: 15px; background: #ff3b30; width: 56px; height: 56px;
+            border-radius: 28px; display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 250;
+            cursor: pointer; font-size: 1.2rem;
+        }
+        .chat-popup {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5);
+            z-index: 2000; display: none; align-items: center; justify-content: center;
+        }
+        .chat-popup.active { display: flex; }
+        .chat-card {
+            background: white; width: 90%; max-width: 380px; height: 500px; border-radius: 28px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .chat-header { padding: 16px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 12px; }
+        .chat-input { display: flex; padding: 12px; gap: 8px; border-top: 1px solid #eee; }
+        .chat-input input { flex: 1; border-radius: 30px; border: 1px solid #ddd; padding: 10px; }
+        .chat-input button { background: #FF6B35; border: none; border-radius: 30px; padding: 0 20px; color: white; }
     </style>
 </head>
 <body>
@@ -549,12 +570,31 @@
         </div>
     </div>
     <div id="globalToast" class="toast-msg"></div>
+
+    <!-- Chat Popup (dynamic) -->
+    <div id="chatPopup" class="chat-popup">
+        <div class="chat-card">
+            <div class="chat-header">
+                <span id="chatCustomerName">Chat with Passenger</span>
+                <button id="closeChatPopup" style="background:none; border:none; font-size:1.2rem;">&times;</button>
+            </div>
+            <div id="chatMessages" class="chat-messages"></div>
+            <div class="chat-input">
+                <input type="text" id="chatInput" placeholder="Type a message...">
+                <button id="sendChatBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SOS Button (dynamic) -->
+    <div id="sosButton" class="sos-button" style="display:none;">SOS</div>
+
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script>
-        // Firebase config
+        // Firebase config (unchanged)
         const firebaseConfig = {
             apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
             authDomain: "jubel-13e1a.firebaseapp.com",
@@ -580,10 +620,13 @@
         let uploadedImages = {};
         let holdTimer = null, holdProgress = 0;
         let rideQueueListener = null;
+        let chatListener = null;
+        let currentChatRideId = null;
+        let sosConfig = null;
 
         function toast(msg) { let t = document.getElementById('globalToast'); t.innerText = msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2500); }
 
-        // Map
+        // Map functions
         function initMap() {
             driverMap = L.map('map').setView([-15.4167,28.2833],13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(driverMap);
@@ -608,7 +651,7 @@
             else avatarDiv.innerHTML = '<i class="fas fa-user"></i>';
         }
 
-        // Account modal pages
+        // Account modal pages (detailed)
         function showAccountHome(){
             document.getElementById('modalDynamicTitle').innerText = 'Account';
             document.getElementById('accountModalContent').innerHTML = `<div class="grid-icons">
@@ -695,6 +738,8 @@
             }
         }
         function updateFloatBalance(newBalance){ floatBalance=newBalance; document.getElementById('topFloatBalance').innerHTML = `<i class="fas fa-wallet"></i> K${floatBalance.toFixed(2)}`; if(currentUser) db.ref('users/'+currentUser.uid).update({floatBalance}); }
+
+        // Online toggle and ride listening
         async function toggleOnlineStatus(){
             if(!currentUser) return;
             if(isOnline){ isOnline=false; document.getElementById('onlineToggleCheckbox').checked=false; document.getElementById('onlineStatusText').innerText='Offline'; stopTracking(); db.ref('users/'+currentUser.uid).update({isOnline:false}); toast('Offline'); }
@@ -749,6 +794,8 @@
             document.getElementById('activePrice').innerText=`K${(currentRide.fare||0).toFixed(2)}`;
             updateMapForActiveRide();
             setupHoldButton();
+            startPassengerChatListener(currentRide.id);
+            document.getElementById('sosButton').style.display = 'flex';
             currentRideRequest=null;
         }
         function rejectRide(){ document.getElementById('rideRequestPopup').classList.remove('active'); currentRideRequest=null; toast('Ride rejected'); }
@@ -796,6 +843,8 @@
                     await db.ref('floatHistory/'+currentUser.uid).push({amount:-commission, description:`Commission for ride ${currentRide.id}`, timestamp:Date.now()});
                     toast(`Ride complete +K${driverEarnings.toFixed(2)}`);
                     currentRide=null; document.body.classList.remove('ride-active'); document.getElementById('activeRidePanel').classList.remove('active');
+                    document.getElementById('sosButton').style.display = 'none';
+                    if(chatListener) chatListener();
                 }else{
                     await db.ref('rides/'+currentRide.id).update({status:nextStatus});
                     currentRide.status=nextStatus; updateHoldText();
@@ -807,7 +856,84 @@
             updateHoldText();
         }
         function contactCustomer(){ if(currentRide?.passengerPhone) window.location.href=`tel:${currentRide.passengerPhone.replace(/\D/g,'')}`; else toast('No number'); }
-        function openChat(){ toast('Chat feature active (demo)'); }
+        function openChatPopup(){
+            if(!currentRide) return;
+            document.getElementById('chatCustomerName').innerText = `Chat with ${currentRide.passengerName}`;
+            document.getElementById('chatPopup').classList.add('active');
+            loadChatMessages(currentRide.id);
+            startPassengerChatListener(currentRide.id);
+        }
+        async function loadChatMessages(rideId){
+            const msgsDiv = document.getElementById('chatMessages');
+            msgsDiv.innerHTML = '<div style="text-align:center;">Loading...</div>';
+            const snap = await db.ref(`chats/${rideId}`).orderByChild('timestamp').once('value');
+            const msgs = snap.val();
+            msgsDiv.innerHTML = '';
+            if(msgs){
+                Object.values(msgs).forEach(msg=>{
+                    const div = document.createElement('div');
+                    div.style.margin = '5px 0';
+                    div.style.textAlign = msg.senderId===currentUser.uid ? 'right' : 'left';
+                    div.innerHTML = `<div style="display:inline-block;background:${msg.senderId===currentUser.uid?'#FF6B35':'#e5e5ea'};color:${msg.senderId===currentUser.uid?'white':'black'};padding:8px 12px;border-radius:18px;max-width:80%;">${msg.message}</div><div style="font-size:10px;">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
+                    msgsDiv.appendChild(div);
+                });
+                msgsDiv.scrollTop = msgsDiv.scrollHeight;
+            } else {
+                msgsDiv.innerHTML = '<div style="text-align:center;">No messages yet</div>';
+            }
+        }
+        function startPassengerChatListener(rideId){
+            if(chatListener) chatListener();
+            chatListener = db.ref(`chats/${rideId}`).orderByChild('timestamp').on('child_added', snapshot=>{
+                const msg = snapshot.val();
+                if(msg.senderId !== currentUser.uid){
+                    const msgsDiv = document.getElementById('chatMessages');
+                    if(document.getElementById('chatPopup').classList.contains('active') && currentChatRideId===rideId){
+                        const div = document.createElement('div');
+                        div.style.margin = '5px 0';
+                        div.style.textAlign = 'left';
+                        div.innerHTML = `<div style="display:inline-block;background:#e5e5ea;color:black;padding:8px 12px;border-radius:18px;max-width:80%;">${msg.message}</div><div style="font-size:10px;">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
+                        msgsDiv.appendChild(div);
+                        msgsDiv.scrollTop = msgsDiv.scrollHeight;
+                    } else {
+                        toast(`New message from ${currentRide?.passengerName}`);
+                    }
+                }
+            });
+            currentChatRideId = rideId;
+        }
+        function sendChatMessage(){
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if(!msg || !currentRide) return;
+            db.ref(`chats/${currentRide.id}`).push({
+                message: msg,
+                senderId: currentUser.uid,
+                senderName: currentUser.displayName || 'Driver',
+                timestamp: Date.now(),
+                rideId: currentRide.id
+            }).then(()=>{ input.value = ''; });
+        }
+        // SOS
+        async function triggerSOS(){
+            if(!currentRide) { toast('No active ride'); return; }
+            if(!sosConfig) { toast('Configure SOS in Account settings first'); return; }
+            let loc = driverMarker ? driverMarker.getLatLng() : null;
+            const sosData = {
+                driverId: currentUser.uid,
+                rideId: currentRide.id,
+                location: loc ? {lat:loc.lat, lng:loc.lng} : null,
+                timestamp: Date.now(),
+                message: sosConfig.message || 'Emergency!'
+            };
+            await db.ref('sosAlerts').push(sosData);
+            toast('SOS sent! Emergency contacts notified.');
+        }
+        async function loadSOSConfig(){
+            if(!currentUser) return;
+            const snap = await db.ref('sosConfig/'+currentUser.uid).once('value');
+            if(snap.val()) sosConfig = snap.val();
+        }
 
         // Registration steps & image upload
         function updateVehicleFields(vehicle){
@@ -862,7 +988,8 @@
             }
             return urls;
         }
-        // auth flow
+
+        // Auth listener
         auth.onAuthStateChanged(async(user)=>{
             if(user){
                 currentUser=user;
@@ -879,10 +1006,15 @@
                     document.getElementById('acceptRideBtn').addEventListener('click',acceptRide);
                     document.getElementById('rejectRideBtn').addEventListener('click',rejectRide);
                     document.getElementById('activeCallBtn').addEventListener('click',contactCustomer);
-                    document.getElementById('activeChatBtn').addEventListener('click',openChat);
+                    document.getElementById('activeChatBtn').addEventListener('click',openChatPopup);
                     document.getElementById('accountFabBtn').addEventListener('click',()=>{ document.getElementById('accountModal').classList.add('active'); showAccountHome(); });
                     document.getElementById('closeAccountModal').addEventListener('click',()=>document.getElementById('accountModal').classList.remove('active'));
+                    document.getElementById('closeChatPopup').addEventListener('click',()=>document.getElementById('chatPopup').classList.remove('active'));
+                    document.getElementById('sendChatBtn').addEventListener('click',sendChatMessage);
+                    document.getElementById('chatInput').addEventListener('keypress',(e)=>{ if(e.key==='Enter') sendChatMessage(); });
+                    document.getElementById('sosButton').addEventListener('click',triggerSOS);
                     listenForRideRequests();
+                    loadSOSConfig();
                     document.getElementById('welcomeScreen').classList.add('hidden');
                     document.getElementById('loginScreen').classList.add('hidden');
                     document.getElementById('signupScreen').classList.add('hidden');
@@ -891,7 +1023,8 @@
                 document.getElementById('welcomeScreen').classList.remove('hidden');
             }
         });
-        // UI event handlers
+
+        // UI event listeners for auth
         document.getElementById('loginBtn').onclick = ()=>{ document.getElementById('welcomeScreen').classList.add('hidden'); document.getElementById('loginScreen').classList.remove('hidden'); };
         document.getElementById('signupBtn').onclick = ()=>{ document.getElementById('welcomeScreen').classList.add('hidden'); document.getElementById('signupScreen').classList.remove('hidden'); generateImageGrid(); updateVehicleFields('car'); };
         document.getElementById('backFromLogin').onclick = ()=>{ document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('welcomeScreen').classList.remove('hidden'); };
