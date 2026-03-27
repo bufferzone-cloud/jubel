@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>Jubel Driver — Premium Ride & Delivery</title>
+    <title>Jubel Driver — Full‑Screen Map</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* ----- RESET & GLOBAL ----- */
         * {
             margin: 0;
             padding: 0;
@@ -21,6 +22,7 @@
             width: 100vw;
             color: #1c1c1e;
         }
+        /* ----- MAP ----- */
         #map {
             position: absolute;
             top: 0;
@@ -33,6 +35,7 @@
         .ride-active #map {
             height: 50%;
         }
+        /* ----- FLOATING TOP BAR ----- */
         .top-bar {
             position: fixed;
             top: 14px;
@@ -48,26 +51,25 @@
         .top-bar > * {
             pointer-events: auto;
         }
-        .float-pill {
+        .float-pill,
+        .online-toggle-apple,
+        .driver-profile-pill {
             background: rgba(255,255,255,0.96);
             backdrop-filter: blur(12px);
-            padding: 8px 16px;
             border-radius: 40px;
             box-shadow: 0 4px 14px rgba(0,0,0,0.06);
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #1c1c1e;
             border: 0.5px solid rgba(0,0,0,0.04);
         }
+        .float-pill {
+            padding: 8px 16px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
         .online-toggle-apple {
-            background: rgba(255,255,255,0.96);
-            backdrop-filter: blur(12px);
-            border-radius: 40px;
             padding: 4px 12px 4px 6px;
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.06);
         }
         .toggle-switch-apple {
             position: relative;
@@ -101,7 +103,6 @@
             background-color: white;
             transition: 0.2s;
             border-radius: 50%;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         input:checked + .toggle-slider-apple {
             background-color: #34c759;
@@ -114,14 +115,10 @@
             font-size: 0.75rem;
         }
         .driver-profile-pill {
-            background: rgba(255,255,255,0.96);
-            backdrop-filter: blur(12px);
-            border-radius: 40px;
             padding: 5px 14px 5px 8px;
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.06);
         }
         .driver-avatar-small {
             width: 32px;
@@ -132,9 +129,9 @@
             align-items: center;
             justify-content: center;
             color: white;
-            font-weight: 600;
             overflow: hidden;
         }
+        /* ----- BOTTOM FAB ----- */
         .account-fab {
             position: fixed;
             bottom: 28px;
@@ -154,6 +151,121 @@
             align-items: center;
             gap: 10px;
         }
+        /* ----- RIDE REQUEST POPUP ----- */
+        .ride-request-popup {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 32px 32px 0 0;
+            z-index: 300;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 -8px 30px rgba(0,0,0,0.2);
+            height: 85%;
+        }
+        .ride-request-popup.active {
+            display: flex;
+        }
+        .popup-map {
+            height: 45%;
+            width: 100%;
+            border-radius: 32px 32px 0 0;
+        }
+        .popup-details {
+            padding: 20px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .action-buttons-pill {
+            display: flex;
+            gap: 14px;
+            margin-top: 16px;
+        }
+        .btn-pill {
+            flex: 1;
+            padding: 14px;
+            border-radius: 60px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-accept {
+            background: #34c759;
+            color: white;
+        }
+        .btn-reject {
+            background: #ff3b30;
+            color: white;
+        }
+        /* ----- ACTIVE RIDE PANEL ----- */
+        .active-ride-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 28px 28px 0 0;
+            z-index: 150;
+            padding: 20px;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 -6px 20px rgba(0,0,0,0.08);
+        }
+        .active-ride-panel.active {
+            display: flex;
+        }
+        .ride-info-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+        }
+        .hold-button-container {
+            background: #FF6B35;
+            border-radius: 60px;
+            padding: 14px;
+            text-align: center;
+            margin: 16px 0;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .hold-button-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background: rgba(255,255,255,0.35);
+            width: 0%;
+            transition: width 0.05s linear;
+        }
+        .hold-button-content {
+            position: relative;
+            color: white;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .icon-button {
+            background: #f2f2f5;
+            border: none;
+            padding: 12px;
+            border-radius: 50px;
+            width: 52px;
+            height: 52px;
+            font-size: 1.3rem;
+            cursor: pointer;
+        }
+        .chat-call-row {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 12px 0;
+        }
+        /* ----- ACCOUNT MODAL ----- */
         .overlay-modal {
             position: fixed;
             top: 0;
@@ -168,7 +280,9 @@
             border-radius: 28px 28px 0 0;
             animation: slideUp 0.3s ease;
         }
-        .overlay-modal.active { display: flex; }
+        .overlay-modal.active {
+            display: flex;
+        }
         .modal-header {
             display: flex;
             align-items: center;
@@ -196,7 +310,11 @@
             font-weight: 700;
             letter-spacing: -0.3px;
         }
-        .modal-content { flex: 1; padding: 20px; }
+        .modal-content {
+            flex: 1;
+            padding: 20px;
+        }
+        /* ----- ACCOUNT CARDS ----- */
         .profile-avatar {
             width: 100px;
             height: 100px;
@@ -209,18 +327,43 @@
             overflow: hidden;
             box-shadow: 0 8px 20px rgba(0,0,0,0.1);
         }
-        .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .profile-name { text-align: center; font-size: 1.5rem; font-weight: 700; margin-bottom: 20px; }
+        .profile-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .profile-name {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
         .info-card {
             background: #f8f8fc;
             border-radius: 24px;
             padding: 16px;
             margin-bottom: 20px;
         }
-        .info-card h3 { font-size: 1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-        .info-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.85rem; }
-        .info-label { color: #6c6c70; font-weight: 500; }
-        .info-value { font-weight: 600; }
+        .info-card h3 {
+            font-size: 1rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+        .info-label {
+            color: #6c6c70;
+            font-weight: 500;
+        }
+        .info-value {
+            font-weight: 600;
+        }
         .image-grid-3x3 {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -239,23 +382,55 @@
             font-size: 0.7rem;
             text-align: center;
         }
-        .image-grid-item img { width: 100%; height: 100%; object-fit: cover; }
-        .btn-step, .btn-pill {
-            background: #FF6B35;
-            border: none;
-            border-radius: 60px;
-            padding: 12px 20px;
-            color: white;
-            font-weight: 700;
-            cursor: pointer;
+        .image-grid-item img {
             width: 100%;
-            text-align: center;
+            height: 100%;
+            object-fit: cover;
         }
-        .btn-outline {
-            background: white;
-            border: 2px solid #FF6B35;
-            color: #FF6B35;
+        /* ----- HISTORY & EARNINGS CARDS ----- */
+        .history-card, .earnings-card {
+            background: #f8f8fc;
+            border-radius: 20px;
+            padding: 16px;
+            margin-bottom: 12px;
         }
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        .history-detail {
+            font-size: 0.8rem;
+            color: #3a3a3c;
+            margin-top: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        .status-completed {
+            background: #e0f7e8;
+            color: #2c6e2f;
+        }
+        .status-cancelled {
+            background: #ffe5e5;
+            color: #c7362b;
+        }
+        .commission-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid #e2e2e6;
+        }
+        /* ----- FLOAT POPUP ----- */
         .float-popup {
             position: fixed;
             bottom: 0;
@@ -270,72 +445,16 @@
             gap: 16px;
             box-shadow: 0 -8px 30px rgba(0,0,0,0.2);
         }
-        .float-popup.active { display: flex; }
-        .history-card, .earnings-card {
-            background: #f8f8fc;
-            border-radius: 20px;
-            padding: 16px;
-            margin-bottom: 12px;
-            transition: 0.2s;
+        .float-popup.active {
+            display: flex;
         }
-        .history-header { display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 700; }
-        .history-detail { font-size: 0.8rem; color: #3a3a3c; margin-top: 6px; display: flex; flex-wrap: wrap; gap: 12px; }
-        .status-badge { padding: 4px 10px; border-radius: 30px; font-size: 0.7rem; font-weight: 600; }
-        .status-completed { background: #e0f7e8; color: #2c6e2f; }
-        .status-cancelled { background: #ffe5e5; color: #c7362b; }
-        .commission-row { display: flex; justify-content: space-between; font-size: 0.8rem; margin-top: 6px; padding-top: 6px; border-top: 1px solid #e2e2e6; }
-        .ride-request-popup {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border-radius: 32px 32px 0 0;
-            z-index: 300;
+        /* ----- REGISTRATION ----- */
+        .step-container {
             display: none;
-            flex-direction: column;
-            box-shadow: 0 -8px 30px rgba(0,0,0,0.2);
-            height: 85%;
         }
-        .ride-request-popup.active { display: flex; }
-        .popup-map { height: 50%; width: 100%; }
-        .popup-details { padding: 20px; overflow-y: auto; }
-        .action-buttons-pill { display: flex; gap: 14px; margin-top: 16px; }
-        .active-ride-panel {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border-radius: 28px 28px 0 0;
-            z-index: 150;
-            padding: 20px;
-            display: none;
-            flex-direction: column;
-            box-shadow: 0 -6px 20px rgba(0,0,0,0.08);
+        .step-container.active-step {
+            display: block;
         }
-        .active-ride-panel.active { display: flex; }
-        .hold-button-container {
-            background: #FF6B35;
-            border-radius: 60px;
-            padding: 14px;
-            text-align: center;
-            margin: 16px 0;
-            position: relative;
-            overflow: hidden;
-            cursor: pointer;
-        }
-        .hold-button-fill {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            background: rgba(255,255,255,0.35);
-            width: 0%;
-            transition: width 0.05s linear;
-        }
-        .step-container { display: none; }
-        .step-container.active-step { display: block; }
         .image-upload-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -370,16 +489,121 @@
             font-weight: 600;
             cursor: pointer;
         }
-        .vehicle-pill.selected { background: #FF6B35; color: white; }
-        .toast-msg { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); background: #1c1c1e; color: white; padding: 8px 18px; border-radius: 60px; z-index: 3000; display: none; }
-        .sos-button { position: fixed; bottom: 100px; right: 15px; background: #ff3b30; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; color: white; z-index: 250; cursor: pointer; display: none; }
-        .auth-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; overflow-y: auto; padding: 24px; display: none; flex-direction: column; }
-        .auth-screen.active { display: flex; }
-        .welcome-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-        .hidden { display: none !important; }
-        .form-input { padding: 14px; border-radius: 60px; border: 1px solid #e2e2e6; font-size: 1rem; background: white; width: 100%; margin-bottom: 12px; }
-        .icon-button { background: #f2f2f5; border: none; padding: 12px; border-radius: 50px; width: 52px; height: 52px; font-size: 1.3rem; cursor: pointer; }
-        .chat-call-row { display: flex; gap: 20px; justify-content: center; margin: 12px 0; }
+        .vehicle-pill.selected {
+            background: #FF6B35;
+            color: white;
+        }
+        /* ----- AUTH SCREENS ----- */
+        .welcome-screen, .auth-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .auth-screen {
+            display: none;
+            overflow-y: auto;
+        }
+        .auth-screen.active {
+            display: flex;
+        }
+        .welcome-screen.hidden {
+            display: none;
+        }
+        .jubel-logo {
+            width: 120px;
+            height: 120px;
+            background: linear-gradient(135deg, #FF6B35, #FF8C5A);
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 32px;
+            box-shadow: 0 15px 30px rgba(255,107,53,0.25);
+        }
+        .jubel-logo-text {
+            font-size: 3rem;
+            font-weight: 800;
+            color: white;
+        }
+        .auth-form {
+            width: 100%;
+            max-width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .form-input {
+            padding: 14px;
+            border-radius: 60px;
+            border: 1px solid #e2e2e6;
+            font-size: 1rem;
+            background: white;
+        }
+        .btn-step {
+            background: #FF6B35;
+            border: none;
+            border-radius: 60px;
+            padding: 14px;
+            font-weight: 700;
+            color: white;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+        }
+        .btn-outline {
+            background: white;
+            border: 2px solid #FF6B35;
+            color: #FF6B35;
+        }
+        /* ----- MISC ----- */
+        .toast-msg {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1c1c1e;
+            color: white;
+            padding: 8px 18px;
+            border-radius: 60px;
+            z-index: 3000;
+            display: none;
+        }
+        .sos-button {
+            position: fixed;
+            bottom: 100px;
+            right: 15px;
+            background: #ff3b30;
+            width: 56px;
+            height: 56px;
+            border-radius: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 250;
+            cursor: pointer;
+            display: none;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        @keyframes sos-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231,76,60,0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(231,76,60,0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231,76,60,0); }
+        }
     </style>
 </head>
 <body>
@@ -387,7 +611,10 @@
     <div class="top-bar">
         <div class="float-pill" id="topFloatBalance"><i class="fas fa-wallet"></i> K0.00</div>
         <div class="online-toggle-apple">
-            <label class="toggle-switch-apple"><input type="checkbox" id="onlineToggleCheckbox"><span class="toggle-slider-apple"></span></label>
+            <label class="toggle-switch-apple">
+                <input type="checkbox" id="onlineToggleCheckbox">
+                <span class="toggle-slider-apple"></span>
+            </label>
             <span class="online-text" id="onlineStatusText">Offline</span>
         </div>
         <div class="driver-profile-pill" id="topDriverPill">
@@ -397,11 +624,13 @@
     </div>
     <button class="account-fab" id="accountFabBtn"><i class="fas fa-user-circle"></i> Account</button>
 
+    <!-- Ride Request Popup -->
     <div id="rideRequestPopup" class="ride-request-popup">
         <div id="rideRequestMap" class="popup-map"></div>
         <div class="popup-details" id="rideRequestDetails"></div>
     </div>
 
+    <!-- Active Ride Panel -->
     <div id="activeRidePanel" class="active-ride-panel">
         <div style="font-weight:800; font-size:1.3rem;" id="activeCustomerName">Customer</div>
         <div class="ride-info-row"><span>📍 Pickup:</span><span id="activePickup">-</span></div>
@@ -417,6 +646,7 @@
         </div>
     </div>
 
+    <!-- Account Modal -->
     <div id="accountModal" class="overlay-modal">
         <div class="modal-header">
             <div class="modal-back" id="closeAccountModal"><i class="fas fa-arrow-left"></i></div>
@@ -425,17 +655,19 @@
         <div class="modal-content" id="accountModalContent"></div>
     </div>
 
+    <!-- Float Popup -->
     <div id="floatPopup" class="float-popup">
         <h3>Add Float</h3>
-        <input type="number" id="floatAmount" placeholder="Amount (K)" class="form-input" style="padding:12px;">
+        <input type="number" id="floatAmount" placeholder="Amount (K)" class="form-input">
         <div class="action-buttons-pill">
             <button id="confirmFloatBtn" class="btn-pill" style="background:#34c759;">Confirm</button>
             <button id="cancelFloatBtn" class="btn-pill" style="background:#ff3b30;">Cancel</button>
         </div>
     </div>
 
+    <!-- Welcome / Auth -->
     <div id="welcomeScreen" class="welcome-screen">
-        <div class="jubel-logo" style="width:100px;height:100px;background:#FF6B35;border-radius:30px;display:flex;align-items:center;justify-content:center;margin-bottom:20px;"><span style="font-size:3rem;color:white;">J</span></div>
+        <div class="jubel-logo"><div class="jubel-logo-text">J</div></div>
         <h2>Jubel Driver</h2>
         <div style="display: flex; gap: 16px; margin-top: 32px;">
             <button id="loginBtn" class="btn-step" style="background:#FF6B35;">Log In</button>
@@ -445,9 +677,9 @@
 
     <div id="loginScreen" class="auth-screen">
         <div style="margin-bottom:20px;"><button id="backFromLogin" style="background:none; border:none; font-size:1.4rem;"><i class="fas fa-arrow-left"></i></button></div>
-        <form id="loginForm" style="display:flex; flex-direction:column; gap:16px;">
-            <input type="email" id="loginEmail" placeholder="Email" class="form-input">
-            <input type="password" id="loginPassword" placeholder="Password" class="form-input">
+        <form id="loginForm" class="auth-form">
+            <input type="email" id="loginEmail" placeholder="Email" class="form-input" required>
+            <input type="password" id="loginPassword" placeholder="Password" class="form-input" required>
             <button type="submit" class="btn-step">Log In</button>
         </form>
     </div>
@@ -489,7 +721,7 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script>
-        // Firebase Config
+        // ==================== FIREBASE CONFIG ====================
         const firebaseConfig = {
             apiKey: "AIzaSyDEACX_P4c5q7djJAcA0I7Lk7leO2TlQ74",
             authDomain: "jubel-13e1a.firebaseapp.com",
@@ -504,35 +736,65 @@
         const cloudinaryCloudName = 'dd3lcymrk';
         const cloudinaryUploadPreset = 'h3eyhc2o';
 
-        let currentUser = null, currentRide = null, currentRideRequest = null, isOnline = false;
+        // ==================== GLOBAL STATE ====================
+        let currentUser = null;
+        let currentRide = null;
+        let currentRideRequest = null;
+        let isOnline = false;
         let driverMap, rideRequestMapObj;
-        let driverMarker = null, locationWatchId = null;
-        let floatBalance = 0, walletBalance = 0, commissionRate = 0.08;
+        let driverMarker = null;
+        let locationWatchId = null;
+        let floatBalance = 0;
+        let walletBalance = 0;
+        const commissionRate = 0.08;
         let selectedVehicleType = 'car';
         let uploadedImages = {};
-        let holdTimer = null, holdProgress = 0;
+        let holdTimer = null;
+        let holdProgress = 0;
         let rideQueueListener = null;
         let selectedPeriod = 'today';
 
-        function toast(msg) { let t = document.getElementById('globalToast'); t.innerText = msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2500); }
+        // Helper functions
+        function toast(msg) {
+            const t = document.getElementById('globalToast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 2500);
+        }
 
+        // ==================== MAP & LOCATION ====================
         function initMap() {
             driverMap = L.map('map').setView([-15.4167, 28.2833], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(driverMap);
             rideRequestMapObj = L.map('rideRequestMap').setView([-15.4167, 28.2833], 13);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(rideRequestMapObj);
-            if(navigator.geolocation) navigator.geolocation.getCurrentPosition(pos=>{
-                driverMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
-                driverMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap);
-                updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
-            });
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    driverMap.setView([pos.coords.latitude, pos.coords.longitude], 15);
+                    driverMarker = L.marker([pos.coords.latitude, pos.coords.longitude]).addTo(driverMap);
+                    updateDriverLocation(pos.coords.latitude, pos.coords.longitude);
+                });
+            }
         }
-        function updateDriverLocation(lat,lng){ if(currentUser && isOnline) db.ref('driverLocations/'+currentUser.uid).set({lat,lng,timestamp:Date.now()}); if(driverMarker) driverMarker.setLatLng([lat,lng]); }
-        function startTracking(){ if(navigator.geolocation) locationWatchId = navigator.geolocation.watchPosition(pos=>updateDriverLocation(pos.coords.latitude,pos.coords.longitude)); }
-        function stopTracking(){ if(locationWatchId) navigator.geolocation.clearWatch(locationWatchId); }
 
-        // ================= ACCOUNT PAGES =================
-        async function showAccountHome(){
+        function updateDriverLocation(lat, lng) {
+            if (currentUser && isOnline) {
+                db.ref('driverLocations/' + currentUser.uid).set({ lat, lng, timestamp: Date.now() });
+            }
+            if (driverMarker) driverMarker.setLatLng([lat, lng]);
+        }
+
+        function startTracking() {
+            if (navigator.geolocation) {
+                locationWatchId = navigator.geolocation.watchPosition(pos => updateDriverLocation(pos.coords.latitude, pos.coords.longitude));
+            }
+        }
+        function stopTracking() {
+            if (locationWatchId) navigator.geolocation.clearWatch(locationWatchId);
+        }
+
+        // ==================== ACCOUNT MODAL PAGES ====================
+        async function showAccountHome() {
             document.getElementById('modalDynamicTitle').innerText = 'Account';
             document.getElementById('accountModalContent').innerHTML = `
                 <div class="profile-avatar" id="profileAvatarLarge"><img id="largeProfileImg" style="width:100%;height:100%;object-fit:cover;"><i class="fas fa-user" style="font-size:2rem;"></i></div>
@@ -541,284 +803,416 @@
                 <div class="info-card"><h3><i class="fas fa-car"></i> Vehicle Details</h3><div id="vehicleInfoCard"></div></div>
                 <div class="info-card"><h3><i class="fas fa-images"></i> Document Photos</h3><div id="docsGrid" class="image-grid-3x3"></div></div>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px;">
-                    <button class="btn-pill" id="navFloatBtn"><i class="fas fa-coins"></i> Float</button>
-                    <button class="btn-pill" id="navEarningsBtn"><i class="fas fa-chart-line"></i> Earnings</button>
-                    <button class="btn-pill" id="navHistoryBtn"><i class="fas fa-history"></i> History</button>
-                    <button class="btn-pill" id="navSettingsBtn"><i class="fas fa-sliders-h"></i> Settings</button>
+                    <button class="btn-step" id="navFloatBtn"><i class="fas fa-coins"></i> Float</button>
+                    <button class="btn-step" id="navEarningsBtn"><i class="fas fa-chart-line"></i> Earnings</button>
+                    <button class="btn-step" id="navHistoryBtn"><i class="fas fa-history"></i> History</button>
+                    <button class="btn-step" id="navSettingsBtn"><i class="fas fa-sliders-h"></i> Settings</button>
                 </div>
-                <button class="btn-pill" id="logoutBtnAccount" style="background:#ff3b30; margin-top:20px;">Logout</button>
+                <button class="btn-step" id="logoutBtnAccount" style="background:#ff3b30; margin-top:20px;">Logout</button>
             `;
-            const userSnap = await db.ref('users/'+currentUser.uid).once('value');
+            const userSnap = await db.ref('users/' + currentUser.uid).once('value');
             const user = userSnap.val() || {};
             document.getElementById('profileNameLarge').innerText = user.name || 'Driver';
             const avatarImg = document.getElementById('largeProfileImg');
-            if(user.images?.profilePhoto) { avatarImg.src = user.images.profilePhoto; avatarImg.style.display='block'; document.querySelector('#profileAvatarLarge i').style.display='none'; }
+            if (user.images?.profilePhoto) {
+                avatarImg.src = user.images.profilePhoto;
+                avatarImg.style.display = 'block';
+                document.querySelector('#profileAvatarLarge i').style.display = 'none';
+            }
             document.getElementById('personalInfoCard').innerHTML = `
-                <div class="info-row"><span class="info-label">Phone</span><span class="info-value">${user.phone||'N/A'}</span></div>
-                <div class="info-row"><span class="info-label">Email</span><span class="info-value">${user.email||'N/A'}</span></div>
-                <div class="info-row"><span class="info-label">NRC</span><span class="info-value">${user.nrc||'N/A'}</span></div>
-                <div class="info-row"><span class="info-label">License #</span><span class="info-value">${user.vehicle?.licenseNumber||'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">Phone</span><span class="info-value">${user.phone || 'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">Email</span><span class="info-value">${user.email || 'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">NRC</span><span class="info-value">${user.nrc || 'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">License #</span><span class="info-value">${user.vehicle?.licenseNumber || 'N/A'}</span></div>
                 <div class="info-row"><span class="info-label">City</span><span class="info-value">Lusaka</span></div>
             `;
             const vehicle = user.vehicle || {};
             document.getElementById('vehicleInfoCard').innerHTML = `
-                <div class="info-row"><span class="info-label">Type</span><span class="info-value">${vehicle.type||'N/A'}</span></div>
-                <div class="info-row"><span class="info-label">Model</span><span class="info-value">${vehicle.model||'N/A'}</span></div>
-                <div class="info-row"><span class="info-label">Plate</span><span class="info-value">${vehicle.licensePlate||'N/A'}</span></div>
-                <div class="info-row"><span class="info-label">Color</span><span class="info-value">${vehicle.color||'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">Type</span><span class="info-value">${vehicle.type || 'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">Model</span><span class="info-value">${vehicle.model || 'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">Plate</span><span class="info-value">${vehicle.licensePlate || 'N/A'}</span></div>
+                <div class="info-row"><span class="info-label">Color</span><span class="info-value">${vehicle.color || 'N/A'}</span></div>
             `;
             let docsHtml = '';
             const images = user.images || {};
-            const docKeys = ['profilePhoto','nrcFront','nrcBack','driversLicense','vehicleFront','vehicleBack','frontSeats','backSeats','bikePhoto','truckFront'];
-            docKeys.forEach(k=>{ if(images[k]) docsHtml+=`<div class="image-grid-item"><img src="${images[k]}" /></div>`; else docsHtml+=`<div class="image-grid-item">📷 ${k}</div>`; });
+            const docKeys = ['profilePhoto', 'nrcFront', 'nrcBack', 'driversLicense', 'vehicleFront', 'vehicleBack', 'frontSeats', 'backSeats', 'bikePhoto', 'truckFront'];
+            docKeys.forEach(k => {
+                if (images[k]) docsHtml += `<div class="image-grid-item"><img src="${images[k]}" /></div>`;
+                else docsHtml += `<div class="image-grid-item">📷 ${k}</div>`;
+            });
             document.getElementById('docsGrid').innerHTML = docsHtml;
-            document.getElementById('navFloatBtn').onclick = ()=>loadFloatPage();
-            document.getElementById('navEarningsBtn').onclick = ()=>loadEarningsPage();
-            document.getElementById('navHistoryBtn').onclick = ()=>loadRideHistoryPage();
-            document.getElementById('navSettingsBtn').onclick = ()=>loadSettingsPage();
-            document.getElementById('logoutBtnAccount').onclick = ()=>{ auth.signOut(); location.reload(); };
+            document.getElementById('navFloatBtn').onclick = () => loadFloatPage();
+            document.getElementById('navEarningsBtn').onclick = () => loadEarningsPage();
+            document.getElementById('navHistoryBtn').onclick = () => loadRideHistoryPage();
+            document.getElementById('navSettingsBtn').onclick = () => loadSettingsPage();
+            document.getElementById('logoutBtnAccount').onclick = () => { auth.signOut(); location.reload(); };
         }
 
-        async function loadFloatPage(){
+        async function loadFloatPage() {
             document.getElementById('modalDynamicTitle').innerText = 'Float Management';
             let historyHtml = '';
-            const histSnap = await db.ref('floatHistory/'+currentUser.uid).orderByChild('timestamp').limitToLast(20).once('value');
-            const hist = histSnap.val()||{};
-            Object.values(hist).forEach(h=>{
-                historyHtml+=`<div class="commission-row"><span>${h.description}</span><span>${h.amount>0?'+':'-'}K${Math.abs(h.amount).toFixed(2)} (Bal: K${h.balance?.toFixed(2)||'?'})</span></div>`;
+            const histSnap = await db.ref('floatHistory/' + currentUser.uid).orderByChild('timestamp').limitToLast(20).once('value');
+            const hist = histSnap.val() || {};
+            Object.values(hist).forEach(h => {
+                historyHtml += `<div class="commission-row"><span>${h.description}</span><span>${h.amount > 0 ? '+' : '-'}K${Math.abs(h.amount).toFixed(2)} (Bal: K${h.balance?.toFixed(2) || '?'})</span></div>`;
             });
             document.getElementById('accountModalContent').innerHTML = `
                 <div style="text-align:center; font-size:2.5rem; font-weight:800;">K${floatBalance.toFixed(2)}</div>
-                <div class="commission-text" style="text-align:center;">Commission per ride: ${commissionRate*100}%</div>
-                <button id="openAddFloatBtn" class="btn-pill" style="margin:16px 0;">+ Add Float</button>
+                <div class="commission-text" style="text-align:center;">Commission per ride: ${commissionRate * 100}%</div>
+                <button id="openAddFloatBtn" class="btn-step" style="margin:16px 0;">+ Add Float</button>
                 <h3>Float History (rides & deposits)</h3>
-                <div id="floatHistoryList">${historyHtml||'No transactions'}</div>
+                <div id="floatHistoryList">${historyHtml || 'No transactions'}</div>
             `;
-            document.getElementById('openAddFloatBtn').onclick = ()=>{
+            document.getElementById('openAddFloatBtn').onclick = () => {
                 document.getElementById('floatPopup').classList.add('active');
-                document.getElementById('confirmFloatBtn').onclick = async()=>{
-                    let amt = parseFloat(document.getElementById('floatAmount').value);
-                    if(amt>0){ floatBalance+=amt; await db.ref('users/'+currentUser.uid).update({floatBalance}); await db.ref('floatHistory/'+currentUser.uid).push({amount:amt, description:'Float deposit', balance:floatBalance, timestamp:Date.now()}); toast('Float added'); loadFloatPage(); document.getElementById('floatPopup').classList.remove('active'); }
+                document.getElementById('confirmFloatBtn').onclick = async () => {
+                    const amt = parseFloat(document.getElementById('floatAmount').value);
+                    if (amt > 0) {
+                        floatBalance += amt;
+                        await db.ref('users/' + currentUser.uid).update({ floatBalance });
+                        await db.ref('floatHistory/' + currentUser.uid).push({
+                            amount: amt,
+                            description: 'Float deposit',
+                            balance: floatBalance,
+                            timestamp: Date.now()
+                        });
+                        toast('Float added');
+                        loadFloatPage();
+                        document.getElementById('floatPopup').classList.remove('active');
+                    }
                 };
-                document.getElementById('cancelFloatBtn').onclick = ()=>document.getElementById('floatPopup').classList.remove('active');
+                document.getElementById('cancelFloatBtn').onclick = () => document.getElementById('floatPopup').classList.remove('active');
             };
         }
 
-        async function loadEarningsPage(){
+        async function loadEarningsPage() {
             document.getElementById('modalDynamicTitle').innerText = 'Earnings';
-            const periodBtns = `<div class="period-tabs" style="display:flex; gap:10px; margin-bottom:20px;"><button class="period-tab" data-p="today">Today</button><button class="period-tab" data-p="week">Week</button><button class="period-tab" data-p="month">Month</button></div><div id="earningsListContainer"></div>`;
+            const periodBtns = `<div class="period-tabs" style="display:flex; gap:10px; margin-bottom:20px;"><button class="btn-step" data-p="today">Today</button><button class="btn-step" data-p="week">Week</button><button class="btn-step" data-p="month">Month</button></div><div id="earningsListContainer"></div>`;
             document.getElementById('accountModalContent').innerHTML = periodBtns;
-            async function renderEarnings(period){
-                const earningsSnap = await db.ref('earnings/'+currentUser.uid).once('value');
-                const earnings = earningsSnap.val()||{};
-                let total=0, ridesCount=0, list='';
+            async function renderEarnings(period) {
+                const earningsSnap = await db.ref('earnings/' + currentUser.uid).once('value');
+                const earnings = earningsSnap.val() || {};
+                let total = 0, ridesCount = 0, list = '';
                 const now = new Date();
-                Object.values(earnings).forEach(e=>{
-                    let d = new Date(e.timestamp);
-                    let include = period==='today' ? d.toDateString()===now.toDateString() : period==='week' ? (d>=new Date(now.setDate(now.getDate()-now.getDay()))) : period==='month' ? (d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear()) : false;
-                    if(include){ total+=e.amount; ridesCount++; list+=`<div class="earnings-card"><div class="history-header"><span>${e.passengerName||'Customer'}</span><span>K${e.amount.toFixed(2)}</span></div><div>💰 Fare: K${e.totalFare?.toFixed(2)||0} | 📏 ${e.distance?.toFixed(1)||'?'}km</div><div class="commission-row"><span>Commission (${commissionRate*100}%):</span><span>-K${e.commission?.toFixed(2)||0}</span></div><div class="commission-row"><span>Net Earnings:</span><span>K${e.amount.toFixed(2)}</span></div><div class="history-detail">${new Date(e.timestamp).toLocaleString()}</div></div>`; }
+                Object.values(earnings).forEach(e => {
+                    const d = new Date(e.timestamp);
+                    let include = false;
+                    if (period === 'today') include = d.toDateString() === now.toDateString();
+                    else if (period === 'week') include = d >= new Date(now.setDate(now.getDate() - now.getDay()));
+                    else if (period === 'month') include = (d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear());
+                    if (include) {
+                        total += e.amount;
+                        ridesCount++;
+                        list += `<div class="earnings-card"><div class="history-header"><span>${e.passengerName || 'Customer'}</span><span>K${e.amount.toFixed(2)}</span></div><div>💰 Fare: K${e.totalFare?.toFixed(2) || 0} | 📏 ${e.distance?.toFixed(1) || '?'}km</div><div class="commission-row"><span>Commission (${commissionRate * 100}%):</span><span>-K${e.commission?.toFixed(2) || 0}</span></div><div class="commission-row"><span>Net Earnings:</span><span>K${e.amount.toFixed(2)}</span></div><div class="history-detail">${new Date(e.timestamp).toLocaleString()}</div></div>`;
+                    }
                 });
-                document.getElementById('earningsListContainer').innerHTML = `<div style="font-size:1.8rem; font-weight:800;">K${total.toFixed(2)}</div><div>${ridesCount} rides</div>${list||'<div>No rides</div>'}`;
+                document.getElementById('earningsListContainer').innerHTML = `<div style="font-size:1.8rem; font-weight:800;">K${total.toFixed(2)}</div><div>${ridesCount} rides</div>${list || '<div>No rides</div>'}`;
             }
             renderEarnings(selectedPeriod);
-            document.querySelectorAll('.period-tab').forEach(btn=>btn.addEventListener('click',()=>{ selectedPeriod=btn.dataset.p; renderEarnings(selectedPeriod); }));
+            document.querySelectorAll('.period-tab').forEach(btn => btn.addEventListener('click', () => { selectedPeriod = btn.dataset.p; renderEarnings(selectedPeriod); }));
         }
 
-        async function loadRideHistoryPage(){
+        async function loadRideHistoryPage() {
             document.getElementById('modalDynamicTitle').innerText = 'Ride History';
             const ridesSnap = await db.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value');
-            let html='';
-            const rides = ridesSnap.val()||{};
-            Object.values(rides).forEach(r=>{
-                html+=`<div class="history-card"><div class="history-header"><span><strong>${r.passengerName||'Customer'}</strong></span><span class="status-badge ${r.status==='completed'?'status-completed':'status-cancelled'}">${r.status}</span></div>
+            let html = '';
+            const rides = ridesSnap.val() || {};
+            Object.values(rides).forEach(r => {
+                html += `<div class="history-card"><div class="history-header"><span><strong>${r.passengerName || 'Customer'}</strong></span><span class="status-badge ${r.status === 'completed' ? 'status-completed' : 'status-cancelled'}">${r.status}</span></div>
                 <div><i class="fas fa-map-pin"></i> ${r.pickupLocation} → ${r.destination}</div>
-                <div class="history-detail">💰 K${(r.fare||0).toFixed(2)} | 📏 ${r.distance?.toFixed(1)||'?'}km | ⏱️ ${r.duration||'?'} min</div>
-                <div class="commission-row"><span>Commission (8%):</span><span>-K${((r.fare||0)*0.08).toFixed(2)}</span></div>
-                <div class="history-detail">📝 ${r.specialInstructions||'No instructions'}</div>
+                <div class="history-detail">💰 K${(r.fare || 0).toFixed(2)} | 📏 ${r.distance?.toFixed(1) || '?'}km | ⏱️ ${r.duration || '?'} min</div>
+                <div class="commission-row"><span>Commission (8%):</span><span>-K${((r.fare || 0) * 0.08).toFixed(2)}</span></div>
+                <div class="history-detail">📝 ${r.specialInstructions || 'No instructions'}</div>
                 <div class="history-detail">📅 ${new Date(r.timestamp).toLocaleString()}</div></div>`;
             });
             document.getElementById('accountModalContent').innerHTML = html || '<div>No rides yet</div>';
         }
 
-        function loadSettingsPage(){
+        function loadSettingsPage() {
             document.getElementById('modalDynamicTitle').innerText = 'Settings';
-            document.getElementById('accountModalContent').innerHTML = `<div class="info-card"><i class="fas fa-language"></i> Language: English</div><div class="info-card"><i class="fas fa-file-alt"></i> Support: <button id="supportBtn" class="btn-pill" style="background:#FF6B35;">Contact</button></div>`;
-            document.getElementById('supportBtn').onclick = ()=>toast('Support request sent (demo)');
+            document.getElementById('accountModalContent').innerHTML = `<div class="info-card"><i class="fas fa-language"></i> Language: English</div><div class="info-card"><i class="fas fa-file-alt"></i> Support: <button id="supportBtn" class="btn-step" style="background:#FF6B35;">Contact</button></div>`;
+            document.getElementById('supportBtn').onclick = () => toast('Support request sent (demo)');
         }
 
-        // ================= RIDE ACCEPT & UPDATE =================
-        async function acceptRide(){
-            if(!currentRideRequest) return;
-            const driverSnap = await db.ref('users/'+currentUser.uid).once('value');
+        // ==================== RIDE HANDLING ====================
+        async function acceptRide() {
+            if (!currentRideRequest) return;
+            const driverSnap = await db.ref('users/' + currentUser.uid).once('value');
             const driver = driverSnap.val();
             const update = {
-                driverId: currentUser.uid, driverName: driver.name, driverPhone: driver.phone,
+                driverId: currentUser.uid,
+                driverName: driver.name,
+                driverPhone: driver.phone,
                 driverProfileImage: driver.images?.profilePhoto || null,
                 vehicleImage: driver.images?.vehicleFront || driver.images?.bikePhoto || null,
-                driverVehicle: driver.vehicle, status: 'accepted', acceptedAt: Date.now()
+                driverVehicle: driver.vehicle,
+                status: 'accepted',
+                acceptedAt: Date.now()
             };
-            await db.ref('rides/'+currentRideRequest.id).update(update);
-            currentRide = {id:currentRideRequest.id, ...currentRideRequest, ...update};
+            await db.ref('rides/' + currentRideRequest.id).update(update);
+            currentRide = { id: currentRideRequest.id, ...currentRideRequest, ...update };
             document.getElementById('rideRequestPopup').classList.remove('active');
             document.body.classList.add('ride-active');
             document.getElementById('activeRidePanel').classList.add('active');
             document.getElementById('activeCustomerName').innerText = currentRide.passengerName;
             document.getElementById('activePickup').innerText = currentRide.pickupLocation;
             document.getElementById('activeDest').innerText = currentRide.destination;
-            document.getElementById('activePrice').innerText = `K${(currentRide.fare||0).toFixed(2)}`;
+            document.getElementById('activePrice').innerText = `K${(currentRide.fare || 0).toFixed(2)}`;
             setupHoldButton();
             document.getElementById('sosButton').style.display = 'flex';
-            currentRideRequest=null;
+            currentRideRequest = null;
             toast('Ride accepted');
         }
-        function rejectRide(){ document.getElementById('rideRequestPopup').classList.remove('active'); currentRideRequest=null; toast('Ride rejected'); }
+        function rejectRide() {
+            document.getElementById('rideRequestPopup').classList.remove('active');
+            currentRideRequest = null;
+            toast('Ride rejected');
+        }
 
-        // ================= REGISTRATION IMPROVEMENTS =================
-        function updateVehicleFields(type){
-            let html='';
-            if(type==='car') html='<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Model"><input class="form-input" placeholder="Year"><input class="form-input" placeholder="Color"><input class="form-input" placeholder="License Plate"><input class="form-input" placeholder="License Number">';
-            else if(type==='bike') html='<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Model"><input class="form-input" placeholder="Year"><input class="form-input" placeholder="License Number">';
-            else if(type==='bicycle') html='<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Color">';
-            else if(type==='truck') html='<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Model"><input class="form-input" placeholder="Year"><input class="form-input" placeholder="Color"><input class="form-input" placeholder="License Plate"><input class="form-input" placeholder="License Number">';
+        function setupHoldButton() {
+            const btn = document.getElementById('holdButtonContainer');
+            const fill = document.getElementById('holdButtonFill');
+            const contentSpan = document.getElementById('holdButtonContent');
+            let interval = null;
+            const updateText = () => {
+                if (currentRide.status === 'accepted') contentSpan.innerHTML = '<i class="fas fa-play-circle"></i> <span>Hold to Start</span>';
+                else if (currentRide.status === 'started') contentSpan.innerHTML = '<i class="fas fa-map-marker-alt"></i> <span>Hold to Arrive</span>';
+                else if (currentRide.status === 'arrived') contentSpan.innerHTML = '<i class="fas fa-user-check"></i> <span>Hold to Pickup</span>';
+                else if (currentRide.status === 'picked_up') contentSpan.innerHTML = '<i class="fas fa-flag-checkered"></i> <span>Hold to Complete</span>';
+            };
+            const startHold = () => {
+                if (interval) return;
+                let progress = 0;
+                interval = setInterval(() => {
+                    progress += 3.33;
+                    fill.style.width = progress + '%';
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        interval = null;
+                        completeAction();
+                    }
+                }, 100);
+            };
+            const cancelHold = () => {
+                if (interval) { clearInterval(interval); interval = null; fill.style.width = '0%'; }
+            };
+            const completeAction = async () => {
+                let nextStatus = '';
+                if (currentRide.status === 'accepted') nextStatus = 'started';
+                else if (currentRide.status === 'started') nextStatus = 'arrived';
+                else if (currentRide.status === 'arrived') nextStatus = 'picked_up';
+                else if (currentRide.status === 'picked_up') nextStatus = 'completed';
+                if (nextStatus === 'completed') {
+                    const fare = currentRide.fare || 0;
+                    const commission = fare * commissionRate;
+                    const driverEarnings = fare - commission;
+                    walletBalance += driverEarnings;
+                    floatBalance -= commission;
+                    await db.ref('users/' + currentUser.uid).update({ walletBalance, floatBalance });
+                    await db.ref('earnings/' + currentUser.uid).push({
+                        amount: driverEarnings,
+                        commission,
+                        totalFare: fare,
+                        timestamp: Date.now(),
+                        rideId: currentRide.id,
+                        distance: currentRide.distance,
+                        passengerName: currentRide.passengerName
+                    });
+                    await db.ref('rides/' + currentRide.id).update({ status: 'completed', completedAt: Date.now() });
+                    await db.ref('floatHistory/' + currentUser.uid).push({
+                        amount: -commission,
+                        description: `Commission for ride ${currentRide.id}`,
+                        balance: floatBalance,
+                        timestamp: Date.now()
+                    });
+                    toast(`Ride complete +K${driverEarnings.toFixed(2)}`);
+                    currentRide = null;
+                    document.body.classList.remove('ride-active');
+                    document.getElementById('activeRidePanel').classList.remove('active');
+                    document.getElementById('sosButton').style.display = 'none';
+                } else {
+                    await db.ref('rides/' + currentRide.id).update({ status: nextStatus });
+                    currentRide.status = nextStatus;
+                    updateText();
+                }
+                fill.style.width = '0%';
+            };
+            btn.addEventListener('mousedown', startHold);
+            btn.addEventListener('touchstart', startHold);
+            btn.addEventListener('mouseup', cancelHold);
+            btn.addEventListener('touchend', cancelHold);
+            btn.addEventListener('mouseleave', cancelHold);
+            updateText();
+        }
+
+        // ==================== REGISTRATION ====================
+        function updateVehicleFields(type) {
+            let html = '';
+            if (type === 'car') html = '<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Model"><input class="form-input" placeholder="Year"><input class="form-input" placeholder="Color"><input class="form-input" placeholder="License Plate"><input class="form-input" placeholder="License Number">';
+            else if (type === 'bike') html = '<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Model"><input class="form-input" placeholder="Year"><input class="form-input" placeholder="License Number">';
+            else if (type === 'bicycle') html = '<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Color">';
+            else if (type === 'truck') html = '<input class="form-input" placeholder="Make"><input class="form-input" placeholder="Model"><input class="form-input" placeholder="Year"><input class="form-input" placeholder="Color"><input class="form-input" placeholder="License Plate"><input class="form-input" placeholder="License Number">';
             document.getElementById('dynamicVehicleFields').innerHTML = html;
         }
-        function generateImageGrid(){
-            const grid=document.getElementById('imageUploadGrid');
-            grid.innerHTML='';
-            const required = ['profilePhoto','nrcFront','nrcBack','driversLicense'];
-            if(selectedVehicleType==='car') required.push('vehicleFront','vehicleBack','frontSeats','backSeats');
-            else if(selectedVehicleType==='bike') required.push('bikePhoto');
-            else if(selectedVehicleType==='truck') required.push('truckFront','truckBack');
-            required.forEach(imgId=>{
-                const box=document.createElement('div');
-                box.className='image-upload-box';
-                box.setAttribute('data-img',imgId);
-                box.innerHTML=`<i class="fas fa-cloud-upload-alt"></i><span>${imgId}</span>`;
-                box.onclick=()=>document.getElementById(`${imgId}Input`).click();
-                const input=document.createElement('input');
-                input.type='file';
-                input.accept='image/*';
-                input.style.display='none';
-                input.id=`${imgId}Input`;
-                input.onchange=(e)=>handleUpload(imgId,e.target.files[0],box);
+        function generateImageGrid() {
+            const grid = document.getElementById('imageUploadGrid');
+            grid.innerHTML = '';
+            const required = ['profilePhoto', 'nrcFront', 'nrcBack', 'driversLicense'];
+            if (selectedVehicleType === 'car') required.push('vehicleFront', 'vehicleBack', 'frontSeats', 'backSeats');
+            else if (selectedVehicleType === 'bike') required.push('bikePhoto');
+            else if (selectedVehicleType === 'truck') required.push('truckFront', 'truckBack');
+            required.forEach(imgId => {
+                const box = document.createElement('div');
+                box.className = 'image-upload-box';
+                box.setAttribute('data-img', imgId);
+                box.innerHTML = `<i class="fas fa-cloud-upload-alt"></i><span>${imgId}</span>`;
+                box.onclick = () => document.getElementById(`${imgId}Input`).click();
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.style.display = 'none';
+                input.id = `${imgId}Input`;
+                input.onchange = (e) => handleUpload(imgId, e.target.files[0], box);
                 grid.appendChild(box);
                 grid.appendChild(input);
             });
         }
-        function handleUpload(id,file,box){
-            if(!file) return;
-            const reader=new FileReader();
-            reader.onload=e=>{
-                box.innerHTML=`<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
-                uploadedImages[id]=file;
+        function handleUpload(id, file, box) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                box.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;">`;
+                uploadedImages[id] = file;
             };
             reader.readAsDataURL(file);
         }
-        async function uploadAllImages(){
-            let urls={};
-            for(let [k,file] of Object.entries(uploadedImages)){
-                let fd=new FormData();
-                fd.append('file',file);
-                fd.append('upload_preset',cloudinaryUploadPreset);
-                let res=await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/upload`,{method:'POST',body:fd});
-                let data=await res.json();
-                if(data.secure_url) urls[k]=data.secure_url;
+        async function uploadAllImages() {
+            const urls = {};
+            for (let [key, file] of Object.entries(uploadedImages)) {
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('upload_preset', cloudinaryUploadPreset);
+                const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudinaryCloudName}/upload`, { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.secure_url) urls[key] = data.secure_url;
             }
             return urls;
         }
 
-        // ================= AUTH & INIT =================
-        auth.onAuthStateChanged(async(user)=>{
-            if(user){
-                currentUser=user;
-                const snap=await db.ref('users/'+user.uid).once('value');
-                const data=snap.val();
-                if(data?.registrationStatus==='approved'){
-                    floatBalance=data.floatBalance||0; walletBalance=data.walletBalance||0;
+        // ==================== AUTH & MAIN FLOW ====================
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                currentUser = user;
+                const snap = await db.ref('users/' + user.uid).once('value');
+                const data = snap.val();
+                if (data?.registrationStatus === 'approved') {
+                    floatBalance = data.floatBalance || 0;
+                    walletBalance = data.walletBalance || 0;
                     document.getElementById('topFloatBalance').innerHTML = `<i class="fas fa-wallet"></i> K${floatBalance.toFixed(2)}`;
-                    document.getElementById('topDriverName').innerText = (data.name||'Driver').split(' ')[0];
-                    if(data.images?.profilePhoto) document.getElementById('topAvatar').innerHTML = `<img src="${data.images.profilePhoto}" style="width:100%;height:100%;object-fit:cover;">`;
-                    initMap(); startTracking();
-                    document.getElementById('onlineToggleCheckbox').addEventListener('change',()=>{ isOnline=!isOnline; db.ref('users/'+currentUser.uid).update({isOnline}); if(isOnline) startTracking(); else stopTracking(); toast(isOnline?'Online':'Offline'); });
-                    document.getElementById('acceptRideBtn').addEventListener('click',acceptRide);
-                    document.getElementById('rejectRideBtn').addEventListener('click',rejectRide);
-                    document.getElementById('activeCallBtn').onclick=()=>{ if(currentRide?.passengerPhone) window.location.href=`tel:${currentRide.passengerPhone}`; };
-                    document.getElementById('activeChatBtn').onclick=()=>toast('Chat feature (demo)');
-                    document.getElementById('accountFabBtn').onclick=()=>{ document.getElementById('accountModal').classList.add('active'); showAccountHome(); };
-                    document.getElementById('closeAccountModal').onclick=()=>document.getElementById('accountModal').classList.remove('active');
-                    document.getElementById('sosButton').onclick=()=>toast('SOS triggered (demo)');
-                    // ride listener
-                    db.ref('rides').orderByChild('status').equalTo('requested').on('value',sn=>{
-                        if(!isOnline || currentRide) return;
-                        const rides=sn.val();
-                        if(rides) for(let id in rides){ let r=rides[id]; if(r.serviceType===selectedVehicleType || (selectedVehicleType==='bike' && r.rideType==='bike') || (selectedVehicleType==='bicycle' && r.rideType==='bicycle')){ showRideRequest(id,r); break; } }
+                    document.getElementById('topDriverName').innerText = (data.name || 'Driver').split(' ')[0];
+                    if (data.images?.profilePhoto) document.getElementById('topAvatar').innerHTML = `<img src="${data.images.profilePhoto}" style="width:100%;height:100%;object-fit:cover;">`;
+                    initMap();
+                    startTracking();
+                    document.getElementById('onlineToggleCheckbox').addEventListener('change', () => {
+                        isOnline = !isOnline;
+                        db.ref('users/' + currentUser.uid).update({ isOnline });
+                        if (isOnline) startTracking(); else stopTracking();
+                        toast(isOnline ? 'Online' : 'Offline');
+                    });
+                    document.getElementById('acceptRideBtn').addEventListener('click', acceptRide);
+                    document.getElementById('rejectRideBtn').addEventListener('click', rejectRide);
+                    document.getElementById('activeCallBtn').onclick = () => { if (currentRide?.passengerPhone) window.location.href = `tel:${currentRide.passengerPhone}`; };
+                    document.getElementById('accountFabBtn').onclick = () => { document.getElementById('accountModal').classList.add('active'); showAccountHome(); };
+                    document.getElementById('closeAccountModal').onclick = () => document.getElementById('accountModal').classList.remove('active');
+                    document.getElementById('sosButton').onclick = () => toast('SOS triggered (demo)');
+                    // Ride listener
+                    db.ref('rides').orderByChild('status').equalTo('requested').on('value', snap => {
+                        if (!isOnline || currentRide) return;
+                        const rides = snap.val();
+                        if (rides) {
+                            for (let id in rides) {
+                                const r = rides[id];
+                                if (r.serviceType === selectedVehicleType || (selectedVehicleType === 'bike' && r.rideType === 'bike') || (selectedVehicleType === 'bicycle' && r.rideType === 'bicycle')) {
+                                    showRideRequest(id, r);
+                                    break;
+                                }
+                            }
+                        }
                     });
                     document.getElementById('welcomeScreen').classList.add('hidden');
                     document.getElementById('loginScreen').classList.remove('active');
                     document.getElementById('signupScreen').classList.remove('active');
-                }else{
-                    toast('Your account is pending approval. Please wait for admin.');
+                } else {
+                    toast('Pending approval');
                     auth.signOut();
                 }
-            }else{
+            } else {
                 document.getElementById('welcomeScreen').classList.remove('hidden');
             }
         });
-        function showRideRequest(id,ride){
-            currentRideRequest={id,...ride};
-            document.getElementById('rideRequestDetails').innerHTML = `<div><strong>${ride.passengerName}</strong> <span>${ride.passengerPhone}</span></div><div><i class="fas fa-map-marker-alt"></i> Pickup: ${ride.pickupLocation}</div><div><i class="fas fa-flag-checkered"></i> Dest: ${ride.destination}</div><div>💰 Fare: K${(ride.fare||0).toFixed(2)}</div><div>📝 ${ride.specialInstructions||''}</div><div class="action-buttons-pill"><button class="btn-pill" id="rejectRideBtn" style="background:#ff3b30;">Reject</button><button class="btn-pill" id="acceptRideBtn" style="background:#34c759;">Accept</button></div>`;
+
+        function showRideRequest(id, ride) {
+            currentRideRequest = { id, ...ride };
+            document.getElementById('rideRequestDetails').innerHTML = `
+                <div><strong>${ride.passengerName}</strong> <span>${ride.passengerPhone}</span></div>
+                <div><i class="fas fa-map-marker-alt"></i> Pickup: ${ride.pickupLocation}</div>
+                <div><i class="fas fa-flag-checkered"></i> Dest: ${ride.destination}</div>
+                <div>💰 Fare: K${(ride.fare || 0).toFixed(2)}</div>
+                <div>📝 ${ride.specialInstructions || ''}</div>
+                <div class="action-buttons-pill">
+                    <button class="btn-pill btn-reject" id="rejectRideBtn">Reject</button>
+                    <button class="btn-pill btn-accept" id="acceptRideBtn">Accept</button>
+                </div>
+            `;
             document.getElementById('rideRequestPopup').classList.add('active');
-            if(ride.pickupLat && ride.destLat){
-                rideRequestMapObj.eachLayer(l=>{ if(l instanceof L.Marker||l instanceof L.Polyline) rideRequestMapObj.removeLayer(l); });
-                L.marker([ride.pickupLat,ride.pickupLng]).addTo(rideRequestMapObj).bindPopup('Pickup');
-                L.marker([ride.destLat,ride.destLng]).addTo(rideRequestMapObj).bindPopup('Drop');
-                L.polyline([[ride.pickupLat,ride.pickupLng],[ride.destLat,ride.destLng]],{color:'#FF6B35'}).addTo(rideRequestMapObj);
-                rideRequestMapObj.fitBounds([[ride.pickupLat,ride.pickupLng],[ride.destLat,ride.destLng]]);
+            if (ride.pickupLat && ride.destLat) {
+                rideRequestMapObj.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.Polyline) rideRequestMapObj.removeLayer(l); });
+                L.marker([ride.pickupLat, ride.pickupLng]).addTo(rideRequestMapObj).bindPopup('Pickup');
+                L.marker([ride.destLat, ride.destLng]).addTo(rideRequestMapObj).bindPopup('Drop');
+                L.polyline([[ride.pickupLat, ride.pickupLng], [ride.destLat, ride.destLng]], { color: '#FF6B35' }).addTo(rideRequestMapObj);
+                rideRequestMapObj.fitBounds([[ride.pickupLat, ride.pickupLng], [ride.destLat, ride.destLng]]);
             }
         }
-        function setupHoldButton(){
-            const btn=document.getElementById('holdButtonContainer'), fill=document.getElementById('holdButtonFill'), content=document.getElementById('holdButtonContent');
-            let interval=null;
-            const action=()=>{
-                if(currentRide.status==='accepted'){ currentRide.status='started'; content.innerHTML='<i class="fas fa-map-marker-alt"></i> <span>Hold to Arrive</span>'; }
-                else if(currentRide.status==='started'){ currentRide.status='arrived'; content.innerHTML='<i class="fas fa-user-check"></i> <span>Hold to Pickup</span>'; }
-                else if(currentRide.status==='arrived'){ currentRide.status='picked_up'; content.innerHTML='<i class="fas fa-flag-checkered"></i> <span>Hold to Complete</span>'; }
-                else if(currentRide.status==='picked_up'){ completeRide(); return; }
-                db.ref('rides/'+currentRide.id).update({status:currentRide.status});
-                fill.style.width='0%';
-            };
-            const start=()=>{ if(interval) return; let p=0; interval=setInterval(()=>{ p+=3.33; fill.style.width=p+'%'; if(p>=100){ clearInterval(interval); interval=null; action(); } },100); };
-            const cancel=()=>{ if(interval){ clearInterval(interval); interval=null; fill.style.width='0%'; } };
-            btn.addEventListener('mousedown',start); btn.addEventListener('touchstart',start);
-            btn.addEventListener('mouseup',cancel); btn.addEventListener('touchend',cancel);
-            btn.addEventListener('mouseleave',cancel);
-        }
-        async function completeRide(){
-            const fare=currentRide.fare||0; const commission=fare*commissionRate; const net=fare-commission;
-            floatBalance-=commission; walletBalance+=net;
-            await db.ref('users/'+currentUser.uid).update({floatBalance,walletBalance});
-            await db.ref('earnings/'+currentUser.uid).push({amount:net,commission,totalFare:fare,rideId:currentRide.id,passengerName:currentRide.passengerName,distance:currentRide.distance,timestamp:Date.now()});
-            await db.ref('floatHistory/'+currentUser.uid).push({amount:-commission,description:`Commission ride ${currentRide.id}`,balance:floatBalance,timestamp:Date.now()});
-            await db.ref('rides/'+currentRide.id).update({status:'completed'});
-            toast(`Ride complete +K${net.toFixed(2)}`); currentRide=null; document.body.classList.remove('ride-active'); document.getElementById('activeRidePanel').classList.remove('active'); document.getElementById('sosButton').style.display='none';
-        }
+
         // Registration UI
-        document.getElementById('loginBtn').onclick = ()=>{ document.getElementById('welcomeScreen').classList.add('hidden'); document.getElementById('loginScreen').classList.add('active'); };
-        document.getElementById('signupBtn').onclick = ()=>{ document.getElementById('welcomeScreen').classList.add('hidden'); document.getElementById('signupScreen').classList.add('active'); generateImageGrid(); updateVehicleFields('car'); };
-        document.getElementById('backFromLogin').onclick = ()=>{ document.getElementById('loginScreen').classList.remove('active'); document.getElementById('welcomeScreen').classList.remove('hidden'); };
-        document.getElementById('backFromSignup').onclick = ()=>{ document.getElementById('signupScreen').classList.remove('active'); document.getElementById('welcomeScreen').classList.remove('hidden'); };
-        document.querySelectorAll('.vehicle-pill').forEach(p=>p.addEventListener('click',function(){ document.querySelectorAll('.vehicle-pill').forEach(p=>p.classList.remove('selected')); this.classList.add('selected'); selectedVehicleType=this.dataset.type; updateVehicleFields(selectedVehicleType); generateImageGrid(); }));
-        document.getElementById('nextStepBtn').onclick = ()=>{ document.getElementById('step1Container').classList.remove('active-step'); document.getElementById('step2Container').classList.add('active-step'); };
-        document.getElementById('prevStepBtn').onclick = ()=>{ document.getElementById('step2Container').classList.remove('active-step'); document.getElementById('step1Container').classList.add('active-step'); };
-        document.getElementById('submitSignupBtn').onclick = async()=>{
-            const email=document.getElementById('signupEmail').value, pass=document.getElementById('signupPassword').value;
-            const cred=await auth.createUserWithEmailAndPassword(email,pass);
-            const imageUrls=await uploadAllImages();
-            await db.ref('users/'+cred.user.uid).set({name:document.getElementById('signupName').value,email,phone:document.getElementById('signupPhone').value,nrc:document.getElementById('signupNRC').value,vehicle:{type:selectedVehicleType},images:imageUrls,userType:'driver',registrationStatus:'pending',createdAt:Date.now(),floatBalance:0,walletBalance:0});
+        document.getElementById('loginBtn').onclick = () => { document.getElementById('welcomeScreen').classList.add('hidden'); document.getElementById('loginScreen').classList.add('active'); };
+        document.getElementById('signupBtn').onclick = () => { document.getElementById('welcomeScreen').classList.add('hidden'); document.getElementById('signupScreen').classList.add('active'); generateImageGrid(); updateVehicleFields('car'); };
+        document.getElementById('backFromLogin').onclick = () => { document.getElementById('loginScreen').classList.remove('active'); document.getElementById('welcomeScreen').classList.remove('hidden'); };
+        document.getElementById('backFromSignup').onclick = () => { document.getElementById('signupScreen').classList.remove('active'); document.getElementById('welcomeScreen').classList.remove('hidden'); };
+        document.querySelectorAll('.vehicle-pill').forEach(p => p.addEventListener('click', function () {
+            document.querySelectorAll('.vehicle-pill').forEach(p => p.classList.remove('selected'));
+            this.classList.add('selected');
+            selectedVehicleType = this.dataset.type;
+            updateVehicleFields(selectedVehicleType);
+            generateImageGrid();
+        }));
+        document.getElementById('nextStepBtn').onclick = () => { document.getElementById('step1Container').classList.remove('active-step'); document.getElementById('step2Container').classList.add('active-step'); };
+        document.getElementById('prevStepBtn').onclick = () => { document.getElementById('step2Container').classList.remove('active-step'); document.getElementById('step1Container').classList.add('active-step'); };
+        document.getElementById('submitSignupBtn').onclick = async () => {
+            const email = document.getElementById('signupEmail').value;
+            const pass = document.getElementById('signupPassword').value;
+            const cred = await auth.createUserWithEmailAndPassword(email, pass);
+            const imageUrls = await uploadAllImages();
+            await db.ref('users/' + cred.user.uid).set({
+                name: document.getElementById('signupName').value,
+                email,
+                phone: document.getElementById('signupPhone').value,
+                nrc: document.getElementById('signupNRC').value,
+                vehicle: { type: selectedVehicleType },
+                images: imageUrls,
+                userType: 'driver',
+                registrationStatus: 'pending',
+                createdAt: Date.now(),
+                floatBalance: 0,
+                walletBalance: 0
+            });
             toast('Registration submitted. Wait for approval.');
-            setTimeout(()=>auth.signOut(),2000);
+            setTimeout(() => auth.signOut(), 2000);
         };
-        document.getElementById('loginForm').addEventListener('submit',async(e)=>{ e.preventDefault(); await auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value,document.getElementById('loginPassword').value); });
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await auth.signInWithEmailAndPassword(document.getElementById('loginEmail').value, document.getElementById('loginPassword').value);
+        });
     </script>
 </body>
 </html>
