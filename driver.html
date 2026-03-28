@@ -393,6 +393,7 @@
             border-radius: 20px;
             padding: 16px;
             margin-bottom: 12px;
+            cursor: pointer;
         }
         .history-header {
             display: flex;
@@ -569,7 +570,7 @@
             70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(231,76,60,0); }
             100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231,76,60,0); }
         }
-        /* ----- AUTH SCREENS (same as before, kept minimal) ----- */
+        /* ----- AUTH SCREENS (with logo) ----- */
         .auth-overlay {
             position: fixed;
             top: 0;
@@ -590,18 +591,19 @@
         .jubel-logo {
             width: 120px;
             height: 120px;
-            background: linear-gradient(135deg, #FF6B35, #FF8C5A);
+            background: #fff;
             border-radius: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 32px;
             box-shadow: 0 15px 30px rgba(255,107,53,0.25);
+            overflow: hidden;
         }
-        .jubel-logo-text {
-            font-size: 3rem;
-            font-weight: 800;
-            color: white;
+        .jubel-logo img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
         .auth-form {
             width: 100%;
@@ -678,12 +680,35 @@
             overflow: hidden;
             font-size: 0.7rem;
         }
+        /* ----- LOADING OVERLAY ----- */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,255,255,0.9);
+            z-index: 3000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #FF6B35;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <!-- Auth Screens -->
+    <!-- Auth Screens with Jubel Logo -->
     <div id="welcomeScreen" class="auth-overlay">
-        <div class="jubel-logo"><div class="jubel-logo-text">J</div></div>
+        <div class="jubel-logo"><img src="jubel.png" alt="Jubel"></div>
         <h2>Jubel Driver</h2>
         <div style="display: flex; gap: 16px; margin-top: 32px;">
             <button id="loginBtn" class="btn-step" style="background:#FF6B35;">Log In</button>
@@ -797,9 +822,29 @@
 
         <!-- SOS Button -->
         <div id="sosButton" class="sos-button">SOS</div>
+
+        <!-- Screens for History and Earnings (will be shown in account modal) -->
+        <div id="historyScreen" class="overlay-modal" style="display: none;">
+            <div class="modal-header">
+                <div class="modal-back" id="closeHistoryScreen"><i class="fas fa-arrow-left"></i></div>
+                <div class="modal-title">Ride History</div>
+            </div>
+            <div class="modal-content" id="historyList"></div>
+        </div>
+        <div id="earningsScreen" class="overlay-modal" style="display: none;">
+            <div class="modal-header">
+                <div class="modal-back" id="closeEarningsScreen"><i class="fas fa-arrow-left"></i></div>
+                <div class="modal-title">Earnings</div>
+            </div>
+            <div class="modal-content" id="earningsContent"></div>
+        </div>
     </div>
 
     <div id="globalToast" class="toast-msg"></div>
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div id="loadingText" style="margin-top:12px;">Loading...</div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
@@ -847,6 +892,8 @@
             t.style.display = 'block';
             setTimeout(() => t.style.display = 'none', 3000);
         }
+        function showLoading(text) { document.getElementById('loadingText').innerText = text; document.getElementById('loadingOverlay').style.display = 'flex'; }
+        function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
 
         // ========== MAP & LOCATION ==========
         function initMap() {
@@ -863,14 +910,12 @@
                 });
             }
         }
-
         function updateDriverLocation(lat, lng) {
             if (currentUser && isOnline) {
                 db.ref(`driverLocations/${currentUser.uid}`).set({ lat, lng, timestamp: Date.now() });
             }
             if (driverMarker) driverMarker.setLatLng([lat, lng]);
         }
-
         function startLocationTracking() {
             if (navigator.geolocation) {
                 locationWatchId = navigator.geolocation.watchPosition(pos => updateDriverLocation(pos.coords.latitude, pos.coords.longitude));
@@ -1155,6 +1200,10 @@
                     <button id="addFloatBtn" class="btn-float" style="background:white; border:2px solid #FF6B35;">Add Float</button>
                     <button id="withdrawFloatBtn" class="btn-float" style="background:white; border:2px solid #FF6B35;">Withdraw Float</button>
                 </div>
+                <div style="display: flex; gap: 12px; margin: 16px 0;">
+                    <button id="showHistoryBtn" class="btn-step" style="background:#3498db;">Ride History</button>
+                    <button id="showEarningsBtn" class="btn-step" style="background:#2ecc71;">Earnings</button>
+                </div>
                 <button id="logoutBtn" class="btn-step" style="background:#ff3b30;">Logout</button>
             `;
             // Vehicle images
@@ -1185,51 +1234,33 @@
                     loadAccountHome();
                 } else toast('Invalid amount');
             };
+            document.getElementById('showHistoryBtn').onclick = () => loadHistoryScreen();
+            document.getElementById('showEarningsBtn').onclick = () => loadEarningsScreen();
             document.getElementById('logoutBtn').onclick = () => auth.signOut();
         }
-        document.getElementById('accountFabBtn').onclick = () => {
-            document.getElementById('accountModal').classList.add('active');
-            loadAccountHome();
-        };
-        document.getElementById('closeAccountModal').onclick = () => document.getElementById('accountModal').classList.remove('active');
-        document.getElementById('confirmFloatBtn').onclick = async () => {
-            const amt = parseFloat(document.getElementById('floatAmount').value);
-            if (amt > 0) {
-                floatBalance += amt;
-                await db.ref(`users/${currentUser.uid}`).update({ floatBalance });
-                await db.ref(`floatHistory/${currentUser.uid}`).push({
-                    amount: amt,
-                    description: 'Float deposit',
-                    balance: floatBalance,
-                    timestamp: Date.now()
-                });
-                document.getElementById('topFloatBalance').innerHTML = `<i class="fas fa-wallet"></i> K${floatBalance.toFixed(2)}`;
-                toast('Float added');
-                document.getElementById('floatPopup').classList.remove('active');
-                loadAccountHome();
-            }
-        };
-        document.getElementById('cancelFloatBtn').onclick = () => document.getElementById('floatPopup').classList.remove('active');
 
         // ========== HISTORY SCREEN ==========
         async function loadHistoryScreen() {
+            document.getElementById('modalDynamicTitle').innerText = 'Ride History';
             const snap = await db.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value');
             const rides = snap.val();
-            const container = document.getElementById('historyList');
+            const container = document.getElementById('accountModalContent');
             if (!rides) { container.innerHTML = '<div>No rides yet</div>'; return; }
-            let html = '';
+            let html = '<div id="historyList"></div>';
+            container.innerHTML = html;
+            const historyDiv = document.getElementById('historyList');
             Object.values(rides).sort((a,b)=>b.timestamp - a.timestamp).forEach(ride => {
-                html += `<div class="history-card" data-ride-id="${ride.id}">
+                const div = document.createElement('div');
+                div.className = 'history-card';
+                div.dataset.rideId = ride.id;
+                div.innerHTML = `
                     <div class="history-header"><span><strong>${ride.passengerName}</strong></span><span class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">${ride.status}</span></div>
                     <div>${ride.pickup} → ${ride.destination}</div>
                     <div>K${(ride.fare || 0).toFixed(2)} | ${new Date(ride.timestamp).toLocaleString()}</div>
                     <div class="commission-row"><span>Commission (8%):</span><span>-K${((ride.fare || 0)*0.08).toFixed(2)}</span></div>
-                </div>`;
-            });
-            container.innerHTML = html;
-            document.querySelectorAll('.history-card').forEach(card => {
-                card.addEventListener('click', async () => {
-                    const rideId = card.dataset.rideId;
+                `;
+                div.addEventListener('click', async () => {
+                    const rideId = div.dataset.rideId;
                     currentChatRideId = rideId;
                     document.getElementById('chatPopup').classList.add('active');
                     await loadChatMessages();
@@ -1238,58 +1269,43 @@
                         appendChatMessage(snapshot.val());
                     });
                 });
+                historyDiv.appendChild(div);
             });
         }
 
         // ========== EARNINGS SCREEN ==========
         async function loadEarningsScreen() {
+            document.getElementById('modalDynamicTitle').innerText = 'Earnings';
             const snap = await db.ref(`earnings/${currentUser.uid}`).once('value');
             const earnings = snap.val();
             let total = 0, rides = 0;
             if (earnings) {
                 Object.values(earnings).forEach(e => { total += e.amount; rides++; });
             }
-            const content = document.getElementById('earningsContent');
-            content.innerHTML = `
-                <div class="wallet-balance-card"><div class="balance-label">Total Earnings</div><div class="balance-amount-large">K${total.toFixed(2)}</div></div>
-                <div>${rides} completed rides</div>
+            const container = document.getElementById('accountModalContent');
+            container.innerHTML = `
+                <div class="wallet-balance-card" style="background:#f8f8fc; padding:16px; border-radius:20px; text-align:center; margin-bottom:20px;">
+                    <div class="balance-label">Total Earnings</div>
+                    <div class="balance-amount-large" style="font-size:2rem; font-weight:800; color:#FF6B35;">K${total.toFixed(2)}</div>
+                    <div>${rides} completed rides</div>
+                </div>
                 <h3>Recent Earnings</h3>
                 <div id="earningsList"></div>
             `;
             const listDiv = document.getElementById('earningsList');
             if (earnings) {
-                let listHtml = '';
                 Object.values(earnings).sort((a,b)=>b.timestamp - a.timestamp).forEach(e => {
-                    listHtml += `<div class="history-card">
-                        <div>${e.passengerName || 'Rider'}</div>
-                        <div>K${e.amount.toFixed(2)} (net)</div>
+                    const div = document.createElement('div');
+                    div.className = 'history-card';
+                    div.innerHTML = `
+                        <div class="history-header"><span>${e.passengerName || 'Rider'}</span><span>K${e.amount.toFixed(2)}</span></div>
                         <div>${new Date(e.timestamp).toLocaleString()}</div>
-                    </div>`;
+                        <div class="commission-row"><span>Total Fare:</span><span>K${e.totalFare?.toFixed(2) || '0.00'}</span></div>
+                    `;
+                    listDiv.appendChild(div);
                 });
-                listDiv.innerHTML = listHtml;
             } else listDiv.innerHTML = '<div>No earnings yet</div>';
         }
-
-        // ========== SCREEN NAVIGATION ==========
-        document.querySelectorAll('.nav-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const screen = btn.dataset.screen;
-                document.querySelectorAll('.screen-content').forEach(s => s.classList.remove('active'));
-                document.getElementById(`${screen}Screen`).classList.add('active');
-                if (screen === 'account') loadAccountHome();
-                if (screen === 'history') loadHistoryScreen();
-                if (screen === 'earnings') loadEarningsScreen();
-            });
-        });
-        document.querySelectorAll('.back-button').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.screen-content').forEach(s => s.classList.remove('active'));
-                // home screen is the main map
-            });
-        });
-        document.getElementById('panelCollapseHandle').addEventListener('click', () => {
-            document.getElementById('driverPanel').classList.toggle('collapsed');
-        });
 
         // ========== AUTH FLOW ==========
         auth.onAuthStateChanged(async (user) => {
@@ -1478,8 +1494,6 @@
             if (type === 'truck') return ['profilePhoto', 'nrcFront', 'nrcBack', 'driversLicense', 'truckFront', 'truckBack'];
             return [];
         }
-        function showLoading(text) { document.getElementById('loadingText').innerText = text; document.getElementById('loadingOverlay').style.display = 'flex'; }
-        function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
 
         // ========== SCREEN SWITCHING ==========
         document.getElementById('loginBtn').onclick = () => { document.getElementById('welcomeScreen').classList.add('hidden'); document.getElementById('loginScreen').classList.remove('hidden'); };
@@ -1499,13 +1513,29 @@
             if (currentRide && currentRide.passengerPhone) window.location.href = `tel:${currentRide.passengerPhone}`;
             else toast('No active ride or phone number');
         });
-        // Add loading overlay to body
-        const loadingDiv = document.createElement('div');
-        loadingDiv.id = 'loadingOverlay';
-        loadingDiv.className = 'loading-overlay';
-        loadingDiv.innerHTML = '<div class="loading-spinner"></div><div id="loadingText" style="margin-top:12px;">Loading...</div>';
-        loadingDiv.style.display = 'none';
-        document.body.appendChild(loadingDiv);
+        document.getElementById('accountFabBtn').onclick = () => {
+            document.getElementById('accountModal').classList.add('active');
+            loadAccountHome();
+        };
+        document.getElementById('closeAccountModal').onclick = () => document.getElementById('accountModal').classList.remove('active');
+        document.getElementById('confirmFloatBtn').onclick = async () => {
+            const amt = parseFloat(document.getElementById('floatAmount').value);
+            if (amt > 0) {
+                floatBalance += amt;
+                await db.ref(`users/${currentUser.uid}`).update({ floatBalance });
+                await db.ref(`floatHistory/${currentUser.uid}`).push({
+                    amount: amt,
+                    description: 'Float deposit',
+                    balance: floatBalance,
+                    timestamp: Date.now()
+                });
+                document.getElementById('topFloatBalance').innerHTML = `<i class="fas fa-wallet"></i> K${floatBalance.toFixed(2)}`;
+                toast('Float added');
+                document.getElementById('floatPopup').classList.remove('active');
+                loadAccountHome();
+            }
+        };
+        document.getElementById('cancelFloatBtn').onclick = () => document.getElementById('floatPopup').classList.remove('active');
     </script>
 </body>
 </html>
