@@ -22,7 +22,7 @@
             width: 100vw;
             color: #1c1c1e;
         }
-        /* ----- MAP ----- */
+        /* ----- MAP (FULL SCREEN ALWAYS) ----- */
         #map {
             position: absolute;
             top: 0;
@@ -30,10 +30,6 @@
             width: 100%;
             height: 100%;
             z-index: 1;
-            transition: height 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1);
-        }
-        .ride-active #map {
-            height: 50%;
         }
         /* ----- FLOATING TOP BAR ----- */
         .top-bar {
@@ -199,7 +195,7 @@
             background: #ff3b30;
             color: white;
         }
-        /* ----- ACTIVE RIDE PANEL ----- */
+        /* ----- ACTIVE RIDE PANEL (now collapsible but not cutting map) ----- */
         .active-ride-panel {
             position: fixed;
             bottom: 0;
@@ -212,6 +208,8 @@
             display: none;
             flex-direction: column;
             box-shadow: 0 -6px 20px rgba(0,0,0,0.08);
+            max-height: 50vh;
+            overflow-y: auto;
         }
         .active-ride-panel.active {
             display: flex;
@@ -364,9 +362,10 @@
         .info-value {
             font-weight: 600;
         }
-        .image-grid-3x3 {
+        /* 2x2 grid for images */
+        .image-grid-2x2 {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: 12px;
             margin-top: 12px;
         }
@@ -388,7 +387,7 @@
             object-fit: cover;
         }
         /* ----- HISTORY & EARNINGS CARDS ----- */
-        .history-card, .earnings-card {
+        .history-card, .earnings-card, .float-history-card {
             background: #f8f8fc;
             border-radius: 20px;
             padding: 16px;
@@ -431,7 +430,11 @@
             padding-top: 6px;
             border-top: 1px solid #e2e2e6;
         }
-        /* ----- FLOAT POPUP ----- */
+        .amount-bold {
+            font-weight: 800;
+            color: #FF6B35;
+        }
+        /* ----- FLOAT POPUP (Add Float) ----- */
         .float-popup {
             position: fixed;
             bottom: 0;
@@ -770,7 +773,7 @@
             <div class="popup-details" id="rideRequestDetails"></div>
         </div>
 
-        <!-- Active Ride Panel -->
+        <!-- Active Ride Panel (full map, no cut) -->
         <div id="activeRidePanel" class="active-ride-panel">
             <div style="font-weight:800; font-size:1.3rem;" id="activeCustomerName">Customer</div>
             <div class="ride-info-row"><span>📍 Pickup:</span><span id="activePickup">-</span></div>
@@ -786,7 +789,7 @@
             </div>
         </div>
 
-        <!-- Account Modal -->
+        <!-- Account Modal (main) -->
         <div id="accountModal" class="overlay-modal">
             <div class="modal-header">
                 <div class="modal-back" id="closeAccountModal"><i class="fas fa-arrow-left"></i></div>
@@ -795,7 +798,7 @@
             <div class="modal-content" id="accountModalContent"></div>
         </div>
 
-        <!-- Float Popup -->
+        <!-- Float Popup (Add Float) -->
         <div id="floatPopup" class="float-popup">
             <h3>Add Float</h3>
             <input type="number" id="floatAmount" placeholder="Amount (K)" class="form-input">
@@ -822,22 +825,6 @@
 
         <!-- SOS Button -->
         <div id="sosButton" class="sos-button">SOS</div>
-
-        <!-- Screens for History and Earnings (will be shown in account modal) -->
-        <div id="historyScreen" class="overlay-modal" style="display: none;">
-            <div class="modal-header">
-                <div class="modal-back" id="closeHistoryScreen"><i class="fas fa-arrow-left"></i></div>
-                <div class="modal-title">Ride History</div>
-            </div>
-            <div class="modal-content" id="historyList"></div>
-        </div>
-        <div id="earningsScreen" class="overlay-modal" style="display: none;">
-            <div class="modal-header">
-                <div class="modal-back" id="closeEarningsScreen"><i class="fas fa-arrow-left"></i></div>
-                <div class="modal-title">Earnings</div>
-            </div>
-            <div class="modal-content" id="earningsContent"></div>
-        </div>
     </div>
 
     <div id="globalToast" class="toast-msg"></div>
@@ -1019,7 +1006,6 @@
             await db.ref(`rides/${currentRideRequest.id}`).update(rideUpdate);
             currentRide = { id: currentRideRequest.id, ...currentRideRequest, ...rideUpdate };
             document.getElementById('rideRequestPopup').classList.remove('active');
-            document.body.classList.add('ride-active');
             document.getElementById('activeRidePanel').classList.add('active');
             document.getElementById('activeCustomerName').innerText = currentRide.passengerName;
             document.getElementById('activePickup').innerText = currentRide.pickupDisplay || currentRide.pickup;
@@ -1081,9 +1067,17 @@
                         passengerName: currentRide.passengerName
                     });
                     await db.ref(`rides/${currentRide.id}`).update({ status: 'completed', completedAt: Date.now() });
+                    // Also record float deduction for this ride
+                    await db.ref(`floatHistory/${currentUser.uid}`).push({
+                        amount: -commission,
+                        description: `Commission for ride ${currentRide.id} (${currentRide.passengerName})`,
+                        rideId: currentRide.id,
+                        rideFare: fare,
+                        balance: floatBalance,
+                        timestamp: Date.now()
+                    });
                     toast(`Ride complete +K${driverEarnings.toFixed(2)}`);
                     currentRide = null;
-                    document.body.classList.remove('ride-active');
                     document.getElementById('activeRidePanel').classList.remove('active');
                     document.getElementById('sosButton').style.display = 'none';
                 } else {
@@ -1166,7 +1160,9 @@
                 driverId: currentUser.uid,
                 rideId: currentRide.id,
                 timestamp: Date.now(),
-                location: driverMarker ? driverMarker.getLatLng() : null
+                location: driverMarker ? driverMarker.getLatLng() : null,
+                passengerName: currentRide.passengerName,
+                passengerPhone: currentRide.passengerPhone
             });
         });
 
@@ -1189,33 +1185,45 @@
                     <div class="info-row"><span class="info-label">License Plate</span><span class="info-value">${user.vehicle?.licensePlate || ''}</span></div>
                 </div>
                 <div class="info-card"><h3><i class="fas fa-images"></i> Vehicle Images</h3>
-                    <div id="vehicleImagesGrid" class="image-grid-3x3"></div>
+                    <div id="vehicleImagesGrid" class="image-grid-2x2"></div>
+                </div>
+                <div class="info-card"><h3><i class="fas fa-file-alt"></i> Documents</h3>
+                    <div id="documentsGrid" class="image-grid-2x2"></div>
                 </div>
                 <div class="info-card"><h3><i class="fas fa-life-ring"></i> SOS Contacts</h3>
                     <input type="tel" id="sosContact1" placeholder="Emergency Contact 1" value="${sosConfig?.emergencyContact1 || ''}" class="form-input" style="margin-bottom:8px;">
                     <input type="tel" id="sosContact2" placeholder="Emergency Contact 2" value="${sosConfig?.emergencyContact2 || ''}" class="form-input" style="margin-bottom:8px;">
                     <button id="saveSOSBtn" class="btn-step" style="background:#FF6B35;">Save</button>
                 </div>
-                <div class="float-actions" style="display: flex; gap: 12px; margin: 16px 0;">
-                    <button id="addFloatBtn" class="btn-float" style="background:white; border:2px solid #FF6B35;">Add Float</button>
-                    <button id="withdrawFloatBtn" class="btn-float" style="background:white; border:2px solid #FF6B35;">Withdraw Float</button>
-                </div>
                 <div style="display: flex; gap: 12px; margin: 16px 0;">
                     <button id="showHistoryBtn" class="btn-step" style="background:#3498db;">Ride History</button>
                     <button id="showEarningsBtn" class="btn-step" style="background:#2ecc71;">Earnings</button>
+                    <button id="showFloatBtn" class="btn-step" style="background:#FF6B35;">Float</button>
                 </div>
                 <button id="logoutBtn" class="btn-step" style="background:#ff3b30;">Logout</button>
             `;
-            // Vehicle images
-            const grid = document.getElementById('vehicleImagesGrid');
+
+            // Vehicle images (2x2)
+            const vehicleGrid = document.getElementById('vehicleImagesGrid');
             const images = user.images || {};
             const vehicleImgKeys = ['vehicleFront', 'vehicleBack', 'bikePhoto', 'truckFront'];
-            let html = '';
+            let vhtml = '';
             vehicleImgKeys.forEach(key => {
-                if (images[key]) html += `<div class="image-grid-item"><img src="${images[key]}"></div>`;
-                else html += `<div class="image-grid-item">📷 ${key}</div>`;
+                if (images[key]) vhtml += `<div class="image-grid-item"><img src="${images[key]}"></div>`;
+                else vhtml += `<div class="image-grid-item">📷 ${key}</div>`;
             });
-            grid.innerHTML = html;
+            vehicleGrid.innerHTML = vhtml;
+
+            // Documents images (NRC front/back, driver's license)
+            const docGrid = document.getElementById('documentsGrid');
+            const docKeys = ['nrcFront', 'nrcBack', 'driversLicense'];
+            let dhtml = '';
+            docKeys.forEach(key => {
+                if (images[key]) dhtml += `<div class="image-grid-item"><img src="${images[key]}"></div>`;
+                else dhtml += `<div class="image-grid-item">📷 ${key}</div>`;
+            });
+            docGrid.innerHTML = dhtml;
+
             document.getElementById('saveSOSBtn').onclick = async () => {
                 const c1 = document.getElementById('sosContact1').value;
                 const c2 = document.getElementById('sosContact2').value;
@@ -1223,23 +1231,13 @@
                 sosConfig = { emergencyContact1: c1, emergencyContact2: c2 };
                 toast('SOS contacts saved');
             };
-            document.getElementById('addFloatBtn').onclick = () => document.getElementById('floatPopup').classList.add('active');
-            document.getElementById('withdrawFloatBtn').onclick = () => {
-                const amt = parseFloat(prompt('Enter amount to withdraw:'));
-                if (amt > 0 && amt <= floatBalance) {
-                    floatBalance -= amt;
-                    db.ref(`users/${currentUser.uid}`).update({ floatBalance });
-                    document.getElementById('topFloatBalance').innerHTML = `<i class="fas fa-wallet"></i> K${floatBalance.toFixed(2)}`;
-                    toast(`K${amt} withdrawn from float`);
-                    loadAccountHome();
-                } else toast('Invalid amount');
-            };
             document.getElementById('showHistoryBtn').onclick = () => loadHistoryScreen();
             document.getElementById('showEarningsBtn').onclick = () => loadEarningsScreen();
+            document.getElementById('showFloatBtn').onclick = () => loadFloatManagementScreen();
             document.getElementById('logoutBtn').onclick = () => auth.signOut();
         }
 
-        // ========== HISTORY SCREEN ==========
+        // ========== RIDE HISTORY (with customer number, distance, price in bold) ==========
         async function loadHistoryScreen() {
             document.getElementById('modalDynamicTitle').innerText = 'Ride History';
             const snap = await db.ref('rides').orderByChild('driverId').equalTo(currentUser.uid).once('value');
@@ -1254,9 +1252,16 @@
                 div.className = 'history-card';
                 div.dataset.rideId = ride.id;
                 div.innerHTML = `
-                    <div class="history-header"><span><strong>${ride.passengerName}</strong></span><span class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">${ride.status}</span></div>
+                    <div class="history-header">
+                        <span><strong>${ride.passengerName}</strong> (${ride.passengerPhone || 'N/A'})</span>
+                        <span class="status-badge ${ride.status === 'completed' ? 'status-completed' : 'status-cancelled'}">${ride.status}</span>
+                    </div>
                     <div>${ride.pickup} → ${ride.destination}</div>
-                    <div>K${(ride.fare || 0).toFixed(2)} | ${new Date(ride.timestamp).toLocaleString()}</div>
+                    <div class="history-detail">
+                        <span>📏 Distance: <strong class="amount-bold">${ride.distance ? ride.distance.toFixed(1) : '?'} km</strong></span>
+                        <span>💰 Price: <strong class="amount-bold">K${(ride.fare || 0).toFixed(2)}</strong></span>
+                    </div>
+                    <div>${new Date(ride.timestamp).toLocaleString()}</div>
                     <div class="commission-row"><span>Commission (8%):</span><span>-K${((ride.fare || 0)*0.08).toFixed(2)}</span></div>
                 `;
                 div.addEventListener('click', async () => {
@@ -1273,38 +1278,135 @@
             });
         }
 
-        // ========== EARNINGS SCREEN ==========
+        // ========== EARNINGS (today, week, month with breakdown) ==========
+        let currentEarningsPeriod = 'today';
         async function loadEarningsScreen() {
             document.getElementById('modalDynamicTitle').innerText = 'Earnings';
-            const snap = await db.ref(`earnings/${currentUser.uid}`).once('value');
-            const earnings = snap.val();
-            let total = 0, rides = 0;
-            if (earnings) {
-                Object.values(earnings).forEach(e => { total += e.amount; rides++; });
-            }
             const container = document.getElementById('accountModalContent');
             container.innerHTML = `
+                <div class="period-tabs" style="display:flex; gap:10px; margin-bottom:20px;">
+                    <button id="todayBtn" class="btn-step" style="background:#FF6B35;">Today</button>
+                    <button id="weekBtn" class="btn-step" style="background:#e0e0e0; color:#333;">This Week</button>
+                    <button id="monthBtn" class="btn-step" style="background:#e0e0e0; color:#333;">This Month</button>
+                </div>
+                <div id="earningsStats"></div>
+                <div id="earningsList"></div>
+            `;
+            document.getElementById('todayBtn').onclick = () => setEarningsPeriod('today');
+            document.getElementById('weekBtn').onclick = () => setEarningsPeriod('week');
+            document.getElementById('monthBtn').onclick = () => setEarningsPeriod('month');
+            await renderEarnings(currentEarningsPeriod);
+        }
+
+        async function setEarningsPeriod(period) {
+            currentEarningsPeriod = period;
+            // update button styles
+            const btns = ['todayBtn', 'weekBtn', 'monthBtn'];
+            btns.forEach(btnId => {
+                const btn = document.getElementById(btnId);
+                if (btn) btn.style.background = btnId === period+'Btn' ? '#FF6B35' : '#e0e0e0';
+            });
+            await renderEarnings(period);
+        }
+
+        async function renderEarnings(period) {
+            const snap = await db.ref(`earnings/${currentUser.uid}`).once('value');
+            const earnings = snap.val();
+            if (!earnings) {
+                document.getElementById('earningsStats').innerHTML = '<div>No earnings yet</div>';
+                document.getElementById('earningsList').innerHTML = '';
+                return;
+            }
+            const now = new Date();
+            let total = 0, ridesCount = 0;
+            const filtered = [];
+            Object.values(earnings).forEach(e => {
+                const date = new Date(e.timestamp);
+                let include = false;
+                if (period === 'today') include = date.toDateString() === now.toDateString();
+                else if (period === 'week') {
+                    const startOfWeek = new Date(now);
+                    startOfWeek.setDate(now.getDate() - now.getDay());
+                    startOfWeek.setHours(0,0,0,0);
+                    include = date >= startOfWeek;
+                } else if (period === 'month') {
+                    include = (date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear());
+                }
+                if (include) {
+                    total += e.amount;
+                    ridesCount++;
+                    filtered.push(e);
+                }
+            });
+            filtered.sort((a,b)=>b.timestamp - a.timestamp);
+            document.getElementById('earningsStats').innerHTML = `
                 <div class="wallet-balance-card" style="background:#f8f8fc; padding:16px; border-radius:20px; text-align:center; margin-bottom:20px;">
                     <div class="balance-label">Total Earnings</div>
                     <div class="balance-amount-large" style="font-size:2rem; font-weight:800; color:#FF6B35;">K${total.toFixed(2)}</div>
-                    <div>${rides} completed rides</div>
+                    <div>${ridesCount} completed rides</div>
                 </div>
-                <h3>Recent Earnings</h3>
-                <div id="earningsList"></div>
             `;
             const listDiv = document.getElementById('earningsList');
-            if (earnings) {
-                Object.values(earnings).sort((a,b)=>b.timestamp - a.timestamp).forEach(e => {
-                    const div = document.createElement('div');
-                    div.className = 'history-card';
-                    div.innerHTML = `
-                        <div class="history-header"><span>${e.passengerName || 'Rider'}</span><span>K${e.amount.toFixed(2)}</span></div>
-                        <div>${new Date(e.timestamp).toLocaleString()}</div>
-                        <div class="commission-row"><span>Total Fare:</span><span>K${e.totalFare?.toFixed(2) || '0.00'}</span></div>
+            if (filtered.length) {
+                let html = '';
+                filtered.forEach(e => {
+                    html += `
+                        <div class="earnings-card">
+                            <div class="history-header"><span><strong>${e.passengerName || 'Rider'}</strong></span><span class="amount-bold">K${e.amount.toFixed(2)}</span></div>
+                            <div class="history-detail">Total Fare: K${e.totalFare.toFixed(2)} | Distance: ${e.distance ? e.distance.toFixed(1) : '?'} km</div>
+                            <div class="commission-row"><span>Commission (8%):</span><span>-K${e.commission.toFixed(2)}</span></div>
+                            <div class="history-detail">${new Date(e.timestamp).toLocaleString()}</div>
+                        </div>
                     `;
-                    listDiv.appendChild(div);
                 });
-            } else listDiv.innerHTML = '<div>No earnings yet</div>';
+                listDiv.innerHTML = html;
+            } else {
+                listDiv.innerHTML = '<div>No rides in this period</div>';
+            }
+        }
+
+        // ========== FLOAT MANAGEMENT ==========
+        async function loadFloatManagementScreen() {
+            document.getElementById('modalDynamicTitle').innerText = 'Float Management';
+            const container = document.getElementById('accountModalContent');
+            container.innerHTML = `
+                <div class="wallet-balance-card" style="background:#f8f8fc; padding:16px; border-radius:20px; text-align:center; margin-bottom:20px;">
+                    <div class="balance-label">Available Float</div>
+                    <div class="balance-amount-large" style="font-size:2rem; font-weight:800; color:#FF6B35;">K${floatBalance.toFixed(2)}</div>
+                </div>
+                <button id="addFloatMainBtn" class="btn-step" style="background:#34c759; margin-bottom:20px;">+ Add Float</button>
+                <h3>Float History</h3>
+                <div id="floatHistoryList"></div>
+            `;
+            document.getElementById('addFloatMainBtn').onclick = () => document.getElementById('floatPopup').classList.add('active');
+            // Load float history
+            const snap = await db.ref(`floatHistory/${currentUser.uid}`).orderByChild('timestamp').limitToLast(50).once('value');
+            const history = snap.val();
+            const historyDiv = document.getElementById('floatHistoryList');
+            if (history) {
+                const items = Object.values(history).sort((a,b)=>b.timestamp - a.timestamp);
+                let html = '';
+                items.forEach(item => {
+                    const isCommission = item.description && item.description.includes('commission');
+                    const amountClass = item.amount > 0 ? 'amount-bold' : 'text-danger';
+                    const sign = item.amount > 0 ? '+' : '';
+                    html += `
+                        <div class="float-history-card">
+                            <div class="history-header">
+                                <span>${item.description || (item.amount > 0 ? 'Deposit' : 'Withdrawal')}</span>
+                                <span class="${amountClass}">${sign}K${Math.abs(item.amount).toFixed(2)}</span>
+                            </div>
+                            ${item.rideId ? `<div>Ride: ${item.rideId.substring(0,8)}...</div>` : ''}
+                            ${item.rideFare ? `<div>Fare: K${item.rideFare.toFixed(2)}</div>` : ''}
+                            <div class="history-detail">${new Date(item.timestamp).toLocaleString()}</div>
+                            <div class="commission-row"><span>Balance after:</span><span>K${item.balance.toFixed(2)}</span></div>
+                        </div>
+                    `;
+                });
+                historyDiv.innerHTML = html;
+            } else {
+                historyDiv.innerHTML = '<div>No float history yet</div>';
+            }
         }
 
         // ========== AUTH FLOW ==========
@@ -1532,7 +1634,9 @@
                 document.getElementById('topFloatBalance').innerHTML = `<i class="fas fa-wallet"></i> K${floatBalance.toFixed(2)}`;
                 toast('Float added');
                 document.getElementById('floatPopup').classList.remove('active');
-                loadAccountHome();
+                if (document.getElementById('modalDynamicTitle').innerText === 'Float Management') {
+                    loadFloatManagementScreen();
+                }
             }
         };
         document.getElementById('cancelFloatBtn').onclick = () => document.getElementById('floatPopup').classList.remove('active');
