@@ -127,7 +127,7 @@
             color: white;
             overflow: hidden;
         }
-        /* ----- BOTTOM FAB ----- */
+        /* ----- BOTTOM FAB (hidden during active ride) ----- */
         .account-fab {
             position: fixed;
             bottom: 28px;
@@ -146,6 +146,9 @@
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+        .account-fab.hidden {
+            display: none;
         }
         /* ----- RIDE REQUEST POPUP (Enhanced) ----- */
         .ride-request-popup {
@@ -174,7 +177,6 @@
             overflow-y: auto;
             flex: 1;
         }
-        /* Customer card */
         .customer-card {
             background: linear-gradient(135deg, #FFF3E0, #FFE8E0);
             border-radius: 24px;
@@ -191,7 +193,6 @@
             font-size: 0.85rem;
             margin-top: 4px;
         }
-        /* Location cards */
         .location-card {
             background: #f8f8fc;
             border-radius: 20px;
@@ -225,7 +226,6 @@
             font-weight: 600;
             font-size: 0.9rem;
         }
-        /* Fare card */
         .fare-card {
             background: #FF6B35;
             border-radius: 20px;
@@ -238,12 +238,6 @@
             font-size: 2rem;
             font-weight: 800;
         }
-        .fare-detail {
-            font-size: 0.8rem;
-            margin-top: 4px;
-            opacity: 0.9;
-        }
-        /* Action buttons */
         .action-buttons-pill {
             display: flex;
             gap: 14px;
@@ -265,7 +259,7 @@
             background: #ff3b30;
             color: white;
         }
-        /* ----- ACTIVE RIDE PANEL (no map cut) ----- */
+        /* ----- ACTIVE RIDE PANEL ----- */
         .active-ride-panel {
             position: fixed;
             bottom: 0;
@@ -432,7 +426,7 @@
         .info-value {
             font-weight: 600;
         }
-        /* Image grid with titles */
+        /* Image grid with titles - only actual images shown */
         .image-grid-2x2 {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -653,7 +647,7 @@
             70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(231,76,60,0); }
             100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231,76,60,0); }
         }
-        /* ----- AUTH SCREENS (2‑step retractable form) ----- */
+        /* ----- AUTH SCREENS (2‑step retractable) ----- */
         .auth-overlay {
             position: fixed;
             top: 0;
@@ -802,10 +796,9 @@
         <div class="auth-footer" style="margin-top:20px;">Don't have an account? <span id="goToSignupFromLogin" class="auth-link">Sign Up</span></div>
     </div>
 
-    <!-- Two‑step registration form (like original) -->
+    <!-- Two‑step registration -->
     <div id="signupScreen" class="auth-overlay hidden">
         <button id="backFromSignup" style="align-self: flex-start; margin-bottom:20px; background:none; border:none; font-size:1.5rem;"><i class="fas fa-arrow-left"></i></button>
-        <!-- Step 1: Personal Info & Vehicle Type -->
         <div id="step1Container" class="step-container active-step" style="width:100%; max-width:400px;">
             <div class="form-group"><input type="text" id="signupName" placeholder="Full Name" class="form-input" required></div>
             <div class="form-group"><input type="email" id="signupEmail" placeholder="Email" class="form-input" required></div>
@@ -824,7 +817,6 @@
             </div>
             <button id="nextStepBtn" class="btn-step">Next → Vehicle Details</button>
         </div>
-        <!-- Step 2: Vehicle Details & Image Upload -->
         <div id="step2Container" class="step-container" style="width:100%; max-width:400px;">
             <div id="dynamicVehicleFields"></div>
             <div id="imageUploadGrid" class="image-upload-grid"></div>
@@ -854,7 +846,7 @@
         </div>
         <button class="account-fab" id="accountFabBtn"><i class="fas fa-user-circle"></i> Account</button>
 
-        <!-- Ride Request Popup (Enhanced) -->
+        <!-- Ride Request Popup -->
         <div id="rideRequestPopup" class="ride-request-popup">
             <div id="rideRequestMap" class="popup-map"></div>
             <div class="popup-details" id="rideRequestDetails"></div>
@@ -885,7 +877,7 @@
             <div class="modal-content" id="accountModalContent"></div>
         </div>
 
-        <!-- Float Popup (Add Float) -->
+        <!-- Float Popup -->
         <div id="floatPopup" class="float-popup">
             <h3>Add Float</h3>
             <input type="number" id="floatAmount" placeholder="Amount (K)" class="form-input">
@@ -947,6 +939,8 @@
         let isOnline = false;
         let driverMap, rideRequestMap;
         let driverMarker = null;
+        let customerMarker = null;
+        let destinationMarker = null;
         let locationWatchId = null;
         let floatBalance = 0, walletBalance = 0;
         let selectedVehicleType = 'car';
@@ -978,18 +972,28 @@
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(pos => {
                     const { latitude, longitude } = pos.coords;
-                    driverMap.setView([latitude, longitude], 15);
-                    driverMarker = L.marker([latitude, longitude], { icon: L.divIcon({ className: 'driver-marker', html: '<div style="background:#FF6B35; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white;">🚗</div>' }) }).addTo(driverMap);
+                    // Center on driver with zoom 18 (~100m)
+                    driverMap.setView([latitude, longitude], 18);
+                    // Custom driver marker using driver.png
+                    const driverIcon = L.icon({
+                        iconUrl: 'driver.png',
+                        iconSize: [48, 48],
+                        iconAnchor: [24, 24],
+                        popupAnchor: [0, -24]
+                    });
+                    driverMarker = L.marker([latitude, longitude], { icon: driverIcon }).addTo(driverMap);
                     updateDriverLocation(latitude, longitude);
                 });
             }
         }
+
         function updateDriverLocation(lat, lng) {
             if (currentUser && isOnline) {
                 db.ref(`driverLocations/${currentUser.uid}`).set({ lat, lng, timestamp: Date.now() });
             }
             if (driverMarker) driverMarker.setLatLng([lat, lng]);
         }
+
         function startLocationTracking() {
             if (navigator.geolocation) {
                 locationWatchId = navigator.geolocation.watchPosition(pos => updateDriverLocation(pos.coords.latitude, pos.coords.longitude));
@@ -1046,7 +1050,7 @@
             });
         }
 
-        // Enhanced ride request display with proper styling
+        // Enhanced ride request display with proper map zoom
         async function showRideRequest(id, ride) {
             currentRideRequest = { id, ...ride };
             const detailsHtml = `
@@ -1081,12 +1085,11 @@
             document.getElementById('rideRequestDetails').innerHTML = detailsHtml;
             document.getElementById('rideRequestPopup').classList.add('active');
 
-            // Draw route on the mini map
+            // Draw route on the mini map and fit bounds
             if (ride.pickupLat && ride.destLat) {
                 rideRequestMap.eachLayer(l => { if (l instanceof L.Marker || l instanceof L.Polyline) rideRequestMap.removeLayer(l); });
                 const pickup = L.marker([ride.pickupLat, ride.pickupLng]).addTo(rideRequestMap).bindPopup('Pickup');
                 const dest = L.marker([ride.destLat, ride.destLng]).addTo(rideRequestMap).bindPopup('Destination');
-                // Fetch route from OSRM
                 try {
                     const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${ride.pickupLng},${ride.pickupLat};${ride.destLng},${ride.destLat}?overview=full&geometries=geojson`);
                     const data = await res.json();
@@ -1129,11 +1132,26 @@
             currentRide = { id: currentRideRequest.id, ...currentRideRequest, ...rideUpdate };
             document.getElementById('rideRequestPopup').classList.remove('active');
             document.getElementById('activeRidePanel').classList.add('active');
+            // Hide account button during active ride
+            document.getElementById('accountFabBtn').classList.add('hidden');
             document.getElementById('activeCustomerName').innerText = currentRide.passengerName;
             document.getElementById('activePickup').innerText = currentRide.pickupDisplay || currentRide.pickup;
             document.getElementById('activeDest').innerText = currentRide.destinationDisplay || currentRide.destination;
             document.getElementById('activePrice').innerText = `K${(currentRide.fare || 0).toFixed(2)}`;
             document.getElementById('sosButton').style.display = 'flex';
+
+            // Add customer pickup marker on main map
+            if (currentRide.pickupLat && currentRide.pickupLng) {
+                if (customerMarker) driverMap.removeLayer(customerMarker);
+                const customerIcon = L.divIcon({ className: 'customer-marker', html: '<div style="background:#FF6B35; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white;">📍</div>' });
+                customerMarker = L.marker([currentRide.pickupLat, currentRide.pickupLng], { icon: customerIcon }).addTo(driverMap).bindPopup('Customer Pickup');
+            }
+            if (currentRide.destLat && currentRide.destLng) {
+                if (destinationMarker) driverMap.removeLayer(destinationMarker);
+                const destIcon = L.divIcon({ className: 'dest-marker', html: '<div style="background:#E74C3C; width:30px; height:30px; border-radius:50%; text-align:center; line-height:30px; color:white;">🏁</div>' });
+                destinationMarker = L.marker([currentRide.destLat, currentRide.destLng], { icon: destIcon }).addTo(driverMap).bindPopup('Destination');
+            }
+
             setupHoldButton();
             currentRideRequest = null;
             toast('Ride accepted');
@@ -1189,7 +1207,6 @@
                         passengerName: currentRide.passengerName
                     });
                     await db.ref(`rides/${currentRide.id}`).update({ status: 'completed', completedAt: Date.now() });
-                    // Record float history for commission
                     await db.ref(`floatHistory/${currentUser.uid}`).push({
                         amount: -commission,
                         description: `Commission for ride to ${currentRide.destination}`,
@@ -1202,6 +1219,11 @@
                     currentRide = null;
                     document.getElementById('activeRidePanel').classList.remove('active');
                     document.getElementById('sosButton').style.display = 'none';
+                    // Show account button again
+                    document.getElementById('accountFabBtn').classList.remove('hidden');
+                    // Remove customer/destination markers
+                    if (customerMarker) driverMap.removeLayer(customerMarker);
+                    if (destinationMarker) driverMap.removeLayer(destinationMarker);
                 } else {
                     await db.ref(`rides/${currentRide.id}`).update({ status: nextStatus });
                     currentRide.status = nextStatus;
@@ -1325,17 +1347,18 @@
                 <button id="logoutBtn" class="btn-step" style="background:#ff3b30;">Logout</button>
             `;
 
-            // Vehicle images with titles
-            const vehicleGrid = document.getElementById('vehicleImagesGrid');
+            // Vehicle images based on vehicle type (only show actual images)
             const images = user.images || {};
-            const vehicleImgMap = {
-                'vehicleFront': 'Front View',
-                'vehicleBack': 'Rear View',
-                'bikePhoto': 'Bike Photo',
-                'truckFront': 'Truck Front'
-            };
+            const vehicleType = user.vehicle?.type;
+            let vehicleImgKeys = [];
+            if (vehicleType === 'car') vehicleImgKeys = ['vehicleFront', 'vehicleBack'];
+            else if (vehicleType === 'bike') vehicleImgKeys = ['bikePhoto'];
+            else if (vehicleType === 'bicycle') vehicleImgKeys = ['bicyclePhoto'];
+            else if (vehicleType === 'truck') vehicleImgKeys = ['truckFront', 'truckBack'];
+            const vehicleGrid = document.getElementById('vehicleImagesGrid');
             let vhtml = '';
-            Object.entries(vehicleImgMap).forEach(([key, title]) => {
+            vehicleImgKeys.forEach(key => {
+                const title = key === 'vehicleFront' ? 'Front View' : key === 'vehicleBack' ? 'Rear View' : key === 'bikePhoto' ? 'Bike Photo' : key === 'truckFront' ? 'Front View' : 'Rear View';
                 vhtml += `<div class="image-card">
                     <div class="image-card-img">${images[key] ? `<img src="${images[key]}">` : '<i class="fas fa-image" style="font-size:2rem; color:#ccc;"></i>'}</div>
                     <div class="image-card-title">${title}</div>
@@ -1343,7 +1366,7 @@
             });
             vehicleGrid.innerHTML = vhtml;
 
-            // Documents with titles
+            // Documents (always show NRC and license)
             const docGrid = document.getElementById('documentsGrid');
             const docImgMap = {
                 'nrcFront': 'NRC Front',
@@ -1517,7 +1540,6 @@
                 const items = Object.values(history).sort((a,b)=>b.timestamp - a.timestamp);
                 let html = '';
                 items.forEach(item => {
-                    const isCommission = item.description && item.description.includes('commission');
                     const amountClass = item.amount > 0 ? 'amount-bold' : 'text-danger';
                     const sign = item.amount > 0 ? '+' : '';
                     html += `
